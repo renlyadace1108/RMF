@@ -125,7 +125,162 @@ public class GeminiService
     }
 
     /// <summary>
-    /// 1. 绝对客观可靠的日程审查 (Schedule Audit)
+    /// AI 功能 1: 多维效能分析 (AI Schedule Analysis)
+    /// </summary>
+    public async Task<string> AnalyzeScheduleAsync(List<ScheduleItem> items, DateTime targetDate)
+    {
+        string systemInstruction = @"你是一个追求绝对客观、精通时间资产配置与认知工程学的顶级效能分析专家 (RMF AI Schedule Analyst)。
+你的分析必须建立在严谨的时间数据与客观科学规律之上，严禁任何情绪化打气或鸡汤套话。
+
+请按以下 4 个维度进行结构化深度剖析：
+1. ⏰【时间资产配置透视】：核算总工时、深度工作 (DeepWork) 与浅度事务 (ShallowWork) 比例，评估时间资产是否倾斜于核心战略产出；
+2. 🧩【专注度与碎片化诊断】：分析单时间块长度、任务切换频率与碎片化指数，指出上下文切换造成的认知损耗；
+3. 🌅【精力节律与生物钟匹配】：分析上午峰值精力时段（9:00-11:30）与下午低谷时段的任务类型分配是否合理；
+4. 🎯【综合效能评级与核心行动建议】：给出一个综合评级 (如 S/A/B/C/D)，并给出 2~3 条高价值、立即可落地的效能改进策略。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"【分析日期】：{targetDate:yyyy年MM月dd日 dddd}");
+        sb.AppendLine($"【今日排期日程清单 (共 {items.Count} 项)】：");
+
+        if (items.Count == 0)
+        {
+            sb.AppendLine("（今日暂未录入任何日程时间块）");
+        }
+        else
+        {
+            double totalMins = 0;
+            double deepMins = 0;
+            double shallowMins = 0;
+            double restMins = 0;
+
+            foreach (var item in items)
+            {
+                var dur = (item.EndTime - item.StartTime).TotalMinutes;
+                if (dur <= 0) dur = item.EstimatedMinutes;
+                totalMins += dur;
+
+                if (item.WorkType == "DEEP_WORK") deepMins += dur;
+                else if (item.WorkType == "REST_BUFFER") restMins += dur;
+                else shallowMins += dur;
+
+                sb.AppendLine($"- [{item.StartTime:HH:mm} - {item.EndTime:HH:mm}] [{item.WorkType}] {item.Title} (分类: {item.Category}, 优先级: {item.Priority}, 状态: {item.Status})");
+                if (!string.IsNullOrWhiteSpace(item.Dod)) sb.AppendLine($"  DoD验收标准: {item.Dod}");
+                if (!string.IsNullOrWhiteSpace(item.Description)) sb.AppendLine($"  描述: {item.Description}");
+            }
+
+            sb.AppendLine($"\n【统计基础数据】：总计划工时 {totalMins / 60:F1}h | 深度工作 {deepMins / 60:F1}h | 浅层事务 {shallowMins / 60:F1}h | 休息缓冲 {restMins / 60:F1}h");
+        }
+
+        sb.AppendLine("\n请展开客观深度的多维效能分析：");
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
+    /// AI 功能 2: 客观排期审核 (AI Schedule Audit)
+    /// </summary>
+    public async Task<string> AuditScheduleAsync(List<ScheduleItem> items, DateTime targetDate, AuditScanReport? report = null)
+    {
+        string systemInstruction = @"你是一个冷酷、客观、严谨的 AI 日程调度与认知负荷风险审核引擎 (RMF AI Schedule Auditor)。
+你的职责是进行彻底的排期质量审查，找出可能导致执行崩溃、精力耗竭或交付失败的硬伤缺陷。杜绝任何客套与安慰。
+
+请依据以下核心规则进行全面审查与裁决：
+1. ⚖️【DoD 验收标准质检】：审查每项任务是否存在模糊、缺乏可验证交付产物的风险；
+2. 🧠【4.5h 深度负荷硬顶】：核查单日深度工作是否超过人类生理极限 (4.5小时)，是否存在决策疲劳或认知崩溃风险；
+3. ☕【转场缓冲与恢复合规】：核查连续专注时段之间是否存在无缝背靠背排期，是否预留了 10~15 分钟的生理缓冲；
+4. ⚡【时段重叠与可行性漏洞】：核实时间块是否冲突、夜晚过晚时段排高脑力任务等违背常识的安排；
+5. 📋【强制纠偏指令】：给出明确的排期整改清单，指明哪些任务必须移入延期池、哪些任务必须补充 DoD。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"【审核日期】：{targetDate:yyyy年MM月dd日 dddd}");
+
+        if (report != null)
+        {
+            sb.AppendLine($"【排期健康评分】：{report.OverallHealthScore}/100");
+            sb.AppendLine($"【总排期时长】：{report.TotalScheduledHours:F1}h | 深度工作: {report.DeepWorkHours:F1}h (上限: {report.DeepWorkCapHours:F1}h)");
+            sb.AppendLine($"【DoD 完备率】：{report.DoDComplianceRatio:F0}%");
+            sb.AppendLine($"【缓冲缺失次数】：{report.MissingBufferCount} 次");
+            if (report.Issues.Count > 0)
+            {
+                sb.AppendLine("【本地规则引擎初筛违规项】：");
+                foreach (var issue in report.Issues)
+                {
+                    sb.AppendLine($"- [{issue.Severity}] {issue.Title}: {issue.Description}");
+                }
+            }
+        }
+
+        sb.AppendLine("\n【待审核日程时间块明细】：");
+        if (items.Count == 0)
+        {
+            sb.AppendLine("（无排期日程）");
+        }
+        else
+        {
+            foreach (var item in items)
+            {
+                sb.AppendLine($"- [{item.StartTime:HH:mm} - {item.EndTime:HH:mm}] [{item.WorkType}] {item.Title} | 状态: {item.Status}");
+                sb.AppendLine($"  验收标准 DoD: {(string.IsNullOrWhiteSpace(item.Dod) ? "【未定义】" : item.Dod)}");
+            }
+        }
+
+        sb.AppendLine("\n请输出严密的排期审核报告与强制裁决指令：");
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
+    /// AI 功能 3: 智能排期建议与优化 (AI Schedule Suggestions)
+    /// </summary>
+    public async Task<string> SuggestScheduleAsync(List<ScheduleItem> items, List<ScheduleItem> backlogItems, DateTime targetDate, string? customGoal = null)
+    {
+        string systemInstruction = @"你是一个顶级的 AI 日程编排与效能优化顾问 (RMF AI Scheduling Advisor)。
+基于认知负荷理论、生物钟精力曲线与敏捷时间块原则，为用户推演最优的排期优化建议。
+
+请按以下模块输出极具实操性的优化建议方案：
+1. 🌅【黄金专注时段重排建议】：指导用户将高认知脑力任务（Lv3/Lv4 深度工作）安排在早晨黄金专注时段 (09:00-11:30)，将低脑力琐碎事务和沟通会议移至下午低谷时段；
+2. ☕【转场缓冲与恢复插入建议】：明确指出在哪些具体时间点之间应插入 10~15 分钟的休息缓冲；
+3. 🎯【DoD 验收标准补全建议】：挑选排期中缺少 DoD 或 DoD 模糊的任务，为每项生成一句具体、量化、可验证的验收标准；
+4. 📥【敏捷待办填充方案】：结合用户今日剩余空闲时间块与敏捷待办池 (Backlog)，建议优先填入哪项待办任务；
+5. 🌟【一句话行动纲要】：简明扼要的今日最高优先级执行指引。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"【建议规划日期】：{targetDate:yyyy年MM月dd日 dddd}");
+        if (!string.IsNullOrWhiteSpace(customGoal))
+        {
+            sb.AppendLine($"【用户的优先诉求/特别偏好】：{customGoal}");
+        }
+
+        sb.AppendLine("\n【今日现有排期】：");
+        if (items.Count == 0)
+        {
+            sb.AppendLine("（今日暂无排期，全天时间段均可自由编排）");
+        }
+        else
+        {
+            foreach (var it in items)
+            {
+                sb.AppendLine($"- [{it.StartTime:HH:mm} - {it.EndTime:HH:mm}] [{it.WorkType}] {it.Title} (DoD: {(string.IsNullOrEmpty(it.Dod) ? "无" : it.Dod)})");
+            }
+        }
+
+        sb.AppendLine("\n【未排期敏捷待办池 (Backlog)】：");
+        if (backlogItems.Count == 0)
+        {
+            sb.AppendLine("（待办池为空）");
+        }
+        else
+        {
+            foreach (var b in backlogItems)
+            {
+                sb.AppendLine($"- [待办] {b.Title} (预估 {b.EstimatedMinutes}m, 优先级: {b.Priority})");
+            }
+        }
+
+        sb.AppendLine("\n请给出结构清晰、可操作性极强的智能排期与优化建议：");
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
+    /// 兼容重载：绝对客观可靠的日程审查 (Schedule Audit)
     /// </summary>
     public async Task<string> AuditScheduleAsync(List<ScheduleItem> items, string currentActivity)
     {

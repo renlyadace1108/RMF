@@ -299,6 +299,12 @@ public partial class MainWindow : Window
 
         // 7. 更新分类筛选标签
         RenderMyCalendarsList();
+
+        // 8. 实时更新 AI 侧边栏排期体检与指标基本盘
+        if (RightDrawerColumn != null && RightDrawerColumn.Width.Value > 0)
+        {
+            UpdateAiSidebarContext();
+        }
     }
 
     private void UpdateSyncStatusBadge()
@@ -5127,6 +5133,342 @@ public partial class MainWindow : Window
     }
 
     private void OnCloseRightDrawerClicked(object sender, RoutedEventArgs e) => RightDrawerColumn.Width = new GridLength(0);
+
+    // =========================================================================
+    // ===================== GEMINI AI SMART WORKSPACE =========================
+    // =========================================================================
+
+    private void OnToggleAiSidebarClicked(object sender, RoutedEventArgs e)
+    {
+        if (RightDrawerColumn.Width.Value > 0)
+        {
+            RightDrawerColumn.Width = new GridLength(0);
+        }
+        else
+        {
+            RightDrawerColumn.Width = new GridLength(380);
+            UpdateAiSidebarContext();
+        }
+    }
+
+    private void OnCloseAiSidebarClicked(object sender, RoutedEventArgs e)
+    {
+        RightDrawerColumn.Width = new GridLength(0);
+    }
+
+    private void OnAiSidebarConfigureKeyClicked(object sender, RoutedEventArgs e)
+    {
+        SwitchSettingsTab(2);
+        SettingsModal.Visibility = Visibility.Visible;
+    }
+
+    private int _currentAiTabIndex = 0;
+
+    private void OnAiTabAnalyzeClicked(object sender, RoutedEventArgs e) => SwitchAiTab(0);
+    private void OnAiTabAuditClicked(object sender, RoutedEventArgs e) => SwitchAiTab(1);
+    private void OnAiTabSuggestClicked(object sender, RoutedEventArgs e) => SwitchAiTab(2);
+
+    private void SwitchAiTab(int tabIndex)
+    {
+        _currentAiTabIndex = tabIndex;
+        var activeBg = new SolidColorBrush(Color.FromRgb(0x7C, 0x3A, 0xED));
+        var normalBg = Brushes.Transparent;
+        var activeFg = Brushes.White;
+        var normalFg = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6));
+
+        AiTabAnalyzeBtn.Background = tabIndex == 0 ? activeBg : normalBg;
+        AiTabAnalyzeBtn.Foreground = tabIndex == 0 ? activeFg : normalFg;
+        AiTabAnalyzeBtn.FontWeight = tabIndex == 0 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        AiTabAuditBtn.Background = tabIndex == 1 ? activeBg : normalBg;
+        AiTabAuditBtn.Foreground = tabIndex == 1 ? activeFg : normalFg;
+        AiTabAuditBtn.FontWeight = tabIndex == 1 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        AiTabSuggestBtn.Background = tabIndex == 2 ? activeBg : normalBg;
+        AiTabSuggestBtn.Foreground = tabIndex == 2 ? activeFg : normalFg;
+        AiTabSuggestBtn.FontWeight = tabIndex == 2 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        AiPanelAnalyze.Visibility = tabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AiPanelAudit.Visibility = tabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        AiPanelSuggest.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+
+        UpdateAiSidebarContext();
+    }
+
+    private void UpdateAiSidebarContext()
+    {
+        var config = ConfigService.Load();
+        string effectiveModel = config.GetEffectiveModel();
+        AiActiveModelText.Text = $"🤖 模型: {effectiveModel}";
+
+        bool hasKey = !string.IsNullOrWhiteSpace(config.GeminiApiKey);
+        AiApiKeyStatusText.Text = hasKey ? "🟢 API 已就绪" : "⚠️ 未配置 Key";
+        AiApiKeyStatusText.Foreground = hasKey ? new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)) : new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C));
+
+        // 1. Calculate schedule metrics for target date
+        var targetDate = _currentDate.Date;
+        var dayItems = DatabaseService.GetSchedulesForDate(targetDate)
+            .Where(s => !s.IsDeleted && s.Status != "POSTPONED").ToList();
+
+        double totalMinutes = 0;
+        double deepMinutes = 0;
+        double shallowMinutes = 0;
+        double bufferMinutes = 0;
+
+        foreach (var item in dayItems)
+        {
+            var dur = (item.EndTime - item.StartTime).TotalMinutes;
+            if (dur <= 0) dur = item.EstimatedMinutes;
+            totalMinutes += dur;
+
+            if (item.WorkType == "DEEP_WORK") deepMinutes += dur;
+            else if (item.WorkType == "REST_BUFFER") bufferMinutes += dur;
+            else shallowMinutes += dur;
+        }
+
+        double totalHours = totalMinutes / 60.0;
+        double deepHours = deepMinutes / 60.0;
+        double shallowHours = shallowMinutes / 60.0;
+        double bufferHours = bufferMinutes / 60.0;
+
+        double deepRatio = totalMinutes > 0 ? (deepMinutes / totalMinutes) * 100.0 : 0.0;
+        double shallowRatio = totalMinutes > 0 ? (shallowMinutes / totalMinutes) * 100.0 : 0.0;
+
+        AiMetricDeepWorkText.Text = $"{deepHours:F1}h ({deepRatio:F0}%)";
+        AiMetricShallowWorkText.Text = $"{shallowHours:F1}h ({shallowRatio:F0}%)";
+        AiMetricBufferText.Text = $"{bufferHours:F1}h";
+        AiMetricFragmentationText.Text = $"{dayItems.Count} 项";
+
+        if (dayItems.Count == 0)
+        {
+            AiMetricSummaryText.Text = "今日尚未编排日程时间块。可使用左侧「+待办」或「创建」添加。";
+        }
+        else
+        {
+            double avgMins = dayItems.Count > 0 ? totalMinutes / dayItems.Count : 0;
+            AiMetricSummaryText.Text = $"今日已规划 {totalHours:F1}h 工时，单块平均 {avgMins:F0} 分钟。" +
+                (deepHours > 4.5 ? " ⚠️ 深度工作已超 4.5h 极限，建议移入延期池。" : " 深度工作负荷处于科学安全区间。");
+        }
+
+        // 2. Update Audit Quick Pre-scan
+        UpdateCognitiveLoadQuota();
+        UpdateOptimismMultiplier();
+    }
+
+    private async void OnRunAiAnalysisClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            var res = MessageBox.Show("未配置 Google AI Studio API Key！\n\n点击「确定」前往 AI 配置面板填入 Key，或获取免费 Key。", "提示", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+            if (res == MessageBoxResult.OK)
+            {
+                SwitchSettingsTab(2);
+                SettingsModal.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
+        RunAiAnalysisBtn.IsEnabled = false;
+        AiAnalysisLoadingBar.Visibility = Visibility.Visible;
+        AiAnalysisStatusText.Visibility = Visibility.Visible;
+        AiAnalysisStatusText.Text = "⏳ 正在连接 Google Gemini 模型进行时间资产与认知负荷多维剖析...";
+        AiAnalysisResultCard.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            var targetDate = _currentDate.Date;
+            var dayItems = DatabaseService.GetSchedulesForDate(targetDate)
+                .Where(s => !s.IsDeleted).OrderBy(s => s.StartTime).ToList();
+
+            string analysis = await _geminiService.AnalyzeScheduleAsync(dayItems, targetDate);
+
+            AiAnalysisResultText.Text = analysis;
+            AiAnalysisResultCard.Visibility = Visibility.Visible;
+            AiAnalysisStatusText.Text = "✅ Gemini 效能剖析报告已生成！";
+        }
+        catch (Exception ex)
+        {
+            AiAnalysisStatusText.Text = $"❌ 分析失败: {ex.Message}";
+        }
+        finally
+        {
+            RunAiAnalysisBtn.IsEnabled = true;
+            AiAnalysisLoadingBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCopyAiAnalysisClicked(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(AiAnalysisResultText.Text))
+        {
+            Clipboard.SetText(AiAnalysisResultText.Text);
+            AiAnalysisStatusText.Visibility = Visibility.Visible;
+            AiAnalysisStatusText.Text = "📋 已成功复制 Gemini 效能分析报告到剪贴板！";
+        }
+    }
+
+    private async void OnRunAiAuditClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            var res = MessageBox.Show("未配置 Google AI Studio API Key！\n\n点击「确定」前往 AI 配置面板填入 Key。", "提示", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+            if (res == MessageBoxResult.OK)
+            {
+                SwitchSettingsTab(2);
+                SettingsModal.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
+        RunAiAuditBtn.IsEnabled = false;
+        AiAuditLoadingBar.Visibility = Visibility.Visible;
+        AiAuditStatusText.Visibility = Visibility.Visible;
+        AiAuditStatusText.Text = "⏳ Gemini 正在以冷酷客观标准审核排期风险与 DoD 完备性...";
+        AuditScanResultCard.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            var targetDate = _currentDate.Date;
+            var dayItems = DatabaseService.GetSchedulesForDate(targetDate)
+                .Where(s => !s.IsDeleted).OrderBy(s => s.StartTime).ToList();
+
+            var report = SchedulerAuditEngine.RunAuditScan(targetDate, dayItems);
+
+            // Update issues panel
+            AuditScanIssuesPanel.Children.Clear();
+            if (report.Issues.Count == 0)
+            {
+                AuditScanIssuesPanel.Children.Add(new TextBlock
+                {
+                    Text = "🎉 未检出违规隐患！排期符合 DoD 质检、4.5h 脑力上限与转场缓冲规则。",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
+                    Margin = new Thickness(0, 2, 0, 4)
+                });
+            }
+            else
+            {
+                foreach (var iss in report.Issues)
+                {
+                    var card = new Border
+                    {
+                        Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x1B, 0x4E)),
+                        BorderBrush = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) :
+                                      iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) :
+                                      new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(8, 4, 8, 4),
+                        Margin = new Thickness(0, 0, 0, 4)
+                    };
+                    var sp = new StackPanel();
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"[{iss.Severity}] {iss.Title}",
+                        FontSize = 11,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
+                                     iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
+                                     new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = iss.Description,
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xE9, 0xD5, 0xFF)),
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 2, 0, 0)
+                    });
+                    card.Child = sp;
+                    AuditScanIssuesPanel.Children.Add(card);
+                }
+            }
+
+            // Call Gemini
+            string aiAudit = await _geminiService.AuditScheduleAsync(dayItems, targetDate, report);
+
+            AuditResultText.Text = aiAudit;
+            AuditRecommendationsText.Text = string.Join("\n", report.Recommendations);
+            AuditScanResultCard.Visibility = Visibility.Visible;
+            AiAuditStatusText.Text = "✅ Gemini 客观审核与风险裁决已完成！";
+        }
+        catch (Exception ex)
+        {
+            AiAuditStatusText.Text = $"❌ 审核失败: {ex.Message}";
+        }
+        finally
+        {
+            RunAiAuditBtn.IsEnabled = true;
+            AiAuditLoadingBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCopyAiAuditClicked(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(AuditResultText.Text))
+        {
+            Clipboard.SetText(AuditResultText.Text);
+            AiAuditStatusText.Visibility = Visibility.Visible;
+            AiAuditStatusText.Text = "📋 已成功复制 Gemini 审核意见与裁决到剪贴板！";
+        }
+    }
+
+    private async void OnRunAiSuggestClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            var res = MessageBox.Show("未配置 Google AI Studio API Key！\n\n点击「确定」前往 AI 配置面板填入 Key。", "提示", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+            if (res == MessageBoxResult.OK)
+            {
+                SwitchSettingsTab(2);
+                SettingsModal.Visibility = Visibility.Visible;
+            }
+            return;
+        }
+
+        RunAiSuggestBtn.IsEnabled = false;
+        AiSuggestLoadingBar.Visibility = Visibility.Visible;
+        AiSuggestStatusText.Visibility = Visibility.Visible;
+        AiSuggestStatusText.Text = "⏳ Gemini 正在结合认知规律与生物钟推演最优排期与时间块编排...";
+        AiSuggestResultCard.Visibility = Visibility.Collapsed;
+
+        try
+        {
+            var targetDate = _currentDate.Date;
+            var dayItems = DatabaseService.GetSchedulesForDate(targetDate)
+                .Where(s => !s.IsDeleted).OrderBy(s => s.StartTime).ToList();
+            var backlogItems = DatabaseService.GetBacklogSchedules();
+            string? userGoal = AiSuggestGoalInput.Text.Trim();
+
+            string suggestion = await _geminiService.SuggestScheduleAsync(dayItems, backlogItems, targetDate, string.IsNullOrEmpty(userGoal) ? null : userGoal);
+
+            AiSuggestResultText.Text = suggestion;
+            AiSuggestResultCard.Visibility = Visibility.Visible;
+            AiSuggestStatusText.Text = "✅ Gemini 智能优化建议已生成！";
+        }
+        catch (Exception ex)
+        {
+            AiSuggestStatusText.Text = $"❌ 生成建议失败: {ex.Message}";
+        }
+        finally
+        {
+            RunAiSuggestBtn.IsEnabled = true;
+            AiSuggestLoadingBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCopyAiSuggestClicked(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(AiSuggestResultText.Text))
+        {
+            Clipboard.SetText(AiSuggestResultText.Text);
+            AiSuggestStatusText.Visibility = Visibility.Visible;
+            AiSuggestStatusText.Text = "📋 已成功复制 Gemini 优化建议到剪贴板！";
+        }
+    }
 
     // =========================================================================
     // ===================== GOOGLE CALENDAR SYNC ENGINE =======================
