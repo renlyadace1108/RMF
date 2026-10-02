@@ -5082,12 +5082,50 @@ public partial class MainWindow : Window
     private void OnToggleExpenseDrawerClicked(object sender, RoutedEventArgs e) => ToggleDrawer("Expense");
     private void OnToggleSettingsDrawerClicked(object sender, RoutedEventArgs e)
     {
-        SettingsModal.Visibility = SettingsModal.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        if (SettingsModal.Visibility == Visibility.Visible)
+        {
+            SettingsModal.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            SwitchSettingsTab(0);
+            SettingsModal.Visibility = Visibility.Visible;
+        }
     }
+
     private void OnCloseSettingsModalClicked(object sender, RoutedEventArgs e)
     {
         SettingsModal.Visibility = Visibility.Collapsed;
     }
+
+    private void OnSettingsTabClientClicked(object sender, RoutedEventArgs e) => SwitchSettingsTab(0);
+    private void OnSettingsTabSyncClicked(object sender, RoutedEventArgs e) => SwitchSettingsTab(1);
+    private void OnSettingsTabAiClicked(object sender, RoutedEventArgs e) => SwitchSettingsTab(2);
+
+    private void SwitchSettingsTab(int tabIndex)
+    {
+        var activeBg = new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8));
+        var normalBg = Brushes.Transparent;
+        var activeFg = Brushes.White;
+        var normalFg = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6));
+
+        SettingsTabClientBtn.Background = tabIndex == 0 ? activeBg : normalBg;
+        SettingsTabClientBtn.Foreground = tabIndex == 0 ? activeFg : normalFg;
+        SettingsTabClientBtn.FontWeight = tabIndex == 0 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        SettingsTabSyncBtn.Background = tabIndex == 1 ? activeBg : normalBg;
+        SettingsTabSyncBtn.Foreground = tabIndex == 1 ? activeFg : normalFg;
+        SettingsTabSyncBtn.FontWeight = tabIndex == 1 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        SettingsTabAiBtn.Background = tabIndex == 2 ? activeBg : normalBg;
+        SettingsTabAiBtn.Foreground = tabIndex == 2 ? activeFg : normalFg;
+        SettingsTabAiBtn.FontWeight = tabIndex == 2 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        SettingsPanelClient.Visibility = tabIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanelSync.Visibility = tabIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanelAi.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void OnCloseRightDrawerClicked(object sender, RoutedEventArgs e) => RightDrawerColumn.Width = new GridLength(0);
 
     // =========================================================================
