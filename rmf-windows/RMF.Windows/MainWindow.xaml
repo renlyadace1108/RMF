@@ -121,6 +121,13 @@
                             <TextBlock Text="Google 同步中枢" />
                         </StackPanel>
                     </Button>
+
+                    <Button Name="NavSettingsBtn" Style="{StaticResource NavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavSettingsClicked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙️" FontSize="15" Margin="0,0,10,0" />
+                            <TextBlock Text="Gemini API 设置" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Bottom System Telemetry Card -->
@@ -332,34 +339,100 @@
                         </Border>
 
                         <!-- Right: AI Supervision & Live Window Radar -->
-                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
-                            <StackPanel>
-                                <TextBlock Text="🤖 Gemini 行为监管守护" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,14" />
+                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="18">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                                <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                <TextBlock Grid.Row="0" Text="🤖 Gemini 行为监管守护" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,12" />
+
+                                <!-- Current Active Window -->
+                                <Border Grid.Row="1" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
                                     <StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
                                             <Ellipse Width="6" Height="6" Fill="#38BDF8" Margin="0,0,6,0" />
-                                            <TextBlock Text="当前前台活动嗅探" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" />
+                                            <TextBlock Text="前台活动嗅探 (AI 输入流)" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" />
                                         </StackPanel>
-                                        <TextBlock Name="ActiveWindowText" Text="捕获中..." FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap" />
+                                        <TextBlock Name="ActiveWindowText" Text="捕获中..." FontSize="12" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
 
-                                <Border Background="#2E1065" BorderBrush="#581C87" BorderThickness="1" CornerRadius="8" Padding="14">
-                                    <StackPanel>
-                                        <TextBlock Text="实时监管反馈" FontWeight="Bold" FontSize="13" Foreground="#E9D5FF" Margin="0,0,0,6" />
-                                        <TextBlock Text="你正在专注处理研发工作。执行状态与日程计划完全吻合，无需调整。" FontSize="13" LineHeight="20" Foreground="#D8B4FE" TextWrapping="Wrap" />
-                                    </StackPanel>
+                                <!-- Audit Trigger Button -->
+                                <Button Grid.Row="2" Name="AuditScheduleBtn" Content="✨ 唤醒 Gemini 审查今日排期" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="12,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Margin="0,0,0,10" HorizontalAlignment="Stretch" Click="OnAuditScheduleClicked" />
+
+                                <!-- Real Gemini Feedback Card -->
+                                <Border Grid.Row="3" Background="#231A38" BorderBrush="#5B21B6" BorderThickness="1" CornerRadius="8" Padding="12">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="📋 Gemini 审查与复盘反馈" FontWeight="Bold" FontSize="12" Foreground="#DDD6FE" Margin="0,0,0,6" />
+                                            <TextBlock Name="AuditResultText" Text="点击上方按钮，Gemini 将根据你今日的所有日程排期与桌面活动，审查时间块密度、精力分配与潜在拖延风险。" FontSize="12" LineHeight="18" Foreground="#C4B5FD" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </ScrollViewer>
                                 </Border>
-                            </StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Grid>
 
-                <!-- 2. FOCUS VIEW -->
+                <!-- 2. FOCUS & AI SUPERVISION VIEW -->
                 <Grid Name="FocusView" Visibility="Collapsed">
-                    <TextBlock Text="⏱️ 专注与 AI 监管中枢" FontSize="20" FontWeight="Bold" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,10,0">
+                            <TextBlock Text="⏱️ 专注管理与 Gemini 监督思考中枢" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
+                            <TextBlock Text="充当你的 AI 思考合伙人与行为监督官：评估你的新灵感、检验执行可行性、防分心拉回、智能任务排程。" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,20" />
+
+                            <!-- Module A: Evaluate Idea & Thought -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                        <TextBlock Text="💡" FontSize="18" Margin="0,0,8,0" />
+                                        <TextBlock Text="监督评估我的想法与决策 (Idea &amp; Plan Auditor)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                                    </StackPanel>
+                                    <TextBlock Text="遇到突发的灵感、技术构想或生活安排？让 Gemini 从「主线专注度、可行性、沉没成本与第一步行动」帮你泼冷水或给出深度洞察：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,12" />
+
+                                    <TextBox Name="UserIdeaInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12" FontSize="13" AcceptsReturn="True" TextWrapping="Wrap" Height="80" VerticalScrollBarVisibility="Auto" Margin="0,0,0,12" />
+
+                                    <Button Name="EvaluateIdeaBtn" Content="🚀 让 Gemini 深入评估这个想法" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,10" FontWeight="SemiBold" FontSize="13" Cursor="Hand" HorizontalAlignment="Left" Margin="0,0,0,12" Click="OnEvaluateIdeaClicked" />
+
+                                    <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                            <TextBlock Name="IdeaEvaluationResultText" Text="（等待你的想法输入...）" FontSize="13" LineHeight="20" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Module B: Smart Auto-Scheduler -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                        <TextBlock Text="✨" FontSize="18" Margin="0,0,8,0" />
+                                        <TextBlock Text="AI 智能排程帮手 (Smart Planner)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                                    </StackPanel>
+                                    <TextBlock Text="输入你想达成的目标，Gemini 结合你现有的空白时间自动拆解为合理专注时间块：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,12" />
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Name="GoalPlanInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <Button Grid.Column="1" Name="PlanScheduleBtn" Content="生成推荐排程" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="16,10" FontWeight="SemiBold" Cursor="Hand" Click="OnPlanScheduleClicked" />
+                                    </Grid>
+
+                                    <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                                            <TextBlock Name="GoalPlanResultText" Text="（等待排程目标输入...）" FontSize="13" LineHeight="20" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- 3. FINANCE VIEW -->
@@ -395,6 +468,37 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
+                </Grid>
+
+                <!-- 5. SETTINGS VIEW -->
+                <Grid Name="SettingsView" Visibility="Collapsed">
+                    <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="24" MaxWidth="680" HorizontalAlignment="Left">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                <TextBlock Text="⚙️" FontSize="20" Margin="0,0,8,0" />
+                                <TextBlock Text="Google Gemini API 配置" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                            </StackPanel>
+                            <TextBlock Text="配置你的 Google AI Studio API Key，即可全量激活真实日程审查、智能排程与想法监督功能（免费/轻量，数据直连 Google 官方）。" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,20" TextWrapping="Wrap" />
+
+                            <TextBlock Text="Gemini API Key：" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
+                            <TextBox Name="ApiKeyInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="13" Margin="0,0,0,16" />
+
+                            <TextBlock Text="选用模型版本 (推荐默认 Flash 极速低延迟)：" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
+                            <ComboBox Name="ModelSelectCombo" SelectedIndex="0" Background="#18181B" Foreground="#000000" Padding="10,6" Margin="0,0,0,20">
+                                <ComboBoxItem Content="gemini-2.5-flash (推荐: 最新极速低延迟)" />
+                                <ComboBoxItem Content="gemini-1.5-flash (经典快速)" />
+                                <ComboBoxItem Content="gemini-2.0-flash (最新多模态)" />
+                                <ComboBoxItem Content="gemini-1.5-pro (深度思考/复杂推理)" />
+                            </ComboBox>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Name="SaveSettingsBtn" Content="💾 保存配置" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,10" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Margin="0,0,12,0" Click="OnSaveSettingsClicked" />
+                                <Button Name="TestApiBtn" Content="⚡ 测试 API 联通" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="16,10" FontSize="13" Cursor="Hand" Click="OnTestApiClicked" />
+                            </StackPanel>
+
+                            <TextBlock Name="SettingsStatusText" Text="" FontSize="13" Margin="0,14,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Grid>
         </Grid>

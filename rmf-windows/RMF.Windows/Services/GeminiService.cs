@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using RMF.Windows.Models;
+
+namespace RMF.Windows.Services;
+
+public class GeminiService
+{
+    private static readonly HttpClient HttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+
+    /// <summary>
+    /// 核心调用：向 Google Gemini 发送 Prompt
+    /// </summary>
+    private async Task<string> GenerateContentAsync(string systemInstruction, string userPrompt)
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            throw new InvalidOperationException("未配置 Gemini API Key！请点击左下角或设置面板填入你的 Google AI Studio API Key。");
+        }
+
+        string model = string.IsNullOrWhiteSpace(config.GeminiModel) ? "gemini-2.5-flash" : config.GeminiModel;
+        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.GeminiApiKey}";
+
+        var requestBody = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new[]
+                    {
+                        new { text = $"{systemInstruction}\n\n---\n\n{userPrompt}" }
+                    }
+                }
+            },
+            generationConfig = new
+            {
+                temperature = 0.7,
+                maxOutputTokens = 2048
+            }
+        };
+
+        string jsonPayload = JsonSerializer.Serialize(requestBody);
+        using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await HttpClient.PostAsync(endpoint, content);
+        string responseString = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Gemini API 调用失败 [HTTP {response.StatusCode}]: {responseString}");
+        }
+
+        using var doc = JsonDocument.Parse(responseString);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("candidates", out var candidates) &&
+            candidates.GetArrayLength() > 0 &&
+            candidates[0].TryGetProperty("content", out var contentElem) &&
+            contentElem.TryGetProperty("parts", out var parts) &&
+            parts.GetArrayLength() > 0 &&
+            parts[0].TryGetProperty("text", out var textElem))
+        {
+            return textElem.GetString() ?? string.Empty;
+        }
+
+        return "Gemini 未返回有效文本。";
+    }
+
+    /// <summary>
+    /// 1. 审查日程排期 (Schedule Audit)
+    /// </summary>
+    public async Task<string> AuditScheduleAsync(List<ScheduleItem> items, string currentActivity)
+    {
+        string systemInstruction = @"你是一个极其敏锐、客观、兼具建设性的私人效能主管与日程审查 AI (RMF Supervisor)。
+你的任务是审查用户今日的日程安排：
+1. 评估合理性：任务密度是否过载？是否有足够的缓冲和休息时间？
+2. 识别风险点：哪些任务容易发生拖延？精力峰值与任务类型是否匹配？
+3. 结合当前前台状态：用户当前电脑正在运行的应用是否与计划冲突？
+4. 给出 2~3 条极为具体、立竿见影的排期优化建议。
+请用清晰精炼的 Markdown 格式输出。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("【用户今日排期日程表】：");
+        if (items.Count == 0)
+        {
+            sb.AppendLine("（暂无安排）");
+        }
+        else
+        {
+            foreach (var item in items)
+            {
+                sb.AppendLine($"- [{item.StartTime:HH:mm} - {item.EndTime:HH:mm}] [{item.Category}] {item.Title} (状态: {item.Status}, 优先级: {item.Priority})");
+                if (!string.IsNullOrWhiteSpace(item.Description))
+                {
+                    sb.AppendLine($"  备注: {item.Description}");
+                }
+            }
+        }
+
+        sb.AppendLine($"\n【当前桌面实际活动嗅探】：{currentActivity}");
+        sb.AppendLine("请开始审查并给出专业建议：");
+
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
+    /// 2. 智能辅助编排日程 (Smart Planning)
+    /// </summary>
+    public async Task<string> PlanScheduleAsync(string userGoal, List<ScheduleItem> existingItems)
+    {
+        string systemInstruction = @"你是 RMF 的智能排程助手。
+用户会提出一个或多个目标想法（可能很模糊），请你：
+1. 将大目标合理拆解为 1~3 个具体可落地的时间块（建议 45~90 分钟单次深度专注）；
+2. 避开用户已有的日程安排；
+3. 输出明确的时间建议、任务名称与优先级。
+请用简洁有条理的 Markdown 输出推荐安排。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"【用户想要安排的目标】：\n{userGoal}\n");
+        sb.AppendLine("【已占用时间段】：");
+        foreach (var item in existingItems)
+        {
+            sb.AppendLine($"- {item.StartTime:HH:mm} - {item.EndTime:HH:mm}: {item.Title}");
+        }
+
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
+    /// 3. 评估用户的想法、灵感与决策 (Idea & Strategy Evaluation)
+    /// </summary>
+    public async Task<string> EvaluateIdeaAsync(string userIdea, string currentContext)
+    {
+        string systemInstruction = @"你是用户的 AI 智囊兼首席监督官。
+面对用户提出的突发想法、技术方案灵感或生活决策，你需要充当严格且深刻的思考伙伴：
+1. 价值与可行性评估：这个想法的核心亮点是什么？是否有隐藏的坑或高昂的沉没成本？
+2. 注意力防分散审查：当前是启动这个想法的最佳时机吗？它是否在诱惑用户从当前核心主线任务中分心？
+3. 执行路径建议：如果要做，最小可行性（MVP）的第一步应该是什么？
+请直切要害，避免空话套话，用富有洞察力的语言回复。";
+
+        string userPrompt = $"【用户的突发想法 / 决策诉求】：\n{userIdea}\n\n【用户当前工作主线背景】：\n{currentContext}\n\n请进行深度评估与监督反馈：";
+
+        return await GenerateContentAsync(systemInstruction, userPrompt);
+    }
+}

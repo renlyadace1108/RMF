@@ -27,14 +27,25 @@
 * [x] **数据模型与多端协议统一** (100%)
 * [x] **Google Drive API 同步协议规范** (100%)
 * [x] **Gemini 监管 Prompt 与交互场景规范** (100%)
-* [x] **Windows 桌面端工程脚手架 (.NET 10)** (65% - Fluent 2 UI、Mica 云母材质、Win32 前台窗口探测、内存压制已实装且本地运行成功)
+* [x] **Windows 桌面端工程脚手架 (.NET 10)** (80% - Fluent 2 UI、Mica 云母材质、Win32 前台窗口探测、内存压制已实装且本地运行成功)
 * [ ] **Android 移动/平板端工程脚手架 (Kotlin Compose)** (0%)
 * [ ] **Google Drive 同步引擎核心实现** (0%)
-* [ ] **Gemini AI 监管与记账模块实现** (0%)
+* [x] **Gemini AI 监管与记账模块实现** (60% - 真实 API 直连、日程审查、想法评估监督、智能排程已打通)
 
 ---
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
+
+### [2026-10-02 17:33] - 真实 Google Gemini API 全量接入与三大核心智能职能落地
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **主要成果**：
+  1. 编写高性能原生 HTTP 客户端 [`GeminiService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/GeminiService.cs)（基于 `System.Net.Http` 与 `System.Text.Json`，零第三方重型依赖）。
+  2. 实现 **三大真实 Gemini 交互业务**：
+     * **日程排期审查 (Schedule Audit)**：分析日程密度、精力模型、拖延风险，并结合 Windows 前台正在运行的应用给出客观建设性评价。
+     * **新想法与决策监督 (Idea & Strategy Evaluation)**：作为用户的 AI 智囊兼首席监督官，分析突发想法的可行性、沉没成本，并严格审查是否偏离当前核心主线。
+     * **智能排程帮手 (Smart Planner)**：输入大目标，自动结合日程表空白时间拆解为 45~90 分钟的专注时间块。
+  3. 实现本地安全配置管理 [`ConfigService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/ConfigService.cs)，持久化存储于 `%APPDATA%\RMF\config.json`（避免将敏感 API Key 提交到 Git 仓库）。
+  4. 界面增加「⚙️ Gemini API 设置」与联通测试功能，支持选择 `gemini-2.5-flash`、`gemini-1.5-pro` 等模型。
 
 ### [2026-10-02 17:25] - 视觉质感全方位重塑 (Fluent 2 现代仪表盘设计)
 * **执行角色**：UI/UX 设计师与架构师 (Antigravity)
