@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -9,9 +8,9 @@ using Wpf.Ui.Controls;
 
 namespace RMF.Windows;
 
-public partial class MainWindow : FluentWindow
+public partial class MainWindow : Window
 {
-    private readonly DispatcherTimer? _perfTimer;
+    private readonly DispatcherTimer _perfTimer;
 
     // Win32 API imports for ultra-lightweight foreground detection (No CPU polling overhead)
     [DllImport("user32.dll")]
@@ -29,24 +28,7 @@ public partial class MainWindow : FluentWindow
 
     public MainWindow()
     {
-        File.AppendAllText(@"d:\RMF\crash.log", $"[MainWindow] InitializingComponent...\n");
         InitializeComponent();
-        File.AppendAllText(@"d:\RMF\crash.log", $"[MainWindow] Initialized.\n");
-
-        Loaded += (s, e) =>
-        {
-            File.AppendAllText(@"d:\RMF\crash.log", $"[MainWindow] Loaded Event fired.\n");
-        };
-
-        Closing += (s, e) =>
-        {
-            File.AppendAllText(@"d:\RMF\crash.log", $"[MainWindow] Closing Event fired! Reason: Cancel={e.Cancel}\n");
-        };
-
-        Closed += (s, e) =>
-        {
-            File.AppendAllText(@"d:\RMF\crash.log", $"[MainWindow] Closed Event fired!\n");
-        };
 
         _perfTimer = new DispatcherTimer
         {
