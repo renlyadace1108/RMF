@@ -75,23 +75,28 @@ public class DatabaseService
 
     public static List<ScheduleItem> GetSchedulesForDate(DateTime date)
     {
+        return GetSchedulesForDateRange(date.Date, date.Date.AddDays(1));
+    }
+
+    public static List<ScheduleItem> GetSchedulesForDateRange(DateTime start, DateTime end)
+    {
         var list = new List<ScheduleItem>();
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string dayStart = date.Date.ToString("s");
-        string dayEnd = date.Date.AddDays(1).ToString("s");
+        string startIso = start.ToString("s");
+        string endIso = end.ToString("s");
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted
             FROM schedules
-            WHERE is_deleted = 0 AND start_time >= @start AND start_time < @end
+            WHERE is_deleted = 0 AND start_time < @end AND end_time >= @start
             ORDER BY start_time ASC;
         ";
 
         using var cmd = new SqliteCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@start", dayStart);
-        cmd.Parameters.AddWithValue("@end", dayEnd);
+        cmd.Parameters.AddWithValue("@start", startIso);
+        cmd.Parameters.AddWithValue("@end", endIso);
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -104,8 +109,8 @@ public class DatabaseService
                 Category = reader.IsDBNull(3) ? "WORK" : reader.GetString(3),
                 Priority = reader.IsDBNull(4) ? "MEDIUM" : reader.GetString(4),
                 Status = reader.IsDBNull(5) ? "PENDING" : reader.GetString(5),
-                StartTime = DateTime.TryParse(reader.GetString(6), out var st) ? st : date.Date,
-                EndTime = DateTime.TryParse(reader.GetString(7), out var et) ? et : date.Date,
+                StartTime = DateTime.TryParse(reader.GetString(6), out var st) ? st : start,
+                EndTime = DateTime.TryParse(reader.GetString(7), out var et) ? et : end,
                 EstimatedMinutes = reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
                 IsDeleted = reader.GetInt32(9) == 1
             });
