@@ -259,10 +259,10 @@
                 <ColumnDefinition Width="280" x:Name="LeftSidebarColumn" />
                 <!-- Column 1: Main Google Calendar Canvas (Week / Day / Month / Agenda) -->
                 <ColumnDefinition Width="*" />
-                <!-- Column 2: Right Companion Drawer (Collapsible, for AI Audit / Time P&L / Settings) -->
+                <!-- Column 2: Right Companion Drawer (Collapsed) -->
                 <ColumnDefinition Width="0" x:Name="RightDrawerColumn" />
-                <!-- Column 3: Far-Right Google Workspace Rail (Width 50) -->
-                <ColumnDefinition Width="50" />
+                <!-- Column 3: Far-Right Google Workspace Rail (Collapsed/Removed) -->
+                <ColumnDefinition Width="0" x:Name="RightRailColumn" />
             </Grid.ColumnDefinitions>
 
             <!-- ================= LEFT DRAWER ================= -->
@@ -577,7 +577,7 @@
                         <!-- Row 0: Full Custom Range Controls Toolbar -->
                         <RowDefinition Height="Auto" />
                         <!-- Row 1: Custom Header Row (With Sync Horizontal Scroll) -->
-                        <RowDefinition Height="56" />
+                        <RowDefinition Height="64" />
                         <!-- Row 2: Custom All-Day Row (With Sync Horizontal Scroll) -->
                         <RowDefinition Height="Auto" />
                         <!-- Row 3: Main Timeline View / Multi-Day Agenda View -->
@@ -596,12 +596,12 @@
                             <WrapPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,8">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                                     <TextBlock Text="📅 起始:" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <DatePicker x:Name="CustomStartDatePicker" Width="125" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" SelectedDateChanged="OnCustomDateRangePickerChanged" />
+                                    <DatePicker x:Name="CustomStartDatePicker" Width="155" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                                     <TextBlock Text="至  结束:" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <DatePicker x:Name="CustomEndDatePicker" Width="125" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" SelectedDateChanged="OnCustomDateRangePickerChanged" />
+                                    <DatePicker x:Name="CustomEndDatePicker" Width="155" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
@@ -632,17 +632,17 @@
 
                                 <WrapPanel Grid.Column="0" VerticalAlignment="Center">
                                     <TextBlock Text="快捷预设：" FontSize="11" Foreground="#71717A" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <Button Content="3天" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset3Days" />
-                                    <Button Content="4天 (推荐)" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset4Days" />
-                                    <Button Content="5天 (工作周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset5Days" />
-                                    <Button Content="7天 (整周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset7Days" />
-                                    <Button Content="10天" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset10Days" />
-                                    <Button Content="14天 (两周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset14Days" />
-                                    <Button Content="30天 (月度)" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset30Days" />
-                                    <Button Content="本月剩余" Style="{StaticResource GoogleTopBtnStyle}" Padding="7,2" FontSize="11" Click="OnCustomPresetRestOfMonth" />
+                                    <Button Content="3天" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset3Days" />
+                                    <Button Content="4天" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset4Days" />
+                                    <Button Content="5天(工作日)" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset5Days" />
+                                    <Button Content="7天(整周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset7Days" />
+                                    <Button Content="10天" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset10Days" />
+                                    <Button Content="14天(两周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset14Days" />
+                                    <Button Content="30天(月度)" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Margin="0,0,4,0" Click="OnCustomPreset30Days" />
+                                    <Button Content="本月剩余" Style="{StaticResource GoogleTopBtnStyle}" Padding="6,2" FontSize="11" Click="OnCustomPresetRestOfMonth" />
                                 </WrapPanel>
 
-                                <TextBlock Grid.Column="1" x:Name="CustomRangeNoticeText" Text="连续 4 天滚动时间网格" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" x:Name="CustomRangeNoticeText" Text="" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                             </Grid>
                         </Grid>
                     </Border>
@@ -713,8 +713,8 @@
                 </Grid>
             </Grid>
 
-            <!-- ================= RIGHT COMPANION SLIDE-OUT DRAWER ================= -->
-            <Border Grid.Column="2" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0">
+            <!-- ================= RIGHT COMPANION SLIDE-OUT DRAWER (COLLAPSED) ================= -->
+            <Border Grid.Column="2" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0" Visibility="Collapsed">
                 <Grid>
                     <!-- Close button in drawer top-right -->
                     <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Panel.ZIndex="10" Click="OnCloseRightDrawerClicked" />
@@ -1000,109 +1000,12 @@
                         </ScrollViewer>
                     </Grid>
 
-                    <!-- ================= DRAWER 3: 系统与 API 配置 (⚙️) ================= -->
-                    <Grid x:Name="DrawerSettingsPanel" Visibility="Collapsed" Margin="16">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="0,0,0,20">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,14">
-                                    <TextBlock Text="⚙️" FontSize="20" Margin="0,0,8,0" />
-                                    <TextBlock Text="日历同步与设置" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
-                                </StackPanel>
-
-                                <!-- 客户端来源标识标签配置 -->
-                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
-                                    <StackPanel>
-                                        <TextBlock Text="🏷️ 本客户端来源标识标签" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
-                                        <TextBlock Text="在此客户端创建的所有日程、任务将自动注入此来源标记，方便多端协同及来源溯源。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,8" TextWrapping="Wrap" />
-                                        <Grid Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="8" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox x:Name="ClientSourceTagInput" Text="💻 桌面端" Background="#202124" Foreground="#38BDF8" BorderBrush="#3C4043" BorderThickness="1" Padding="10,6" Height="32" FontSize="12" VerticalContentAlignment="Center" />
-                                            <Button Grid.Column="2" Content="保存标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="12,4" Height="32" FontSize="12" Click="OnSaveClientSourceTagClicked" />
-                                        </Grid>
-                                        <TextBlock x:Name="ClientSourceTagStatusText" Text="" FontSize="11" Foreground="#10B981" />
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Google Calendar Sync Section -->
-                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
-                                    <StackPanel>
-                                        <TextBlock Text="📅 Google 日历订阅与多端协同" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,8" />
-                                        <TextBlock Text="支持 official iCal 私密地址无感同步，导入日程将自动标为【☁️ Google日历】。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
-                                        <Button Content="⚙️ 配置 Google 日历订阅地址" Background="#37383B" Foreground="#8AB4F8" BorderBrush="#5F6368" BorderThickness="1" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnOpenGoogleCalendarConfigClicked" />
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- 离线通用 iCal (.ics) 导入导出 (兼容 Apple Calendar, Outlook, Google Calendar) -->
-                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
-                                    <StackPanel>
-                                        <TextBlock Text="📁 通用日历文件导入导出 (.ics)" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
-                                        <TextBlock Text="符合 RFC 5545 国际标准，支持与 Apple 日历、Outlook、各类手机离线互通。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="8" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Button Grid.Column="0" Content="📤 导出 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#8AB4F8" BorderBrush="#5F6368" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnExportIcsFileClicked" ToolTip="导出全本日历至标准 .ics 文件" />
-                                            <Button Grid.Column="2" Content="📥 导入 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#34D399" BorderBrush="#059669" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnImportIcsFileClicked" ToolTip="从外部 .ics 文件批量导入日程" />
-                                        </Grid>
-                                        <TextBlock x:Name="IcsTransferStatusText" Text="" FontSize="11" Foreground="#10B981" Margin="0,6,0,0" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Gemini API Model -->
-                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="🧠 接入模型选择" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                                            <Button Grid.Column="1" x:Name="FetchModelsBtn" Content="🔄 联网拉取模型" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnFetchModelsClicked" />
-                                        </Grid>
-                                        <TextBlock x:Name="FetchModelsStatusText" Text="" FontSize="11" Foreground="#8AB4F8" Margin="0,0,0,6" TextWrapping="Wrap" />
-                                        <ComboBox x:Name="ModelSelectCombo" SelectedIndex="0" Background="#37383B" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,10" SelectionChanged="OnModelSelectionChanged">
-                                            <ComboBoxItem Content="gemini-2.5-flash (推荐首选)" Tag="gemini-2.5-flash" />
-                                            <ComboBoxItem Content="gemini-2.5-pro (深度推理)" Tag="gemini-2.5-pro" />
-                                            <ComboBoxItem Content="gemini-2.0-flash (最新极速)" Tag="gemini-2.0-flash" />
-                                            <ComboBoxItem Content="[自定义模型名称...]" Tag="custom" />
-                                        </ComboBox>
-                                        <StackPanel x:Name="CustomModelPanel" Visibility="Collapsed" Margin="0,0,0,8">
-                                            <TextBox x:Name="CustomModelInput" Background="#37383B" Foreground="#FFFFFF" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" />
-                                        </StackPanel>
-
-                                        <TextBlock Text="Google AI Studio API Key：" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
-                                        <TextBox x:Name="ApiKeyInput" Background="#37383B" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Margin="0,0,0,10" />
-
-                                        <TextBlock Text="代理 Base URL (可选)：" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
-                                        <TextBox x:Name="BaseUrlInput" Text="https://generativelanguage.googleapis.com" Background="#37383B" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Margin="0,0,0,12" />
-
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="SaveSettingsBtn" Content="💾 保存配置" Background="#1A73E8" Foreground="#FFFFFF" BorderThickness="0" Padding="14,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,8,0" Click="OnSaveSettingsClicked" />
-                                            <Button x:Name="TestApiBtn" Content="⚡ 测试握手" Background="#37383B" Foreground="#E8EAED" BorderThickness="0" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnTestApiClicked" />
-                                        </StackPanel>
-                                        <TextBlock x:Name="SettingsStatusText" Text="" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
+                    <!-- DrawerSettingsPanel moved to root-level SettingsModal -->
                 </Grid>
             </Border>
 
-            <!-- ================= FAR-RIGHT GOOGLE WORKSPACE RAIL ================= -->
-            <Border Grid.Column="3" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0" Padding="0,12,0,0">
-                <StackPanel HorizontalAlignment="Center">
-                    <Button Content="✨" Style="{StaticResource RightRailBtnStyle}" ToolTip="AI 客观审计与认知负荷面板" Click="OnToggleGeminiDrawerClicked" Margin="0,0,0,12" />
-                    <Button Content="💰" Style="{StaticResource RightRailBtnStyle}" ToolTip="时间损益表 (P&amp;L) 与财报复盘" Click="OnToggleExpenseDrawerClicked" Margin="0,0,0,12" />
-                    <Button Content="⚙️" Style="{StaticResource RightRailBtnStyle}" ToolTip="日历同步与系统设置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,0,12" />
-                </StackPanel>
-            </Border>
+            <!-- ================= FAR-RIGHT GOOGLE WORKSPACE RAIL (REMOVED) ================= -->
+            <Border Grid.Column="3" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0" Padding="0,12,0,0" Visibility="Collapsed" />
         </Grid>
 
         <!-- ================= UPCOMING EVENT TOAST BANNER (GOOGLE CALENDAR REMINDER) ================= -->
@@ -1518,6 +1421,109 @@
                         <Button Content="立即跳转" Style="{StaticResource GoogleActionBtnStyle}" Padding="18,6" FontSize="12" FontWeight="SemiBold" Click="OnConfirmGoToDateClicked" />
                     </StackPanel>
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL 7: 系统与日历设置弹窗 (SETTINGS MODAL) ================= -->
+        <Grid x:Name="SettingsModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">
+            <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <ScrollViewer MaxHeight="650" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- Header with Close button -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="⚙️" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="日历同步与系统设置" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseSettingsModalClicked" ToolTip="关闭 (Esc)" />
+                        </Grid>
+
+                        <!-- 客户端来源标识标签配置 -->
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="🏷️ 本客户端来源标识标签" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
+                                <TextBlock Text="在此客户端创建的所有日程、任务将自动注入此来源标记，方便多端协同及来源溯源。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,8" TextWrapping="Wrap" />
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="ClientSourceTagInput" Text="💻 桌面端" Background="#28292C" Foreground="#38BDF8" BorderBrush="#3C4043" BorderThickness="1" Padding="10,6" Height="32" FontSize="12" VerticalContentAlignment="Center" />
+                                    <Button Grid.Column="2" Content="保存标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="12,4" Height="32" FontSize="12" Click="OnSaveClientSourceTagClicked" />
+                                </Grid>
+                                <TextBlock x:Name="ClientSourceTagStatusText" Text="" FontSize="11" Foreground="#10B981" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Google Calendar Sync Section -->
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="📅 Google 日历订阅与多端协同" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,8" />
+                                <TextBlock Text="支持 official iCal 私密地址无感同步，导入日程将自动标为【☁️ Google日历】。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
+                                <Button Content="⚙️ 配置 Google 日历订阅地址" Background="#37383B" Foreground="#8AB4F8" BorderBrush="#5F6368" BorderThickness="1" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnOpenGoogleCalendarConfigClicked" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 离线通用 iCal (.ics) 导入导出 (兼容 Apple Calendar, Outlook, Google Calendar) -->
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="📁 通用日历文件导入导出 (.ics)" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
+                                <TextBlock Text="符合 RFC 5545 国际标准，支持与 Apple 日历、Outlook、各类手机离线互通。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="📤 导出 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#8AB4F8" BorderBrush="#5F6368" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnExportIcsFileClicked" ToolTip="导出全本日历至标准 .ics 文件" />
+                                    <Button Grid.Column="2" Content="📥 导入 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#34D399" BorderBrush="#059669" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnImportIcsFileClicked" ToolTip="从外部 .ics 文件批量导入日程" />
+                                </Grid>
+                                <TextBlock x:Name="IcsTransferStatusText" Text="" FontSize="11" Foreground="#10B981" Margin="0,6,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Gemini API Model -->
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="🧠 接入模型选择" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" x:Name="FetchModelsBtn" Content="🔄 联网拉取模型" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnFetchModelsClicked" />
+                                </Grid>
+                                <TextBlock x:Name="FetchModelsStatusText" Text="" FontSize="11" Foreground="#8AB4F8" Margin="0,0,0,6" TextWrapping="Wrap" />
+                                <ComboBox x:Name="ModelSelectCombo" SelectedIndex="0" Background="#37383B" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,10" SelectionChanged="OnModelSelectionChanged">
+                                    <ComboBoxItem Content="gemini-2.5-flash (推荐首选)" Tag="gemini-2.5-flash" />
+                                    <ComboBoxItem Content="gemini-2.5-pro (深度推理)" Tag="gemini-2.5-pro" />
+                                    <ComboBoxItem Content="gemini-2.0-flash (最新极速)" Tag="gemini-2.0-flash" />
+                                    <ComboBoxItem Content="[自定义模型名称...]" Tag="custom" />
+                                </ComboBox>
+                                <StackPanel x:Name="CustomModelPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                                    <TextBox x:Name="CustomModelInput" Background="#37383B" Foreground="#FFFFFF" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" />
+                                </StackPanel>
+
+                                <TextBlock Text="Google AI Studio API Key：" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                                <TextBox x:Name="ApiKeyInput" Background="#37383B" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Margin="0,0,0,10" />
+
+                                <TextBlock Text="代理 Base URL (可选)：" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                                <TextBox x:Name="BaseUrlInput" Text="https://generativelanguage.googleapis.com" Background="#37383B" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Margin="0,0,0,12" />
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="SaveSettingsBtn" Content="💾 保存配置" Background="#1A73E8" Foreground="#FFFFFF" BorderThickness="0" Padding="14,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,8,0" Click="OnSaveSettingsClicked" />
+                                    <Button x:Name="TestApiBtn" Content="⚡ 测试握手" Background="#37383B" Foreground="#E8EAED" BorderThickness="0" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnTestApiClicked" />
+                                </StackPanel>
+                                <TextBlock x:Name="SettingsStatusText" Text="" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
     </Grid>

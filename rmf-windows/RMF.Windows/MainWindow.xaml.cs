@@ -1827,9 +1827,7 @@ public partial class MainWindow : Window
 
     private void UpdateCustomNoticeText()
     {
-        double colW = GetCustomColWidth();
-        string scrollHint = _customDays > 4 ? " · ↔ 支持横向平滑滚动" : "";
-        CustomRangeNoticeText.Text = $"连续 {_customDays} 天 ({_customStartDate:M/d} - {_customEndDate:M/d}) · 单列宽 {colW:F0}px{scrollHint}";
+        CustomRangeNoticeText.Text = _customDays > 4 ? "↔ 支持横向平滑滚动" : "";
     }
 
     private void OnCustomDateRangePickerChanged(object sender, SelectionChangedEventArgs e)
@@ -1964,7 +1962,7 @@ public partial class MainWindow : Window
                 Width = colWidth,
                 BorderBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x40, 0x43)),
                 BorderThickness = new Thickness(0, 0, 1, 0),
-                Padding = new Thickness(4, 4, 4, 4)
+                Padding = new Thickness(4, 6, 4, 6)
             };
 
             var dayHeaderPanel = new StackPanel
@@ -1980,7 +1978,7 @@ public partial class MainWindow : Window
                 FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal,
                 Foreground = isToday ? new SolidColorBrush(Color.FromRgb(0x8A, 0xB4, 0xF8)) : new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 0, 0, 2)
+                Margin = new Thickness(0, 0, 0, 4)
             };
             dayHeaderPanel.Children.Add(weekNameText);
 
@@ -4923,6 +4921,11 @@ public partial class MainWindow : Window
             GoogleCalendarSyncModal.Visibility = Visibility.Collapsed;
             return;
         }
+        if (SettingsModal != null && SettingsModal.Visibility == Visibility.Visible)
+        {
+            SettingsModal.Visibility = Visibility.Collapsed;
+            return;
+        }
         if (RightDrawerColumn.Width.Value > 0)
         {
             RightDrawerColumn.Width = new GridLength(0);
@@ -5036,13 +5039,18 @@ public partial class MainWindow : Window
 
     private void ToggleDrawer(string drawerType)
     {
+        if (drawerType == "Settings")
+        {
+            OnToggleSettingsDrawerClicked(this, new RoutedEventArgs());
+            return;
+        }
+
         if (RightDrawerColumn.Width.Value > 0)
         {
             bool isCurrentOpen = drawerType switch
             {
                 "Gemini" => DrawerGeminiPanel.Visibility == Visibility.Visible,
                 "Expense" => DrawerExpensePanel.Visibility == Visibility.Visible,
-                "Settings" => DrawerSettingsPanel.Visibility == Visibility.Visible,
                 _ => false
             };
 
@@ -5056,7 +5064,6 @@ public partial class MainWindow : Window
         RightDrawerColumn.Width = new GridLength(360);
         DrawerGeminiPanel.Visibility = drawerType == "Gemini" ? Visibility.Visible : Visibility.Collapsed;
         DrawerExpensePanel.Visibility = drawerType == "Expense" ? Visibility.Visible : Visibility.Collapsed;
-        DrawerSettingsPanel.Visibility = drawerType == "Settings" ? Visibility.Visible : Visibility.Collapsed;
 
         if (drawerType == "Gemini")
         {
@@ -5073,7 +5080,14 @@ public partial class MainWindow : Window
 
     private void OnToggleGeminiDrawerClicked(object sender, RoutedEventArgs e) => ToggleDrawer("Gemini");
     private void OnToggleExpenseDrawerClicked(object sender, RoutedEventArgs e) => ToggleDrawer("Expense");
-    private void OnToggleSettingsDrawerClicked(object sender, RoutedEventArgs e) => ToggleDrawer("Settings");
+    private void OnToggleSettingsDrawerClicked(object sender, RoutedEventArgs e)
+    {
+        SettingsModal.Visibility = SettingsModal.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+    }
+    private void OnCloseSettingsModalClicked(object sender, RoutedEventArgs e)
+    {
+        SettingsModal.Visibility = Visibility.Collapsed;
+    }
     private void OnCloseRightDrawerClicked(object sender, RoutedEventArgs e) => RightDrawerColumn.Width = new GridLength(0);
 
     // =========================================================================
