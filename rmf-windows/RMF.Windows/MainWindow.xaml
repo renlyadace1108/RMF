@@ -235,23 +235,19 @@
 
                     <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="13" FontWeight="Medium" Margin="0,0,14,0" Click="OnSyncGoogleCalendarClicked" ToolTip="立即同步 Google 日历" />
 
-                    <!-- View Selector: 周 (Week) / 天 (Day) / 月 (Month) / 日程 (Agenda) -->
+                    <!-- View Selector: 日 (Day) / 周 (Week) / 月 (Month) / 年 (Year) / 自定义 (Custom) -->
                     <Border Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,14,0">
                         <StackPanel Orientation="Horizontal">
+                            <Button x:Name="ViewDayBtn" Content="日" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
                             <Button x:Name="ViewWeekBtn" Content="周" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="12,4" FontSize="13" FontWeight="SemiBold" Click="OnViewWeekClicked" ToolTip="周视图 (快捷键: W)" />
-                            <Button x:Name="ViewDayBtn" Content="天" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
                             <Button x:Name="ViewMonthBtn" Content="月" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewMonthClicked" ToolTip="月视图 (快捷键: M)" />
-                            <Button x:Name="ViewAgendaBtn" Content="日程" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewAgendaClicked" ToolTip="日程清单 (快捷键: A)" />
+                            <Button x:Name="ViewYearBtn" Content="年" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewYearClicked" ToolTip="年视图 (快捷键: Y)" />
+                            <Button x:Name="ViewCustomBtn" Content="自定义" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewCustomClicked" ToolTip="自定义/4天视图 (快捷键: X)" />
                         </StackPanel>
                     </Border>
 
                     <!-- Settings Gear -->
-                    <Button Content="⚙️" Style="{StaticResource GoogleTopBtnStyle}" Width="36" Height="36" FontSize="16" ToolTip="系统与 API 配置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,8,0" />
-
-                    <!-- User Avatar -->
-                    <Border Background="#1A73E8" Width="32" Height="32" CornerRadius="16" Cursor="Hand" ToolTip="Renly 个人中心">
-                        <TextBlock Text="R" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <Button Content="⚙️" Style="{StaticResource GoogleTopBtnStyle}" Width="36" Height="36" FontSize="16" ToolTip="系统与 API 配置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -539,6 +535,123 @@
 
                             <StackPanel x:Name="AgendaListPanel" />
                         </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- 5. 年视图 (YEAR VIEW - 12 MONTHS OVERVIEW) -->
+                <Grid x:Name="YearViewContainer" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Year Header & Metrics -->
+                    <Border Grid.Row="0" Background="#202124" BorderBrush="#3C4043" BorderThickness="0,0,0,1" Padding="20,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="YearViewTitleText" Text="2026 年度日程概览" FontSize="18" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,16,0" />
+                                <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,10,0">
+                                    <TextBlock x:Name="YearTotalEventsText" Text="全年共 0 个日程" FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold" />
+                                </Border>
+                                <Border Background="#14532D" CornerRadius="4" Padding="8,4">
+                                    <TextBlock x:Name="YearDeepWorkHoursText" Text="深度工作: 0.0 小时" FontSize="12" Foreground="#4ADE80" FontWeight="SemiBold" />
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="📅 跳转到本月" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="12" Click="OnYearJumpCurrentMonthClicked" />
+                        </Grid>
+                    </Border>
+
+                    <!-- 12 Months Grid (4 Columns x 3 Rows) -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="16">
+                        <UniformGrid x:Name="YearMonthsGrid" Columns="4" Rows="3" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- 6. 自定义连续排期视图 (CUSTOM VIEW - MULTI-DAY TIME GRID) -->
+                <Grid x:Name="CustomViewContainer" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="64" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar: Custom Range Controls -->
+                    <Border Grid.Row="0" Background="#28292C" BorderBrush="#3C4043" BorderThickness="0,0,0,1" Padding="16,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="⚙️ 自定义连续排期跨度：" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="4" Padding="2">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="CustomDays3Btn" Content="3天" Style="{StaticResource GoogleTopBtnStyle}" Padding="10,3" FontSize="12" Click="OnCustomDays3Clicked" />
+                                        <Button x:Name="CustomDays4Btn" Content="4天 (推荐)" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="10,3" FontSize="12" FontWeight="SemiBold" Click="OnCustomDays4Clicked" />
+                                        <Button x:Name="CustomDays5Btn" Content="5天" Style="{StaticResource GoogleTopBtnStyle}" Padding="10,3" FontSize="12" Click="OnCustomDays5Clicked" />
+                                        <Button x:Name="CustomDays7Btn" Content="7天" Style="{StaticResource GoogleTopBtnStyle}" Padding="10,3" FontSize="12" Click="OnCustomDays7Clicked" />
+                                        <Button x:Name="CustomDays14Btn" Content="14天 (两周)" Style="{StaticResource GoogleTopBtnStyle}" Padding="10,3" FontSize="12" Click="OnCustomDays14Clicked" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" x:Name="CustomRangeNoticeText" Text="连续 4 天滚动时间网格" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Custom Header Row -->
+                    <Border Grid.Row="1" Background="#202124" BorderBrush="#3C4043" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="GMT+8" FontSize="10" Foreground="#9AA0A6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+                            <UniformGrid Grid.Column="1" x:Name="CustomHeaderGrid" Columns="4" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Custom All-Day Row -->
+                    <Border Grid.Row="2" x:Name="CustomAllDayBorder" Background="#202124" BorderBrush="#3C4043" BorderThickness="0,0,0,1" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="全天" FontSize="11" Foreground="#9AA0A6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <UniformGrid Grid.Column="1" x:Name="CustomAllDayGrid" Columns="4" />
+                        </Grid>
+                    </Border>
+
+                    <!-- 24-Hour Scrollable Custom Grid -->
+                    <ScrollViewer Grid.Row="3" x:Name="CustomScrollViewer" VerticalScrollBarVisibility="Auto">
+                        <Grid x:Name="CustomGridTrack">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="54" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 24 Hour Labels -->
+                            <StackPanel Grid.Column="0" x:Name="CustomHourLabelsPanel" />
+
+                            <!-- N-Column Grid Lines + Clickable Slots + Events Canvas -->
+                            <Grid Grid.Column="1">
+                                <UniformGrid x:Name="CustomSlotsGrid" Columns="4" />
+
+                                <!-- Absolute Canvas for Events & Red Indicator Line -->
+                                <Canvas x:Name="CustomEventsCanvas" ClipToBounds="True" Background="Transparent"
+                                        MouseLeftButtonDown="OnCanvasMouseLeftButtonDown"
+                                        MouseMove="OnCanvasMouseMove"
+                                        MouseLeftButtonUp="OnCanvasMouseLeftButtonUp"
+                                        DragOver="OnWeekCanvasDragOver"
+                                        Drop="OnCustomCanvasDrop"
+                                        AllowDrop="True" />
+                            </Grid>
+                        </Grid>
                     </ScrollViewer>
                 </Grid>
             </Grid>

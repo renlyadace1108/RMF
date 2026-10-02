@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -31,7 +32,8 @@ public partial class MainWindow : Window
     // 核心日期与视图状态
     private DateTime _currentDate = DateTime.Today;
     private DateTime _miniCalMonth = DateTime.Today;
-    private string _currentView = "Week"; // "Week", "Day", "Month", "Agenda"
+    private string _currentView = "Week"; // "Day", "Week", "Month", "Year", "Custom", "Agenda"
+    private int _customDays = 4;
     private const double HourHeight = 54.0;
 
     // 事件编辑状态
@@ -195,7 +197,11 @@ public partial class MainWindow : Window
     {
         // 1. 更新顶部日期大标题
         var culture = new CultureInfo("zh-CN");
-        if (_currentView == "Week")
+        if (_currentView == "Day")
+        {
+            TopDateHeaderTitle.Text = _currentDate.ToString("yyyy年M月d日 · dddd", culture);
+        }
+        else if (_currentView == "Week")
         {
             DateTime monday = GetMondayOfWeek(_currentDate);
             DateTime sunday = monday.AddDays(6);
@@ -212,13 +218,25 @@ public partial class MainWindow : Window
                 TopDateHeaderTitle.Text = $"{monday:yyyy年M月} - {sunday:yyyy年M月}";
             }
         }
-        else if (_currentView == "Day")
-        {
-            TopDateHeaderTitle.Text = _currentDate.ToString("yyyy年M月d日 · dddd", culture);
-        }
         else if (_currentView == "Month")
         {
             TopDateHeaderTitle.Text = _currentDate.ToString("yyyy年M月", culture);
+        }
+        else if (_currentView == "Year")
+        {
+            TopDateHeaderTitle.Text = $"{_currentDate.Year}年";
+        }
+        else if (_currentView == "Custom")
+        {
+            DateTime end = _currentDate.AddDays(_customDays - 1);
+            if (_currentDate.Year == end.Year)
+            {
+                TopDateHeaderTitle.Text = $"{_currentDate:yyyy年M月d日} - {end:M月d日} ({_customDays}天)";
+            }
+            else
+            {
+                TopDateHeaderTitle.Text = $"{_currentDate:yyyy年M月d日} - {end:yyyy年M月d日} ({_customDays}天)";
+            }
         }
         else
         {
@@ -232,24 +250,33 @@ public partial class MainWindow : Window
         UpdateSyncStatusBadge();
 
         // 4. 切换显示容器
-        WeekViewContainer.Visibility = _currentView == "Week" ? Visibility.Visible : Visibility.Collapsed;
         DayViewContainer.Visibility = _currentView == "Day" ? Visibility.Visible : Visibility.Collapsed;
+        WeekViewContainer.Visibility = _currentView == "Week" ? Visibility.Visible : Visibility.Collapsed;
         MonthViewContainer.Visibility = _currentView == "Month" ? Visibility.Visible : Visibility.Collapsed;
+        YearViewContainer.Visibility = _currentView == "Year" ? Visibility.Visible : Visibility.Collapsed;
+        CustomViewContainer.Visibility = _currentView == "Custom" ? Visibility.Visible : Visibility.Collapsed;
         AgendaViewContainer.Visibility = _currentView == "Agenda" ? Visibility.Visible : Visibility.Collapsed;
 
         // 5. 渲染对应的视图内容
         switch (_currentView)
         {
-            case "Week":
-                RenderWeekHeader();
-                RenderWeekEvents();
-                break;
             case "Day":
                 RenderDayHeader();
                 RenderDayEvents();
                 break;
+            case "Week":
+                RenderWeekHeader();
+                RenderWeekEvents();
+                break;
             case "Month":
                 RenderMonthGrid();
+                break;
+            case "Year":
+                RenderYearGrid();
+                break;
+            case "Custom":
+                RenderCustomHeader();
+                RenderCustomEvents();
                 break;
             case "Agenda":
                 RenderAgendaList();
@@ -296,21 +323,25 @@ public partial class MainWindow : Window
         var activeFg = Brushes.White;
         var normalFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED));
 
-        ViewWeekBtn.Background = _currentView == "Week" ? activeBg : normalBg;
-        ViewWeekBtn.Foreground = _currentView == "Week" ? activeFg : normalFg;
-        ViewWeekBtn.FontWeight = _currentView == "Week" ? FontWeights.SemiBold : FontWeights.Normal;
-
         ViewDayBtn.Background = _currentView == "Day" ? activeBg : normalBg;
         ViewDayBtn.Foreground = _currentView == "Day" ? activeFg : normalFg;
         ViewDayBtn.FontWeight = _currentView == "Day" ? FontWeights.SemiBold : FontWeights.Normal;
+
+        ViewWeekBtn.Background = _currentView == "Week" ? activeBg : normalBg;
+        ViewWeekBtn.Foreground = _currentView == "Week" ? activeFg : normalFg;
+        ViewWeekBtn.FontWeight = _currentView == "Week" ? FontWeights.SemiBold : FontWeights.Normal;
 
         ViewMonthBtn.Background = _currentView == "Month" ? activeBg : normalBg;
         ViewMonthBtn.Foreground = _currentView == "Month" ? activeFg : normalFg;
         ViewMonthBtn.FontWeight = _currentView == "Month" ? FontWeights.SemiBold : FontWeights.Normal;
 
-        ViewAgendaBtn.Background = _currentView == "Agenda" ? activeBg : normalBg;
-        ViewAgendaBtn.Foreground = _currentView == "Agenda" ? activeFg : normalFg;
-        ViewAgendaBtn.FontWeight = _currentView == "Agenda" ? FontWeights.SemiBold : FontWeights.Normal;
+        ViewYearBtn.Background = _currentView == "Year" ? activeBg : normalBg;
+        ViewYearBtn.Foreground = _currentView == "Year" ? activeFg : normalFg;
+        ViewYearBtn.FontWeight = _currentView == "Year" ? FontWeights.SemiBold : FontWeights.Normal;
+
+        ViewCustomBtn.Background = _currentView == "Custom" ? activeBg : normalBg;
+        ViewCustomBtn.Foreground = _currentView == "Custom" ? activeFg : normalFg;
+        ViewCustomBtn.FontWeight = _currentView == "Custom" ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
     // =========================================================================
@@ -1603,6 +1634,461 @@ public partial class MainWindow : Window
     }
 
     // =========================================================================
+    // ===================== 6. YEAR VIEW (年视图 - 12个月概览) ==================
+    // =========================================================================
+
+    private void RenderYearGrid()
+    {
+        YearMonthsGrid.Children.Clear();
+        int year = _currentDate.Year;
+        YearViewTitleText.Text = $"{year} 年度日程概览";
+
+        DateTime yearStart = new DateTime(year, 1, 1);
+        DateTime yearEnd = new DateTime(year + 1, 1, 1);
+        var allEvents = DatabaseService.GetSchedulesForDateRange(yearStart, yearEnd).Where(MatchesFilter).ToList();
+
+        YearTotalEventsText.Text = $"全年共 {allEvents.Count} 个日程";
+        double deepWorkMins = allEvents.Where(e => e.WorkType == "DEEP_WORK").Sum(e => e.ActualMinutes > 0 ? e.ActualMinutes : e.EstimatedMinutes);
+        YearDeepWorkHoursText.Text = $"深度工作: {deepWorkMins / 60.0:F1} 小时";
+
+        var eventDates = allEvents.Select(e => e.StartTime.Date).ToHashSet();
+        string[] weekInitials = { "一", "二", "三", "四", "五", "六", "日" };
+
+        for (int m = 1; m <= 12; m++)
+        {
+            var monthCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x28, 0x29, 0x2C)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x40, 0x43)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(10),
+                Margin = new Thickness(6)
+            };
+
+            var monthStack = new StackPanel();
+
+            // Month Title Header
+            DateTime firstDay = new DateTime(year, m, 1);
+            int daysInMonth = DateTime.DaysInMonth(year, m);
+            int monthEventCount = allEvents.Count(e => e.StartTime.Year == year && e.StartTime.Month == m);
+
+            var headerPanel = new Grid { Margin = new Thickness(0, 0, 0, 8), Cursor = Cursors.Hand };
+            headerPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var titleText = new TextBlock
+            {
+                Text = $"{m}月",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Foreground = (year == DateTime.Today.Year && m == DateTime.Today.Month) ? new SolidColorBrush(Color.FromRgb(0x8A, 0xB4, 0xF8)) : new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED))
+            };
+            Grid.SetColumn(titleText, 0);
+            headerPanel.Children.Add(titleText);
+
+            if (monthEventCount > 0)
+            {
+                var countBadge = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x29, 0x3B)),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(4, 1, 4, 1),
+                    Child = new TextBlock
+                    {
+                        Text = $"{monthEventCount} 项",
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8))
+                    }
+                };
+                Grid.SetColumn(countBadge, 1);
+                headerPanel.Children.Add(countBadge);
+            }
+
+            int capturedMonth = m;
+            headerPanel.MouseLeftButtonUp += (s, e) =>
+            {
+                _currentDate = new DateTime(year, capturedMonth, 1);
+                _currentView = "Month";
+                RenderAllCalendarViews();
+            };
+            monthStack.Children.Add(headerPanel);
+
+            // Weekday Initials Row
+            var weekdayGrid = new UniformGrid { Columns = 7, Margin = new Thickness(0, 0, 0, 4) };
+            foreach (var w in weekInitials)
+            {
+                weekdayGrid.Children.Add(new TextBlock
+                {
+                    Text = w,
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x71, 0x71, 0x7A)),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+            }
+            monthStack.Children.Add(weekdayGrid);
+
+            // Days Grid
+            var daysGrid = new UniformGrid { Columns = 7 };
+            int offset = ((int)firstDay.DayOfWeek == 0) ? 6 : ((int)firstDay.DayOfWeek - 1);
+            for (int blank = 0; blank < offset; blank++)
+            {
+                daysGrid.Children.Add(new Border { Height = 22 });
+            }
+
+            for (int day = 1; day <= daysInMonth; day++)
+            {
+                DateTime dayDate = new DateTime(year, m, day);
+                bool isToday = dayDate.Date == DateTime.Today;
+                bool hasEvents = eventDates.Contains(dayDate.Date);
+
+                var dayCell = new Border
+                {
+                    Height = 24,
+                    CornerRadius = new CornerRadius(12),
+                    Background = isToday ? new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8)) : (hasEvents ? new SolidColorBrush(Color.FromArgb(40, 0x10, 0xB9, 0x81)) : Brushes.Transparent),
+                    Cursor = Cursors.Hand,
+                    ToolTip = hasEvents ? $"{dayDate:M月d日}: 有日程安排 (点击查看)" : $"{dayDate:M月d日} (点击进入日视图)"
+                };
+
+                var dayNum = new TextBlock
+                {
+                    Text = day.ToString(),
+                    FontSize = 11,
+                    FontWeight = isToday ? FontWeights.Bold : (hasEvents ? FontWeights.SemiBold : FontWeights.Normal),
+                    Foreground = isToday ? Brushes.White : (hasEvents ? new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)) : new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED))),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                dayCell.Child = dayNum;
+
+                DateTime capturedDate = dayDate;
+                dayCell.MouseLeftButtonUp += (s, e) =>
+                {
+                    _currentDate = capturedDate;
+                    _currentView = "Day";
+                    RenderAllCalendarViews();
+                };
+
+                daysGrid.Children.Add(dayCell);
+            }
+
+            monthStack.Children.Add(daysGrid);
+            monthCard.Child = monthStack;
+            YearMonthsGrid.Children.Add(monthCard);
+        }
+    }
+
+    private void OnYearJumpCurrentMonthClicked(object sender, RoutedEventArgs e)
+    {
+        _currentDate = DateTime.Today;
+        _currentView = "Month";
+        RenderAllCalendarViews();
+    }
+
+    // =========================================================================
+    // ===================== 7. CUSTOM VIEW (自定义连续排期视图) ===================
+    // =========================================================================
+
+    private void OnCustomDays3Clicked(object sender, RoutedEventArgs e) => SwitchCustomDays(3);
+    private void OnCustomDays4Clicked(object sender, RoutedEventArgs e) => SwitchCustomDays(4);
+    private void OnCustomDays5Clicked(object sender, RoutedEventArgs e) => SwitchCustomDays(5);
+    private void OnCustomDays7Clicked(object sender, RoutedEventArgs e) => SwitchCustomDays(7);
+    private void OnCustomDays14Clicked(object sender, RoutedEventArgs e) => SwitchCustomDays(14);
+
+    private void SwitchCustomDays(int days)
+    {
+        _customDays = days;
+        CustomHeaderGrid.Columns = days;
+        CustomAllDayGrid.Columns = days;
+        CustomSlotsGrid.Columns = days;
+        CustomRangeNoticeText.Text = $"连续 {days} 天滚动时间网格";
+
+        var activeBg = new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8));
+        var normalBg = Brushes.Transparent;
+        var activeFg = Brushes.White;
+        var normalFg = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED));
+
+        CustomDays3Btn.Background = days == 3 ? activeBg : normalBg;
+        CustomDays3Btn.Foreground = days == 3 ? activeFg : normalFg;
+        CustomDays4Btn.Background = days == 4 ? activeBg : normalBg;
+        CustomDays4Btn.Foreground = days == 4 ? activeFg : normalFg;
+        CustomDays5Btn.Background = days == 5 ? activeBg : normalBg;
+        CustomDays5Btn.Foreground = days == 5 ? activeFg : normalFg;
+        CustomDays7Btn.Background = days == 7 ? activeBg : normalBg;
+        CustomDays7Btn.Foreground = days == 7 ? activeFg : normalFg;
+        CustomDays14Btn.Background = days == 14 ? activeBg : normalBg;
+        CustomDays14Btn.Foreground = days == 14 ? activeFg : normalFg;
+
+        RenderAllCalendarViews();
+    }
+
+    private void RenderCustomHeader()
+    {
+        CustomHeaderGrid.Columns = _customDays;
+        CustomHeaderGrid.Children.Clear();
+        string[] weekNames = { "周日", "周一", "周二", "周三", "周四", "周五", "周六" };
+
+        for (int i = 0; i < _customDays; i++)
+        {
+            DateTime dayDate = _currentDate.Date.AddDays(i);
+            bool isToday = dayDate.Date == DateTime.Today;
+
+            var dayHeaderPanel = new StackPanel
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var weekNameText = new TextBlock
+            {
+                Text = weekNames[(int)dayDate.DayOfWeek],
+                FontSize = 11,
+                FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal,
+                Foreground = isToday ? new SolidColorBrush(Color.FromRgb(0x8A, 0xB4, 0xF8)) : new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            dayHeaderPanel.Children.Add(weekNameText);
+
+            var dateBadge = new Border
+            {
+                Width = 36,
+                Height = 36,
+                CornerRadius = new CornerRadius(18),
+                Background = isToday ? new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8)) : Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Cursor = Cursors.Hand,
+                ToolTip = $"{dayDate:yyyy年M月d日} (点击进入日视图)"
+            };
+
+            var dateNumText = new TextBlock
+            {
+                Text = $"{dayDate.Month}/{dayDate.Day}",
+                FontSize = 13,
+                FontWeight = isToday ? FontWeights.Bold : FontWeights.Normal,
+                Foreground = isToday ? Brushes.White : new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            dateBadge.Child = dateNumText;
+
+            DateTime captured = dayDate;
+            dateBadge.MouseLeftButtonUp += (s, e) =>
+            {
+                _currentDate = captured;
+                _currentView = "Day";
+                RenderAllCalendarViews();
+            };
+
+            dayHeaderPanel.Children.Add(dateBadge);
+            CustomHeaderGrid.Children.Add(dayHeaderPanel);
+        }
+    }
+
+    private void RenderCustomSlots()
+    {
+        CustomHourLabelsPanel.Children.Clear();
+        for (int h = 0; h < 24; h++)
+        {
+            var hourBlock = new TextBlock
+            {
+                Text = $"{h:D2}:00",
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x71, 0x71, 0x7A)),
+                Height = HourHeight,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, -7, 8, 0)
+            };
+            CustomHourLabelsPanel.Children.Add(hourBlock);
+        }
+
+        CustomSlotsGrid.Columns = _customDays;
+        CustomSlotsGrid.Children.Clear();
+
+        for (int col = 0; col < _customDays; col++)
+        {
+            int colCaptured = col;
+            var colPanel = new StackPanel();
+            for (int h = 0; h < 24; h++)
+            {
+                int hCaptured = h;
+                var slot = new Border
+                {
+                    Height = HourHeight,
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x2B, 0x2D)),
+                    BorderThickness = new Thickness(0, 0, 1, 1),
+                    Background = Brushes.Transparent,
+                    Cursor = Cursors.Hand,
+                    ToolTip = "点击创建日程"
+                };
+
+                slot.MouseLeftButtonUp += (s, e) =>
+                {
+                    if (_isDragSelecting) return;
+                    DateTime clickedDate = _currentDate.Date.AddDays(colCaptured);
+                    OpenEventCreateModal(clickedDate, hCaptured);
+                };
+
+                colPanel.Children.Add(slot);
+            }
+            CustomSlotsGrid.Children.Add(colPanel);
+        }
+
+        CustomEventsCanvas.Height = 24 * HourHeight;
+    }
+
+    private void RenderCustomEvents()
+    {
+        RenderCustomSlots();
+        CustomEventsCanvas.Children.Clear();
+        CustomEventsCanvas.Height = 24 * HourHeight;
+
+        double totalWidth = CustomEventsCanvas.ActualWidth;
+        if (totalWidth <= 0 && CustomScrollViewer.ActualWidth > 80)
+        {
+            totalWidth = CustomScrollViewer.ActualWidth - 60;
+        }
+        if (totalWidth <= 100) totalWidth = 700;
+
+        double colWidth = totalWidth / (double)_customDays;
+        DateTime startDate = _currentDate.Date;
+        DateTime endDate = startDate.AddDays(_customDays);
+
+        // 1. Google 经典红线指示器
+        for (int c = 0; c < _customDays; c++)
+        {
+            DateTime dayDate = startDate.AddDays(c);
+            if (dayDate == DateTime.Today)
+            {
+                double nowH = DateTime.Now.Hour + DateTime.Now.Minute / 60.0;
+                double lineTop = nowH * HourHeight;
+
+                var dot = new Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, c * colWidth - 5);
+                Canvas.SetTop(dot, lineTop - 4.5);
+                CustomEventsCanvas.Children.Add(dot);
+
+                var line = new Border
+                {
+                    Height = 2,
+                    Background = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                    Width = colWidth,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(line, c * colWidth);
+                Canvas.SetTop(line, lineTop - 1);
+                CustomEventsCanvas.Children.Add(line);
+            }
+        }
+
+        var rawEvents = DatabaseService.GetSchedulesForDateRange(startDate, endDate);
+        var filteredEvents = rawEvents.Where(MatchesFilter).ToList();
+
+        // 2. 全天日程分离渲染
+        var allDayEvents = filteredEvents.Where(e => e.IsAllDay).ToList();
+        var timedEvents = filteredEvents.Where(e => !e.IsAllDay).ToList();
+
+        CustomAllDayGrid.Columns = _customDays;
+        CustomAllDayGrid.Children.Clear();
+        if (allDayEvents.Count > 0)
+        {
+            CustomAllDayBorder.Visibility = Visibility.Visible;
+            for (int d = 0; d < _customDays; d++)
+            {
+                DateTime dayDate = startDate.AddDays(d).Date;
+                var dayAllDay = allDayEvents.Where(e => e.StartTime.Date <= dayDate && e.EndTime.Date >= dayDate).ToList();
+                var dayStack = new StackPanel { Margin = new Thickness(2, 2, 2, 2) };
+                foreach (var ev in dayAllDay)
+                {
+                    dayStack.Children.Add(CreateAllDayEventChip(ev));
+                }
+                CustomAllDayGrid.Children.Add(dayStack);
+            }
+        }
+        else
+        {
+            CustomAllDayBorder.Visibility = Visibility.Collapsed;
+        }
+
+        // 3. 定时时间块渲染 (按天分组 + 并发时间重叠自动分列)
+        for (int d = 0; d < _customDays; d++)
+        {
+            DateTime dayDate = startDate.AddDays(d).Date;
+            var dayEvents = timedEvents.Where(e => e.StartTime.Date == dayDate).OrderBy(e => e.StartTime).ThenByDescending(e => e.EndTime).ToList();
+            if (dayEvents.Count == 0) continue;
+
+            var clusters = ClusterOverlappingEvents(dayEvents);
+            double dayLeft = d * colWidth;
+            double availableDayWidth = Math.Max(20.0, colWidth - 4.0);
+
+            foreach (var cluster in clusters)
+            {
+                var colAssignments = AssignEventColumns(cluster);
+                int totalCols = colAssignments.Values.Max() + 1;
+                double subColWidth = availableDayWidth / totalCols;
+
+                foreach (var item in cluster)
+                {
+                    int subCol = colAssignments[item];
+
+                    double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
+                    double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
+                    if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
+                    if (endH <= startH) endH = startH + 0.5;
+
+                    double top = startH * HourHeight + 1;
+                    double height = Math.Max(20.0, (endH - startH) * HourHeight - 2);
+                    double left = dayLeft + 2 + subCol * subColWidth;
+                    double width = Math.Max(18.0, subColWidth - 2);
+
+                    var card = CreateWeekEventChip(item, width, height);
+                    Canvas.SetLeft(card, left);
+                    Canvas.SetTop(card, top);
+                    CustomEventsCanvas.Children.Add(card);
+                }
+            }
+        }
+    }
+
+    private void OnCustomCanvasDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent("ScheduleId")) return;
+        string? scheduleId = e.Data.GetData("ScheduleId") as string;
+        if (string.IsNullOrEmpty(scheduleId)) return;
+
+        Point pt = e.GetPosition(CustomEventsCanvas);
+        double totalWidth = CustomEventsCanvas.ActualWidth;
+        if (totalWidth <= 0) totalWidth = 700;
+        double colWidth = totalWidth / (double)_customDays;
+
+        int col = Math.Clamp((int)(pt.X / colWidth), 0, _customDays - 1);
+        DateTime targetDate = _currentDate.Date.AddDays(col);
+
+        double hourFraction = pt.Y / HourHeight;
+        int hour = Math.Clamp((int)hourFraction, 0, 23);
+        int minute = ((int)((hourFraction - hour) * 60) / 15) * 15;
+        DateTime newStart = targetDate.AddHours(hour).AddMinutes(minute);
+
+        var task = DatabaseService.GetScheduleById(scheduleId);
+        if (task != null)
+        {
+            int durationMins = task.EstimatedMinutes > 0 ? task.EstimatedMinutes : 60;
+            task.StartTime = newStart;
+            task.EndTime = newStart.AddMinutes(durationMins);
+            task.IsAllDay = false;
+            DatabaseService.UpsertSchedule(task);
+            RenderAllCalendarViews();
+        }
+    }
+
+    // =========================================================================
     // ================= MODULE 4: 空白区域鼠标框选建块 (CANVAS DRAG-SELECT) =======
     // =========================================================================
 
@@ -1623,6 +2109,14 @@ public partial class MainWindow : Window
             int col = (int)(pt.X / colWidth);
             DateTime monday = GetMondayOfWeek(_currentDate);
             _dragSelectDate = monday.AddDays(Math.Clamp(col, 0, 6));
+        }
+        else if (canvas == CustomEventsCanvas)
+        {
+            double totalWidth = canvas.ActualWidth;
+            if (totalWidth <= 0) totalWidth = 700;
+            double colWidth = totalWidth / (double)_customDays;
+            int col = (int)(pt.X / colWidth);
+            _dragSelectDate = _currentDate.Date.AddDays(Math.Clamp(col, 0, _customDays - 1));
         }
         else
         {
@@ -1672,6 +2166,7 @@ public partial class MainWindow : Window
                 _resizingItem.EndTime = newEnd;
                 _resizingItem.EstimatedMinutes = (int)(newEnd - _resizingItem.StartTime).TotalMinutes;
                 if (resCanvas == WeekEventsCanvas) RenderWeekEvents();
+                else if (resCanvas == CustomEventsCanvas) RenderCustomEvents();
                 else RenderDayEvents();
             }
             return;
@@ -1689,6 +2184,18 @@ public partial class MainWindow : Window
         if (canvas == WeekEventsCanvas)
         {
             double colWidth = totalWidth / 7.0;
+            int col = (int)(_dragSelectStartPoint.X / colWidth);
+            double left = col * colWidth + 2;
+            double width = colWidth - 4;
+
+            Canvas.SetLeft(_dragSelectBorder, left);
+            Canvas.SetTop(_dragSelectBorder, top);
+            _dragSelectBorder.Width = width;
+            _dragSelectBorder.Height = height;
+        }
+        else if (canvas == CustomEventsCanvas)
+        {
+            double colWidth = totalWidth / (double)_customDays;
             int col = (int)(_dragSelectStartPoint.X / colWidth);
             double left = col * colWidth + 2;
             double width = colWidth - 4;
@@ -3908,14 +4415,20 @@ public partial class MainWindow : Window
     {
         switch (_currentView)
         {
-            case "Week":
-                RenderWeekEvents();
-                break;
             case "Day":
                 RenderDayEvents();
                 break;
+            case "Week":
+                RenderWeekEvents();
+                break;
             case "Month":
                 RenderMonthGrid();
+                break;
+            case "Year":
+                RenderYearGrid();
+                break;
+            case "Custom":
+                RenderCustomEvents();
                 break;
             case "Agenda":
                 RenderAgendaList();
@@ -4119,16 +4632,24 @@ public partial class MainWindow : Window
                 OnCalTodayClicked(this, new RoutedEventArgs());
                 e.Handled = true;
                 break;
-            case Key.W:
-                OnViewWeekClicked(this, new RoutedEventArgs());
-                e.Handled = true;
-                break;
             case Key.D:
                 OnViewDayClicked(this, new RoutedEventArgs());
                 e.Handled = true;
                 break;
+            case Key.W:
+                OnViewWeekClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
             case Key.M:
                 OnViewMonthClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.Y:
+                OnViewYearClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.X:
+                OnViewCustomClicked(this, new RoutedEventArgs());
                 e.Handled = true;
                 break;
             case Key.A:
@@ -4220,9 +4741,11 @@ public partial class MainWindow : Window
 
     private void OnCalPrevClicked(object sender, RoutedEventArgs e)
     {
-        if (_currentView == "Week") _currentDate = _currentDate.AddDays(-7);
-        else if (_currentView == "Day") _currentDate = _currentDate.AddDays(-1);
+        if (_currentView == "Day") _currentDate = _currentDate.AddDays(-1);
+        else if (_currentView == "Week") _currentDate = _currentDate.AddDays(-7);
         else if (_currentView == "Month") _currentDate = _currentDate.AddMonths(-1);
+        else if (_currentView == "Year") _currentDate = _currentDate.AddYears(-1);
+        else if (_currentView == "Custom") _currentDate = _currentDate.AddDays(-_customDays);
         else _currentDate = _currentDate.AddDays(-7);
 
         _miniCalMonth = _currentDate;
@@ -4231,18 +4754,14 @@ public partial class MainWindow : Window
 
     private void OnCalNextClicked(object sender, RoutedEventArgs e)
     {
-        if (_currentView == "Week") _currentDate = _currentDate.AddDays(7);
-        else if (_currentView == "Day") _currentDate = _currentDate.AddDays(1);
+        if (_currentView == "Day") _currentDate = _currentDate.AddDays(1);
+        else if (_currentView == "Week") _currentDate = _currentDate.AddDays(7);
         else if (_currentView == "Month") _currentDate = _currentDate.AddMonths(1);
+        else if (_currentView == "Year") _currentDate = _currentDate.AddYears(1);
+        else if (_currentView == "Custom") _currentDate = _currentDate.AddDays(_customDays);
         else _currentDate = _currentDate.AddDays(7);
 
         _miniCalMonth = _currentDate;
-        RenderAllCalendarViews();
-    }
-
-    private void OnViewWeekClicked(object sender, RoutedEventArgs e)
-    {
-        _currentView = "Week";
         RenderAllCalendarViews();
     }
 
@@ -4252,9 +4771,27 @@ public partial class MainWindow : Window
         RenderAllCalendarViews();
     }
 
+    private void OnViewWeekClicked(object sender, RoutedEventArgs e)
+    {
+        _currentView = "Week";
+        RenderAllCalendarViews();
+    }
+
     private void OnViewMonthClicked(object sender, RoutedEventArgs e)
     {
         _currentView = "Month";
+        RenderAllCalendarViews();
+    }
+
+    private void OnViewYearClicked(object sender, RoutedEventArgs e)
+    {
+        _currentView = "Year";
+        RenderAllCalendarViews();
+    }
+
+    private void OnViewCustomClicked(object sender, RoutedEventArgs e)
+    {
+        _currentView = "Custom";
         RenderAllCalendarViews();
     }
 
