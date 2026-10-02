@@ -7,156 +7,396 @@
         xmlns:local="clr-namespace:RMF.Windows"
         mc:Ignorable="d"
         Title="RMF (Renly Manage Platform) - 个人多端中枢" 
-        Height="700" Width="1080"
-        MinHeight="500" MinWidth="800"
+        Height="780" Width="1200"
+        MinHeight="600" MinWidth="950"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource ApplicationBackgroundBrush}">
+        Background="#18181B"
+        Foreground="#F4F4F5">
+
+    <Window.Resources>
+        <!-- Custom Color Palette -->
+        <SolidColorBrush x:Key="SidebarBackground" Color="#121215" />
+        <SolidColorBrush x:Key="CardBackground" Color="#202024" />
+        <SolidColorBrush x:Key="CardHoverBackground" Color="#27272C" />
+        <SolidColorBrush x:Key="CardBorderBrush" Color="#323238" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#FAFAFA" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#A1A1AA" />
+        <SolidColorBrush x:Key="TextMuted" Color="#71717A" />
+        <SolidColorBrush x:Key="AccentBlue" Color="#3B82F6" />
+        <SolidColorBrush x:Key="AccentPurple" Color="#8B5CF6" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#10B981" />
+        <SolidColorBrush x:Key="AccentRed" Color="#EF4444" />
+
+        <!-- Navigation Button Style -->
+        <Style x:Key="NavTabButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#A1A1AA" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Name="Border" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#27272A" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Active Nav Style -->
+        <Style x:Key="ActiveNavTabButtonStyle" TargetType="Button" BasedOn="{StaticResource NavTabButtonStyle}">
+            <Setter Property="Background" Value="#27272A" />
+            <Setter Property="Foreground" Value="#38BDF8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Resources>
+
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <!-- Main Body -->
-        <Grid Grid.Row="0" Margin="16,16,16,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <!-- ================= LEFT SIDEBAR ================= -->
+        <Border Grid.Column="0" Background="{StaticResource SidebarBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,0,1,0" Padding="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!-- Navigation Panel -->
-            <Border Grid.Column="0" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Margin="0,0,12,0" Padding="12">
-                <StackPanel>
-                    <TextBlock Text="Renly Manage" FontSize="18" FontWeight="SemiBold" Margin="8,8,8,16" />
-                    
-                    <ui:Button Name="NavScheduleBtn" Content="📅  日程与时间表" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavScheduleClicked" Appearance="Primary" />
-                    <ui:Button Name="NavFocusBtn" Content="⏱️  专注与AI监管" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavFocusClicked" Appearance="Secondary" />
-                    <ui:Button Name="NavFinanceBtn" Content="💰  收入与支出" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavFinanceClicked" Appearance="Secondary" />
-                    <ui:Button Name="NavSyncBtn" Content="☁️  Google同步" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavSyncClicked" Appearance="Secondary" />
-
-                    <Separator Margin="0,16,0,16" />
-
-                    <!-- Live Hardware / Memory Footprint Badge -->
-                    <Border CornerRadius="6" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Padding="10">
+                <!-- Brand Header -->
+                <StackPanel Grid.Row="0" Margin="4,8,4,24">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="34" Height="34" CornerRadius="8" Background="#2563EB" Margin="0,0,10,0">
+                            <TextBlock Text="R" FontWeight="Bold" FontSize="18" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
                         <StackPanel>
-                            <TextBlock Text="⚡ 性能与轻量化监控" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Name="MemoryUsageText" Text="内存: 24.5 MB" FontSize="14" FontWeight="Bold" Margin="0,4,0,2" />
-                            <TextBlock Name="CpuUsageText" Text="CPU: 0.0% (纯原生硬件渲染)" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                            <ui:Button Content="一键压制工作集内存" Appearance="Secondary" HorizontalAlignment="Stretch" Margin="0,8,0,0" Click="OnTrimMemoryClicked" />
+                            <TextBlock Text="RMF Hub" FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                            <TextBlock Text="Renly Manage Platform" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,1,0,0" />
                         </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
-
-            <!-- Content Area -->
-            <Border Grid.Column="1" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Padding="20">
-                <Grid>
-                    <!-- Schedule View -->
-                    <StackPanel Name="ScheduleView" Visibility="Visible">
-                        <TextBlock Text="📅 今日日程与时间块 (Schedule &amp; Timetable)" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
-                        
-                        <ui:CardControl Margin="0,0,0,12">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="09:30 - 11:30 | 核心研发" FontWeight="SemiBold" FontSize="15" />
-                                    <TextBlock Text="RMF Windows 客户端轻量化架构搭建与 Win32 前台采集" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button Content="执行中" Appearance="Primary" />
-                        </ui:CardControl>
-
-                        <ui:CardControl Margin="0,0,0,12">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="14:00 - 15:30 | AI 监管联动" FontWeight="SemiBold" FontSize="15" />
-                                    <TextBlock Text="接入 Google Gemini API 进行日程偏差与专注复盘" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button Content="待开始" Appearance="Secondary" />
-                        </ui:CardControl>
-
-                        <ui:CardControl Margin="0,0,0,12">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="16:00 - 17:00 | 多端协同" FontWeight="SemiBold" FontSize="15" />
-                                    <TextBlock Text="Google Drive AppData 增量同步通道联调" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button Content="待开始" Appearance="Secondary" />
-                        </ui:CardControl>
                     </StackPanel>
+                </StackPanel>
 
-                    <!-- AI Supervision View -->
-                    <StackPanel Name="FocusView" Visibility="Collapsed">
-                        <TextBlock Text="⏱️ 专注管理与 Gemini AI 监管中枢" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
-                        <ui:CardControl Margin="0,0,0,12">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="📡 当前 Windows 前台活跃窗口实时嗅探" FontWeight="SemiBold" FontSize="14" />
-                                    <TextBlock Name="ActiveWindowText" Text="正在捕获..." FontSize="13" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button Content="刷新嗅探" Appearance="Primary" Click="OnRefreshTrackingClicked" />
-                        </ui:CardControl>
+                <!-- Nav Menu -->
+                <StackPanel Grid.Row="1">
+                    <TextBlock Text="核心模块" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" Margin="8,0,0,8" />
+                    
+                    <Button Name="NavScheduleBtn" Style="{StaticResource ActiveNavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavScheduleClicked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📅" FontSize="15" Margin="0,0,10,0" />
+                            <TextBlock Text="日程与时间表" />
+                        </StackPanel>
+                    </Button>
 
-                        <Border CornerRadius="8" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Padding="16" Margin="0,8,0,0">
+                    <Button Name="NavFocusBtn" Style="{StaticResource NavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavFocusClicked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⏱️" FontSize="15" Margin="0,0,10,0" />
+                            <TextBlock Text="专注与AI监管" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Name="NavFinanceBtn" Style="{StaticResource NavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavFinanceClicked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💰" FontSize="15" Margin="0,0,10,0" />
+                            <TextBlock Text="收入与支出" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Name="NavSyncBtn" Style="{StaticResource NavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavSyncClicked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="☁️" FontSize="15" Margin="0,0,10,0" />
+                            <TextBlock Text="Google 同步中枢" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Bottom System Telemetry Card -->
+                <Border Grid.Row="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                            <Ellipse Width="7" Height="7" Fill="#10B981" Margin="0,0,6,0" />
+                            <TextBlock Text="原生极轻引擎" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" />
+                        </StackPanel>
+                        
+                        <TextBlock Name="MemoryUsageText" Text="内存: 24.5 MB" FontSize="13" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,2" />
+                        <TextBlock Name="CpuUsageText" Text="CPU: 0.0% (零后台轮询)" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,0,0,8" />
+                        
+                        <Button Content="⚡ 瞬间压制内存" Background="#27272A" Foreground="#FAFAFA" BorderThickness="1" BorderBrush="#3F3F46" Padding="8,5" FontSize="12" HorizontalAlignment="Stretch" Cursor="Hand" Click="OnTrimMemoryClicked" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ================= MAIN DASHBOARD BODY ================= -->
+        <Grid Grid.Column="1" Margin="24,20,24,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Dashboard Top Action & Header Bar -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="今日工作台" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                    <TextBlock Text="2026年10月2日 · 联想小新Pad与ColorOS多端就绪" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                </StackPanel>
+
+                <!-- Top Quick Action Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="+ 快捷记账" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="14,8" Margin="0,0,10,0" FontSize="13" Cursor="Hand" Click="OnQuickExpenseHeaderClicked" />
+                    <Button Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Main Content Area -->
+            <Grid Grid.Row="1">
+                <!-- 1. SCHEDULE & TIMETABLE VIEW -->
+                <Grid Name="ScheduleView" Visibility="Visible">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Top 3 Metrics Dashboard Cards -->
+                    <Grid Grid.Row="0" Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Metric 1: Tasks -->
+                        <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
                             <StackPanel>
-                                <TextBlock Text="🤖 Gemini 智能监管评价" FontWeight="SemiBold" FontSize="15" />
-                                <TextBlock Text="当前状态良好：检测到你正在进行软件开发工作，符合「09:30-11:30 核心研发」时间块目标，专注度评分 95 分。继续保持！" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="今日计划进度" FontSize="12" Foreground="{StaticResource TextSecondary}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
+                                    <TextBlock Text="1" FontSize="26" FontWeight="Bold" Foreground="#38BDF8" />
+                                    <TextBlock Text=" / 3 个时间块" FontSize="14" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="4,0,0,4" />
+                                </StackPanel>
+                                <ProgressBar Value="33" Maximum="100" Height="4" Foreground="#38BDF8" Background="#27272A" BorderThickness="0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Metric 2: AI Focus -->
+                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Gemini 专注评分" FontSize="12" Foreground="{StaticResource TextSecondary}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
+                                    <TextBlock Text="94" FontSize="26" FontWeight="Bold" Foreground="#10B981" />
+                                    <TextBlock Text="分 · 状态良好" FontSize="13" Foreground="#10B981" VerticalAlignment="Bottom" Margin="6,0,0,5" />
+                                </StackPanel>
+                                <TextBlock Text="当前匹配: 核心研发时间块" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Metric 3: Expense -->
+                        <Border Grid.Column="4" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="今日支出统计" FontSize="12" Foreground="{StaticResource TextSecondary}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
+                                    <TextBlock Text="¥ 35.50" FontSize="26" FontWeight="Bold" Foreground="#F43F5E" />
+                                </StackPanel>
+                                <TextBlock Text="午餐 · 支付宝已同步" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Bottom Split: Left Timetable Flow, Right AI Inspector -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="6*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="4*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: Rich Schedule Timetable -->
+                        <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="今日日程编排 (Timeline)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16" />
+
+                                    <!-- Item 1 (Active) -->
+                                    <Border Background="#25252B" BorderBrush="#3B82F6" BorderThickness="1.5" CornerRadius="10" Padding="16" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <!-- Time column -->
+                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                                                <TextBlock Text="09:30" FontWeight="Bold" FontSize="15" Foreground="#38BDF8" />
+                                                <TextBlock Text="11:30" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            </StackPanel>
+
+                                            <!-- Content -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <Border Background="#1E293B" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                                        <TextBlock Text="核心研发" FontSize="11" Foreground="#38BDF8" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <TextBlock Text="RMF Windows 客户端架构" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
+                                                </StackPanel>
+                                                <TextBlock Text="轻量化 Fluent 2 视觉重塑与 Win32 前台采集" FontSize="13" Foreground="{StaticResource TextSecondary}" />
+                                            </StackPanel>
+
+                                            <!-- Status Badge -->
+                                            <Border Grid.Column="2" Background="#1E3A8A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
+                                                <TextBlock Text="● 进行中" FontSize="12" FontWeight="SemiBold" Foreground="#93C5FD" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Item 2 -->
+                                    <Border Background="#1D1D21" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                                                <TextBlock Text="14:00" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextSecondary}" />
+                                                <TextBlock Text="15:30" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <Border Background="#3B0764" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                                        <TextBlock Text="AI 监管" FontSize="11" Foreground="#C084FC" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <TextBlock Text="Gemini 监督中枢对接" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
+                                                </StackPanel>
+                                                <TextBlock Text="日常行为偏差分析与晚间复盘报告生成" FontSize="13" Foreground="{StaticResource TextSecondary}" />
+                                            </StackPanel>
+
+                                            <Border Grid.Column="2" Background="#27272A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
+                                                <TextBlock Text="待执行" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Item 3 -->
+                                    <Border Background="#1D1D21" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                                                <TextBlock Text="16:00" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextSecondary}" />
+                                                <TextBlock Text="17:00" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <Border Background="#064E3B" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                                        <TextBlock Text="多端协同" FontSize="11" Foreground="#34D399" FontWeight="SemiBold" />
+                                                    </Border>
+                                                    <TextBlock Text="Google Drive AppData 增量同步" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
+                                                </StackPanel>
+                                                <TextBlock Text="小新 Pad 12.7 寸大屏与手机端双向增量验证" FontSize="13" Foreground="{StaticResource TextSecondary}" />
+                                            </StackPanel>
+
+                                            <Border Grid.Column="2" Background="#27272A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
+                                                <TextBlock Text="待执行" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- Right: AI Supervision & Live Window Radar -->
+                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+                            <StackPanel>
+                                <TextBlock Text="🤖 Gemini 行为监管守护" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,14" />
+
+                                <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                                            <Ellipse Width="6" Height="6" Fill="#38BDF8" Margin="0,0,6,0" />
+                                            <TextBlock Text="当前前台活动嗅探" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" />
+                                        </StackPanel>
+                                        <TextBlock Name="ActiveWindowText" Text="捕获中..." FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="#2E1065" BorderBrush="#581C87" BorderThickness="1" CornerRadius="8" Padding="14">
+                                    <StackPanel>
+                                        <TextBlock Text="实时监管反馈" FontWeight="Bold" FontSize="13" Foreground="#E9D5FF" Margin="0,0,0,6" />
+                                        <TextBlock Text="你正在专注处理研发工作。执行状态与日程计划完全吻合，无需调整。" FontSize="13" LineHeight="20" Foreground="#D8B4FE" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- 2. FOCUS VIEW -->
+                <Grid Name="FocusView" Visibility="Collapsed">
+                    <TextBlock Text="⏱️ 专注与 AI 监管中枢" FontSize="20" FontWeight="Bold" />
+                </Grid>
+
+                <!-- 3. FINANCE VIEW -->
+                <Grid Name="FinanceView" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="💰 智能自然语言收支记账" FontSize="20" FontWeight="Bold" Margin="0,0,0,16" />
+                        <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="自然语言输入记账（支持语音或文本，Gemini 自动结构化抽取）：" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,10" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Name="QuickExpenseInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <Button Grid.Column="1" Content="Gemini 解析并入库" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,10" FontWeight="SemiBold" Cursor="Hand" Click="OnQuickExpenseClicked" />
+                                </Grid>
+                                <TextBlock Name="ExpenseResultText" Text="" Foreground="#10B981" FontSize="13" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
+                </Grid>
 
-                    <!-- Finance View -->
-                    <StackPanel Name="FinanceView" Visibility="Collapsed">
-                        <TextBlock Text="💰 收入与支出 (支持 Gemini 一句话智能记账)" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
-                        <Grid Margin="0,0,0,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ui:TextBox Name="QuickExpenseInput" PlaceholderText="输入如：今天中午吃麻辣烫35.5元微信支付" VerticalAlignment="Center" Margin="0,0,12,0" />
-                            <ui:Button Grid.Column="1" Content="Gemini 解析并记账" Appearance="Primary" Click="OnQuickExpenseClicked" />
-                        </Grid>
-                        <TextBlock Name="ExpenseResultText" Text="" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,0,12" />
-
-                        <ui:CardControl Margin="0,0,0,8">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="午餐 - 工作餐" FontWeight="SemiBold" />
-                                    <TextBlock Text="2026-10-02 12:15 | 微信支付" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <TextBlock Text="- ¥ 35.50" FontWeight="Bold" FontSize="16" Foreground="#FF453A" VerticalAlignment="Center" />
-                        </ui:CardControl>
-                    </StackPanel>
-
-                    <!-- Sync View -->
-                    <StackPanel Name="SyncView" Visibility="Collapsed">
-                        <TextBlock Text="☁️ Google Drive AppData 多端同步状态" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
-                        <ui:CardControl Margin="0,0,0,12">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="同步通道状态" FontWeight="SemiBold" />
-                                    <TextBlock Text="本地优先 (Local-First SQLite) -> 云端隐式空间" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <ui:Button Content="立即检查同步" Appearance="Primary" Click="OnSyncNowClicked" />
-                        </ui:CardControl>
-                        <TextBlock Name="SyncStatusText" Text="就绪：未检测到冲突，本地离线队列安全。" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <!-- 4. SYNC VIEW -->
+                <Grid Name="SyncView" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="☁️ Google Drive AppData 增量同步" FontSize="20" FontWeight="Bold" Margin="0,0,0,16" />
+                        <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="状态：已连接至云端隐藏空间 `drive.appdata`" Foreground="{StaticResource TextSecondary}" FontSize="14" />
+                                <TextBlock Name="SyncStatusText" Text="本地优先 SQLite 状态健康，无冲突。" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,8,0,16" />
+                                <Button Content="手动立即同步" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,8" FontWeight="SemiBold" HorizontalAlignment="Left" Cursor="Hand" Click="OnSyncNowClicked" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Grid>
-            </Border>
+            </Grid>
         </Grid>
-
-        <!-- Status Bar -->
-        <StatusBar Grid.Row="1" Background="Transparent" Margin="16,0,16,6">
-            <StatusBarItem>
-                <TextBlock Text="● RMF Core 就绪 | Local-First SQLite" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-            </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock Text="Windows 11 Native | .NET 10" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-            </StatusBarItem>
-        </StatusBar>
     </Grid>
 </Window>

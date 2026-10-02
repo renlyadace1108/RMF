@@ -3,8 +3,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
-using Wpf.Ui.Controls;
 
 namespace RMF.Windows;
 
@@ -12,7 +13,14 @@ public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _perfTimer;
 
-    // Win32 API imports for ultra-lightweight foreground detection (No CPU polling overhead)
+    // Win32 DWM API to enable Windows 11 Immersive Dark Titlebar & Mica backdrop
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38; // 2 = Mica, 3 = Acrylic, 4 = Mica Alt
+
+    // Win32 API imports for lightweight foreground window sniffing
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -22,7 +30,7 @@ public partial class MainWindow : Window
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
-    // Win32 API to trim memory working set down to absolute minimum
+    // Win32 API to trim memory working set
     [DllImport("psapi.dll")]
     private static extern int EmptyWorkingSet(IntPtr hwProc);
 
@@ -30,14 +38,37 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        Loaded += (s, e) =>
+        {
+            ApplyWindows11ImmersiveDarkTitlebar();
+            UpdateTelemetry();
+        };
+
         _perfTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(2)
         };
         _perfTimer.Tick += (s, e) => UpdateTelemetry();
         _perfTimer.Start();
+    }
 
-        Loaded += (s, e) => UpdateTelemetry();
+    private void ApplyWindows11ImmersiveDarkTitlebar()
+    {
+        try
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                // Enable Windows 11 Dark Mode on the Window Frame & Caption Bar
+                int useDarkMode = 1;
+                DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDarkMode, sizeof(int));
+
+                // Enable Mica / Mica Alt if on Windows 11
+                int backdropType = 2; // Mica
+                DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType, sizeof(int));
+            }
+        }
+        catch { }
     }
 
     private void OnTrimMemoryClicked(object sender, RoutedEventArgs e)
@@ -56,13 +87,11 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Memory Usage calculation
             using var currentProcess = Process.GetCurrentProcess();
             long memoryBytes = currentProcess.WorkingSet64;
             double memoryMb = memoryBytes / (1024.0 * 1024.0);
             MemoryUsageText.Text = $"内存占用: {memoryMb:F1} MB";
 
-            // Win32 Active Window capture (AI supervision data stream)
             IntPtr handle = GetForegroundWindow();
             if (handle != IntPtr.Zero)
             {
@@ -79,7 +108,7 @@ public partial class MainWindow : Window
                 catch { }
 
                 string title = sb.ToString();
-                if (string.IsNullOrWhiteSpace(title)) title = "桌面 / 无标题窗口";
+                if (string.IsNullOrWhiteSpace(title)) title = "桌面 / 无标题";
 
                 ActiveWindowText.Text = $"[{procName}.exe] {title}";
             }
@@ -94,21 +123,17 @@ public partial class MainWindow : Window
         FinanceView.Visibility = viewName == "Finance" ? Visibility.Visible : Visibility.Collapsed;
         SyncView.Visibility = viewName == "Sync" ? Visibility.Visible : Visibility.Collapsed;
 
-        NavScheduleBtn.Appearance = viewName == "Schedule" ? ControlAppearance.Primary : ControlAppearance.Secondary;
-        NavFocusBtn.Appearance = viewName == "Focus" ? ControlAppearance.Primary : ControlAppearance.Secondary;
-        NavFinanceBtn.Appearance = viewName == "Finance" ? ControlAppearance.Primary : ControlAppearance.Secondary;
-        NavSyncBtn.Appearance = viewName == "Sync" ? ControlAppearance.Primary : ControlAppearance.Secondary;
+        NavScheduleBtn.Style = (Style)FindResource(viewName == "Schedule" ? "ActiveNavTabButtonStyle" : "NavTabButtonStyle");
+        NavFocusBtn.Style = (Style)FindResource(viewName == "Focus" ? "ActiveNavTabButtonStyle" : "NavTabButtonStyle");
+        NavFinanceBtn.Style = (Style)FindResource(viewName == "Finance" ? "ActiveNavTabButtonStyle" : "NavTabButtonStyle");
+        NavSyncBtn.Style = (Style)FindResource(viewName == "Sync" ? "ActiveNavTabButtonStyle" : "NavTabButtonStyle");
     }
 
     private void OnNavScheduleClicked(object sender, RoutedEventArgs e) => SwitchView("Schedule");
     private void OnNavFocusClicked(object sender, RoutedEventArgs e) => SwitchView("Focus");
     private void OnNavFinanceClicked(object sender, RoutedEventArgs e) => SwitchView("Finance");
     private void OnNavSyncClicked(object sender, RoutedEventArgs e) => SwitchView("Sync");
-
-    private void OnRefreshTrackingClicked(object sender, RoutedEventArgs e)
-    {
-        UpdateTelemetry();
-    }
+    private void OnQuickExpenseHeaderClicked(object sender, RoutedEventArgs e) => SwitchView("Finance");
 
     private void OnQuickExpenseClicked(object sender, RoutedEventArgs e)
     {
@@ -119,7 +144,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Demo NLP response simulating Gemini extraction
         ExpenseResultText.Text = $"✅ Gemini 成功解析并入库：[餐饮美食] - 支出识别完成。已同步入本地 SQLite。";
         QuickExpenseInput.Clear();
     }
