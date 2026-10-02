@@ -184,6 +184,57 @@ public class GeminiService
     }
 
     /// <summary>
+    /// 针对模糊意图提供量化明确的 Definition of Done (DoD) 建议
+    /// </summary>
+    public async Task<string> SuggestDoDAsync(string taskTitle)
+    {
+        string systemInstruction = @"你是一个敏捷开发与效能架构专家。
+针对用户提出的模糊或未量化任务意图，给出一句极其具体、高度可检验的 Definition of Done (DoD) 验收标准。
+原则要求：
+1. 必须包含可检验的量化指标、具体交付物或验证方式（例如：跑通单元测试覆盖率>80% 并合并分支，或完成 3 组实验对比数据归档）。
+2. 严禁空话套话，只输出该句验收标准，字数控制在 35 字以内。";
+
+        string prompt = $"【待量化质检的任务意图】：{taskTitle}\n请给出明确的验收标准 (DoD)：";
+        string result = await GenerateContentAsync(systemInstruction, prompt);
+        return result.Trim(' ', '\r', '\n', '"', '“', '”', '`');
+    }
+
+    /// <summary>
+    /// 针对排期健康体检报告提供专家级客观归因与优化裁决
+    /// </summary>
+    public async Task<string> DeepAuditScheduleWithAiAsync(AuditScanReport report, List<ScheduleItem> items)
+    {
+        string systemInstruction = @"你是一个冷酷、客观、严谨的 AI 日程调度与认知负荷审计员 (AI Scheduling Auditor)。
+原则要求：
+1. 绝对基于事实与数据，杜绝无意义的情绪打气与鸡汤。
+2. 依据四大核心规则审查：
+   - 规则 A (DoD 强制质检)：未量化任务的拖延风险；
+   - 规则 B (认知负荷硬顶)：单日深度工作超 4.5h 的脑力透支与决策崩塌风险；
+   - 规则 C (悲观膨胀与缓冲)：零间隙无缝连续排期的转场损耗；
+   - 规则 D (精力曲线拟合)：峰值时段是否被琐碎事务侵占。
+3. 输出 3 点尖锐且极具操作性的调度纠偏指令。";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"【体检基本盘】：健康评分 {report.OverallHealthScore}/100，排期总工时 {report.TotalScheduledHours:F1}h，深度工作 {report.DeepWorkHours:F1}h / 4.5h (DoD完备率: {report.DoDComplianceRatio:F0}%)");
+        if (report.Issues.Count > 0)
+        {
+            sb.AppendLine("【检出的违规与隐患项】：");
+            foreach (var iss in report.Issues)
+            {
+                sb.AppendLine($"- [{iss.Severity}] {iss.Title}: {iss.Description}");
+            }
+        }
+        sb.AppendLine("\n【今日时间块明细】：");
+        foreach (var it in items)
+        {
+            sb.AppendLine($"- [{it.StartTime:HH:mm}-{it.EndTime:HH:mm}] [{it.WorkType}] {it.Title} (DoD: {(string.IsNullOrEmpty(it.Dod) ? "无" : it.Dod)})");
+        }
+
+        sb.AppendLine("\n请给出冷酷客观的审计剖析与裁决指令：");
+        return await GenerateContentAsync(systemInstruction, sb.ToString());
+    }
+
+    /// <summary>
     /// 3. 绝对客观的想法与决策推演 (Idea & Strategy Evaluation)
     /// </summary>
     public async Task<string> EvaluateIdeaAsync(string userIdea, string currentContext)

@@ -342,6 +342,30 @@ public class DatabaseService
         return list;
     }
 
+    public static ScheduleItem? GetScheduleById(string id)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+            FROM schedules
+            WHERE id = @id AND is_deleted = 0
+            LIMIT 1;
+        ";
+
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return ReadScheduleFromReader(reader, DateTime.Today, DateTime.Today.AddHours(1));
+        }
+
+        return null;
+    }
+
     private static ScheduleItem ReadScheduleFromReader(SqliteDataReader reader, DateTime defaultStart, DateTime defaultEnd)
     {
         return new ScheduleItem

@@ -54,6 +54,9 @@ public partial class MainWindow : Window
     // 三方冲突决议当前上下文
     private SyncConflict? _currentConflict = null;
 
+    // AI 客观重排待确认建议方案
+    private SchedulingPlanResult? _pendingSchedulePlan = null;
+
     // 内存与窗口嗅探 Win32 API
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -1473,6 +1476,57 @@ public partial class MainWindow : Window
         DateTime start = targetDate.Date.AddMinutes(startMinutes);
         DateTime end = start.AddHours(1);
 
+        // 规则 A & B: 加载任务并执行 DoD 质检门禁与认知负荷熔断审查
+        var backlogItem = DatabaseService.GetScheduleById(scheduleId);
+        if (backlogItem != null)
+        {
+            // 规则 A: DoD 强制质检拦截
+            var (dodPassed, dodReason, suggestedDod) = SchedulerAuditEngine.InspectDoD(backlogItem);
+            if (!dodPassed && backlogItem.WorkType != "REST_BUFFER")
+            {
+                var res = MessageBox.Show(
+                    $"⛔ 待办投放 DoD 质检拦截！\n\n任务「{backlogItem.Title}」目标未量化。\n{dodReason}\n\n💡 建议验收标准 (DoD)：\n「{suggestedDod}」\n\n是否一键采纳推荐 DoD 并排入主时间轴？（选「否」则取消排期，留在待办池）",
+                    "DoD 质检门禁",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning
+                );
+                if (res == MessageBoxResult.Yes)
+                {
+                    backlogItem.Dod = suggestedDod;
+                    DatabaseService.UpsertSchedule(backlogItem);
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            // 规则 B: 认知负荷 4.5h 生理上限硬性熔断
+            if (backlogItem.WorkType == "DEEP_WORK")
+            {
+                int currentDeepMins = DatabaseService.GetTodayDeepWorkMinutes(targetDate);
+                int durationMins = (int)(end - start).TotalMinutes;
+                if (currentDeepMins + durationMins > SchedulerAuditEngine.MaxDailyDeepWorkMinutes)
+                {
+                    var res = MessageBox.Show(
+                        $"🚨 认知负荷排期熔断！\n\n投放此任务后，今日深度工作将达 {(currentDeepMins + durationMins) / 60.0:F1} 小时，突破 4.5h 生理硬性上限！\n\n调度引擎已熔断拦截。是否将该任务剥离归入「次要任务延期冻结池」锁定今日不排入？",
+                        "认知超载排期熔断",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question
+                    );
+                    if (res == MessageBoxResult.Yes)
+                    {
+                        backlogItem.IsDeferred = true;
+                        backlogItem.IsBacklog = false;
+                        DatabaseService.UpsertSchedule(backlogItem);
+                        RefreshBacklogList();
+                        RefreshDeferredQueue();
+                    }
+                    return;
+                }
+            }
+        }
+
         // 检查缓冲区域防重叠约束
         if (CheckRestBufferConflict(targetDate, start, end, scheduleId))
         {
@@ -1481,6 +1535,34 @@ public partial class MainWindow : Window
         }
 
         DatabaseService.ScheduleBacklogTask(scheduleId, start, end);
+
+        // 规则 C: 深度工作任务投放后自动在末尾建立 15 分钟认知冷却缓冲（若空闲）
+        if (backlogItem != null && backlogItem.WorkType == "DEEP_WORK")
+        {
+            DateTime bufferEnd = end.AddMinutes(SchedulerAuditEngine.TransitionBufferMinutes);
+            if (!CheckRestBufferConflict(targetDate, end, bufferEnd, null))
+            {
+                var bufferBlock = new ScheduleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Title = "☕ 强制脑力恢复缓冲",
+                    Description = $"紧随高强度任务「{backlogItem.Title}」的法定认知冷却期，禁止排期侵占",
+                    Category = "健康",
+                    Priority = "MEDIUM",
+                    Status = "PENDING",
+                    StartTime = end,
+                    EndTime = bufferEnd,
+                    EstimatedMinutes = SchedulerAuditEngine.TransitionBufferMinutes,
+                    WorkType = "REST_BUFFER",
+                    Dod = "离开屏幕、活动颈椎或补充水分",
+                    IsBacklog = false,
+                    IsDeferred = false,
+                    IsDirty = true
+                };
+                DatabaseService.UpsertSchedule(bufferBlock);
+            }
+        }
+
         RenderAllCalendarViews();
         RefreshBacklogList();
         RefreshTimePnlData();
@@ -1635,21 +1717,27 @@ public partial class MainWindow : Window
 
         string dod = EventDodInput.Text.Trim();
 
-        // ================= MODULE 1: 验收标准 (DoD) 质检门禁拦截 =================
-        // 拦截未量化、模糊的任务（如“写代码”、“复习”、“学习”、“看书”等）未填充 DoD 禁止直接排入主时间网格
-        string[] vagueKeywords = { "写代码", "复习", "看书", "学习", "做项目", "搞一下", "写需求", "coding", "work", "study", "code", "dev" };
-        bool isVagueTitle = vagueKeywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase)) || title.Length <= 2;
-
-        if (isVagueTitle && string.IsNullOrWhiteSpace(dod) && workType != "REST_BUFFER")
+        // ================= MODULE 1 & 规格书规则 A: 验收标准 (DoD) 质检门禁拦截 =================
+        var tempItem = new ScheduleItem { Title = title, Dod = dod, WorkType = workType };
+        var (dodPassed, dodReason, suggestedDod) = SchedulerAuditEngine.InspectDoD(tempItem);
+        if (!dodPassed && workType != "REST_BUFFER")
         {
-            MessageBox.Show(
-                $"⛔ 验收标准 (DoD) 质检拦截！\n\n检测到任务标题「{title}」目标过于模糊且未量化。\n根据敏捷工作台设计意图，未填充明确 Definition of Done 验收标准的任务禁止直接排入主时间网格！\n\n请在「验收标准 (DoD)」字段填写具体成果（例如：完成模块X全部5个接口联调并通过自动化测试），方可排期。",
-                "DoD 质检拦截",
-                MessageBoxButton.OK,
+            var res = MessageBox.Show(
+                $"⛔ 验收标准 (DoD) 质检门禁拦截！\n\n原因: {dodReason}\n任务「{title}」缺少明确可检验的量化成果标准。\n\n💡 推荐验收标准 (DoD)：\n「{suggestedDod}」\n\n是否一键采纳此推荐 DoD 并继续排期保存？\n（点击「是」自动填入并保存；点击「否」返回手动修改）",
+                "DoD 强制质检拦截",
+                MessageBoxButton.YesNo,
                 MessageBoxImage.Warning
             );
-            EventDodInput.Focus();
-            return;
+            if (res == MessageBoxResult.Yes)
+            {
+                dod = suggestedDod;
+                EventDodInput.Text = suggestedDod;
+            }
+            else
+            {
+                EventDodInput.Focus();
+                return;
+            }
         }
 
         DateTime baseDate = _clickedSlotDateTime.Date;
@@ -2209,17 +2297,331 @@ public partial class MainWindow : Window
         {
             CognitiveCircuitBreakerBanner.Visibility = Visibility.Visible;
             CognitiveLoadProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+            AuditHealthScoreText.Text = "熔断中";
+            AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x07, 0x13));
+            AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
         }
         else if (todayDeepMins >= 210)
         {
             CognitiveCircuitBreakerBanner.Visibility = Visibility.Collapsed;
             CognitiveLoadProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+            AuditHealthScoreText.Text = "预警中";
+            AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x35, 0x1C, 0x0C));
+            AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C));
         }
         else
         {
             CognitiveCircuitBreakerBanner.Visibility = Visibility.Collapsed;
             CognitiveLoadProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
+            AuditHealthScoreText.Text = "体检: 100分";
+            AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x13, 0x2E, 0x27));
+            AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99));
         }
+    }
+
+    // =========================================================================
+    // ================= AI 客观日程调度引擎 (AUTO-SCHEDULE) ====================
+    // =========================================================================
+
+    private void OnAutoScheduleClicked(object sender, RoutedEventArgs e)
+    {
+        var backlog = DatabaseService.GetBacklogSchedules();
+        var existing = DatabaseService.GetTodaySchedules();
+        double alpha = DatabaseService.CalculateOptimismMultiplier();
+
+        _pendingSchedulePlan = SchedulerAuditEngine.GenerateAutoSchedulePlan(DateTime.Today, backlog, existing, alpha);
+
+        // 渲染决策归因日志
+        AutoScheduleDecisionLogsPanel.Children.Clear();
+        foreach (var log in _pendingSchedulePlan.DecisionLogs)
+        {
+            var tb = new TextBlock
+            {
+                Text = log,
+                FontSize = 10,
+                Foreground = log.Contains("熔断") ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
+                             log.Contains("DoD") ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
+                             log.Contains("缓冲") ? new SolidColorBrush(Color.FromRgb(0xC4, 0xB5, 0xFD)) :
+                             new SolidColorBrush(Color.FromRgb(0x8A, 0xB4, 0xF8)),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            AutoScheduleDecisionLogsPanel.Children.Add(tb);
+        }
+
+        // 渲染拟排入项目预览
+        AutoSchedulePreviewItemsPanel.Children.Clear();
+        if (_pendingSchedulePlan.ScheduledBlocks.Count == 0 && _pendingSchedulePlan.DeferredTasks.Count == 0 && _pendingSchedulePlan.RejectedTasks.Count == 0)
+        {
+            AutoSchedulePreviewItemsPanel.Children.Add(new TextBlock
+            {
+                Text = "待办池无待排期任务或所有精力时段已饱和。",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+                Margin = new Thickness(0, 4, 0, 4)
+            });
+        }
+        else
+        {
+            foreach (var block in _pendingSchedulePlan.ScheduledBlocks)
+            {
+                var border = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0x28, 0x29, 0x3D)),
+                    BorderBrush = block.WorkType == "REST_BUFFER" ? new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6)) : new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 4, 6, 4),
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+
+                var sp = new StackPanel();
+                var topRow = new Grid();
+                topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var titleTb = new TextBlock
+                {
+                    Text = $"[{block.StartTime:HH:mm}-{block.EndTime:HH:mm}] {block.Title}",
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.White
+                };
+                Grid.SetColumn(titleTb, 0);
+                topRow.Children.Add(titleTb);
+
+                var badge = new TextBlock
+                {
+                    Text = block.WorkType == "DEEP_WORK" ? "🧠 深度" : block.WorkType == "REST_BUFFER" ? "☕ 缓冲" : "📋 浅层",
+                    FontSize = 9,
+                    Foreground = block.WorkType == "REST_BUFFER" ? new SolidColorBrush(Color.FromRgb(0xC4, 0xB5, 0xFD)) : new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
+                };
+                Grid.SetColumn(badge, 1);
+                topRow.Children.Add(badge);
+                sp.Children.Add(topRow);
+
+                if (!string.IsNullOrEmpty(block.Dod))
+                {
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"DoD: {block.Dod}",
+                        FontSize = 9,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
+                        Margin = new Thickness(0, 2, 0, 0)
+                    });
+                }
+
+                border.Child = sp;
+                AutoSchedulePreviewItemsPanel.Children.Add(border);
+            }
+
+            if (_pendingSchedulePlan.DeferredTasks.Count > 0)
+            {
+                var defTitle = new TextBlock
+                {
+                    Text = $"❄️ 负荷超限熔断延期 ({_pendingSchedulePlan.DeferredTasks.Count} 项)：",
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)),
+                    Margin = new Thickness(0, 4, 0, 2)
+                };
+                AutoSchedulePreviewItemsPanel.Children.Add(defTitle);
+
+                foreach (var dt in _pendingSchedulePlan.DeferredTasks)
+                {
+                    AutoSchedulePreviewItemsPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"• {dt.Title} (需{dt.EstimatedMinutes}m)",
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5)),
+                        Margin = new Thickness(6, 0, 0, 2)
+                    });
+                }
+            }
+
+            if (_pendingSchedulePlan.RejectedTasks.Count > 0)
+            {
+                var rejTitle = new TextBlock
+                {
+                    Text = $"⛔ DoD未达标驳回 ({_pendingSchedulePlan.RejectedTasks.Count} 项)：",
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)),
+                    Margin = new Thickness(0, 4, 0, 2)
+                };
+                AutoSchedulePreviewItemsPanel.Children.Add(rejTitle);
+
+                foreach (var rt in _pendingSchedulePlan.RejectedTasks)
+                {
+                    AutoSchedulePreviewItemsPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"• {rt.Task.Title} ➔ 建议DoD: {rt.SuggestedDod}",
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xFD, 0xBA, 0x74)),
+                        Margin = new Thickness(6, 0, 0, 2)
+                    });
+                }
+            }
+        }
+
+        AutoScheduleStatusText.Text = $"拟安排 {_pendingSchedulePlan.ScheduledBlocks.Count} 项，延期 {_pendingSchedulePlan.DeferredTasks.Count} 项，质检拦截 {_pendingSchedulePlan.RejectedTasks.Count} 项";
+        AutoSchedulePreviewCard.Visibility = Visibility.Visible;
+    }
+
+    private void OnApplyAutoSchedulePlanClicked(object sender, RoutedEventArgs e)
+    {
+        if (_pendingSchedulePlan == null || (_pendingSchedulePlan.ScheduledBlocks.Count == 0 && _pendingSchedulePlan.DeferredTasks.Count == 0))
+        {
+            AutoSchedulePreviewCard.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        foreach (var block in _pendingSchedulePlan.ScheduledBlocks)
+        {
+            DatabaseService.UpsertSchedule(block);
+        }
+
+        foreach (var deferred in _pendingSchedulePlan.DeferredTasks)
+        {
+            deferred.IsDeferred = true;
+            deferred.IsBacklog = false;
+            DatabaseService.UpsertSchedule(deferred);
+        }
+
+        AutoSchedulePreviewCard.Visibility = Visibility.Collapsed;
+        _pendingSchedulePlan = null;
+
+        RenderAllCalendarViews();
+        RefreshBacklogList();
+        RefreshDeferredQueue();
+        UpdateCognitiveLoadQuota();
+        RefreshTimePnlData();
+        UpdateSyncStatusBadge();
+
+        MessageBox.Show("✅ 客观重排方案已成功写入中央时间网格！\n超限任务已移入延期冻结池，转场缓冲槽已建立保护。", "客观排期执行成功", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OnCancelAutoSchedulePlanClicked(object sender, RoutedEventArgs e)
+    {
+        AutoSchedulePreviewCard.Visibility = Visibility.Collapsed;
+        _pendingSchedulePlan = null;
+    }
+
+    // =========================================================================
+    // ================= AI 客观排期体检引擎 (AUDIT SCAN) =======================
+    // =========================================================================
+
+    private async void OnRunAuditScanClicked(object sender, RoutedEventArgs e)
+    {
+        AuditScanBtn.IsEnabled = false;
+        AuditScanBtn.Content = "⏳ 体检中...";
+        AuditScanResultCard.Visibility = Visibility.Visible;
+
+        try
+        {
+            var todayTasks = DatabaseService.GetTodaySchedules();
+            var report = SchedulerAuditEngine.RunAuditScan(DateTime.Today, todayTasks);
+
+            // 评分与徽章
+            AuditHealthScoreText.Text = $"体检: {report.OverallHealthScore}分";
+            if (report.OverallHealthScore >= 85)
+            {
+                AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x13, 0x2E, 0x27));
+                AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99));
+            }
+            else if (report.OverallHealthScore >= 60)
+            {
+                AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x35, 0x1C, 0x0C));
+                AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C));
+            }
+            else
+            {
+                AuditHealthScoreBadge.Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x07, 0x13));
+                AuditHealthScoreText.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+            }
+
+            AuditScanSummaryText.Text = $"综合健康得分 {report.OverallHealthScore}/100。\n今日排期总计 {report.TotalScheduledHours:F1}h，深度工作 {report.DeepWorkHours:F1}h / 4.5h 额度，DoD 合规率 {report.DoDComplianceRatio:F0}%。";
+
+            // 渲染违规隐患
+            AuditScanIssuesPanel.Children.Clear();
+            if (report.Issues.Count == 0)
+            {
+                AuditScanIssuesPanel.Children.Add(new TextBlock
+                {
+                    Text = "🎉 未检出违规隐患！排期符合 DoD 质检、认知上限与转场缓冲规则。",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
+                    Margin = new Thickness(0, 2, 0, 4)
+                });
+            }
+            else
+            {
+                foreach (var iss in report.Issues)
+                {
+                    var card = new Border
+                    {
+                        Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x1B, 0x4E)),
+                        BorderBrush = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) :
+                                      iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) :
+                                      new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(8, 4, 8, 4),
+                        Margin = new Thickness(0, 0, 0, 4)
+                    };
+                    var sp = new StackPanel();
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"[{iss.Severity}] {iss.Title}",
+                        FontSize = 11,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
+                                     iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
+                                     new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = iss.Description,
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xE9, 0xD5, 0xFF)),
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 2, 0, 0)
+                    });
+                    card.Child = sp;
+                    AuditScanIssuesPanel.Children.Add(card);
+                }
+            }
+
+            // 建议
+            AuditRecommendationsText.Text = string.Join("\n", report.Recommendations);
+
+            // 尝试 AI 专家级审计裁决
+            var config = ConfigService.Load();
+            if (!string.IsNullOrWhiteSpace(config.GeminiApiKey))
+            {
+                AuditResultText.Text = "⏳ 正在连接 AI 专家进行深度排期归因裁决...";
+                string aiFeedback = await _geminiService.DeepAuditScheduleWithAiAsync(report, todayTasks);
+                AuditResultText.Text = aiFeedback;
+            }
+            else
+            {
+                AuditResultText.Text = "💡（本地客观审计引擎已完成全盘体检。在「⚙️ 设置」填入 Google AI Studio API Key 后可解锁基于 LLM 的深度执行力与心流剖析）";
+            }
+        }
+        catch (Exception ex)
+        {
+            AuditResultText.Text = $"体检过程提示: {ex.Message}";
+        }
+        finally
+        {
+            AuditScanBtn.IsEnabled = true;
+            AuditScanBtn.Content = "🩺 排期审计体检";
+        }
+    }
+
+    private void OnCloseAuditScanResultClicked(object sender, RoutedEventArgs e)
+    {
+        AuditScanResultCard.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateOptimismMultiplier()
@@ -3012,37 +3414,6 @@ public partial class MainWindow : Window
     // ====================== GEMINI AI COMPANION LOGIC ========================
     // =========================================================================
 
-    private async void OnAuditScheduleClicked(object sender, RoutedEventArgs e)
-    {
-        DateTime monday = GetMondayOfWeek(_currentDate);
-        var weekEvents = DatabaseService.GetSchedulesForDateRange(monday, monday.AddDays(7));
-
-        if (weekEvents.Count == 0)
-        {
-            AuditResultText.Text = "ℹ️ 当前周期数据库中暂无排期日程。\n\n请先点击左上角「+ 创建」或同步 Google 日历规划该日期的任务时间块，AI 将基于你的真实安排与前台活动进行客观负荷审计。";
-            return;
-        }
-
-        AuditScheduleBtn.IsEnabled = false;
-        AuditScheduleBtn.Content = "⏳ 正在进行客观负荷与执行力审计...";
-        AuditResultText.Text = "正在连接 AI 模型分析任务排期、认知负荷与桌面活动流，请稍候...";
-
-        try
-        {
-            string currentActivity = ActiveWindowText.Text;
-            string feedback = await _geminiService.AuditScheduleAsync(weekEvents, currentActivity);
-            AuditResultText.Text = feedback;
-        }
-        catch (Exception ex)
-        {
-            AuditResultText.Text = $"❌ 审查失败: {ex.Message}\n\n请先在侧边栏「⚙️ 设置」填入你的 Google AI Studio API Key。";
-        }
-        finally
-        {
-            AuditScheduleBtn.IsEnabled = true;
-            AuditScheduleBtn.Content = "✨ 客观审计当前周期排期";
-        }
-    }
 
     private async void OnEvaluateIdeaClicked(object sender, RoutedEventArgs e)
     {

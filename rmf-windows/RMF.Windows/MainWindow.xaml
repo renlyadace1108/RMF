@@ -518,35 +518,109 @@
                     <!-- Close button in drawer top-right -->
                     <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Panel.ZIndex="10" Click="OnCloseRightDrawerClicked" />
 
-                    <!-- ================= DRAWER 1: AI 客观审计与认知负荷面板 (✨) ================= -->
+                    <!-- ================= DRAWER 1: AI 客观日程调度与审计引擎 (✨) ================= -->
                     <Grid x:Name="DrawerGeminiPanel" Visibility="Collapsed" Margin="16">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="0,0,0,20">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,14">
-                                    <TextBlock Text="✨" FontSize="20" Margin="0,0,8,0" />
-                                    <TextBlock Text="AI 客观审计与认知负荷" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
+                                <!-- Drawer Header -->
+                                <StackPanel Margin="0,0,0,12">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="✨" FontSize="20" Margin="0,0,8,0" />
+                                        <TextBlock Text="AI 客观日程调度与审计" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
+                                    </StackPanel>
+                                    <TextBlock Text="冷酷客观 · DoD质检 · 4.5h熔断 · 精力曲线拟合" FontSize="11" Foreground="#9AA0A6" Margin="28,2,0,0" />
                                 </StackPanel>
 
-                                <!-- 1. 认知负荷配额计量 (Daily Cognitive Load Quota) -->
+                                <!-- 1. 认知负荷配额与审计体检概览 -->
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
-                                            <TextBlock Text="🧠 今日深度工作配额 (DeepWork)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🧠 深度工作配额 (DeepWork)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
+                                                <Border x:Name="AuditHealthScoreBadge" Background="#132E27" CornerRadius="4" Padding="6,1" Margin="8,0,0,0">
+                                                    <TextBlock x:Name="AuditHealthScoreText" Text="体检: 100分" FontSize="10" Foreground="#34D399" FontWeight="Bold" />
+                                                </Border>
+                                            </StackPanel>
                                             <TextBlock x:Name="CognitiveLoadText" Text="已用 0.0h / 4.5h (0%)" FontSize="11" Foreground="#8AB4F8" HorizontalAlignment="Right" />
                                         </Grid>
-                                        <ProgressBar x:Name="CognitiveLoadProgressBar" Minimum="0" Maximum="270" Value="0" Height="8" Background="#1E1B4B" Foreground="#8B5CF6" Margin="0,0,0,8" />
+                                        <ProgressBar x:Name="CognitiveLoadProgressBar" Minimum="0" Maximum="270" Value="0" Height="8" Background="#1E1B4B" Foreground="#8B5CF6" Margin="0,0,0,6" />
                                         
                                         <!-- 排期熔断警示横幅 (超限时激活) -->
-                                        <Border x:Name="CognitiveCircuitBreakerBanner" Background="#3B0713" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="6" Padding="8" Visibility="Collapsed">
+                                        <Border x:Name="CognitiveCircuitBreakerBanner" Background="#3B0713" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="6" Padding="8" Visibility="Collapsed" Margin="0,4,0,0">
                                             <StackPanel>
                                                 <TextBlock Text="🚨 认知负荷严重超载！已触发排期熔断" FontSize="11" FontWeight="Bold" Foreground="#FCA5A5" Margin="0,0,0,2" />
-                                                <TextBlock Text="今日深度思考能量已耗尽，禁止继续添加高强度任务，请将次要任务移入延期冻结池。" FontSize="10" Foreground="#F87171" TextWrapping="Wrap" />
+                                                <TextBlock Text="今日深度工作已突破 4.5h 生理极限，调度引擎已拒绝继续排入高脑力任务，请将次要任务移入延期冻结池。" FontSize="10" Foreground="#F87171" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- 2. 历史乐观偏差率 (α 乘数) 与转场缓冲建议 -->
+                                <!-- 2. 核心调度与审计双引擎触发区 (Auto-Schedule & Audit Scan) -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" x:Name="AutoScheduleBtn" Content="🤖 一键客观重排" Background="#1A73E8" Foreground="#FFFFFF" BorderThickness="0" Padding="8,8" FontSize="12" FontWeight="SemiBold" Cursor="Hand" ToolTip="读取待办敏捷池，按四大客观规则自动拟合空闲时段" Click="OnAutoScheduleClicked" />
+                                    <Button Grid.Column="2" x:Name="AuditScanBtn" Content="🩺 排期审计体检" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="8,8" FontSize="12" FontWeight="SemiBold" Cursor="Hand" ToolTip="全盘体检今日时间块的负荷、DoD 与缓冲合规性" Click="OnRunAuditScanClicked" />
+                                </Grid>
+
+                                <!-- 3. 一键客观重排建议方案反馈卡片 (Auto-Schedule Preview Card) -->
+                                <Border x:Name="AutoSchedulePreviewCard" Background="#1E1E2E" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12" Visibility="Collapsed">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="📋 客观重排方案建议 (待确认)" FontSize="12" FontWeight="Bold" Foreground="#93C5FD" VerticalAlignment="Center" />
+                                            <Button Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCancelAutoSchedulePlanClicked" />
+                                        </Grid>
+
+                                        <!-- 决策归因日志 -->
+                                        <Border Background="#13131F" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                                            <StackPanel x:Name="AutoScheduleDecisionLogsPanel" />
+                                        </Border>
+
+                                        <!-- 拟排入时间块与被拒/延期任务列表 -->
+                                        <StackPanel x:Name="AutoSchedulePreviewItemsPanel" Margin="0,0,0,10" />
+
+                                        <!-- 确认应用方案按钮 -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="✅ 确认应用并写入主网格" Background="#059669" Foreground="#FFFFFF" BorderThickness="0" Padding="10,6" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Click="OnApplyAutoSchedulePlanClicked" />
+                                            <Button Grid.Column="2" Content="放弃" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" Padding="8,6" FontSize="11" Cursor="Hand" Click="OnCancelAutoSchedulePlanClicked" />
+                                        </Grid>
+                                        <TextBlock x:Name="AutoScheduleStatusText" Text="" FontSize="10" Foreground="#10B981" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 4. 排期审计体检报告卡片 (Audit Scan Result Card) -->
+                                <Border x:Name="AuditScanResultCard" Background="#231A38" BorderBrush="#5B21B6" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12" Visibility="Collapsed">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="🩺 排期审计体检剖析" FontSize="12" FontWeight="Bold" Foreground="#D8B4FE" VerticalAlignment="Center" />
+                                            <Button Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCloseAuditScanResultClicked" />
+                                        </Grid>
+
+                                        <TextBlock x:Name="AuditScanSummaryText" Text="体检扫描中..." FontSize="11" Foreground="#E9D5FF" LineHeight="16" Margin="0,0,0,8" TextWrapping="Wrap" />
+
+                                        <!-- 违规与风险隐患列表 -->
+                                        <StackPanel x:Name="AuditScanIssuesPanel" Margin="0,0,0,8" />
+
+                                        <!-- AI 专家级审计裁决输出 -->
+                                        <Border Background="#160D29" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                                            <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                                <TextBlock x:Name="AuditResultText" Text="（等待 AI 深度审计分析...）" FontSize="11" LineHeight="16" Foreground="#C4B5FD" TextWrapping="Wrap" />
+                                            </ScrollViewer>
+                                        </Border>
+
+                                        <TextBlock x:Name="AuditRecommendationsText" Text="" FontSize="11" Foreground="#6EE7B7" Margin="0,0,0,6" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 5. 历史乐观偏差率 (α 乘数) 与转场缓冲建议 -->
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,4">
@@ -555,14 +629,14 @@
                                                 <TextBlock x:Name="OptimismAlphaText" Text="α = 1.35x" FontSize="12" FontWeight="Bold" Foreground="#D8B4FE" />
                                             </Border>
                                         </Grid>
-                                        <TextBlock Text="根据历史完成任务的实际耗时与预估比值动态计算。说明你通常会低估 35% 的耗时。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,8" TextWrapping="Wrap" />
-                                        <Button x:Name="ApplyOptimismBufferBtn" Content="🪄 一键按 α 系数追加转场缓冲" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="12,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnApplyOptimismBufferClicked" />
-                                        <TextBlock x:Name="OptimismBufferStatusText" Text="" FontSize="11" Foreground="#10B981" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                        <TextBlock Text="根据历史完成任务的实际耗时/预估比值动态学习（通常低估 35% 耗时）。" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,8" TextWrapping="Wrap" />
+                                        <Button x:Name="ApplyOptimismBufferBtn" Content="🪄 一键按 α 系数追加转场缓冲" Background="#37383B" Foreground="#E8EAED" BorderThickness="0" Padding="10,6" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Click="OnApplyOptimismBufferClicked" />
+                                        <TextBlock x:Name="OptimismBufferStatusText" Text="" FontSize="10" Foreground="#10B981" Margin="0,4,0,0" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
 
-                                <!-- 3. 次要任务延期冻结池 (Deferred Queue) -->
-                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                <!-- 6. 次要任务延期冻结池 (Deferred Queue) -->
+                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -573,14 +647,14 @@
                                             </StackPanel>
                                             <TextBlock Text="锁定今日不可排入" FontSize="10" Foreground="#F472B6" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                         </Grid>
-                                        <TextBlock Text="被审计驳回或超出负荷上限的任务在此冻结保管：" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,6" />
+                                        <TextBlock Text="超出 4.5h 负荷硬顶或被审计驳回的任务自动在此冻结：" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,6" />
                                         
                                         <StackPanel x:Name="DeferredItemsPanel" />
                                         <TextBlock x:Name="DeferredEmptyText" Text="当前冻结池为空，所有任务排期合理。" FontSize="11" Foreground="#71717A" Margin="2,2,0,2" Visibility="Visible" />
                                     </StackPanel>
                                 </Border>
 
-                                <!-- 4. Active Window Stream & Gemini Deep Audit -->
+                                <!-- 7. 前台嗅探流与决策推演 (Idea Auditor) -->
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
                                     <StackPanel>
                                         <TextBlock Text="前台活动嗅探流" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
@@ -588,15 +662,6 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Button x:Name="AuditScheduleBtn" Content="✨ 客观审计当前周期排期" Background="#1A73E8" Foreground="#FFFFFF" BorderThickness="0" Padding="12,8" FontWeight="SemiBold" FontSize="12" Cursor="Hand" Margin="0,0,0,10" Click="OnAuditScheduleClicked" />
-                                
-                                <Border Background="#231A38" BorderBrush="#5B21B6" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,14">
-                                    <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
-                                        <TextBlock x:Name="AuditResultText" Text="点击上方按钮，AI 将根据你当前的排期安排与桌面活动流，进行客观负荷与执行力审计。" FontSize="11" LineHeight="17" Foreground="#C4B5FD" TextWrapping="Wrap" />
-                                    </ScrollViewer>
-                                </Border>
-
-                                <!-- Idea Auditor -->
                                 <TextBlock Text="💡 想法与决策评估：" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" Margin="0,0,0,4" />
                                 <TextBox x:Name="UserIdeaInput" Background="#28292C" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Height="50" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,0,0,6" />
                                 <Button x:Name="EvaluateIdeaBtn" Content="🚀 深入评估决策" Background="#37383B" Foreground="#E8EAED" BorderThickness="0" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,0,8" Click="OnEvaluateIdeaClicked" />
