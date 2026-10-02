@@ -36,6 +36,12 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-02 17:39] - 修复 XAML 初始化阶段 ComboBox SelectionChanged 空指针异常
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **主要成果**：
+  1. 定位并解决 WPF 经典初始化时序陷阱：XAML 解析 `ModelSelectCombo` 时触发 `SelectionChanged`，此时处于下方声明的 `CustomModelPanel` 尚未实例化为 `null`，导致抛出 `NullReferenceException`。
+  2. 在 [`MainWindow.xaml.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/MainWindow.xaml.cs) 的 `OnModelSelectionChanged` 中增加防御性空值校验 (`if (CustomModelPanel == null) return;`)。
+
 ### [2026-10-02 17:36] - 实装 App 内全功能模型切换中枢与监督官性格控制
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **主要成果**：

@@ -280,7 +280,9 @@ public partial class MainWindow : Window
 
     private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ModelSelectCombo.SelectedItem is ComboBoxItem item)
+        if (CustomModelPanel == null) return;
+
+        if (ModelSelectCombo?.SelectedItem is ComboBoxItem item)
         {
             string tag = item.Tag as string ?? "";
             CustomModelPanel.Visibility = tag == "custom" ? Visibility.Visible : Visibility.Collapsed;
