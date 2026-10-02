@@ -27,7 +27,7 @@
 * [x] **数据模型与多端协议统一** (100%)
 * [x] **Google Drive API 同步协议规范** (100%)
 * [x] **Gemini 监管 Prompt 与交互场景规范** (100%)
-* [x] **Windows 桌面端工程脚手架 (.NET 10)** (95% - 1:1 Google Calendar 视觉交互体系、右上角 Google OAuth 2.0 登录与账号面板、周/天/月/日程多视图、iCal 双向离线优先存储、Gemini 客观审计抽屉均已实装并编译通过)
+* [x] **Windows 桌面端工程脚手架 (.NET 10)** (95% - Google Calendar 风格日历主画布、周/天/月/日程多视图、iCal 双向离线优先存储、Gemini 客观审计抽屉均已实装并编译通过)
 * [ ] **Android 移动/平板端工程脚手架 (Kotlin Compose)** (0%)
 * [ ] **Google Drive 同步引擎核心实现** (0%)
 * [x] **Gemini AI 监管与记账模块实现** (75% - 动态模型选择、真实 API 直连、日程审查、想法评估监督、自然语言记账均已打通)
@@ -35,6 +35,21 @@
 ---
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
+
+### [2026-10-02 19:00] - 移除 Google 登录功能，删除主页「Google 日历」品牌字样
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“把这个谷歌登录删了吧，然后删除主页的谷歌日历字样”
+* **核心落地成果**：
+  1. **彻底移除 Google 登录相关模块与弹窗**：
+     - 从 `MainWindow.xaml` 中移除了 `TopGoogleSignInBtn` 登录按钮与 `GoogleAccountModal` 账号弹窗浮层。
+     - 从 `MainWindow.xaml.cs` 中删除了 `UpdateGoogleAccountUI()`、`OnStartGoogleOAuthLoginClicked()` 等全部 OAuth 交互事件与逻辑。
+     - 删除了 `GoogleAuthService.cs` 并清理了 `ConfigService.cs` 中多余的 Google 账号登录字段。
+     - 右上角恢复为极简、统一的本地个人中心圆形头像徽章 `[R]`。
+  2. **删除主页「Google 日历」文字**：
+     - 从顶部导航栏删除了 `<TextBlock Text="Google 日历" ... />` 文本。
+     - 保持左侧汉堡菜单 `☰` 与经典的日历 31 图标徽章，后面直接衔接「今天」按钮与年月导航标题，界面更加简洁纯粹。
+  3. **编译构建与运行**：
+     - .NET 10 工程 0 警告 0 错误编译通过，运行时启动与渲染平滑无异常。
 
 ### [2026-10-02 18:48] - 右上角实装 Google 账号 OAuth 2.0 登录与个人中心浮层 (Profile Flyout)
 * **执行角色**：AI 全栈工程师 (Antigravity)
