@@ -241,9 +241,23 @@
                     <!-- Settings Gear -->
                     <Button Content="⚙️" Style="{StaticResource GoogleTopBtnStyle}" Width="36" Height="36" FontSize="16" ToolTip="系统与 API 配置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,8,0" />
 
-                    <!-- User Avatar -->
-                    <Border Background="#1A73E8" Width="32" Height="32" CornerRadius="16" Cursor="Hand" ToolTip="Renly 个人中心">
-                        <TextBlock Text="R" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <!-- Google User Profile / Sign In Section -->
+                    <Button x:Name="TopGoogleSignInBtn" Style="{StaticResource GoogleActionBtnStyle}" Padding="12,5" FontSize="13" FontWeight="SemiBold" ToolTip="点击登录 Google 账号" Click="OnOpenGoogleAccountClicked" Margin="0,0,4,0" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="G" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,6,0" />
+                            <TextBlock Text="登录" FontSize="13" Foreground="#FFFFFF" />
+                        </StackPanel>
+                    </Button>
+
+                    <Border x:Name="TopUserAvatarBorder" Background="#1A73E8" Width="32" Height="32" CornerRadius="16" Cursor="Hand" ToolTip="Google 账号与个人中心" MouseLeftButtonUp="OnOpenGoogleAccountClicked" Visibility="Visible">
+                        <Grid>
+                            <TextBlock x:Name="TopUserAvatarInitial" Text="R" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image x:Name="TopUserAvatarImage" Width="32" Height="32" Stretch="UniformToFill" Visibility="Collapsed">
+                                <Image.Clip>
+                                    <EllipseGeometry Center="16,16" RadiusX="16" RadiusY="16" />
+                                </Image.Clip>
+                            </Image>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </Grid>
@@ -731,6 +745,90 @@
                             <Button x:Name="SaveGoogleCalSyncBtn" Content="💾 保存并立即同步" Style="{StaticResource GoogleActionBtnStyle}" Padding="18,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnSaveGoogleCalendarSyncClicked" />
                         </StackPanel>
                     </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL 3: GOOGLE ACCOUNT LOGIN & PROFILE FLYOUT ================= -->
+        <Grid x:Name="GoogleAccountModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">
+            <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Padding="24" Width="460" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="👤" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock Text="Google 账号与云端授权" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" />
+                        </StackPanel>
+                        <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoogleAccountClicked" />
+                    </Grid>
+
+                    <!-- VIEW 1: SIGNED IN STATE -->
+                    <StackPanel x:Name="GoogleAccountSignedInPanel" Visibility="Collapsed">
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <!-- Big Avatar -->
+                                <Border x:Name="AccountBigAvatarBorder" Background="#1A73E8" Width="64" Height="64" CornerRadius="32" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                    <Grid>
+                                        <TextBlock x:Name="AccountBigAvatarInitial" Text="R" FontWeight="Bold" FontSize="26" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image x:Name="AccountBigAvatarImage" Width="64" Height="64" Stretch="UniformToFill" Visibility="Collapsed">
+                                            <Image.Clip>
+                                                <EllipseGeometry Center="32,32" RadiusX="32" RadiusY="32" />
+                                            </Image.Clip>
+                                        </Image>
+                                    </Grid>
+                                </Border>
+                                <TextBlock x:Name="AccountUserNameText" Text="Renly" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                <TextBlock x:Name="AccountUserEmailText" Text="renly@gmail.com" FontSize="13" Foreground="#9AA0A6" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                <Border Background="#132B1F" BorderBrush="#10B981" BorderThickness="1" CornerRadius="12" Padding="10,4">
+                                    <TextBlock Text="🟢 已通过 Google OAuth 2.0 安全登录" FontSize="11" Foreground="#34D399" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="已授权的 Google 云端特权：" FontSize="12" FontWeight="SemiBold" Foreground="#8AB4F8" Margin="0,0,0,8" />
+                                <TextBlock Text="✔️ Google Calendar 官方日历读写通道已打通" FontSize="11" Foreground="#E8EAED" Margin="0,0,0,4" />
+                                <TextBlock Text="✔️ Google Drive 私密云盘备份权限 (drive.appdata)" FontSize="11" Foreground="#E8EAED" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid>
+                            <Button Content="🚪 退出 Google 登录" Background="Transparent" Foreground="#EA4335" BorderThickness="0" Cursor="Hand" FontSize="12" HorizontalAlignment="Left" Click="OnSignOutGoogleAccountClicked" />
+                            <Button Content="完成" Style="{StaticResource GoogleActionBtnStyle}" Padding="20,8" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Right" Click="OnCloseGoogleAccountClicked" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- VIEW 2: SIGNED OUT STATE -->
+                    <StackPanel x:Name="GoogleAccountSignedOutPanel" Visibility="Visible">
+                        <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="💡 为什么登录 Google 账号？" FontSize="13" FontWeight="SemiBold" Foreground="#8AB4F8" Margin="0,0,0,6" />
+                                <TextBlock Text="• 官方 OAuth 2.0 授权，在右上角同步展示你的 Google 头像与邮箱" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                                <TextBlock Text="• 授权自动读取 Google Calendar 真实排期与日程安排" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                                <TextBlock Text="• 支持将日程、时间块与支出自动加密备份到 Google Drive" FontSize="11" Foreground="#9AA0A6" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Google Cloud Client ID Input -->
+                        <TextBlock Text="Google Cloud Client ID (桌面应用类型)：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                        <TextBox x:Name="GoogleOAuthClientIdInput" Background="#202124" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="10,8" FontSize="12" Margin="0,0,0,10" />
+
+                        <!-- Google Cloud Client Secret Input -->
+                        <TextBlock Text="Client Secret (可选)：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                        <TextBox x:Name="GoogleOAuthClientSecretInput" Background="#202124" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="10,8" FontSize="12" Margin="0,0,0,12" />
+
+                        <TextBlock x:Name="GoogleOAuthStatusText" Text="" FontSize="12" Foreground="#8AB4F8" Margin="0,0,0,14" TextWrapping="Wrap" />
+
+                        <Grid Margin="0,0,0,10">
+                            <!-- Direct Browser OAuth button -->
+                            <Button x:Name="StartGoogleOAuthBtn" Content="🚀 唤起浏览器登录 Google" Style="{StaticResource GoogleActionBtnStyle}" Padding="16,9" FontWeight="SemiBold" FontSize="13" Click="OnStartGoogleOAuthLoginClicked" />
+                        </Grid>
+
+                        <Grid>
+                            <Button Content="⚡ 快速体验 (本地模拟登录)" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" Cursor="Hand" HorizontalAlignment="Left" Click="OnQuickMockGoogleLoginClicked" />
+                            <Button Content="取消" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" Padding="14,6" FontSize="12" Cursor="Hand" HorizontalAlignment="Right" Click="OnCloseGoogleAccountClicked" />
+                        </Grid>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>

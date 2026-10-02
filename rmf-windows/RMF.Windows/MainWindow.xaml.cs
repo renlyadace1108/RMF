@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
@@ -84,6 +85,7 @@ public partial class MainWindow : Window
             ScrollWeekToCurrentTime();
             UpdateTelemetry();
             LoadSettingsIntoUi();
+            UpdateGoogleAccountUI();
         };
 
         _perfTimer = new DispatcherTimer
@@ -1784,5 +1786,137 @@ public partial class MainWindow : Window
         {
             TestApiBtn.IsEnabled = true;
         }
+    }
+
+    // =========================================================================
+    // ===================== GOOGLE ACCOUNT & OAUTH LOGIN ======================
+    // =========================================================================
+
+    private void UpdateGoogleAccountUI()
+    {
+        var config = ConfigService.Load();
+
+        if (config.IsGoogleUserSignedIn)
+        {
+            TopGoogleSignInBtn.Visibility = Visibility.Collapsed;
+            TopUserAvatarBorder.Visibility = Visibility.Visible;
+
+            string initial = string.IsNullOrWhiteSpace(config.GoogleUserName)
+                ? (string.IsNullOrWhiteSpace(config.GoogleUserEmail) ? "G" : config.GoogleUserEmail.Substring(0, 1).ToUpper())
+                : config.GoogleUserName.Trim().Substring(0, 1).ToUpper();
+
+            TopUserAvatarInitial.Text = initial;
+            AccountBigAvatarInitial.Text = initial;
+
+            AccountUserNameText.Text = string.IsNullOrWhiteSpace(config.GoogleUserName) ? "Google 用户" : config.GoogleUserName;
+            AccountUserEmailText.Text = string.IsNullOrWhiteSpace(config.GoogleUserEmail) ? "已通过 OAuth 2.0 连接" : config.GoogleUserEmail;
+
+            if (!string.IsNullOrWhiteSpace(config.GoogleUserPictureUrl))
+            {
+                try
+                {
+                    var bmp = new BitmapImage(new Uri(config.GoogleUserPictureUrl));
+                    TopUserAvatarImage.Source = bmp;
+                    TopUserAvatarImage.Visibility = Visibility.Visible;
+                    AccountBigAvatarImage.Source = bmp;
+                    AccountBigAvatarImage.Visibility = Visibility.Visible;
+                }
+                catch
+                {
+                    TopUserAvatarImage.Visibility = Visibility.Collapsed;
+                    AccountBigAvatarImage.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                TopUserAvatarImage.Visibility = Visibility.Collapsed;
+                AccountBigAvatarImage.Visibility = Visibility.Collapsed;
+            }
+
+            GoogleAccountSignedInPanel.Visibility = Visibility.Visible;
+            GoogleAccountSignedOutPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            TopGoogleSignInBtn.Visibility = Visibility.Visible;
+            TopUserAvatarBorder.Visibility = Visibility.Collapsed;
+
+            GoogleAccountSignedInPanel.Visibility = Visibility.Collapsed;
+            GoogleAccountSignedOutPanel.Visibility = Visibility.Visible;
+
+            GoogleOAuthClientIdInput.Text = config.GoogleClientId;
+            GoogleOAuthClientSecretInput.Text = config.GoogleClientSecret;
+            GoogleOAuthStatusText.Text = "";
+        }
+    }
+
+    private void OnOpenGoogleAccountClicked(object sender, RoutedEventArgs e)
+    {
+        UpdateGoogleAccountUI();
+        GoogleAccountModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseGoogleAccountClicked(object sender, RoutedEventArgs e)
+    {
+        GoogleAccountModal.Visibility = Visibility.Collapsed;
+    }
+
+    private async void OnStartGoogleOAuthLoginClicked(object sender, RoutedEventArgs e)
+    {
+        string clientId = GoogleOAuthClientIdInput.Text.Trim();
+        string clientSecret = GoogleOAuthClientSecretInput.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            GoogleOAuthStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35));
+            GoogleOAuthStatusText.Text = "⚠️ 请先填写 Google Cloud Client ID (类型为桌面应用 Desktop App)！";
+            return;
+        }
+
+        StartGoogleOAuthBtn.IsEnabled = false;
+        GoogleOAuthStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0xB4, 0xF8));
+        GoogleOAuthStatusText.Text = "正在启动本地授权服务器并唤起浏览器...";
+
+        try
+        {
+            var result = await GoogleAuthService.SignInWithOAuthAsync(
+                clientId, 
+                clientSecret, 
+                status => Dispatcher.Invoke(() => GoogleOAuthStatusText.Text = status)
+            );
+
+            if (result.success)
+            {
+                GoogleOAuthStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                GoogleOAuthStatusText.Text = result.message;
+                UpdateGoogleAccountUI();
+            }
+            else
+            {
+                GoogleOAuthStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35));
+                GoogleOAuthStatusText.Text = result.message;
+            }
+        }
+        catch (Exception ex)
+        {
+            GoogleOAuthStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35));
+            GoogleOAuthStatusText.Text = $"❌ 登录异常: {ex.Message}";
+        }
+        finally
+        {
+            StartGoogleOAuthBtn.IsEnabled = true;
+        }
+    }
+
+    private void OnQuickMockGoogleLoginClicked(object sender, RoutedEventArgs e)
+    {
+        GoogleAuthService.MockSignIn("Renly", "renly.rmf@gmail.com");
+        UpdateGoogleAccountUI();
+    }
+
+    private void OnSignOutGoogleAccountClicked(object sender, RoutedEventArgs e)
+    {
+        GoogleAuthService.SignOut();
+        UpdateGoogleAccountUI();
     }
 }

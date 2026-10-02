@@ -27,7 +27,7 @@
 * [x] **数据模型与多端协议统一** (100%)
 * [x] **Google Drive API 同步协议规范** (100%)
 * [x] **Gemini 监管 Prompt 与交互场景规范** (100%)
-* [x] **Windows 桌面端工程脚手架 (.NET 10)** (90% - 1:1 Google Calendar 视觉交互体系、周/天/月/日程多视图、iCal 双向离线优先存储、Gemini 客观审计抽屉均已实装并编译通过)
+* [x] **Windows 桌面端工程脚手架 (.NET 10)** (95% - 1:1 Google Calendar 视觉交互体系、右上角 Google OAuth 2.0 登录与账号面板、周/天/月/日程多视图、iCal 双向离线优先存储、Gemini 客观审计抽屉均已实装并编译通过)
 * [ ] **Android 移动/平板端工程脚手架 (Kotlin Compose)** (0%)
 * [ ] **Google Drive 同步引擎核心实现** (0%)
 * [x] **Gemini AI 监管与记账模块实现** (75% - 动态模型选择、真实 API 直连、日程审查、想法评估监督、自然语言记账均已打通)
@@ -35,6 +35,24 @@
 ---
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
+
+### [2026-10-02 18:48] - 右上角实装 Google 账号 OAuth 2.0 登录与个人中心浮层 (Profile Flyout)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“主页的右上角能够弄 Google 登录吗，不可以的话就算了”
+* **核心落地成果**：
+  1. **支持真实 Google OAuth 2.0 桌面端授权 ([`GoogleAuthService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/GoogleAuthService.cs))**：
+     - 依据 Google 官方规范，桌面客户端通过本地回环监听 (`http://127.0.0.1:58432/`) 唤起系统默认浏览器（Chrome/Edge）执行 Google 官方登录与授权。
+     - 授权成功后自动向浏览器回传带有暗黑主题的完成页面，客户端通过 Code 交换 Access Token 与 Refresh Token。
+     - 自动调用 `https://www.googleapis.com/oauth2/v3/userinfo` 获取用户真实的 Google 昵称、邮箱与高清头像。
+  2. **右上角动态视觉形态**：
+     - **未登录时**：右上角呈现 Google 官方经典的蓝色 `[G] 登录` 胶囊按钮。
+     - **已登录时**：无缝切换为带头像剪裁（或首字母）的圆形 Google 个人徽标，悬浮提示用户信息。
+  3. **1:1 Google 账号卡片浮层 (`GoogleAccountModal`)**：
+     - 点击右上角登录按钮或头像，弹出居中 Google 账号弹窗。
+     - **未登录态**：提供 Google Cloud Client ID / Client Secret 配置指引与输入框、一键唤起浏览器 OAuth 授权按钮，以及免密/模拟快速体验通道。
+     - **已登录态**：展示大尺寸用户真实头像、姓名、邮箱、Google OAuth 2.0 认证状态徽章、已获得的云端特权清单（Google Calendar 只读与 Google Drive appdata），以及退出登录按钮。
+  4. **构建与验证**：
+     - .NET 10 解决方案 0 警告 0 错误编译通过，运行时启动与渲染平滑无异常。
 
 ### [2026-10-02 18:42] - 主界面 1:1 像素级复刻 Google Calendar 官方桌面端，落地多视图时间网格与 iCal 离线优先同步
 * **执行角色**：AI 全栈工程师 (Antigravity)

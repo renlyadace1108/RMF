@@ -23,6 +23,14 @@ public class AppConfig
     public string GoogleCalendarLastSyncTime { get; set; } = string.Empty;
     public bool IsGoogleCalendarLinked { get; set; } = false;
 
+    // Google 账号登录信息
+    public bool IsGoogleUserSignedIn { get; set; } = false;
+    public string GoogleUserName { get; set; } = string.Empty;
+    public string GoogleUserEmail { get; set; } = string.Empty;
+    public string GoogleUserPictureUrl { get; set; } = string.Empty;
+    public string GoogleAccessToken { get; set; } = string.Empty;
+    public string GoogleRefreshToken { get; set; } = string.Empty;
+
     /// <summary>
     /// 获取当前生效的最终模型名称
     /// </summary>
