@@ -119,6 +119,33 @@ public class DatabaseService
         return list;
     }
 
+    public static List<string> GetDistinctCategories()
+    {
+        var list = new List<string>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT DISTINCT category 
+            FROM schedules 
+            WHERE is_deleted = 0 AND category IS NOT NULL AND TRIM(category) != ''
+            ORDER BY category ASC;
+        ";
+
+        using var cmd = new SqliteCommand(sql, conn);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            string cat = reader.GetString(0).Trim();
+            if (!string.IsNullOrEmpty(cat) && !list.Contains(cat, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(cat);
+            }
+        }
+
+        return list;
+    }
+
     public static void UpsertSchedule(ScheduleItem item)
     {
         using var conn = new SqliteConnection(ConnectionString);

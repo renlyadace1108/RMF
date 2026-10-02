@@ -296,19 +296,16 @@
                         <!-- Divider Line -->
                         <Border Height="1" Background="#3C4043" Margin="0,0,0,16" />
 
-                        <!-- "我的日历" (My Calendars) Filter Section -->
+                        <!-- "我的日历" (My Calendars) Section -->
                         <StackPanel Margin="0,0,0,16">
                             <Grid Margin="0,0,0,10">
                                 <TextBlock Text="我的日历" FontSize="13" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
                                 <TextBlock Text="▾" FontSize="11" Foreground="#9AA0A6" HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
                             
-                            <CheckBox x:Name="CatCheckWork" Content="核心研发" IsChecked="True" Foreground="#E8EAED" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
-                            <CheckBox x:Name="CatCheckStudy" Content="深度学习" IsChecked="True" Foreground="#E8EAED" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
-                            <CheckBox x:Name="CatCheckHealth" Content="运动健康" IsChecked="True" Foreground="#E8EAED" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
-                            <CheckBox x:Name="CatCheckLife" Content="日常事务" IsChecked="True" Foreground="#E8EAED" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
-                            <CheckBox x:Name="CatCheckFinance" Content="财务管理" IsChecked="True" Foreground="#E8EAED" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
-                            <CheckBox x:Name="CatCheckGoogle" Content="Google 订阅" IsChecked="True" Foreground="#8AB4F8" FontSize="13" Margin="0,0,0,8" Click="OnCategoryFilterChanged" />
+                            <!-- 动态加载真实分类标签 (已清除全部预置静态标签) -->
+                            <StackPanel x:Name="MyCalendarsCategoryListPanel" />
+                            <TextBlock x:Name="MyCalendarsEmptyText" Text="暂无分类标签" FontSize="12" Foreground="#71717A" Margin="4,0,0,8" Visibility="Collapsed" />
                         </StackPanel>
 
                         <!-- Bottom System Telemetry Card -->
@@ -656,15 +653,9 @@
                         <TextBox Grid.Column="4" x:Name="EventEndTimeInput" Background="#202124" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="8" FontSize="12" Text="10:00" HorizontalContentAlignment="Center" />
                     </Grid>
 
-                    <!-- Category Pills -->
-                    <TextBlock Text="日历分类色彩：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,6" />
-                    <ComboBox x:Name="EventCategoryCombo" SelectedIndex="0" Background="#202124" Foreground="#FFFFFF" Padding="10,8" FontSize="12" Margin="0,0,0,14">
-                        <ComboBoxItem Content="🔵 核心研发 (Work)" Tag="WORK" />
-                        <ComboBoxItem Content="🟣 深度学习 (Study)" Tag="STUDY" />
-                        <ComboBoxItem Content="🟢 运动健康 (Health)" Tag="HEALTH" />
-                        <ComboBoxItem Content="🟡 日常事务 (Life)" Tag="LIFE" />
-                        <ComboBoxItem Content="🔴 财务管理 (Finance)" Tag="FINANCE" />
-                    </ComboBox>
+                    <!-- Category Input -->
+                    <TextBlock Text="日程分类 / 标签：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,6" />
+                    <ComboBox x:Name="EventCategoryCombo" IsEditable="True" Background="#202124" Foreground="#FFFFFF" Padding="10,8" FontSize="12" Margin="0,0,0,14" />
 
                     <!-- Description Input -->
                     <TextBlock Text="说明或成果：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />

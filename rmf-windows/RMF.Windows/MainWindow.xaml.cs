@@ -36,17 +36,9 @@ public partial class MainWindow : Window
     private string? _editingEventId = null;
     private DateTime _clickedSlotDateTime = DateTime.Today.AddHours(9);
 
-    // 搜索过滤与分类过滤
+    // 搜索过滤与分类过滤 (全量基于本地 SQLite 真实数据动态管理，无任何硬编码预置标签)
     private string _searchKeyword = string.Empty;
-    private readonly HashSet<string> _activeCategoryFilters = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "核心研发", "WORK", "工作",
-        "深度学习", "STUDY", "学习",
-        "运动健康", "HEALTH", "健康",
-        "日常事务", "LIFE", "生活",
-        "财务管理", "FINANCE", "财务",
-        "Google 订阅", "GOOGLE", "未分类"
-    };
+    private readonly HashSet<string> _disabledCategoryFilters = new(StringComparer.OrdinalIgnoreCase);
 
     // 内存与窗口嗅探 Win32 API
     [DllImport("dwmapi.dll")]
@@ -230,6 +222,9 @@ public partial class MainWindow : Window
 
         // 6. 更新顶部视图选择器高亮态
         UpdateViewButtonsStyle();
+
+        // 7. 更新左侧「我的日历」动态分类清单 (真实 SQLite 数据)
+        RenderMyCalendarsList();
     }
 
     private void UpdateSyncStatusBadge()
@@ -1077,7 +1072,12 @@ public partial class MainWindow : Window
         EventDateDisplayText.Text = date.ToString("yyyy年M月d日");
         EventStartTimeInput.Text = $"{hour:D2}:00";
         EventEndTimeInput.Text = $"{(hour + 1):D2}:00";
-        EventCategoryCombo.SelectedIndex = 0;
+
+        EventCategoryCombo.Items.Clear();
+        var existingCats = DatabaseService.GetDistinctCategories();
+        foreach (var c in existingCats) EventCategoryCombo.Items.Add(c);
+        EventCategoryCombo.Text = existingCats.Count > 0 ? existingCats[0] : "";
+
         EventDeleteBtn.Visibility = Visibility.Collapsed;
         EventSaveBtn.Content = "保存";
 
@@ -1097,14 +1097,10 @@ public partial class MainWindow : Window
         EventStartTimeInput.Text = item.StartTime.ToString("HH:mm");
         EventEndTimeInput.Text = item.EndTime.ToString("HH:mm");
 
-        for (int i = 0; i < EventCategoryCombo.Items.Count; i++)
-        {
-            if (EventCategoryCombo.Items[i] is ComboBoxItem cbi && (cbi.Tag as string == item.Category || cbi.Content.ToString()!.Contains(item.Category)))
-            {
-                EventCategoryCombo.SelectedIndex = i;
-                break;
-            }
-        }
+        EventCategoryCombo.Items.Clear();
+        var existingCats = DatabaseService.GetDistinctCategories();
+        foreach (var c in existingCats) EventCategoryCombo.Items.Add(c);
+        EventCategoryCombo.Text = item.Category;
 
         EventDeleteBtn.Visibility = Visibility.Visible;
         EventSaveBtn.Content = "更新保存";
@@ -1126,18 +1122,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        string category = "核心研发";
-        if (EventCategoryCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+        string category = EventCategoryCombo.Text.Trim();
+        if (string.IsNullOrWhiteSpace(category))
         {
-            category = tag switch
-            {
-                "WORK" => "核心研发",
-                "STUDY" => "深度学习",
-                "HEALTH" => "运动健康",
-                "LIFE" => "日常事务",
-                "FINANCE" => "财务管理",
-                _ => "核心研发"
-            };
+            category = "默认";
         }
 
         DateTime baseDate = _clickedSlotDateTime.Date;
@@ -1189,47 +1177,40 @@ public partial class MainWindow : Window
     // ======================= COLOR MAPPINGS & FILTERS ========================
     // =========================================================================
 
+    private static readonly (string bg, string border)[] GoogleColorPalette = new[]
+    {
+        ("#1A73E8", "#185ABC"), // Google Blue
+        ("#0B8043", "#076033"), // Google Green
+        ("#8E24AA", "#6A1B9A"), // Google Purple
+        ("#F4511E", "#D84315"), // Google Amber
+        ("#D50000", "#B71C1C"), // Google Red
+        ("#00838F", "#006064"), // Google Cyan
+        ("#00897B", "#004D40"), // Google Teal
+        ("#D81B60", "#880E4F"), // Google Pink
+        ("#3949AB", "#1A237E"), // Google Indigo
+        ("#F6BF26", "#F4B400"), // Google Yellow
+    };
+
     private static (Brush bg, Brush border, Brush text) GetGoogleEventColors(string category)
     {
-        return category switch
+        if (string.IsNullOrWhiteSpace(category))
         {
-            "核心研发" or "WORK" or "工作" => (
-                new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8)), // Google Blue
-                new SolidColorBrush(Color.FromRgb(0x18, 0x5A, 0xBC)),
-                Brushes.White
-            ),
-            "深度学习" or "STUDY" or "学习" => (
-                new SolidColorBrush(Color.FromRgb(0x8E, 0x24, 0xAA)), // Google Purple
-                new SolidColorBrush(Color.FromRgb(0x6A, 0x1B, 0x9A)),
-                Brushes.White
-            ),
-            "运动健康" or "HEALTH" or "健康" => (
-                new SolidColorBrush(Color.FromRgb(0x0B, 0x80, 0x43)), // Google Green
-                new SolidColorBrush(Color.FromRgb(0x07, 0x60, 0x33)),
-                Brushes.White
-            ),
-            "财务管理" or "FINANCE" or "财务" => (
-                new SolidColorBrush(Color.FromRgb(0xD5, 0x00, 0x00)), // Google Red
-                new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C)),
-                Brushes.White
-            ),
-            "日常事务" or "LIFE" or "生活" => (
-                new SolidColorBrush(Color.FromRgb(0xF4, 0x51, 0x1E)), // Google Amber
-                new SolidColorBrush(Color.FromRgb(0xD8, 0x43, 0x15)),
-                Brushes.White
-            ),
-            _ => (
-                new SolidColorBrush(Color.FromRgb(0x00, 0x83, 0x8F)), // Google Cyan
-                new SolidColorBrush(Color.FromRgb(0x00, 0x60, 0x64)),
-                Brushes.White
-            )
-        };
+            return (new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8)), new SolidColorBrush(Color.FromRgb(0x18, 0x5A, 0xBC)), Brushes.White);
+        }
+
+        // 根据真实分类名称的哈希码分配稳定唯一的 Google Calendar 调色盘色彩
+        int hash = Math.Abs(category.Trim().GetHashCode());
+        var colorPair = GoogleColorPalette[hash % GoogleColorPalette.Length];
+        var bg = (SolidColorBrush)new BrushConverter().ConvertFrom(colorPair.bg)!;
+        var border = (SolidColorBrush)new BrushConverter().ConvertFrom(colorPair.border)!;
+        return (bg, border, Brushes.White);
     }
 
     private bool MatchesFilter(ScheduleItem item)
     {
-        // 1. 分类过滤
-        if (!_activeCategoryFilters.Contains(item.Category)) return false;
+        // 1. 分类过滤: 如果用户取消勾选了该分类，则过滤隐藏
+        string cat = string.IsNullOrWhiteSpace(item.Category) ? "未分类" : item.Category.Trim();
+        if (_disabledCategoryFilters.Contains(cat)) return false;
 
         // 2. 搜索关键字过滤
         if (!string.IsNullOrWhiteSpace(_searchKeyword))
@@ -1242,23 +1223,95 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void OnCategoryFilterChanged(object sender, RoutedEventArgs e)
+    private void RenderMyCalendarsList()
     {
-        _activeCategoryFilters.Clear();
-        if (CatCheckWork.IsChecked == true) { _activeCategoryFilters.Add("核心研发"); _activeCategoryFilters.Add("WORK"); _activeCategoryFilters.Add("工作"); }
-        if (CatCheckStudy.IsChecked == true) { _activeCategoryFilters.Add("深度学习"); _activeCategoryFilters.Add("STUDY"); _activeCategoryFilters.Add("学习"); }
-        if (CatCheckHealth.IsChecked == true) { _activeCategoryFilters.Add("运动健康"); _activeCategoryFilters.Add("HEALTH"); _activeCategoryFilters.Add("健康"); }
-        if (CatCheckLife.IsChecked == true) { _activeCategoryFilters.Add("日常事务"); _activeCategoryFilters.Add("LIFE"); _activeCategoryFilters.Add("生活"); }
-        if (CatCheckFinance.IsChecked == true) { _activeCategoryFilters.Add("财务管理"); _activeCategoryFilters.Add("FINANCE"); _activeCategoryFilters.Add("财务"); }
-        if (CatCheckGoogle.IsChecked == true) { _activeCategoryFilters.Add("Google 订阅"); _activeCategoryFilters.Add("GOOGLE"); _activeCategoryFilters.Add("未分类"); }
+        MyCalendarsCategoryListPanel.Children.Clear();
 
-        RenderAllCalendarViews();
+        var categories = DatabaseService.GetDistinctCategories();
+        if (categories.Count == 0)
+        {
+            MyCalendarsEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        MyCalendarsEmptyText.Visibility = Visibility.Collapsed;
+
+        foreach (var cat in categories)
+        {
+            var colors = GetGoogleEventColors(cat);
+            var cb = new CheckBox
+            {
+                IsChecked = !_disabledCategoryFilters.Contains(cat),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED)),
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 8),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            var dot = new Border
+            {
+                Width = 10,
+                Height = 10,
+                CornerRadius = new CornerRadius(3),
+                Background = colors.bg,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            panel.Children.Add(dot);
+
+            var title = new TextBlock
+            {
+                Text = cat,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            panel.Children.Add(title);
+
+            cb.Content = panel;
+
+            string catName = cat;
+            cb.Click += (s, e) =>
+            {
+                if (cb.IsChecked == true)
+                {
+                    _disabledCategoryFilters.Remove(catName);
+                }
+                else
+                {
+                    _disabledCategoryFilters.Add(catName);
+                }
+                RenderCalendarCanvasOnly();
+            };
+
+            MyCalendarsCategoryListPanel.Children.Add(cb);
+        }
+    }
+
+    private void RenderCalendarCanvasOnly()
+    {
+        switch (_currentView)
+        {
+            case "Week":
+                RenderWeekHeader();
+                RenderWeekEvents();
+                break;
+            case "Day":
+                RenderDayHeader();
+                RenderDayEvents();
+                break;
+            case "Month":
+                RenderMonthGrid();
+                break;
+            case "Agenda":
+                RenderAgendaList();
+                break;
+        }
     }
 
     private void OnSearchEventsTextChanged(object sender, TextChangedEventArgs e)
     {
         _searchKeyword = SearchEventsInput.Text.Trim();
-        RenderAllCalendarViews();
+        RenderCalendarCanvasOnly();
     }
 
     // =========================================================================
