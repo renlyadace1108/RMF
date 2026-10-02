@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using Microsoft.Data.Sqlite;
 using RMF.Windows.Models;
 using RMF.Windows.Services;
 
@@ -18,43 +20,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _perfTimer;
     private readonly GeminiService _geminiService = new();
 
-    // In-memory demo schedule items (will be synced with SQLite & Google Drive)
-    private readonly List<ScheduleItem> _todaySchedule = new()
-    {
-        new ScheduleItem
-        {
-            Title = "RMF Windows 客户端架构与 Gemini 接入",
-            Description = "接入 Google Gemini API 实现真实日程审查、智能排程与想法监督",
-            Category = "核心研发",
-            Priority = "URGENT",
-            Status = "IN_PROGRESS",
-            StartTime = DateTime.Today.AddHours(9).AddMinutes(30),
-            EndTime = DateTime.Today.AddHours(11).AddMinutes(30),
-            EstimatedMinutes = 120
-        },
-        new ScheduleItem
-        {
-            Title = "Gemini 监督中枢对接与想法审查联调",
-            Description = "测试想法可行性审查与突发计划分心评估",
-            Category = "AI 监管",
-            Priority = "HIGH",
-            Status = "PENDING",
-            StartTime = DateTime.Today.AddHours(14),
-            EndTime = DateTime.Today.AddHours(15).AddMinutes(30),
-            EstimatedMinutes = 90
-        },
-        new ScheduleItem
-        {
-            Title = "Google Drive AppData 增量同步",
-            Description = "小新 Pad 12.7 寸大屏与手机端双向增量验证",
-            Category = "多端协同",
-            Priority = "MEDIUM",
-            Status = "PENDING",
-            StartTime = DateTime.Today.AddHours(16),
-            EndTime = DateTime.Today.AddHours(17),
-            EstimatedMinutes = 60
-        }
-    };
+    // 真实排期日程数据列表（全部来源于本地 SQLite 数据库）
+    private List<ScheduleItem> _todaySchedule = new();
 
     // Win32 DWM API for Windows 11 Immersive Dark Titlebar & Mica backdrop
     [DllImport("dwmapi.dll")]
@@ -83,7 +50,9 @@ public partial class MainWindow : Window
 
         Loaded += (s, e) =>
         {
+            DatabaseService.Initialize();
             ApplyWindows11ImmersiveDarkTitlebar();
+            ReloadAllRealData();
             UpdateTelemetry();
             LoadSettingsIntoUi();
         };
@@ -153,10 +122,399 @@ public partial class MainWindow : Window
                 if (string.IsNullOrWhiteSpace(title)) title = "桌面 / 无标题";
 
                 ActiveWindowText.Text = $"[{procName}.exe] {title}";
+
+                // 真实活动打点记录（每 2 秒 1 次入库）
+                if (procName != "Unknown" && procName != "RMF.Windows")
+                {
+                    DatabaseService.LogActivity(procName, title, 2);
+                }
             }
         }
         catch { }
     }
+
+    // ================== 真实数据全量刷新与动态渲染 ==================
+
+    private void ReloadAllRealData()
+    {
+        // 1. 日程列表与进度真实刷新
+        _todaySchedule = DatabaseService.GetTodaySchedules();
+        int totalSchedule = _todaySchedule.Count;
+        int completedSchedule = 0;
+        foreach (var item in _todaySchedule)
+        {
+            if (item.Status == "COMPLETED") completedSchedule++;
+        }
+
+        MetricScheduleCompletedText.Text = completedSchedule.ToString();
+        MetricScheduleTotalText.Text = $" / {totalSchedule} 个时间块";
+        MetricScheduleProgressBar.Value = totalSchedule > 0 ? (completedSchedule * 100 / totalSchedule) : 0;
+
+        ScheduleTimelinePanel.Children.Clear();
+        if (totalSchedule == 0)
+        {
+            ScheduleEmptyState.Visibility = Visibility.Visible;
+            ScheduleTimelinePanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ScheduleEmptyState.Visibility = Visibility.Collapsed;
+            ScheduleTimelinePanel.Visibility = Visibility.Visible;
+
+            foreach (var item in _todaySchedule)
+            {
+                ScheduleTimelinePanel.Children.Add(CreateScheduleItemCard(item));
+            }
+        }
+
+        // 2. 支出统计与流水真实列表刷新
+        decimal totalExpense = DatabaseService.GetTodayTotalExpense();
+        MetricExpenseTotalText.Text = $"¥ {totalExpense:F2}";
+        FinanceSummaryText.Text = $"今日合计: ¥ {totalExpense:F2}";
+
+        var expenses = DatabaseService.GetTodayExpenses();
+        MetricExpenseSubtitleText.Text = expenses.Count > 0 ? $"今日已记 {expenses.Count} 笔流水" : "今日暂无记账";
+
+        ExpenseHistoryPanel.Children.Clear();
+        if (expenses.Count == 0)
+        {
+            ExpenseEmptyState.Visibility = Visibility.Visible;
+            ExpenseHistoryPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ExpenseEmptyState.Visibility = Visibility.Collapsed;
+            ExpenseHistoryPanel.Visibility = Visibility.Visible;
+
+            foreach (var exp in expenses)
+            {
+                ExpenseHistoryPanel.Children.Add(CreateExpenseItemCard(exp));
+            }
+        }
+
+        // 3. 专注时长刷新
+        int focusMinutes = DatabaseService.GetTodayTrackedMinutes();
+        MetricFocusMinutesText.Text = focusMinutes.ToString();
+        MetricFocusStatusText.Text = focusMinutes > 0 ? " 分钟专注" : " 分钟";
+        MetricFocusSubtitleText.Text = focusMinutes > 0 ? $"Win32 今日已真实捕获 {focusMinutes} 分钟前台活动" : "Win32 前台实时嗅探中";
+    }
+
+    private UIElement CreateScheduleItemCard(ScheduleItem item)
+    {
+        var border = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(item.Status == "IN_PROGRESS"
+                ? System.Windows.Media.Color.FromRgb(0x22, 0x25, 0x30)
+                : System.Windows.Media.Color.FromRgb(0x1D, 0x1D, 0x21)),
+            BorderBrush = item.Status == "IN_PROGRESS"
+                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6))
+                : (System.Windows.Media.Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(item.Status == "IN_PROGRESS" ? 1.5 : 1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Column 0: Time
+        var timePanel = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        timePanel.Children.Add(new TextBlock
+        {
+            Text = item.StartTime.ToString("HH:mm"),
+            FontWeight = FontWeights.Bold,
+            FontSize = 15,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8))
+        });
+        timePanel.Children.Add(new TextBlock
+        {
+            Text = item.EndTime.ToString("HH:mm"),
+            FontSize = 12,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMuted")
+        });
+        Grid.SetColumn(timePanel, 0);
+        grid.Children.Add(timePanel);
+
+        // Column 1: Content
+        var contentPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+
+        // Category Tag
+        var catBorder = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1E, 0x29, 0x3B)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        catBorder.Child = new TextBlock
+        {
+            Text = item.Category,
+            FontSize = 11,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8)),
+            FontWeight = FontWeights.SemiBold
+        };
+        titleRow.Children.Add(catBorder);
+
+        titleRow.Children.Add(new TextBlock
+        {
+            Text = item.Title,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
+            TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
+        });
+        contentPanel.Children.Add(titleRow);
+
+        if (!string.IsNullOrWhiteSpace(item.Description))
+        {
+            contentPanel.Children.Add(new TextBlock
+            {
+                Text = item.Description,
+                FontSize = 12,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary")
+            });
+        }
+        Grid.SetColumn(contentPanel, 1);
+        grid.Children.Add(contentPanel);
+
+        // Column 2: Status Toggle Button
+        string statusText = item.Status switch
+        {
+            "COMPLETED" => "✓ 已完成",
+            "IN_PROGRESS" => "● 进行中",
+            _ => "待执行"
+        };
+        var statusColor = item.Status switch
+        {
+            "COMPLETED" => System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81),
+            "IN_PROGRESS" => System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8),
+            _ => System.Windows.Media.Color.FromRgb(0xA1, 0xA1, 0xAA)
+        };
+
+        var statusBtn = new Button
+        {
+            Content = statusText,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(40, statusColor.R, statusColor.G, statusColor.B)),
+            Foreground = new System.Windows.Media.SolidColorBrush(statusColor),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(statusColor),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 4, 10, 4),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0)
+        };
+        statusBtn.Click += (s, e) =>
+        {
+            string nextStatus = item.Status switch
+            {
+                "PENDING" => "IN_PROGRESS",
+                "IN_PROGRESS" => "COMPLETED",
+                _ => "PENDING"
+            };
+            DatabaseService.UpdateScheduleStatus(item.Id, nextStatus);
+            ReloadAllRealData();
+        };
+        Grid.SetColumn(statusBtn, 2);
+        grid.Children.Add(statusBtn);
+
+        // Column 3: Delete Button
+        var delBtn = new Button
+        {
+            Content = "🗑️",
+            Background = System.Windows.Media.Brushes.Transparent,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(6),
+            FontSize = 12,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        delBtn.Click += (s, e) =>
+        {
+            DatabaseService.DeleteSchedule(item.Id);
+            ReloadAllRealData();
+        };
+        Grid.SetColumn(delBtn, 3);
+        grid.Children.Add(delBtn);
+
+        border.Child = grid;
+        return border;
+    }
+
+    private UIElement CreateExpenseItemCard(FinanceTransaction exp)
+    {
+        var border = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1D, 0x1D, 0x21)),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Category Tag
+        var catBorder = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x27, 0x2A)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        catBorder.Child = new TextBlock
+        {
+            Text = exp.Category,
+            FontSize = 12,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8)),
+            FontWeight = FontWeights.SemiBold
+        };
+        Grid.SetColumn(catBorder, 0);
+        grid.Children.Add(catBorder);
+
+        // Details
+        var detailsPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        detailsPanel.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(exp.Note) ? exp.RawInputText : exp.Note,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary")
+        });
+        detailsPanel.Children.Add(new TextBlock
+        {
+            Text = exp.TransactionTime.ToString("HH:mm:ss"),
+            FontSize = 11,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+            Margin = new Thickness(0, 2, 0, 0)
+        });
+        Grid.SetColumn(detailsPanel, 1);
+        grid.Children.Add(detailsPanel);
+
+        // Amount
+        var amountText = new TextBlock
+        {
+            Text = $"¥ {exp.Amount:F2}",
+            FontSize = 15,
+            FontWeight = FontWeights.Bold,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF4, 0x3F, 0x5E)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        Grid.SetColumn(amountText, 2);
+        grid.Children.Add(amountText);
+
+        // Delete button
+        var delBtn = new Button
+        {
+            Content = "✕",
+            Background = System.Windows.Media.Brushes.Transparent,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(6),
+            FontSize = 12,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        delBtn.Click += (s, e) =>
+        {
+            using var conn = new SqliteConnection($"Data Source={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RMF", "rmf.db")}");
+            conn.Open();
+            using var cmd = new SqliteCommand("UPDATE expenses SET is_deleted = 1 WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("@id", exp.Id);
+            cmd.ExecuteNonQuery();
+            ReloadAllRealData();
+        };
+        Grid.SetColumn(delBtn, 3);
+        grid.Children.Add(delBtn);
+
+        border.Child = grid;
+        return border;
+    }
+
+    // ================== 新建日程弹窗交互 ==================
+
+    private void OnNewScheduleHeaderClicked(object sender, RoutedEventArgs e)
+    {
+        NewScheduleTitleInput.Clear();
+        NewScheduleDescInput.Clear();
+        NewScheduleStartInput.Text = DateTime.Now.ToString("HH:mm");
+        NewScheduleEndInput.Text = DateTime.Now.AddHours(1).ToString("HH:mm");
+        NewScheduleCategoryCombo.SelectedIndex = 0;
+        NewScheduleModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseScheduleModalClicked(object sender, RoutedEventArgs e)
+    {
+        NewScheduleModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnSaveScheduleModalClicked(object sender, RoutedEventArgs e)
+    {
+        string title = NewScheduleTitleInput.Text.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            MessageBox.Show("请输入日程任务标题！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string category = "核心研发";
+        if (NewScheduleCategoryCombo.SelectedItem is ComboBoxItem cbi && cbi.Content is string c)
+        {
+            category = c;
+        }
+
+        DateTime startTime = DateTime.Today.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute);
+        DateTime endTime = startTime.AddHours(1);
+
+        if (TimeSpan.TryParse(NewScheduleStartInput.Text.Trim(), out var tsStart))
+        {
+            startTime = DateTime.Today.Add(tsStart);
+        }
+        if (TimeSpan.TryParse(NewScheduleEndInput.Text.Trim(), out var tsEnd))
+        {
+            endTime = DateTime.Today.Add(tsEnd);
+        }
+        if (endTime <= startTime)
+        {
+            endTime = startTime.AddHours(1);
+        }
+
+        var item = new ScheduleItem
+        {
+            Title = title,
+            Description = NewScheduleDescInput.Text.Trim(),
+            Category = category,
+            Priority = "HIGH",
+            Status = "PENDING",
+            StartTime = startTime,
+            EndTime = endTime,
+            EstimatedMinutes = (int)(endTime - startTime).TotalMinutes
+        };
+
+        DatabaseService.AddSchedule(item);
+        NewScheduleModal.Visibility = Visibility.Collapsed;
+        ReloadAllRealData();
+    }
+
+    // ================== 页面导航与视图切换 ==================
 
     private void SwitchView(string viewName)
     {
@@ -187,6 +545,12 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnAuditScheduleClicked(object sender, RoutedEventArgs e)
     {
+        if (_todaySchedule.Count == 0)
+        {
+            AuditResultText.Text = "ℹ️ 今日数据库中暂无排期日程。\n\n请先点击右上角「+ 新建日程」规划你今日的第一个任务时间块，Gemini 将基于你的真实安排与前台活动进行客观负荷审计。";
+            return;
+        }
+
         AuditScheduleBtn.IsEnabled = false;
         AuditScheduleBtn.Content = "⏳ Gemini 正在审查今日日程与负荷...";
         AuditResultText.Text = "正在连接 Google Gemini API 分析今日安排与桌面活动流，请稍候...";
@@ -222,7 +586,7 @@ public partial class MainWindow : Window
 
         EvaluateIdeaBtn.IsEnabled = false;
         EvaluateIdeaBtn.Content = "⏳ Gemini 正在深度推演与评估...";
-        IdeaEvaluationResultText.Text = "Gemini 正在作为你的 AI 监督合伙人，分析可行性与防分心审查...";
+        IdeaEvaluationResultText.Text = "Gemini 正在作为你的客观决策评估引擎，分析可行性与防分心审查...";
 
         try
         {
@@ -378,19 +742,16 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(key))
         {
             FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
-            FetchModelsStatusText.Text = "请先填入 Gemini API Key，再进行联网拉取！";
+            FetchModelsStatusText.Text = "⚠️ 请先在下方输入 API Key 并点击保存，再拉取官方模型！";
             return;
         }
 
-        var config = ConfigService.Load();
-        config.GeminiApiKey = key;
-        config.CustomBaseUrl = BaseUrlInput.Text.Trim();
-        ConfigService.Save(config);
+        OnSaveSettingsClicked(sender, e);
 
         FetchModelsBtn.IsEnabled = false;
-        FetchModelsBtn.Content = "⏳ 正在探测...";
+        FetchModelsBtn.Content = "⏳ 正在拉取官方模型列表...";
         FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
-        FetchModelsStatusText.Text = "正在连接 Google Gemini API 获取当前账户所有授权模型...";
+        FetchModelsStatusText.Text = "正在请求 Google API (v1beta/models)，请稍候...";
 
         try
         {
@@ -398,26 +759,34 @@ public partial class MainWindow : Window
             if (models.Count == 0)
             {
                 FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
-                FetchModelsStatusText.Text = "Google 返回了 0 个支持内容生成的模型。";
+                FetchModelsStatusText.Text = "未获取到可用模型，请检查 API Key 或网络反代。";
                 return;
             }
 
-            string currentSelected = config.SelectedModel;
-            ModelSelectCombo.Items.Clear();
+            var config = ConfigService.Load();
+            string currentSelected = config.GetEffectiveModel();
 
+            ModelSelectCombo.Items.Clear();
             int selectedIndex = 0;
+
             for (int i = 0; i < models.Count; i++)
             {
                 var m = models[i];
-                var cbi = new ComboBoxItem
+                string label = $"{m.ModelId}";
+                if (!string.IsNullOrWhiteSpace(m.DisplayName) && m.DisplayName != m.ModelId)
                 {
-                    Content = $"{m.DisplayName} ({m.ModelId})",
-                    Tag = m.ModelId,
-                    ToolTip = m.Description
-                };
-                ModelSelectCombo.Items.Add(cbi);
+                    label += $" ({m.DisplayName})";
+                }
 
-                if (m.ModelId == currentSelected)
+                var item = new ComboBoxItem
+                {
+                    Content = label,
+                    Tag = m.ModelId
+                };
+
+                ModelSelectCombo.Items.Add(item);
+
+                if (string.Equals(m.ModelId, currentSelected, StringComparison.OrdinalIgnoreCase))
                 {
                     selectedIndex = i;
                 }
@@ -425,7 +794,7 @@ public partial class MainWindow : Window
 
             ModelSelectCombo.Items.Add(new ComboBoxItem
             {
-                Content = "[自定义输入模型名称...]",
+                Content = "[自定义输入模型名称...] (手动指定专属微调或实验版本)",
                 Tag = "custom"
             });
 
@@ -474,7 +843,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnQuickExpenseClicked(object sender, RoutedEventArgs e)
+    // ================== 真实收支记账逻辑 ==================
+
+    private async void OnQuickExpenseClicked(object sender, RoutedEventArgs e)
     {
         string text = QuickExpenseInput.Text.Trim();
         if (string.IsNullOrEmpty(text))
@@ -483,8 +854,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        ExpenseResultText.Text = $"✅ Gemini 成功解析并入库：[餐饮美食] - 支出识别完成。已同步入本地 SQLite。";
-        QuickExpenseInput.Clear();
+        ExpenseResultText.Text = "⏳ 正在智能解析金额与分类...";
+        try
+        {
+            var (amount, category, note) = await _geminiService.ParseExpenseAsync(text);
+            if (amount <= 0)
+            {
+                ExpenseResultText.Text = "⚠️ 未能识别出具体金额，请在描述中包含数字（如「午餐 25 元」）。";
+                return;
+            }
+
+            var tx = new FinanceTransaction
+            {
+                Amount = amount,
+                Category = category,
+                Note = note,
+                RawInputText = text,
+                TransactionTime = DateTime.Now
+            };
+
+            DatabaseService.AddExpense(tx);
+            QuickExpenseInput.Clear();
+            ExpenseResultText.Text = $"✅ 记账入库成功：[{category}] ¥{amount:F2} ({note})";
+            ReloadAllRealData();
+        }
+        catch (Exception ex)
+        {
+            ExpenseResultText.Text = $"❌ 记账失败: {ex.Message}";
+        }
     }
 
     private void OnSaveDriveConfigClicked(object sender, RoutedEventArgs e)

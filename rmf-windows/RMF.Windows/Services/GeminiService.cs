@@ -199,4 +199,59 @@ public class GeminiService
 
         return await GenerateContentAsync(systemInstruction, userPrompt);
     }
+
+    /// <summary>
+    /// 4. 真实自然语言记账解析 (Expense Parser)
+    /// </summary>
+    public async Task<(decimal amount, string category, string note)> ParseExpenseAsync(string rawInput)
+    {
+        var config = ConfigService.Load();
+        if (!string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            try
+            {
+                string systemInstruction = @"你是一个财务流水提取解析引擎。
+请从用户的自然语言记账文本中提取金额、分类、备注。
+只输出严格的 JSON 格式，不要任何 markdown 标记或任何其他文本：
+{""amount"": 25.5, ""category"": ""餐饮美食"", ""note"": ""午餐黄焖鸡""}";
+
+                string res = await GenerateContentAsync(systemInstruction, rawInput);
+                res = res.Replace("```json", "").Replace("```", "").Trim();
+                using var doc = JsonDocument.Parse(res);
+                var root = doc.RootElement;
+                decimal amount = root.TryGetProperty("amount", out var a) ? a.GetDecimal() : 0m;
+                string category = root.TryGetProperty("category", out var c) ? (c.GetString() ?? "其它支出") : "其它支出";
+                string note = root.TryGetProperty("note", out var n) ? (n.GetString() ?? rawInput) : rawInput;
+                if (amount > 0) return (amount, category, note);
+            }
+            catch
+            {
+                // Fallback to local regex parser
+            }
+        }
+
+        return ParseExpenseLocalFallback(rawInput);
+    }
+
+    public static (decimal amount, string category, string note) ParseExpenseLocalFallback(string rawInput)
+    {
+        decimal amount = 0m;
+        var match = System.Text.RegularExpressions.Regex.Match(rawInput, @"(\d+(\.\d+)?)");
+        if (match.Success && decimal.TryParse(match.Value, out var val))
+        {
+            amount = val;
+        }
+
+        string category = "其它支出";
+        if (rawInput.Contains("饭") || rawInput.Contains("吃") || rawInput.Contains("餐") || rawInput.Contains("咖啡") || rawInput.Contains("饮") || rawInput.Contains("奶茶") || rawInput.Contains("外卖"))
+            category = "餐饮美食";
+        else if (rawInput.Contains("车") || rawInput.Contains("地铁") || rawInput.Contains("打车") || rawInput.Contains("加油") || rawInput.Contains("机票") || rawInput.Contains("高铁"))
+            category = "交通出行";
+        else if (rawInput.Contains("买") || rawInput.Contains("超市") || rawInput.Contains("购物") || rawInput.Contains("服饰"))
+            category = "日常购物";
+        else if (rawInput.Contains("话费") || rawInput.Contains("网费") || rawInput.Contains("电费") || rawInput.Contains("房租"))
+            category = "生活缴费";
+
+        return (amount, category, rawInput);
+    }
 }

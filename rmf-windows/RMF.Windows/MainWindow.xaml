@@ -175,7 +175,7 @@
                         </StackPanel>
                     </Border>
                     <Button Content="+ 快捷记账" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="14,8" Margin="0,0,10,0" FontSize="13" Cursor="Hand" Click="OnQuickExpenseHeaderClicked" />
-                    <Button Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" />
+                    <Button Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnNewScheduleHeaderClicked" />
                 </StackPanel>
             </Grid>
 
@@ -203,22 +203,22 @@
                             <StackPanel>
                                 <TextBlock Text="今日计划进度" FontSize="12" Foreground="{StaticResource TextSecondary}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock Text="1" FontSize="26" FontWeight="Bold" Foreground="#38BDF8" />
-                                    <TextBlock Text=" / 3 个时间块" FontSize="14" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="4,0,0,4" />
+                                    <TextBlock x:Name="MetricScheduleCompletedText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#38BDF8" />
+                                    <TextBlock x:Name="MetricScheduleTotalText" Text=" / 0 个时间块" FontSize="14" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="4,0,0,4" />
                                 </StackPanel>
-                                <ProgressBar Value="33" Maximum="100" Height="4" Foreground="#38BDF8" Background="#27272A" BorderThickness="0" />
+                                <ProgressBar x:Name="MetricScheduleProgressBar" Value="0" Maximum="100" Height="4" Foreground="#38BDF8" Background="#27272A" BorderThickness="0" />
                             </StackPanel>
                         </Border>
 
                         <!-- Metric 2: AI Focus -->
                         <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
                             <StackPanel>
-                                <TextBlock Text="Gemini 专注评分" FontSize="12" Foreground="{StaticResource TextSecondary}" />
+                                <TextBlock Text="今日专注度与行为" FontSize="12" Foreground="{StaticResource TextSecondary}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock Text="94" FontSize="26" FontWeight="Bold" Foreground="#10B981" />
-                                    <TextBlock Text="分 · 状态良好" FontSize="13" Foreground="#10B981" VerticalAlignment="Bottom" Margin="6,0,0,5" />
+                                    <TextBlock x:Name="MetricFocusMinutesText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#10B981" />
+                                    <TextBlock x:Name="MetricFocusStatusText" Text=" 分钟专注" FontSize="13" Foreground="#10B981" VerticalAlignment="Bottom" Margin="4,0,0,5" />
                                 </StackPanel>
-                                <TextBlock Text="当前匹配: 核心研发时间块" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                                <TextBlock x:Name="MetricFocusSubtitleText" Text="Win32 前台实时嗅探中" FontSize="11" Foreground="{StaticResource TextMuted}" />
                             </StackPanel>
                         </Border>
 
@@ -227,9 +227,9 @@
                             <StackPanel>
                                 <TextBlock Text="今日支出统计" FontSize="12" Foreground="{StaticResource TextSecondary}" />
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock Text="¥ 35.50" FontSize="26" FontWeight="Bold" Foreground="#F43F5E" />
+                                    <TextBlock x:Name="MetricExpenseTotalText" Text="¥ 0.00" FontSize="26" FontWeight="Bold" Foreground="#F43F5E" />
                                 </StackPanel>
-                                <TextBlock Text="午餐 · 支付宝已同步" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                                <TextBlock x:Name="MetricExpenseSubtitleText" Text="今日暂无记账" FontSize="11" Foreground="{StaticResource TextMuted}" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -246,100 +246,27 @@
                         <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
-                                    <TextBlock Text="今日日程编排 (Timeline)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,16" />
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="今日日程编排 (Timeline)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnNewScheduleHeaderClicked" />
+                                    </Grid>
 
-                                    <!-- Item 1 (Active) -->
-                                    <Border Background="#25252B" BorderBrush="#3B82F6" BorderThickness="1.5" CornerRadius="10" Padding="16" Margin="0,0,0,12">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <!-- Time column -->
-                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
-                                                <TextBlock Text="09:30" FontWeight="Bold" FontSize="15" Foreground="#38BDF8" />
-                                                <TextBlock Text="11:30" FontSize="12" Foreground="{StaticResource TextMuted}" />
-                                            </StackPanel>
-
-                                            <!-- Content -->
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                    <Border Background="#1E293B" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
-                                                        <TextBlock Text="核心研发" FontSize="11" Foreground="#38BDF8" FontWeight="SemiBold" />
-                                                    </Border>
-                                                    <TextBlock Text="RMF Windows 客户端架构" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
-                                                </StackPanel>
-                                                <TextBlock Text="轻量化 Fluent 2 视觉重塑与 Win32 前台采集" FontSize="13" Foreground="{StaticResource TextSecondary}" />
-                                            </StackPanel>
-
-                                            <!-- Status Badge -->
-                                            <Border Grid.Column="2" Background="#1E3A8A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
-                                                <TextBlock Text="● 进行中" FontSize="12" FontWeight="SemiBold" Foreground="#93C5FD" />
-                                            </Border>
-                                        </Grid>
+                                    <!-- Empty State (Shown when 0 schedules) -->
+                                    <Border x:Name="ScheduleEmptyState" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="32" Margin="0,10,0,0">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="📅" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                            <TextBlock Text="今日暂无排期日程" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                                            <TextBlock Text="点击上方「+ 新建日程」规划你今日的第一个工作或专注时间块" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,16" />
+                                            <Button Content="+ 立即添加今日日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,9" FontWeight="SemiBold" FontSize="13" Cursor="Hand" HorizontalAlignment="Center" Click="OnNewScheduleHeaderClicked" />
+                                        </StackPanel>
                                     </Border>
 
-                                    <!-- Item 2 -->
-                                    <Border Background="#1D1D21" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,12">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
-                                                <TextBlock Text="14:00" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextSecondary}" />
-                                                <TextBlock Text="15:30" FontSize="12" Foreground="{StaticResource TextMuted}" />
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                    <Border Background="#3B0764" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
-                                                        <TextBlock Text="AI 监管" FontSize="11" Foreground="#C084FC" FontWeight="SemiBold" />
-                                                    </Border>
-                                                    <TextBlock Text="Gemini 监督中枢对接" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
-                                                </StackPanel>
-                                                <TextBlock Text="日常行为偏差分析与晚间复盘报告生成" FontSize="13" Foreground="{StaticResource TextSecondary}" />
-                                            </StackPanel>
-
-                                            <Border Grid.Column="2" Background="#27272A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
-                                                <TextBlock Text="待执行" FontSize="12" Foreground="{StaticResource TextMuted}" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
-
-                                    <!-- Item 3 -->
-                                    <Border Background="#1D1D21" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <StackPanel Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
-                                                <TextBlock Text="16:00" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextSecondary}" />
-                                                <TextBlock Text="17:00" FontSize="12" Foreground="{StaticResource TextMuted}" />
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                                    <Border Background="#064E3B" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
-                                                        <TextBlock Text="多端协同" FontSize="11" Foreground="#34D399" FontWeight="SemiBold" />
-                                                    </Border>
-                                                    <TextBlock Text="Google Drive AppData 增量同步" FontWeight="Bold" FontSize="15" Foreground="{StaticResource TextPrimary}" />
-                                                </StackPanel>
-                                                <TextBlock Text="小新 Pad 12.7 寸大屏与手机端双向增量验证" FontSize="13" Foreground="{StaticResource TextSecondary}" />
-                                            </StackPanel>
-
-                                            <Border Grid.Column="2" Background="#27272A" CornerRadius="6" Padding="10,5" VerticalAlignment="Center">
-                                                <TextBlock Text="待执行" FontSize="12" Foreground="{StaticResource TextMuted}" />
-                                            </Border>
-                                        </Grid>
-                                    </Border>
+                                    <!-- Dynamic Schedule Items Container -->
+                                    <StackPanel x:Name="ScheduleTimelinePanel" />
                                 </StackPanel>
                             </ScrollViewer>
                         </Border>
@@ -442,24 +369,54 @@
                 </Grid>
 
                 <!-- 3. FINANCE VIEW -->
-                <Grid Name="FinanceView" Visibility="Collapsed">
-                    <StackPanel>
-                        <TextBlock Text="💰 智能自然语言收支记账" FontSize="20" FontWeight="Bold" Margin="0,0,0,16" />
-                        <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="自然语言输入记账（支持语音或文本，Gemini 自动结构化抽取）：" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,10" />
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Name="QuickExpenseInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                    <Button Grid.Column="1" Content="Gemini 解析并入库" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,10" FontWeight="SemiBold" Cursor="Hand" Click="OnQuickExpenseClicked" />
-                                </Grid>
-                                <TextBlock Name="ExpenseResultText" Text="" Foreground="#10B981" FontSize="13" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                <Grid x:Name="FinanceView" Visibility="Collapsed">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,0,20">
+                            <TextBlock Text="💰 智能自然语言收支记账" FontSize="20" FontWeight="Bold" Margin="0,0,0,16" />
+
+                            <!-- Input Card -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,18">
+                                <StackPanel>
+                                    <TextBlock Text="自然语言输入记账（支持输入如「中午肯德基汉堡花了35.5元」或「打车28元」，自动提取分类与金额并入库）：" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,10" />
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="QuickExpenseInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <Button Grid.Column="1" Content="智能入库记账" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,10" FontWeight="SemiBold" Cursor="Hand" Click="OnQuickExpenseClicked" />
+                                    </Grid>
+                                    <TextBlock x:Name="ExpenseResultText" Text="" Foreground="#10B981" FontSize="13" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Today Expense Records List -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="📋 今日收支明细清单" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="FinanceSummaryText" Grid.Column="1" Text="今日合计: ¥ 0.00" FontSize="14" FontWeight="Bold" Foreground="#F43F5E" VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <!-- Empty state -->
+                                    <Border x:Name="ExpenseEmptyState" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="28" Margin="0,6,0,0">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="🪙" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                                            <TextBlock Text="今日暂无收支记录" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                            <TextBlock Text="在上方输入框输入一句话即可智能记账，数据安全保存在本地 SQLite 中" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Dynamic expense items list -->
+                                    <StackPanel x:Name="ExpenseHistoryPanel" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- 4. SYNC VIEW -->
@@ -585,6 +542,58 @@
                     </ScrollViewer>
                 </Grid>
             </Grid>
+        </Grid>
+
+        <!-- Modal: Add New Schedule Dialog -->
+        <Grid x:Name="NewScheduleModal" Visibility="Collapsed" Background="#99000000" Grid.ColumnSpan="2" Panel.ZIndex="999">
+            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="24" Width="480" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="📅 新建排期日程时间块" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                        <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="{StaticResource TextMuted}" BorderThickness="0" FontSize="15" FontWeight="Bold" Cursor="Hand" Click="OnCloseScheduleModalClicked" />
+                    </Grid>
+
+                    <TextBlock Text="日程任务标题：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                    <TextBox x:Name="NewScheduleTitleInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="13" Margin="0,0,0,12" />
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="开始时间 (HH:mm)：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                            <TextBox x:Name="NewScheduleStartInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="13" Text="09:00" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="结束时间 (HH:mm)：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                            <TextBox x:Name="NewScheduleEndInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="13" Text="10:30" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="分类标签：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                    <ComboBox x:Name="NewScheduleCategoryCombo" SelectedIndex="0" Background="#18181B" Foreground="#FFFFFF" Padding="10,8" FontSize="13" Margin="0,0,0,12">
+                        <ComboBoxItem Content="核心研发" Tag="WORK" />
+                        <ComboBoxItem Content="深度学习" Tag="STUDY" />
+                        <ComboBoxItem Content="日常事务" Tag="LIFE" />
+                        <ComboBoxItem Content="运动健康" Tag="HEALTH" />
+                        <ComboBoxItem Content="财务管理" Tag="FINANCE" />
+                    </ComboBox>
+
+                    <TextBlock Text="任务说明 / 期望成果 (可选)：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                    <TextBox x:Name="NewScheduleDescInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="13" Height="60" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,18" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="取消" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="16,8" FontSize="13" Cursor="Hand" Margin="0,0,10,0" Click="OnCloseScheduleModalClicked" />
+                        <Button Content="✅ 保存并入库" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="20,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnSaveScheduleModalClicked" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>
