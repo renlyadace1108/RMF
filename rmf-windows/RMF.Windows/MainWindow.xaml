@@ -10,6 +10,12 @@
         WindowStartupLocation="CenterScreen"
         Background="#202124"
         Foreground="#E8EAED"
+        FontFamily="Microsoft YaHei UI, Segoe UI Emoji, Segoe UI, sans-serif"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         PreviewKeyDown="OnWindowPreviewKeyDown">
 
     <Window.Resources>
@@ -169,49 +175,71 @@
         </Grid.RowDefinitions>
 
         <!-- ================= 1. GOOGLE CALENDAR TOP APP BAR ================= -->
-        <Border Grid.Row="0" Background="#202124" BorderBrush="#3C4043" BorderThickness="0,0,0,1" Padding="12,0,16,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <Border Grid.Row="0" Background="#202124" BorderBrush="#3C4043" BorderThickness="0,0,0,1" Padding="10,0,12,0">
+            <DockPanel LastChildFill="True">
+                <!-- Right: Sync Status, Sync Button, View Selector, Gemini AI Toggle, Settings Gear -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Granular Sync Status Badge -->
+                    <Border x:Name="CalSyncBadge" Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,8,0" Cursor="Hand" ToolTip="点击查看同步与客户端来源遥测" MouseLeftButtonUp="OnSyncBadgeClicked">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="CalSyncStatusDot" Width="7" Height="7" Fill="#10B981" Margin="0,0,5,0" />
+                            <TextBlock x:Name="CalSyncStatusText" Text="离线一致" FontSize="11" Foreground="#E8EAED" />
+                        </StackPanel>
+                    </Border>
+
+                    <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="8,4" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnSyncGoogleCalendarClicked" ToolTip="立即同步 Google 日历" />
+
+                    <!-- View Selector: 日 (Day) / 周 (Week) / 月 (Month) / 年 (Year) / 自定义 (Custom) -->
+                    <Border Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="ViewDayBtn" Content="日" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="8,3" FontSize="12" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
+                            <Button x:Name="ViewWeekBtn" Content="周" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="8,3" FontSize="12" FontWeight="SemiBold" Click="OnViewWeekClicked" ToolTip="周视图 (快捷键: W)" />
+                            <Button x:Name="ViewMonthBtn" Content="月" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="8,3" FontSize="12" FontWeight="Normal" Click="OnViewMonthClicked" ToolTip="月视图 (快捷键: M)" />
+                            <Button x:Name="ViewYearBtn" Content="年" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="8,3" FontSize="12" FontWeight="Normal" Click="OnViewYearClicked" ToolTip="年视图 (快捷键: Y)" />
+                            <Button x:Name="ViewCustomBtn" Content="自定义" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="8,3" FontSize="12" FontWeight="Normal" Click="OnViewCustomClicked" ToolTip="自定义排期视图 (快捷键: X)" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Gemini AI Sidebar Toggle Button -->
+                    <Button x:Name="ToggleAiSidebarBtn" Content="✨ AI 工作台" Style="{StaticResource GoogleActionBtnStyle}" Background="#7C3AED" Foreground="#FFFFFF" Padding="10,4" FontSize="12" FontWeight="SemiBold" Margin="0,0,6,0" Click="OnToggleAiSidebarClicked" ToolTip="展开/收起 Gemini AI 智能侧边栏 (AI 分析 / AI 审核 / AI 建议)" />
+
+                    <!-- Settings Gear -->
+                    <Button x:Name="SettingsGearBtn" Content="⚙️" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="15" ToolTip="系统与 API 配置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,0,0" />
+                </StackPanel>
 
                 <!-- Left: Hamburger, Brand, Today, Chevrons, Date Title -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="HamburgerBtn" Content="☰" Style="{StaticResource GoogleTopBtnStyle}" Width="40" Height="40" FontSize="18" ToolTip="主菜单 (展开/收起左侧栏)" Click="OnToggleLeftSidebarClicked" Margin="0,0,8,0" />
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                        <TextBlock Text="Renly Management Platform" FontSize="15" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#E8EAED" Padding="14,6" FontSize="14" FontWeight="Medium" Margin="0,0,14,0" Click="OnCalTodayClicked" ToolTip="跳转到今天 (快捷键: T)" />
-                    <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="前一个时段 (快捷键: J 或 P)" Click="OnCalPrevClicked" Margin="0,0,2,0" />
-                    <Button x:Name="TopNextBtn" Content="›" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="后一个时段 (快捷键: K 或 N)" Click="OnCalNextClicked" Margin="0,0,14,0" />
-                    <Border Background="Transparent" CornerRadius="4" Padding="6,4" Cursor="Hand" MouseLeftButtonUp="OnTopDateHeaderClicked" ToolTip="点击快速跳转指定日期 (快捷键: G)">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="HamburgerBtn" Content="☰" Style="{StaticResource GoogleTopBtnStyle}" Width="36" Height="36" FontSize="16" ToolTip="主菜单 (展开/收起左侧栏)" Click="OnToggleLeftSidebarClicked" Margin="0,0,8,0" />
+                    <TextBlock Text="Renly Management Platform" FontSize="14" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" Margin="0,0,12,0" />
+                    <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#E8EAED" Padding="10,4" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnCalTodayClicked" ToolTip="跳转到今天 (快捷键: T)" />
+                    <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" FontSize="18" FontWeight="Bold" ToolTip="前一个时段 (快捷键: J 或 P)" Click="OnCalPrevClicked" Margin="0,0,2,0" />
+                    <Button x:Name="TopNextBtn" Content="›" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" FontSize="18" FontWeight="Bold" ToolTip="后一个时段 (快捷键: K 或 N)" Click="OnCalNextClicked" Margin="0,0,8,0" />
+                    <Border Background="Transparent" CornerRadius="4" Padding="4,2" Cursor="Hand" MouseLeftButtonUp="OnTopDateHeaderClicked" ToolTip="点击快速跳转指定日期 (快捷键: G)">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="TopDateHeaderTitle" Text="2026年10月" FontSize="20" FontWeight="Normal" Foreground="#E8EAED" VerticalAlignment="Center" />
-                            <TextBlock Text=" ▾" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="2,2,0,0" />
+                            <TextBlock x:Name="TopDateHeaderTitle" Text="2026年10月" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
+                            <TextBlock Text=" ▾" FontSize="11" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="2,2,0,0" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <!-- Center: Google Search Pill with Floating Dropdown -->
-                <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Background="#303134" CornerRadius="8" MaxWidth="280" Width="260" Height="36" Padding="10,0" VerticalAlignment="Center" Margin="8,0">
+                <!-- Center: Google Search Pill with Floating Dropdown (Takes remaining space, centered) -->
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0" MinWidth="0">
+                    <Border Background="#303134" CornerRadius="8" MaxWidth="240" Width="180" Height="32" Padding="8,0" VerticalAlignment="Center">
                         <Grid VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="🔍" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBox x:Name="SearchEventsInput" Grid.Column="1" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" FontSize="12" VerticalAlignment="Center" TextChanged="OnSearchEventsTextChanged" ToolTip="搜索日程、DoD 或标签 (快捷键: /)" />
-                            <Button Grid.Column="2" x:Name="ClearSearchBtn" Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" Cursor="Hand" Visibility="Collapsed" Click="OnClearSearchClicked" ToolTip="清空搜索" />
+                            <TextBlock Text="🔍" FontSize="11" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,4,0" />
+                            <TextBox x:Name="SearchEventsInput" Grid.Column="1" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" FontSize="11" VerticalAlignment="Center" TextChanged="OnSearchEventsTextChanged" ToolTip="搜索日程、DoD 或标签 (快捷键: /)" />
+                            <Button Grid.Column="2" x:Name="ClearSearchBtn" Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="10" Cursor="Hand" Visibility="Collapsed" Click="OnClearSearchClicked" ToolTip="清空搜索" />
                         </Grid>
                     </Border>
 
                     <!-- Search Results Floating Popup Dropdown -->
-                    <Popup x:Name="SearchResultsPopup" PlacementTarget="{Binding ElementName=SearchEventsInput}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" VerticalOffset="8" HorizontalOffset="-30">
-                        <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="8" Width="360" MaxHeight="320" Padding="8">
+                    <Popup x:Name="SearchResultsPopup" PlacementTarget="{Binding ElementName=SearchEventsInput}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" VerticalOffset="6" HorizontalOffset="-20">
+                        <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="8" Width="320" MaxHeight="320" Padding="8">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.5" Color="Black" />
                             </Border.Effect>
@@ -225,37 +253,7 @@
                         </Border>
                     </Popup>
                 </Grid>
-
-                <!-- Right: Sync Telemetry Badge, Conflict Button, View Switcher, Settings, Avatar -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Granular Sync Status Badge -->
-                    <Border x:Name="CalSyncBadge" Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="10,5" Margin="0,0,10,0" Cursor="Hand" ToolTip="点击查看同步与客户端来源遥测" MouseLeftButtonUp="OnSyncBadgeClicked">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse x:Name="CalSyncStatusDot" Width="7" Height="7" Fill="#10B981" Margin="0,0,6,0" />
-                            <TextBlock x:Name="CalSyncStatusText" Text="🟢 本地与云端一致" FontSize="12" Foreground="#E8EAED" />
-                        </StackPanel>
-                    </Border>
-
-                    <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="13" FontWeight="Medium" Margin="0,0,14,0" Click="OnSyncGoogleCalendarClicked" ToolTip="立即同步 Google 日历" />
-
-                    <!-- View Selector: 日 (Day) / 周 (Week) / 月 (Month) / 年 (Year) / 自定义 (Custom) -->
-                    <Border Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,14,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Button x:Name="ViewDayBtn" Content="日" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
-                            <Button x:Name="ViewWeekBtn" Content="周" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="12,4" FontSize="13" FontWeight="SemiBold" Click="OnViewWeekClicked" ToolTip="周视图 (快捷键: W)" />
-                            <Button x:Name="ViewMonthBtn" Content="月" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewMonthClicked" ToolTip="月视图 (快捷键: M)" />
-                            <Button x:Name="ViewYearBtn" Content="年" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewYearClicked" ToolTip="年视图 (快捷键: Y)" />
-                            <Button x:Name="ViewCustomBtn" Content="自定义" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewCustomClicked" ToolTip="自定义/4天视图 (快捷键: X)" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Gemini AI Sidebar Toggle Button -->
-                    <Button x:Name="ToggleAiSidebarBtn" Content="✨ AI 智能工作台" Style="{StaticResource GoogleActionBtnStyle}" Background="#7C3AED" Foreground="#FFFFFF" Padding="12,5" FontSize="13" FontWeight="SemiBold" Margin="0,0,10,0" Click="OnToggleAiSidebarClicked" ToolTip="展开/收起 Gemini AI 智能侧边栏 (AI 分析 / AI 审核 / AI 建议)" />
-
-                    <!-- Settings Gear -->
-                    <Button Content="⚙️" Style="{StaticResource GoogleTopBtnStyle}" Width="36" Height="36" FontSize="16" ToolTip="系统与 API 配置" Click="OnToggleSettingsDrawerClicked" Margin="0,0,0,0" />
-                </StackPanel>
-            </Grid>
+            </DockPanel>
         </Border>
 
         <!-- ================= 2. MAIN BODY (LEFT DRAWER + CALENDAR CANVAS + RIGHT DRAWER + RAIL) ================= -->
@@ -266,7 +264,7 @@
                 <!-- Column 1: Main Google Calendar Canvas (Week / Day / Month / Agenda) -->
                 <ColumnDefinition Width="*" />
                 <!-- Column 2: Right Companion Drawer (Gemini AI Workspace, 380px) -->
-                <ColumnDefinition Width="380" x:Name="RightDrawerColumn" />
+                <ColumnDefinition Width="0" x:Name="RightDrawerColumn" />
                 <!-- Column 3: Far-Right Google Workspace Rail (Collapsed/Removed) -->
                 <ColumnDefinition Width="0" x:Name="RightRailColumn" />
             </Grid.ColumnDefinitions>
@@ -602,12 +600,12 @@
                             <WrapPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,8">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                                     <TextBlock Text="📅 起始:" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <DatePicker x:Name="CustomStartDatePicker" Width="155" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
+                                    <DatePicker x:Name="CustomStartDatePicker" Width="165" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                                     <TextBlock Text="至  结束:" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <DatePicker x:Name="CustomEndDatePicker" Width="155" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
+                                    <DatePicker x:Name="CustomEndDatePicker" Width="165" Height="28" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" VerticalContentAlignment="Center" FontSize="12" SelectedDateChanged="OnCustomDateRangePickerChanged" />
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
@@ -720,7 +718,7 @@
             </Grid>
 
             <!-- ================= RIGHT COMPANION DRAWER: GEMINI AI WORKSPACE ================= -->
-            <Border Grid.Column="2" x:Name="RightAiSidebarBorder" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0">
+            <Border Grid.Column="2" x:Name="RightAiSidebarBorder" Background="#202124" BorderBrush="#3C4043" BorderThickness="1,0,0,0" Visibility="Collapsed" ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
                         <!-- Row 0: Top Header -->
@@ -1560,7 +1558,7 @@
                                     <ComboBox x:Name="ModelSelectCombo" SelectedIndex="0" Background="#37383B" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,8" SelectionChanged="OnModelSelectionChanged">
                                         <ComboBoxItem Content="gemini-1.5-flash (推荐首选，快速低延时)" Tag="gemini-1.5-flash" />
                                         <ComboBoxItem Content="gemini-1.5-pro (深度逻辑与复杂推理)" Tag="gemini-1.5-pro" />
-                                        <ComboBoxItem Content="gemini-1.5-pro (深度逻辑与复杂推理)" Tag="gemini-1.5-pro" />
+                                        <ComboBoxItem Content="gemini-2.5-flash (Google 最新推荐，超高表现)" Tag="gemini-2.5-flash" />
                                         <ComboBoxItem Content="[自定义模型名称...]" Tag="custom" />
                                     </ComboBox>
                                     <StackPanel x:Name="CustomModelPanel" Visibility="Collapsed" Margin="0,0,0,8">

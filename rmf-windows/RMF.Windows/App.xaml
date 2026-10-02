@@ -10,6 +10,13 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Global text rendering optimization for Chinese CJK glyphs and emojis -->
+            <Style TargetType="TextBlock">
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+                <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+                <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI Emoji, Segoe UI, sans-serif" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -315,20 +315,23 @@ public partial class MainWindow : Window
         if (dirtyCount > 0)
         {
             CalSyncStatusDot.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)); // Yellow
-            CalSyncStatusText.Text = $"🟡 本地有 {dirtyCount} 项未推送变更";
+            CalSyncStatusText.Text = $"🟡 {dirtyCount}项待推";
+            CalSyncBadge.ToolTip = $"本地有 {dirtyCount} 项未推送变更，点击查看来源遥测";
             CalSyncBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
         }
         else if (config.IsGoogleCalendarLinked && !string.IsNullOrWhiteSpace(config.GoogleCalendarIcsUrl))
         {
             CalSyncStatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)); // Green
             string timeStr = string.IsNullOrWhiteSpace(config.GoogleCalendarLastSyncTime) ? "就绪" : config.GoogleCalendarLastSyncTime;
-            CalSyncStatusText.Text = $"🟢 本地与云端一致 ({timeStr})";
+            CalSyncStatusText.Text = $"🟢 已同步 ({timeStr})";
+            CalSyncBadge.ToolTip = $"本地与云端一致 ({timeStr})，点击查看来源遥测";
             CalSyncBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
         }
         else
         {
             CalSyncStatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
-            CalSyncStatusText.Text = "🟢 本地离线引擎一致 (0变更)";
+            CalSyncStatusText.Text = "🟢 离线一致";
+            CalSyncBadge.ToolTip = "本地离线引擎一致 (0项变更)，点击查看来源遥测";
             CalSyncBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5F, 0x63, 0x68));
         }
     }
@@ -5019,6 +5022,7 @@ public partial class MainWindow : Window
         if (RightDrawerColumn.Width.Value > 0)
         {
             RightDrawerColumn.Width = new GridLength(0);
+            RightAiSidebarBorder.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -5147,11 +5151,13 @@ public partial class MainWindow : Window
             if (isCurrentOpen)
             {
                 RightDrawerColumn.Width = new GridLength(0);
+                RightAiSidebarBorder.Visibility = Visibility.Collapsed;
                 return;
             }
         }
 
         RightDrawerColumn.Width = new GridLength(360);
+        RightAiSidebarBorder.Visibility = Visibility.Visible;
         DrawerGeminiPanel.Visibility = drawerType == "Gemini" ? Visibility.Visible : Visibility.Collapsed;
         DrawerExpensePanel.Visibility = drawerType == "Expense" ? Visibility.Visible : Visibility.Collapsed;
 
@@ -5216,7 +5222,11 @@ public partial class MainWindow : Window
         SettingsPanelAi.Visibility = tabIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void OnCloseRightDrawerClicked(object sender, RoutedEventArgs e) => RightDrawerColumn.Width = new GridLength(0);
+    private void OnCloseRightDrawerClicked(object sender, RoutedEventArgs e)
+    {
+        RightDrawerColumn.Width = new GridLength(0);
+        RightAiSidebarBorder.Visibility = Visibility.Collapsed;
+    }
 
     // =========================================================================
     // ===================== GEMINI AI SMART WORKSPACE =========================
@@ -5224,12 +5234,14 @@ public partial class MainWindow : Window
 
     private void OnToggleAiSidebarClicked(object sender, RoutedEventArgs e)
     {
-        if (RightDrawerColumn.Width.Value > 0)
+        if (RightDrawerColumn.Width.Value > 0 && RightAiSidebarBorder.Visibility == Visibility.Visible)
         {
             RightDrawerColumn.Width = new GridLength(0);
+            RightAiSidebarBorder.Visibility = Visibility.Collapsed;
         }
         else
         {
+            RightAiSidebarBorder.Visibility = Visibility.Visible;
             RightDrawerColumn.Width = new GridLength(380);
             UpdateAiSidebarContext();
         }
@@ -5238,6 +5250,7 @@ public partial class MainWindow : Window
     private void OnCloseAiSidebarClicked(object sender, RoutedEventArgs e)
     {
         RightDrawerColumn.Width = new GridLength(0);
+        RightAiSidebarBorder.Visibility = Visibility.Collapsed;
     }
 
     private void OnAiSidebarConfigureKeyClicked(object sender, RoutedEventArgs e)
