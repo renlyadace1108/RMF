@@ -463,17 +463,56 @@
                 </Grid>
 
                 <!-- 4. SYNC VIEW -->
-                <Grid Name="SyncView" Visibility="Collapsed">
-                    <StackPanel>
-                        <TextBlock Text="☁️ Google Drive AppData 增量同步" FontSize="20" FontWeight="Bold" Margin="0,0,0,16" />
-                        <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="状态：已连接至云端隐藏空间 `drive.appdata`" Foreground="{StaticResource TextSecondary}" FontSize="14" />
-                                <TextBlock Name="SyncStatusText" Text="本地优先 SQLite 状态健康，无冲突。" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,8,0,16" />
-                                <Button Content="手动立即同步" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="16,8" FontWeight="SemiBold" HorizontalAlignment="Left" Cursor="Hand" Click="OnSyncNowClicked" />
+                <Grid x:Name="SyncView" Visibility="Collapsed">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,0,20">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                <TextBlock Text="☁️" FontSize="20" Margin="0,0,8,0" />
+                                <TextBlock Text="Google Drive 隐式空间数据同步中心" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
                             </StackPanel>
-                        </Border>
-                    </StackPanel>
+                            <TextBlock Text="RMF 采用完全无服务器架构，直接将日程、专注与收支数据同步至你私有的 Google Drive 隐藏空间（drive.appdata）。即使未配置同步，本地也拥有完整的 Local-First SQLite 存储。" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,20" TextWrapping="Wrap" />
+
+                            <!-- Current Status Card -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,18">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="📡 当前连接与网盘状态" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                                        <Border Grid.Column="1" x:Name="SyncStatusBadge" Background="#332022" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="6" Padding="8,3">
+                                            <TextBlock x:Name="SyncStatusBadgeText" Text="⚠️ 未绑定云端账号" FontSize="11" Foreground="#F87171" FontWeight="SemiBold" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock x:Name="SyncStatusText" Text="当前处于【本地离线模式】。所有数据已安全保存在本地高性能 SQLite 数据库中，尚未配置 Google Drive 授权。" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,14" TextWrapping="Wrap" />
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="SyncNowBtn" Content="🔄 立即执行云端增量同步" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="16,9" FontWeight="SemiBold" Cursor="Hand" Click="OnSyncNowClicked" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Credentials Setup Card -->
+                            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,18">
+                                <StackPanel>
+                                    <TextBlock Text="🔑 Google Drive OAuth 2.0 凭据配置" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
+                                    <TextBlock Text="因数据同步涉及你的私有网盘空间，Google 要求必须使用 OAuth 2.0 客户端凭据（而非普通的静态 API Key）：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,12" />
+
+                                    <TextBlock Text="Google Cloud OAuth 2.0 Client ID：" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                                    <TextBox x:Name="GoogleClientIdInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,8" FontSize="13" Margin="0,0,0,12" />
+
+                                    <TextBlock Text="Google Cloud OAuth 2.0 Client Secret (密钥)：" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                                    <TextBox x:Name="GoogleClientSecretInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,8" FontSize="13" Margin="0,0,0,16" />
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="SaveDriveConfigBtn" Content="💾 保存凭据并发起 Google 授权登录" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,10" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Margin="0,0,12,0" Click="OnSaveDriveConfigClicked" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="DriveConfigStatusText" Text="" FontSize="12" Foreground="#38BDF8" Margin="0,10,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- 5. SETTINGS VIEW -->

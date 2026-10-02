@@ -12,6 +12,12 @@ public class AppConfig
     public string CustomBaseUrl { get; set; } = string.Empty; // 可选自定义代理反向代理地址
     public double Temperature { get; set; } = 0.2; // 默认采用低采样温度，确保输出绝对客观、严谨、一致且可靠
 
+    // Google Drive 云端同步配置
+    public string GoogleClientId { get; set; } = string.Empty;
+    public string GoogleClientSecret { get; set; } = string.Empty;
+    public bool IsGoogleDriveLinked { get; set; } = false;
+    public string LastSyncTime { get; set; } = string.Empty;
+
     /// <summary>
     /// 获取当前生效的最终模型名称
     /// </summary>
