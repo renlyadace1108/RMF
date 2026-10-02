@@ -77,27 +77,17 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Brand Header -->
-                <StackPanel Grid.Row="0" Margin="4,8,4,24">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="34" Height="34" CornerRadius="8" Background="#2563EB" Margin="0,0,10,0">
-                            <TextBlock Text="R" FontWeight="Bold" FontSize="18" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <StackPanel>
-                            <TextBlock Text="RMF Hub" FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
-                            <TextBlock Text="Renly Manage Platform" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,1,0,0" />
-                        </StackPanel>
-                    </StackPanel>
+                <!-- Sidebar Top Action -->
+                <StackPanel Grid.Row="0" Margin="0,4,0,16">
+                    <Button Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="14,10" FontWeight="SemiBold" FontSize="13" Cursor="Hand" HorizontalAlignment="Stretch" Click="OnNewScheduleHeaderClicked" />
                 </StackPanel>
 
                 <!-- Nav Menu -->
                 <StackPanel Grid.Row="1">
-                    <TextBlock Text="核心模块" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" Margin="8,0,0,8" />
-                    
                     <Button Name="NavScheduleBtn" Style="{StaticResource ActiveNavTabButtonStyle}" Margin="0,0,0,4" Click="OnNavScheduleClicked">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📅" FontSize="15" Margin="0,0,10,0" />
-                            <TextBlock Text="日程与时间表" />
+                            <TextBlock Text="Google 日历" />
                         </StackPanel>
                     </Button>
 
@@ -181,98 +171,152 @@
 
             <!-- Main Content Area -->
             <Grid Grid.Row="1">
-                <!-- 1. SCHEDULE & TIMETABLE VIEW -->
+                <!-- 1. SCHEDULE & TIMETABLE VIEW (Google Calendar) -->
                 <Grid Name="ScheduleView" Visibility="Visible">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Top 3 Metrics Dashboard Cards -->
-                    <Grid Grid.Row="0" Margin="0,0,0,20">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                    <!-- Google Calendar Top Navigation & Action Toolbar -->
+                    <Border Grid.Row="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Metric 1: Tasks -->
-                        <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="今日计划进度" FontSize="12" Foreground="{StaticResource TextSecondary}" />
-                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock x:Name="MetricScheduleCompletedText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#38BDF8" />
-                                    <TextBlock x:Name="MetricScheduleTotalText" Text=" / 0 个时间块" FontSize="14" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="4,0,0,4" />
-                                </StackPanel>
-                                <ProgressBar x:Name="MetricScheduleProgressBar" Value="0" Maximum="100" Height="4" Foreground="#38BDF8" Background="#27272A" BorderThickness="0" />
+                            <!-- Left: Date Navigator -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="📅" FontSize="18" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Google 日历" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,14,0" />
+
+                                <Button x:Name="CalTodayBtn" Content="今天" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,5" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,8,0" Click="OnCalTodayClicked" />
+                                
+                                <Button x:Name="CalPrevBtn" Content="◀" Background="Transparent" Foreground="{StaticResource TextSecondary}" BorderThickness="0" Padding="8,4" FontSize="12" Cursor="Hand" ToolTip="前一天" Click="OnCalPrevClicked" />
+                                <Button x:Name="CalNextBtn" Content="▶" Background="Transparent" Foreground="{StaticResource TextSecondary}" BorderThickness="0" Padding="8,4" FontSize="12" Cursor="Hand" ToolTip="后一天" Click="OnCalNextClicked" Margin="0,0,12,0" />
+
+                                <TextBlock x:Name="CalDateHeaderTitle" Text="2026年10月2日 · 星期五" FontSize="15" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <Border x:Name="CalTodayTag" Background="#1E3A8A" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Visibility="Visible">
+                                    <TextBlock Text="今日" FontSize="11" Foreground="#60A5FA" FontWeight="SemiBold" />
+                                </Border>
                             </StackPanel>
-                        </Border>
 
-                        <!-- Metric 2: AI Focus -->
-                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="今日专注度与行为" FontSize="12" Foreground="{StaticResource TextSecondary}" />
-                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock x:Name="MetricFocusMinutesText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#10B981" />
-                                    <TextBlock x:Name="MetricFocusStatusText" Text=" 分钟专注" FontSize="13" Foreground="#10B981" VerticalAlignment="Bottom" Margin="4,0,0,5" />
-                                </StackPanel>
-                                <TextBlock x:Name="MetricFocusSubtitleText" Text="Win32 前台实时嗅探中" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                            <!-- Right: Sync Status & Mode, Sync Action, View Switcher -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Sync Status Badge -->
+                                <Border x:Name="CalSyncBadge" Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,10,0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse x:Name="CalSyncStatusDot" Width="7" Height="7" Fill="#10B981" Margin="0,0,6,0" />
+                                        <TextBlock x:Name="CalSyncStatusText" Text="💾 本地数据模式" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Sync Button -->
+                                <Button x:Name="CalSyncNowBtn" Content="🔄 同步 Google 日历" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,8,0" Click="OnSyncGoogleCalendarClicked" />
+
+                                <!-- Settings Button -->
+                                <Button x:Name="CalConfigBtn" Content="⚙️ 订阅设置" Background="#27272A" Foreground="{StaticResource TextSecondary}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,6" FontSize="12" Cursor="Hand" Margin="0,0,10,0" ToolTip="配置 Google Calendar iCal 私密订阅地址" Click="OnOpenGoogleCalendarConfigClicked" />
+
+                                <!-- View Toggle (Grid vs Agenda) -->
+                                <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="2">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="CalViewGridBtn" Content="📊 时间网格" Background="#27272A" Foreground="#38BDF8" BorderThickness="0" Padding="10,4" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Click="OnCalViewGridClicked" />
+                                        <Button x:Name="CalViewAgendaBtn" Content="📋 议程清单" Background="Transparent" Foreground="{StaticResource TextMuted}" BorderThickness="0" Padding="10,4" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Click="OnCalViewAgendaClicked" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
-                        </Border>
+                        </Grid>
+                    </Border>
 
-                        <!-- Metric 3: Expense -->
-                        <Border Grid.Column="4" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="今日支出统计" FontSize="12" Foreground="{StaticResource TextSecondary}" />
-                                <StackPanel Orientation="Horizontal" Margin="0,6,0,8" VerticalAlignment="Center">
-                                    <TextBlock x:Name="MetricExpenseTotalText" Text="¥ 0.00" FontSize="26" FontWeight="Bold" Foreground="#F43F5E" />
-                                </StackPanel>
-                                <TextBlock x:Name="MetricExpenseSubtitleText" Text="今日暂无记账" FontSize="11" Foreground="{StaticResource TextMuted}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <!-- Bottom Split: Left Timetable Flow, Right AI Inspector -->
+                    <!-- Google Calendar Main Content Split: Left Calendar Canvas, Right AI & Metrics -->
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="6*" />
-                            <ColumnDefinition Width="20" />
-                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="7*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="3*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Left: Rich Schedule Timetable -->
-                        <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,16">
+                        <!-- Left: Calendar Area -->
+                        <Border Grid.Column="0" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
+                            <Grid>
+                                <!-- View 1: Day Time Grid Canvas -->
+                                <Grid x:Name="CalGridContainer" Visibility="Visible">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Grid Sub-header: Weekday header and Add button -->
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="今日日程编排 (Timeline)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
-                                        <Button Grid.Column="1" Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnNewScheduleHeaderClicked" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="CalGridDayHeader" Text="全天日程网格 (24H)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" />
+                                            <TextBlock Text=" · 点击任意时段即可直接新建日程" FontSize="11" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="10,5" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnNewScheduleHeaderClicked" />
                                     </Grid>
 
-                                    <!-- Empty State (Shown when 0 schedules) -->
-                                    <Border x:Name="ScheduleEmptyState" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="32" Margin="0,10,0,0">
-                                        <StackPanel HorizontalAlignment="Center">
-                                            <TextBlock Text="📅" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,10" />
-                                            <TextBlock Text="今日暂无排期日程" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,6" />
-                                            <TextBlock Text="点击上方「+ 新建日程」规划你今日的第一个工作或专注时间块" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,16" />
-                                            <Button Content="+ 立即添加今日日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,9" FontWeight="SemiBold" FontSize="13" Cursor="Hand" HorizontalAlignment="Center" Click="OnNewScheduleHeaderClicked" />
-                                        </StackPanel>
-                                    </Border>
+                                    <!-- 24-Hour Scrollable Canvas -->
+                                    <ScrollViewer Grid.Row="1" x:Name="CalGridScrollViewer" VerticalScrollBarVisibility="Auto">
+                                        <Grid x:Name="CalGridTimeTrack">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="52" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
 
-                                    <!-- Dynamic Schedule Items Container -->
-                                    <StackPanel x:Name="ScheduleTimelinePanel" />
-                                </StackPanel>
-                            </ScrollViewer>
+                                            <!-- Left: Hour Labels (06:00 to 23:00) -->
+                                            <StackPanel Grid.Column="0" x:Name="CalHourLabelsPanel" />
+
+                                            <!-- Right: Hour Slot Dividers & Events Canvas -->
+                                            <Grid Grid.Column="1">
+                                                <!-- Background Grid Lines & Clickable Slots -->
+                                                <StackPanel x:Name="CalHourSlotsPanel" />
+
+                                                <!-- Absolute Canvas for Events & Red Current Time Line -->
+                                                <Canvas x:Name="CalEventsCanvas" ClipToBounds="True" />
+                                            </Grid>
+                                        </Grid>
+                                    </ScrollViewer>
+                                </Grid>
+
+                                <!-- View 2: Agenda List View -->
+                                <Grid x:Name="CalAgendaContainer" Visibility="Collapsed">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,14">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="📋 议程清单视图" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Content="+ 新建日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnNewScheduleHeaderClicked" />
+                                            </Grid>
+
+                                            <!-- Empty State (Shown when 0 schedules) -->
+                                            <Border x:Name="ScheduleEmptyState" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="32" Margin="0,10,0,0">
+                                                <StackPanel HorizontalAlignment="Center">
+                                                    <TextBlock Text="📅" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                                    <TextBlock Text="该日期暂无排期日程" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                                                    <TextBlock Text="点击上方「+ 新建日程」或同步 Google 日历" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,16,0" />
+                                                    <Button Content="+ 立即添加日程" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,9" FontWeight="SemiBold" FontSize="13" Cursor="Hand" HorizontalAlignment="Center" Click="OnNewScheduleHeaderClicked" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Dynamic Schedule Items Container -->
+                                            <StackPanel x:Name="ScheduleTimelinePanel" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
                         </Border>
 
-                        <!-- Right: AI Supervision & Live Window Radar -->
-                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="18">
+                        <!-- Right: AI Supervision & Real-time Radar -->
+                        <Border Grid.Column="2" Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -281,7 +325,37 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Text="🤖 Gemini 行为监管守护" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,12" />
+                                <!-- Mini Metrics Card -->
+                                <Border Grid.Row="0" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="今日日程完成率" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,6" VerticalAlignment="Center">
+                                            <TextBlock x:Name="MetricScheduleCompletedText" Text="0" FontSize="20" FontWeight="Bold" Foreground="#38BDF8" />
+                                            <TextBlock x:Name="MetricScheduleTotalText" Text=" / 0 个时间块" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Bottom" Margin="4,0,0,2" />
+                                        </StackPanel>
+                                        <ProgressBar x:Name="MetricScheduleProgressBar" Value="0" Maximum="100" Height="4" Foreground="#38BDF8" Background="#27272A" BorderThickness="0" Margin="0,0,0,8" />
+                                        
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="专注时长" FontSize="10" Foreground="{StaticResource TextMuted}" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock x:Name="MetricFocusMinutesText" Text="0" FontSize="13" FontWeight="Bold" Foreground="#10B981" />
+                                                    <TextBlock x:Name="MetricFocusStatusText" Text=" 分钟" FontSize="11" Foreground="#10B981" VerticalAlignment="Bottom" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="MetricFocusSubtitleText" Text="Win32 前台实时嗅探中" FontSize="9" Foreground="{StaticResource TextMuted}" Visibility="Collapsed" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="今日支出" FontSize="10" Foreground="{StaticResource TextMuted}" />
+                                                <TextBlock x:Name="MetricExpenseTotalText" Text="¥ 0.00" FontSize="13" FontWeight="Bold" Foreground="#F43F5E" />
+                                                <TextBlock x:Name="MetricExpenseSubtitleText" Text="今日暂无记账" FontSize="9" Foreground="{StaticResource TextMuted}" Visibility="Collapsed" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- Current Active Window -->
                                 <Border Grid.Row="1" Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
@@ -295,14 +369,14 @@
                                 </Border>
 
                                 <!-- Audit Trigger Button -->
-                                <Button Grid.Row="2" Name="AuditScheduleBtn" Content="✨ 唤醒 Gemini 审查今日排期" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="12,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Margin="0,0,0,10" HorizontalAlignment="Stretch" Click="OnAuditScheduleClicked" />
+                                <Button Grid.Row="2" Name="AuditScheduleBtn" Content="✨ 唤醒 Gemini 审查排期" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="12,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Margin="0,0,0,10" HorizontalAlignment="Stretch" Click="OnAuditScheduleClicked" />
 
                                 <!-- Real Gemini Feedback Card -->
                                 <Border Grid.Row="3" Background="#231A38" BorderBrush="#5B21B6" BorderThickness="1" CornerRadius="8" Padding="12">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <StackPanel>
                                             <TextBlock Text="📋 Gemini 审查与复盘反馈" FontWeight="Bold" FontSize="12" Foreground="#DDD6FE" Margin="0,0,0,6" />
-                                            <TextBlock Name="AuditResultText" Text="点击上方按钮，Gemini 将根据你今日的所有日程排期与桌面活动，审查时间块密度、精力分配与潜在拖延风险。" FontSize="12" LineHeight="18" Foreground="#C4B5FD" TextWrapping="Wrap" />
+                                            <TextBlock Name="AuditResultText" Text="点击上方按钮，Gemini 将根据该日期的所有日程排期与桌面活动，审查时间块密度、精力分配与潜在拖延风险。" FontSize="12" LineHeight="18" Foreground="#C4B5FD" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </Border>
@@ -557,6 +631,8 @@
                         <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="{StaticResource TextMuted}" BorderThickness="0" FontSize="15" FontWeight="Bold" Cursor="Hand" Click="OnCloseScheduleModalClicked" />
                     </Grid>
 
+                    <TextBlock x:Name="NewScheduleDateLabel" Text="所属日期: 2026年10月2日" FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold" Margin="0,0,0,10" />
+
                     <TextBlock Text="日程任务标题：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
                     <TextBox x:Name="NewScheduleTitleInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="13" Margin="0,0,0,12" />
 
@@ -592,6 +668,53 @@
                         <Button Content="取消" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="16,8" FontSize="13" Cursor="Hand" Margin="0,0,10,0" Click="OnCloseScheduleModalClicked" />
                         <Button Content="✅ 保存并入库" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="20,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnSaveScheduleModalClicked" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Modal: Google Calendar iCal Sync Dialog -->
+        <Grid x:Name="GoogleCalendarSyncModal" Visibility="Collapsed" Background="#99000000" Grid.ColumnSpan="2" Panel.ZIndex="999">
+            <Border Background="{StaticResource CardBackground}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="24" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📅" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock Text="Google Calendar 日历同步配置" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="{StaticResource TextMuted}" BorderThickness="0" FontSize="15" FontWeight="Bold" Cursor="Hand" Click="OnCloseGoogleCalendarConfigClicked" />
+                    </Grid>
+
+                    <!-- Instructions -->
+                    <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="💡 如何获取 Google Calendar 订阅地址？" FontSize="12" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,6" />
+                            <TextBlock Text="1. 在浏览器打开 Google Calendar (calendar.google.com)" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,2" />
+                            <TextBlock Text="2. 在左侧「我的日历」找到你的日历，点击右侧「⋮」选择「设置与共享」" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,2" />
+                            <TextBlock Text="3. 页面滚动到底部「整合日历」，复制「iCal 格式的私密地址」" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,2" />
+                            <TextBlock Text="4. 将以 basic.ics 结尾的链接粘贴至下方即可自动同步：" FontSize="11" Foreground="{StaticResource TextSecondary}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Google Calendar 私密 iCal 订阅地址：" FontSize="12" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
+                    <TextBox x:Name="GoogleCalendarIcsInput" Background="#18181B" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="10,8" FontSize="12" Margin="0,0,0,8" />
+
+                    <TextBlock x:Name="GoogleCalendarSyncModalStatus" Text="" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="解除同步 (恢复纯本地)" Background="Transparent" Foreground="#EF4444" BorderThickness="0" Cursor="Hand" FontSize="12" Click="OnDisconnectGoogleCalendarClicked" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="取消" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="16,8" FontSize="13" Cursor="Hand" Margin="0,0,10,0" Click="OnCloseGoogleCalendarConfigClicked" />
+                            <Button x:Name="SaveGoogleCalSyncBtn" Content="💾 保存并立即同步" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="18,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnSaveGoogleCalendarSyncClicked" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>

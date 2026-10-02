@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -19,8 +20,14 @@ public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _perfTimer;
     private readonly GeminiService _geminiService = new();
+    private readonly GoogleCalendarService _googleCalendarService = new();
 
-    // 真实排期日程数据列表（全部来源于本地 SQLite 数据库）
+    // Google 日历导航与数据状态
+    private DateTime _currentCalendarDate = DateTime.Today;
+    private bool _isAgendaView = false;
+    private const double HourHeight = 54.0;
+
+    // 当前选定日期的排期日程数据列表（优先从 Google 日历同步，未同步或离线时完整读取本地 SQLite）
     private List<ScheduleItem> _todaySchedule = new();
 
     // Win32 DWM API for Windows 11 Immersive Dark Titlebar & Mica backdrop
@@ -52,7 +59,10 @@ public partial class MainWindow : Window
         {
             DatabaseService.Initialize();
             ApplyWindows11ImmersiveDarkTitlebar();
+            BuildHourGrid();
+            CalEventsCanvas.SizeChanged += (sender, args) => RenderDayGridEvents();
             ReloadAllRealData();
+            ScrollToCurrentTime();
             UpdateTelemetry();
             LoadSettingsIntoUi();
         };
@@ -137,35 +147,9 @@ public partial class MainWindow : Window
 
     private void ReloadAllRealData()
     {
-        // 1. 日程列表与进度真实刷新
-        _todaySchedule = DatabaseService.GetTodaySchedules();
-        int totalSchedule = _todaySchedule.Count;
-        int completedSchedule = 0;
-        foreach (var item in _todaySchedule)
-        {
-            if (item.Status == "COMPLETED") completedSchedule++;
-        }
-
-        MetricScheduleCompletedText.Text = completedSchedule.ToString();
-        MetricScheduleTotalText.Text = $" / {totalSchedule} 个时间块";
-        MetricScheduleProgressBar.Value = totalSchedule > 0 ? (completedSchedule * 100 / totalSchedule) : 0;
-
-        ScheduleTimelinePanel.Children.Clear();
-        if (totalSchedule == 0)
-        {
-            ScheduleEmptyState.Visibility = Visibility.Visible;
-            ScheduleTimelinePanel.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            ScheduleEmptyState.Visibility = Visibility.Collapsed;
-            ScheduleTimelinePanel.Visibility = Visibility.Visible;
-
-            foreach (var item in _todaySchedule)
-            {
-                ScheduleTimelinePanel.Children.Add(CreateScheduleItemCard(item));
-            }
-        }
+        // 1. Google 日历状态与日程真实动态刷新 (基于 _currentCalendarDate)
+        _todaySchedule = DatabaseService.GetSchedulesForDate(_currentCalendarDate);
+        RenderCalendar();
 
         // 2. 支出统计与流水真实列表刷新
         decimal totalExpense = DatabaseService.GetTodayTotalExpense();
@@ -197,6 +181,370 @@ public partial class MainWindow : Window
         MetricFocusMinutesText.Text = focusMinutes.ToString();
         MetricFocusStatusText.Text = focusMinutes > 0 ? " 分钟专注" : " 分钟";
         MetricFocusSubtitleText.Text = focusMinutes > 0 ? $"Win32 今日已真实捕获 {focusMinutes} 分钟前台活动" : "Win32 前台实时嗅探中";
+    }
+
+    private void BuildHourGrid()
+    {
+        CalHourLabelsPanel.Children.Clear();
+        CalHourSlotsPanel.Children.Clear();
+
+        for (int h = 6; h <= 23; h++)
+        {
+            // Hour Label
+            var labelBorder = new Border
+            {
+                Height = HourHeight,
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            labelBorder.Child = new TextBlock
+            {
+                Text = $"{h:D2}:00",
+                FontSize = 11,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            CalHourLabelsPanel.Children.Add(labelBorder);
+
+            // Hour Slot Row
+            int hourCaptured = h;
+            var slotBorder = new Border
+            {
+                Height = HourHeight,
+                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x27, 0x2A)),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Background = System.Windows.Media.Brushes.Transparent,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = $"点击在 {hourCaptured:D2}:00 快速规划日程"
+            };
+            slotBorder.MouseLeftButtonUp += (s, e) =>
+            {
+                OnHourSlotClicked(hourCaptured);
+            };
+            CalHourSlotsPanel.Children.Add(slotBorder);
+        }
+
+        CalEventsCanvas.Height = 18 * HourHeight;
+    }
+
+    private void ScrollToCurrentTime()
+    {
+        try
+        {
+            double nowH = DateTime.Now.Hour + DateTime.Now.Minute / 60.0;
+            double targetOffset = Math.Max(0, (nowH - 7.0) * HourHeight);
+            CalGridScrollViewer.ScrollToVerticalOffset(targetOffset);
+        }
+        catch { }
+    }
+
+    private void RenderCalendar()
+    {
+        // 头部日期与当前星期展示
+        var culture = new CultureInfo("zh-CN");
+        CalDateHeaderTitle.Text = _currentCalendarDate.ToString("yyyy年M月d日 · dddd", culture);
+        CalTodayTag.Visibility = _currentCalendarDate.Date == DateTime.Today ? Visibility.Visible : Visibility.Collapsed;
+        CalGridDayHeader.Text = $"{_currentCalendarDate:M月d日} 日程网格 ({_todaySchedule.Count} 项)";
+        NewScheduleDateLabel.Text = $"所属日期: {_currentCalendarDate:yyyy年M月d日}";
+
+        // 计划完成进度统计
+        int totalSchedule = _todaySchedule.Count;
+        int completedSchedule = 0;
+        foreach (var item in _todaySchedule)
+        {
+            if (item.Status == "COMPLETED") completedSchedule++;
+        }
+
+        MetricScheduleCompletedText.Text = completedSchedule.ToString();
+        MetricScheduleTotalText.Text = $" / {totalSchedule} 个时间块";
+        MetricScheduleProgressBar.Value = totalSchedule > 0 ? (completedSchedule * 100 / totalSchedule) : 0;
+
+        // 同步状态徽章更新
+        var config = ConfigService.Load();
+        if (config.IsGoogleCalendarLinked && !string.IsNullOrWhiteSpace(config.GoogleCalendarIcsUrl))
+        {
+            CalSyncStatusDot.Fill = (System.Windows.Media.Brush)FindResource("AccentGreen");
+            string syncTime = string.IsNullOrWhiteSpace(config.GoogleCalendarLastSyncTime) ? "就绪" : config.GoogleCalendarLastSyncTime;
+            CalSyncStatusText.Text = $"🟢 已同步 Google 日历 ({syncTime})";
+            CalSyncBadge.BorderBrush = (System.Windows.Media.Brush)FindResource("AccentGreen");
+        }
+        else
+        {
+            CalSyncStatusDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x94, 0xA3, 0xB8));
+            CalSyncStatusText.Text = "💾 本地数据模式 (离线就绪)";
+            CalSyncBadge.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorderBrush");
+        }
+
+        // 网格与议程模式切换渲染
+        if (_isAgendaView)
+        {
+            CalGridContainer.Visibility = Visibility.Collapsed;
+            CalAgendaContainer.Visibility = Visibility.Visible;
+            CalViewGridBtn.Background = System.Windows.Media.Brushes.Transparent;
+            CalViewGridBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+            CalViewAgendaBtn.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x27, 0x2A));
+            CalViewAgendaBtn.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8));
+
+            ScheduleTimelinePanel.Children.Clear();
+            if (totalSchedule == 0)
+            {
+                ScheduleEmptyState.Visibility = Visibility.Visible;
+                ScheduleTimelinePanel.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                ScheduleEmptyState.Visibility = Visibility.Collapsed;
+                ScheduleTimelinePanel.Visibility = Visibility.Visible;
+
+                foreach (var item in _todaySchedule)
+                {
+                    ScheduleTimelinePanel.Children.Add(CreateScheduleItemCard(item));
+                }
+            }
+        }
+        else
+        {
+            CalGridContainer.Visibility = Visibility.Visible;
+            CalAgendaContainer.Visibility = Visibility.Collapsed;
+            CalViewGridBtn.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x27, 0x2A));
+            CalViewGridBtn.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8));
+            CalViewAgendaBtn.Background = System.Windows.Media.Brushes.Transparent;
+            CalViewAgendaBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+
+            RenderDayGridEvents();
+        }
+    }
+
+    private void RenderDayGridEvents()
+    {
+        CalEventsCanvas.Children.Clear();
+        CalEventsCanvas.Height = 18 * HourHeight;
+
+        double canvasWidth = CalEventsCanvas.ActualWidth;
+        if (canvasWidth <= 0 && CalGridScrollViewer.ActualWidth > 80)
+        {
+            canvasWidth = CalGridScrollViewer.ActualWidth - 70;
+        }
+        if (canvasWidth <= 50) canvasWidth = 600;
+
+        // 1. 绘制红线时间指示器 (Google Calendar 经典签名)
+        if (_currentCalendarDate.Date == DateTime.Today)
+        {
+            double nowH = DateTime.Now.Hour + DateTime.Now.Minute / 60.0;
+            if (nowH >= 6.0 && nowH <= 24.0)
+            {
+                double lineTop = (nowH - 6.0) * HourHeight;
+
+                var redLine = new Border
+                {
+                    Height = 2,
+                    Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEF, 0x44, 0x44)),
+                    Width = canvasWidth,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(redLine, 0);
+                Canvas.SetTop(redLine, lineTop - 1);
+                CalEventsCanvas.Children.Add(redLine);
+
+                var redDot = new System.Windows.Shapes.Ellipse
+                {
+                    Width = 9,
+                    Height = 9,
+                    Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEF, 0x44, 0x44)),
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(redDot, -4);
+                Canvas.SetTop(redDot, lineTop - 4.5);
+                CalEventsCanvas.Children.Add(redDot);
+            }
+        }
+
+        // 2. 渲染 Google Calendar 风格日程卡片块
+        double cardWidth = Math.Max(200, canvasWidth - 16);
+
+        foreach (var item in _todaySchedule)
+        {
+            double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
+            double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
+            if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
+            if (endH <= startH) endH = startH + 1.0;
+
+            if (endH < 6.0 || startH > 24.0) continue;
+
+            double visualStart = Math.Max(6.0, startH);
+            double visualEnd = Math.Min(24.0, endH);
+
+            double top = (visualStart - 6.0) * HourHeight + 2;
+            double height = Math.Max(26.0, (visualEnd - visualStart) * HourHeight - 4);
+
+            var eventCard = CreateGoogleCalendarEventCard(item, cardWidth, height);
+            Canvas.SetLeft(eventCard, 6);
+            Canvas.SetTop(eventCard, top);
+            CalEventsCanvas.Children.Add(eventCard);
+        }
+    }
+
+    private UIElement CreateGoogleCalendarEventCard(ScheduleItem item, double width, double height)
+    {
+        var (borderBrush, bgBrush, fgBrush) = GetCategoryColors(item.Category);
+
+        var cardBorder = new Border
+        {
+            Width = width,
+            Height = height,
+            Background = bgBrush,
+            BorderBrush = item.Status == "IN_PROGRESS"
+                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8))
+                : borderBrush,
+            BorderThickness = new Thickness(4, 1, 1, 1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Opacity = item.Status == "COMPLETED" ? 0.75 : 1.0,
+            ToolTip = $"{item.Title}\n时间: {item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n分类: {item.Category}\n状态: {item.Status}\n点击切换状态，右侧可删除"
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left info
+        var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var titleText = new TextBlock
+        {
+            Text = (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
+            FontWeight = FontWeights.Bold,
+            FontSize = 12,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = Math.Max(120, width - 160),
+            TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
+        };
+        titleRow.Children.Add(titleText);
+
+        var timeText = new TextBlock
+        {
+            Text = $" · {item.StartTime:HH:mm} - {item.EndTime:HH:mm}",
+            FontSize = 11,
+            Foreground = fgBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0)
+        };
+        titleRow.Children.Add(timeText);
+        infoPanel.Children.Add(titleRow);
+
+        if (height >= 48 && !string.IsNullOrWhiteSpace(item.Description))
+        {
+            var descText = new TextBlock
+            {
+                Text = item.Description,
+                FontSize = 11,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+            infoPanel.Children.Add(descText);
+        }
+        Grid.SetColumn(infoPanel, 0);
+        grid.Children.Add(infoPanel);
+
+        // Status Button
+        string statusText = item.Status switch
+        {
+            "COMPLETED" => "已完成",
+            "IN_PROGRESS" => "进行中",
+            _ => "待办"
+        };
+        var statusColor = item.Status switch
+        {
+            "COMPLETED" => System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81),
+            "IN_PROGRESS" => System.Windows.Media.Color.FromRgb(0x38, 0xBD, 0xF8),
+            _ => System.Windows.Media.Color.FromRgb(0xA1, 0xA1, 0xAA)
+        };
+        var statusBtn = new Button
+        {
+            Content = statusText,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(40, statusColor.R, statusColor.G, statusColor.B)),
+            Foreground = new System.Windows.Media.SolidColorBrush(statusColor),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(statusColor),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(6, 2, 6, 2),
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 6, 0)
+        };
+        statusBtn.Click += (s, e) =>
+        {
+            string nextStatus = item.Status switch
+            {
+                "PENDING" => "IN_PROGRESS",
+                "IN_PROGRESS" => "COMPLETED",
+                _ => "PENDING"
+            };
+            DatabaseService.UpdateScheduleStatus(item.Id, nextStatus);
+            ReloadAllRealData();
+        };
+        Grid.SetColumn(statusBtn, 1);
+        grid.Children.Add(statusBtn);
+
+        // Delete Button
+        var delBtn = new Button
+        {
+            Content = "✕",
+            Background = System.Windows.Media.Brushes.Transparent,
+            Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4),
+            FontSize = 10,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        delBtn.Click += (s, e) =>
+        {
+            DatabaseService.DeleteSchedule(item.Id);
+            ReloadAllRealData();
+        };
+        Grid.SetColumn(delBtn, 2);
+        grid.Children.Add(delBtn);
+
+        cardBorder.Child = grid;
+        return cardBorder;
+    }
+
+    private static (System.Windows.Media.Brush border, System.Windows.Media.Brush bg, System.Windows.Media.Brush fg) GetCategoryColors(string category)
+    {
+        return category switch
+        {
+            "核心研发" or "WORK" or "工作" => (
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x17, 0x25, 0x3E)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x60, 0xA5, 0xFA))
+            ),
+            "深度学习" or "STUDY" or "学习" => (
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x8B, 0x5C, 0xF6)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x27, 0x1A, 0x40)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC4, 0xB5, 0xFD))
+            ),
+            "运动健康" or "HEALTH" or "健康" => (
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x2E, 0x22)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x34, 0xD3, 0x99))
+            ),
+            "财务管理" or "FINANCE" or "财务" => (
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF4, 0x3F, 0x5E)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x18, 0x20)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFB, 0x71, 0x85))
+            ),
+            _ => (
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x26, 0x12)),
+                new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFB, 0xBF, 0x24))
+            )
+        };
     }
 
     private UIElement CreateScheduleItemCard(ScheduleItem item)
@@ -455,8 +803,20 @@ public partial class MainWindow : Window
     {
         NewScheduleTitleInput.Clear();
         NewScheduleDescInput.Clear();
+        NewScheduleDateLabel.Text = $"所属日期: {_currentCalendarDate:yyyy年M月d日}";
         NewScheduleStartInput.Text = DateTime.Now.ToString("HH:mm");
         NewScheduleEndInput.Text = DateTime.Now.AddHours(1).ToString("HH:mm");
+        NewScheduleCategoryCombo.SelectedIndex = 0;
+        NewScheduleModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnHourSlotClicked(int hour)
+    {
+        NewScheduleTitleInput.Clear();
+        NewScheduleDescInput.Clear();
+        NewScheduleDateLabel.Text = $"所属日期: {_currentCalendarDate:yyyy年M月d日}";
+        NewScheduleStartInput.Text = $"{hour:D2}:00";
+        NewScheduleEndInput.Text = $"{(hour + 1):D2}:00";
         NewScheduleCategoryCombo.SelectedIndex = 0;
         NewScheduleModal.Visibility = Visibility.Visible;
     }
@@ -481,16 +841,17 @@ public partial class MainWindow : Window
             category = c;
         }
 
-        DateTime startTime = DateTime.Today.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute);
+        DateTime baseDate = _currentCalendarDate.Date;
+        DateTime startTime = baseDate.AddHours(DateTime.Now.Hour).AddMinutes(DateTime.Now.Minute);
         DateTime endTime = startTime.AddHours(1);
 
         if (TimeSpan.TryParse(NewScheduleStartInput.Text.Trim(), out var tsStart))
         {
-            startTime = DateTime.Today.Add(tsStart);
+            startTime = baseDate.Add(tsStart);
         }
         if (TimeSpan.TryParse(NewScheduleEndInput.Text.Trim(), out var tsEnd))
         {
-            endTime = DateTime.Today.Add(tsEnd);
+            endTime = baseDate.Add(tsEnd);
         }
         if (endTime <= startTime)
         {
@@ -511,6 +872,137 @@ public partial class MainWindow : Window
 
         DatabaseService.AddSchedule(item);
         NewScheduleModal.Visibility = Visibility.Collapsed;
+        ReloadAllRealData();
+    }
+
+    // ================== Google 日历导航与视图控制 ==================
+
+    private void OnCalPrevClicked(object sender, RoutedEventArgs e)
+    {
+        _currentCalendarDate = _currentCalendarDate.AddDays(-1);
+        ReloadAllRealData();
+    }
+
+    private void OnCalNextClicked(object sender, RoutedEventArgs e)
+    {
+        _currentCalendarDate = _currentCalendarDate.AddDays(1);
+        ReloadAllRealData();
+    }
+
+    private void OnCalTodayClicked(object sender, RoutedEventArgs e)
+    {
+        _currentCalendarDate = DateTime.Today;
+        ReloadAllRealData();
+        ScrollToCurrentTime();
+    }
+
+    private void OnCalViewGridClicked(object sender, RoutedEventArgs e)
+    {
+        _isAgendaView = false;
+        RenderCalendar();
+    }
+
+    private void OnCalViewAgendaClicked(object sender, RoutedEventArgs e)
+    {
+        _isAgendaView = true;
+        RenderCalendar();
+    }
+
+    // ================== Google Calendar 订阅同步 ==================
+
+    private void OnOpenGoogleCalendarConfigClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        GoogleCalendarIcsInput.Text = config.GoogleCalendarIcsUrl;
+        GoogleCalendarSyncModalStatus.Text = string.IsNullOrWhiteSpace(config.GoogleCalendarIcsUrl)
+            ? "💡 提示：从 Google 日历获取 basic.ics 私密地址后粘贴即可一键同步。"
+            : $"当前已配置订阅地址。最近同步时间：{config.GoogleCalendarLastSyncTime ?? "未同步"}";
+        GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        GoogleCalendarSyncModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseGoogleCalendarConfigClicked(object sender, RoutedEventArgs e)
+    {
+        GoogleCalendarSyncModal.Visibility = Visibility.Collapsed;
+    }
+
+    private async void OnSyncGoogleCalendarClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GoogleCalendarIcsUrl))
+        {
+            OnOpenGoogleCalendarConfigClicked(sender, e);
+            return;
+        }
+
+        CalSyncNowBtn.IsEnabled = false;
+        CalSyncNowBtn.Content = "⏳ 同步中...";
+        try
+        {
+            var (added, updated) = await _googleCalendarService.SyncFromIcsAsync(config.GoogleCalendarIcsUrl);
+            ReloadAllRealData();
+            MessageBox.Show($"✅ Google 日历同步完成！\n已成功从云端获取并处理 {added} 项日程数据，已安全存入本地 SQLite 数据库。", "Google 日历同步成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"❌ 同步 Google 日历失败: {ex.Message}\n\n请检查网络连接或确认 iCal 订阅地址是否有效。", "同步失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            CalSyncNowBtn.IsEnabled = true;
+            CalSyncNowBtn.Content = "🔄 同步 Google 日历";
+        }
+    }
+
+    private async void OnSaveGoogleCalendarSyncClicked(object sender, RoutedEventArgs e)
+    {
+        string url = GoogleCalendarIcsInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+            GoogleCalendarSyncModalStatus.Text = "⚠️ 请先填入以 .ics 结尾的 Google Calendar 订阅地址！";
+            return;
+        }
+
+        SaveGoogleCalSyncBtn.IsEnabled = false;
+        SaveGoogleCalSyncBtn.Content = "⏳ 正在连接测试与同步...";
+        GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        GoogleCalendarSyncModalStatus.Text = "正在从 Google Calendar 拉取 iCal 数据流...";
+
+        try
+        {
+            var (added, updated) = await _googleCalendarService.SyncFromIcsAsync(url);
+            GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
+            GoogleCalendarSyncModalStatus.Text = $"🎉 成功同步！已从 Google 日历解析并导入 {added} 项日程存入本地 SQLite。";
+
+            ReloadAllRealData();
+            await Task.Delay(1000);
+            GoogleCalendarSyncModal.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+            GoogleCalendarSyncModalStatus.Text = $"❌ 同步测试失败: {ex.Message}\n请确认链接有效且网络通畅。";
+        }
+        finally
+        {
+            SaveGoogleCalSyncBtn.IsEnabled = true;
+            SaveGoogleCalSyncBtn.Content = "💾 保存并立即同步";
+        }
+    }
+
+    private void OnDisconnectGoogleCalendarClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        config.GoogleCalendarIcsUrl = string.Empty;
+        config.IsGoogleCalendarLinked = false;
+        config.GoogleCalendarLastSyncTime = string.Empty;
+        ConfigService.Save(config);
+
+        GoogleCalendarIcsInput.Clear();
+        GoogleCalendarSyncModalStatus.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
+        GoogleCalendarSyncModalStatus.Text = "已解除 Google 日历绑定。应用已恢复纯本地 SQLite 数据模式，原有数据已完整保留。";
+
         ReloadAllRealData();
     }
 
@@ -547,7 +1039,7 @@ public partial class MainWindow : Window
     {
         if (_todaySchedule.Count == 0)
         {
-            AuditResultText.Text = "ℹ️ 今日数据库中暂无排期日程。\n\n请先点击右上角「+ 新建日程」规划你今日的第一个任务时间块，Gemini 将基于你的真实安排与前台活动进行客观负荷审计。";
+            AuditResultText.Text = "ℹ️ 该日期数据库中暂无排期日程。\n\n请先点击上方「+ 新建日程」或同步 Google 日历规划该日期的任务时间块，Gemini 将基于你的真实安排与前台活动进行客观负荷审计。";
             return;
         }
 

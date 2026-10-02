@@ -70,12 +70,17 @@ public class DatabaseService
 
     public static List<ScheduleItem> GetTodaySchedules()
     {
+        return GetSchedulesForDate(DateTime.Today);
+    }
+
+    public static List<ScheduleItem> GetSchedulesForDate(DateTime date)
+    {
         var list = new List<ScheduleItem>();
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string todayStart = DateTime.Today.ToString("s");
-        string todayEnd = DateTime.Today.AddDays(1).ToString("s");
+        string dayStart = date.Date.ToString("s");
+        string dayEnd = date.Date.AddDays(1).ToString("s");
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted
@@ -85,8 +90,8 @@ public class DatabaseService
         ";
 
         using var cmd = new SqliteCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@start", todayStart);
-        cmd.Parameters.AddWithValue("@end", todayEnd);
+        cmd.Parameters.AddWithValue("@start", dayStart);
+        cmd.Parameters.AddWithValue("@end", dayEnd);
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -99,8 +104,8 @@ public class DatabaseService
                 Category = reader.IsDBNull(3) ? "WORK" : reader.GetString(3),
                 Priority = reader.IsDBNull(4) ? "MEDIUM" : reader.GetString(4),
                 Status = reader.IsDBNull(5) ? "PENDING" : reader.GetString(5),
-                StartTime = DateTime.TryParse(reader.GetString(6), out var st) ? st : DateTime.Today,
-                EndTime = DateTime.TryParse(reader.GetString(7), out var et) ? et : DateTime.Today,
+                StartTime = DateTime.TryParse(reader.GetString(6), out var st) ? st : date.Date,
+                EndTime = DateTime.TryParse(reader.GetString(7), out var et) ? et : date.Date,
                 EstimatedMinutes = reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
                 IsDeleted = reader.GetInt32(9) == 1
             });
@@ -109,14 +114,22 @@ public class DatabaseService
         return list;
     }
 
-    public static void AddSchedule(ScheduleItem item)
+    public static void UpsertSchedule(ScheduleItem item)
     {
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
         string sql = @"
             INSERT INTO schedules (id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted, created_at, updated_at)
-            VALUES (@id, @title, @description, @category, @priority, @status, @start_time, @end_time, @estimated_minutes, 0, @now, @now);
+            VALUES (@id, @title, @description, @category, @priority, @status, @start_time, @end_time, @estimated_minutes, 0, @now, @now)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                description = excluded.description,
+                category = excluded.category,
+                start_time = excluded.start_time,
+                end_time = excluded.end_time,
+                estimated_minutes = excluded.estimated_minutes,
+                updated_at = excluded.updated_at;
         ";
 
         using var cmd = new SqliteCommand(sql, conn);
@@ -132,6 +145,11 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
 
         cmd.ExecuteNonQuery();
+    }
+
+    public static void AddSchedule(ScheduleItem item)
+    {
+        UpsertSchedule(item);
     }
 
     public static void UpdateScheduleStatus(string id, string status)

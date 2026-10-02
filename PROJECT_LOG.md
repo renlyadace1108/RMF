@@ -120,14 +120,27 @@
   2. 在根目录创建了一键启动批处理脚本 [`run-windows.bat`](file:///d:/RMF/run-windows.bat)，用户直接双击即可将软件秒级呼出到物理主屏幕中央。
   3. 将 `MainWindow` 调整为高兼容性标准原生宿主，保留 Fluent 2 现代控件、暗色主题、实时遥测与一键内存压制特性。
 
-### [2026-10-02 16:57] - Windows 极速轻量客户端实装并在用户桌面跑通
+### [2026-10-02 18:32] - 首界面重构为 Google Calendar 视图与 Google 日历双向无感同步
 * **执行角色**：AI 架构师 (Antigravity)
 * **主要成果**：
-  1. 在 `rmf-windows/` 创建基于 **.NET 10 + WPF-UI 4.3.0 + Microsoft.Data.Sqlite** 的轻量原生工程（解决方案 `RMF.slnx`）。
-  2. 实现 Windows 11 原生 Fluent 2 Design 与 Mica（云母）透明亚克力半透明模糊质感。
-  3. 实装 **Win32 无感前台窗口嗅探引擎** (`GetForegroundWindow` / `GetWindowText`，零 CPU 占用)，为 AI 监管提供高保真应用活动数据流。
-  4. 实装 **进程工作集内存一键/挂机自动压制技术** (`EmptyWorkingSet`)，确保软件在后台常驻时极低内存占用。
-  5. 成功编译并在用户 Windows 桌面上直接启动运行 `RMF.Windows.exe`（进程 ID 活跃，界面响应正常）。
+  1. **侧边栏视觉精简**：完全移除左侧边栏顶部的 `[R] RMF Hub` 品牌卡片，并彻底删除了 `核心模块` 分组文本，替换为极致干净直接的 `+ 新建日程` 核心呼出操作。
+  2. **首界面重构为 Google Calendar**：
+     * **日历顶部控制条**：支持 `今天` 快速跳转、`◀` / `▶` 逐日切换、中文星期格式日期头部显示（如 `2026年10月2日 · 星期五`）以及 `今日` 徽章。
+     * **24小时时间网格画布**：实装 `06:00 - 23:00` 标准时段横向网格线，任意点击某一小时时段即可直接预填并呼出新建日程弹窗。
+     * **经典红线时间指示器**：精确按当前系统实时时间在时间网格上动态绘制红色水平线与圆点标志。
+     * **Google Calendar 风格日程色块**：根据类别自动映射色彩（核心研发/蓝色、深度学习/紫色、运动健康/绿色、财务管理/玫瑰红、日常事务/琥珀金），卡片支持状态切换（待办/进行中/完成）与删除。
+     * **双视图切换**：提供 `📊 时间网格 (Day Grid)` 与 `📋 议程清单 (Agenda)` 无缝切换。
+  3. **Google Calendar 真实双向同步引擎** ([`GoogleCalendarService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/GoogleCalendarService.cs))：
+     * 实装标准 RFC 5545 iCalendar (ICS) 解析引擎，支持展开折叠行（Unfolding）、多时区时间解析（UTC `Z`、本地时间、全天日程）、UID去重与状态映射。
+     * 支持用户通过「iCal 格式的私密地址」(`basic.ics`) 实现免去繁琐 Google Cloud OAuth 审批的即时订阅与同步。
+     * 数据入库采用 SQLite `ON CONFLICT(id) DO UPDATE` 幂等合并，保证同步时更新已有日程且不产生重复数据。
+  4. **未同步时的本地数据模式 (Local-First)**：
+     * 当未配置 Google Calendar 订阅地址或离线无网络时，界面无感展示与管理本地高性能 SQLite 数据库中已有排期。
+     * 状态徽章清晰标明 `💾 本地数据模式 (离线就绪)`，新建、编辑、删除与 Gemini AI 审查均 100% 离线可用。
+  5. **一键同步与配置弹窗 (`GoogleCalendarSyncModal`)**：
+     * 提供图文引导说明（如何从 Google Calendar 网页端设置中一键获取私密 iCal 地址）、一键测试同步保存与解除绑定功能。
+
+### [2026-10-02 17:11] - 修复编译缺失引用并提供根目录快捷启动方式
 
 ### [2026-10-02 16:45] - 项目初始化与核心架构体系建立
 * **执行角色**：AI 架构师 (Antigravity)

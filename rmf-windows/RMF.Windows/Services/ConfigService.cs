@@ -18,6 +18,11 @@ public class AppConfig
     public bool IsGoogleDriveLinked { get; set; } = false;
     public string LastSyncTime { get; set; } = string.Empty;
 
+    // Google Calendar 日历同步配置
+    public string GoogleCalendarIcsUrl { get; set; } = string.Empty;
+    public string GoogleCalendarLastSyncTime { get; set; } = string.Empty;
+    public bool IsGoogleCalendarLinked { get; set; } = false;
+
     /// <summary>
     /// 获取当前生效的最终模型名称
     /// </summary>
