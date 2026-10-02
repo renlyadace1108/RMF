@@ -110,7 +110,8 @@ public class GoogleCalendarService
                         StartTime = startTime,
                         EndTime = endTime,
                         EstimatedMinutes = (int)(endTime - startTime).TotalMinutes,
-                        IsDeleted = false
+                        IsDeleted = false,
+                        Source = "☁️ Google日历"
                     });
                 }
                 inEvent = false;

@@ -226,15 +226,12 @@
                 <!-- Right: Sync Telemetry Badge, Conflict Button, View Switcher, Settings, Avatar -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Granular Sync Status Badge -->
-                    <Border x:Name="CalSyncBadge" Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="10,5" Margin="0,0,8,0" Cursor="Hand" ToolTip="点击查看同步遥测与三方冲突" MouseLeftButtonUp="OnSyncBadgeClicked">
+                    <Border x:Name="CalSyncBadge" Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="10,5" Margin="0,0,10,0" Cursor="Hand" ToolTip="点击查看同步与客户端来源遥测" MouseLeftButtonUp="OnSyncBadgeClicked">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="CalSyncStatusDot" Width="7" Height="7" Fill="#10B981" Margin="0,0,6,0" />
                             <TextBlock x:Name="CalSyncStatusText" Text="🟢 本地与云端一致" FontSize="12" Foreground="#E8EAED" />
                         </StackPanel>
                     </Border>
-
-                    <!-- Conflict Resolution Trigger Button (Visible or available) -->
-                    <Button x:Name="ConflictCenterBtn" Content="🔀 冲突决议" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#FBBF24" BorderBrush="#F59E0B" Padding="10,5" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnOpenConflictModalClicked" ToolTip="三方编辑冲突决议中心" />
 
                     <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="13" FontWeight="Medium" Margin="0,0,14,0" Click="OnSyncGoogleCalendarClicked" ToolTip="立即同步 Google 日历" />
 
@@ -842,13 +839,30 @@
                                     <TextBlock Text="日历同步与设置" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
                                 </StackPanel>
 
+                                <!-- 客户端来源标识标签配置 -->
+                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="🏷️ 本客户端来源标识标签" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
+                                        <TextBlock Text="在此客户端创建的所有日程、任务将自动注入此来源标记，方便多端协同及来源溯源。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,8" TextWrapping="Wrap" />
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ClientSourceTagInput" Text="💻 桌面端" Style="{StaticResource GoogleTextBoxStyle}" Height="32" FontSize="12" />
+                                            <Button Grid.Column="2" Content="保存标签" Style="{StaticResource GooglePrimaryBtnStyle}" Padding="12,4" Height="32" FontSize="12" Click="OnSaveClientSourceTagClicked" />
+                                        </Grid>
+                                        <TextBlock x:Name="ClientSourceTagStatusText" Text="" FontSize="11" Foreground="#10B981" />
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Google Calendar Sync Section -->
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
                                     <StackPanel>
                                         <TextBlock Text="📅 Google 日历订阅与多端协同" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,8" />
-                                        <TextBlock Text="支持 official iCal 私密地址无感同步，增量遥测与三方冲突保护。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
-                                        <Button Content="⚙️ 配置 Google 日历订阅地址" Background="#37383B" Foreground="#8AB4F8" BorderBrush="#5F6368" BorderThickness="1" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnOpenGoogleCalendarConfigClicked" Margin="0,0,0,8" />
-                                        <Button Content="🔀 打开三方冲突决议中心" Background="#37383B" Foreground="#FBBF24" BorderBrush="#5F6368" BorderThickness="1" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnOpenConflictModalClicked" />
+                                        <TextBlock Text="支持 official iCal 私密地址无感同步，导入日程将自动标为【☁️ Google日历】。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
+                                        <Button Content="⚙️ 配置 Google 日历订阅地址" Background="#37383B" Foreground="#8AB4F8" BorderBrush="#5F6368" BorderThickness="1" Padding="12,7" FontSize="12" Cursor="Hand" Click="OnOpenGoogleCalendarConfigClicked" />
                                     </StackPanel>
                                 </Border>
 
@@ -961,6 +975,9 @@
                             <Rectangle x:Name="QuickDetailColorStripe" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#1A73E8" Margin="0,0,8,0" />
                             <Border x:Name="QuickDetailWorkTypeBadge" Background="#1E1B4B" CornerRadius="4" Padding="6,2">
                                 <TextBlock x:Name="QuickDetailWorkTypeText" Text="🧠 深度工作" FontSize="11" Foreground="#C084FC" FontWeight="SemiBold" />
+                            </Border>
+                            <Border x:Name="QuickDetailSourceBadge" Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="6,0,0,0">
+                                <TextBlock x:Name="QuickDetailSourceText" Text="💻 桌面端" FontSize="10" Foreground="#38BDF8" FontWeight="SemiBold" />
                             </Border>
                             <Border x:Name="QuickDetailRecurrenceBadge" Background="#374151" CornerRadius="4" Padding="6,2" Margin="6,0,0,0" Visibility="Collapsed">
                                 <TextBlock x:Name="QuickDetailRecurrenceText" Text="🔁 每天重复" FontSize="10" Foreground="#E5E7EB" />
@@ -1108,6 +1125,10 @@
                         <!-- Category Input -->
                         <TextBlock Text="分类 / 标签：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
                         <ComboBox x:Name="EventCategoryCombo" IsEditable="True" Background="#202124" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,12" />
+
+                        <!-- 日程来源标签 (Source Tag) -->
+                        <TextBlock Text="日程来源标签 (由客户端或导入通道定义)：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                        <TextBox x:Name="EventSourceInput" Background="#202124" Foreground="#38BDF8" BorderBrush="#3C4043" BorderThickness="1" Padding="10,8" FontSize="12" Margin="0,0,0,12" ToolTip="例如：💻 桌面端、💻 办公机、☁️ Google日历、📁 .ics导入" />
 
                         <!-- Description Input -->
                         <TextBlock Text="说明或成果：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
@@ -1257,69 +1278,6 @@
             </Border>
         </Grid>
 
-        <!-- ================= MODAL 4: 三方冲突决议弹窗 (CONFLICT RESOLUTION MODAL) ================= -->
-        <Grid x:Name="ConflictResolutionModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">
-            <Border Background="#28292C" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="12" Width="680" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
-                <StackPanel>
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🔀" FontSize="20" Margin="0,0,8,0" />
-                            <TextBlock Text="多端增量同步三方冲突决议中心" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseConflictModalClicked" ToolTip="关闭 (Esc)" />
-                    </Grid>
-
-                    <TextBlock Text="检测到移动端/云端与桌面端在同一时间切片发生冲突，请对比版本差异并选择决议策略：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,14" />
-
-                    <!-- Side-by-Side Diff Table -->
-                    <Grid Margin="0,0,0,18">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Left: 本地桌面端版本 -->
-                        <Border Grid.Column="0" Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="8" Padding="14">
-                            <StackPanel>
-                                <TextBlock Text="💻 本地桌面端版本" FontSize="13" FontWeight="Bold" Foreground="#60A5FA" Margin="0,0,0,8" />
-                                <TextBlock x:Name="ConflictLocalTitleText" Text="标题: 核心模块架构重构" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictLocalTimeText" Text="时段: 09:00 - 11:30" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictLocalWorkTypeText" Text="负荷: 🧠 深度工作 (DeepWork)" FontSize="11" Foreground="#C084FC" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictLocalDodText" Text="DoD: 完成五大核心模块代码重构与本地构建" FontSize="11" Foreground="#CBD5E1" Margin="0,0,0,4" TextWrapping="Wrap" />
-                                <TextBlock x:Name="ConflictLocalVersionText" Text="版本: v2 (本地修改未推送)" FontSize="10" Foreground="#FBBF24" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Right: 移动端/云端版本 -->
-                        <Border Grid.Column="2" Background="#1E293B" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="14">
-                            <StackPanel>
-                                <TextBlock Text="📱 移动端 / 云端新版本" FontSize="13" FontWeight="Bold" Foreground="#34D399" Margin="0,0,0,8" />
-                                <TextBlock x:Name="ConflictRemoteTitleText" Text="标题: 核心架构重构与验收测试" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictRemoteTimeText" Text="时段: 09:30 - 12:00" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictRemoteWorkTypeText" Text="负荷: 🧠 深度工作 (DeepWork)" FontSize="11" Foreground="#C084FC" Margin="0,0,0,4" />
-                                <TextBlock x:Name="ConflictRemoteDodText" Text="DoD: 增加移动端联调与单元测试验收" FontSize="11" Foreground="#CBD5E1" Margin="0,0,0,4" TextWrapping="Wrap" />
-                                <TextBlock x:Name="ConflictRemoteVersionText" Text="版本: v3 (云端更新版本)" FontSize="10" Foreground="#34D399" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <!-- Three Resolution Strategy Buttons -->
-                    <TextBlock Text="请选择决议动作：" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" Margin="0,0,0,8" />
-                    <UniformGrid Columns="3" Margin="0,0,0,10">
-                        <Button Content="💻 保留桌面端" Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0" Padding="10,8" FontWeight="SemiBold" FontSize="12" Cursor="Hand" Margin="0,0,4,0" Click="OnResolveKeepLocalClicked" ToolTip="以本地桌面端数据为准覆盖云端" />
-                        <Button Content="📱 保留移动端" Background="#059669" Foreground="#FFFFFF" BorderThickness="0" Padding="10,8" FontWeight="SemiBold" FontSize="12" Cursor="Hand" Margin="4,0,4,0" Click="OnResolveKeepRemoteClicked" ToolTip="接受云端/移动端更新" />
-                        <Button Content="🔀 任务级智能合并" Background="#7C3AED" Foreground="#FFFFFF" BorderThickness="0" Padding="10,8" FontWeight="SemiBold" FontSize="12" Cursor="Hand" Margin="4,0,0,0" Click="OnResolveAutoMergeClicked" ToolTip="合并双端 DoD 与耗时，自适应智能对齐" />
-                    </UniformGrid>
-
-                    <Button Content="⚡ 触发一次模拟冲突测试" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Center" Cursor="Hand" Click="OnSimulateConflictClicked" />
-                </StackPanel>
-            </Border>
-        </Grid>
 
         <!-- ================= MODAL 5: GOOGLE CALENDAR ICAL SYNC CONFIG DIALOG ================= -->
         <Grid x:Name="GoogleCalendarSyncModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">

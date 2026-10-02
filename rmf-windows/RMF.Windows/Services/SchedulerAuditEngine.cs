@@ -234,7 +234,8 @@ public class SchedulerAuditEngine
                             Dod = task.Dod,
                             IsBacklog = false,
                             IsDeferred = false,
-                            IsDirty = true
+                            IsDirty = true,
+                            Source = string.IsNullOrEmpty(task.Source) ? ConfigService.Load().ClientSourceTag : task.Source
                         };
 
                         plan.ScheduledBlocks.Add(scheduledTask);
@@ -266,7 +267,8 @@ public class SchedulerAuditEngine
                                     Dod = "离开屏幕、活动颈椎或补充水分",
                                     IsBacklog = false,
                                     IsDeferred = false,
-                                    IsDirty = true
+                                    IsDirty = true,
+                                    Source = ConfigService.Load().ClientSourceTag
                                 };
 
                                 plan.ScheduledBlocks.Add(bufferBlock);

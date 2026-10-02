@@ -51,9 +51,6 @@ public partial class MainWindow : Window
     private Border? _dragSelectBorder;
     private DateTime _dragSelectDate = DateTime.Today;
 
-    // 三方冲突决议当前上下文
-    private SyncConflict? _currentConflict = null;
-
     // AI 客观重排待确认建议方案
     private SchedulingPlanResult? _pendingSchedulePlan = null;
 
@@ -667,6 +664,7 @@ public partial class MainWindow : Window
     private FrameworkElement CreateAllDayEventChip(ScheduleItem item)
     {
         Brush bgBrush = GetEventBrush(item, 220);
+        string srcTag = !string.IsNullOrEmpty(item.Source) ? $" [{item.Source}]" : "";
         var border = new Border
         {
             Height = 22,
@@ -675,13 +673,13 @@ public partial class MainWindow : Window
             Padding = new Thickness(6, 2, 6, 2),
             Margin = new Thickness(0, 1, 0, 1),
             Cursor = Cursors.Hand,
-            ToolTip = $"全天: {item.Title}\n点击查看详情",
+            ToolTip = $"全天: {item.Title}\n来源: {(string.IsNullOrEmpty(item.Source) ? "未注明" : item.Source)}\n点击查看详情",
             ClipToBounds = true
         };
 
         var tb = new TextBlock
         {
-            Text = (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
+            Text = (item.Status == "COMPLETED" ? "✓ " : "") + item.Title + srcTag,
             FontSize = 10.5,
             FontWeight = FontWeights.SemiBold,
             Foreground = Brushes.White,
@@ -941,7 +939,7 @@ public partial class MainWindow : Window
             Cursor = Cursors.Hand,
             Opacity = item.Status == "COMPLETED" ? 0.65 : 1.0,
             ClipToBounds = true,
-            ToolTip = $"{workTypeBadge}{item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n负荷: {item.WorkType}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n{(isIsolated ? "⚠️ 孤立任务：未绑定父级目标\n" : "")}点击查看详情，拖动底部边缘调整时长"
+            ToolTip = $"{workTypeBadge}{item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n来源: {(string.IsNullOrEmpty(item.Source) ? "未注明" : item.Source)}\n负荷: {item.WorkType}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n{(isIsolated ? "⚠️ 孤立任务：未绑定父级目标\n" : "")}点击查看详情，拖动底部边缘调整时长"
         };
 
         var rootGrid = new Grid { ClipToBounds = true };
@@ -952,7 +950,7 @@ public partial class MainWindow : Window
             // 超短时间块 (<30分钟)：单行极简内联展示
             var singleLineTb = new TextBlock
             {
-                Text = (isIsolated ? "⚠️ " : "") + workTypeBadge + (item.Status == "COMPLETED" ? "✓ " : "") + $"{item.StartTime:HH:mm} {item.Title}",
+                Text = (isIsolated ? "⚠️ " : "") + workTypeBadge + (item.Status == "COMPLETED" ? "✓ " : "") + $"{item.StartTime:HH:mm} {item.Title}" + (!string.IsNullOrEmpty(item.Source) ? $" [{item.Source}]" : ""),
                 FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brushes.White,
@@ -981,7 +979,7 @@ public partial class MainWindow : Window
 
             var timeTb = new TextBlock
             {
-                Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm}",
+                Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm}" + (!string.IsNullOrEmpty(item.Source) ? $" · {item.Source}" : ""),
                 FontSize = 9.0,
                 Foreground = new SolidColorBrush(Color.FromArgb(210, 0xFF, 0xFF, 0xFF)),
                 TextTrimming = TextTrimming.CharacterEllipsis
@@ -1245,7 +1243,7 @@ public partial class MainWindow : Window
             Cursor = Cursors.Hand,
             Opacity = item.Status == "COMPLETED" ? 0.7 : 1.0,
             ClipToBounds = true,
-            ToolTip = $"{badge} · {item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n点击查看详情，拖动底部边缘调整时长"
+            ToolTip = $"{badge} · {item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n来源: {(string.IsNullOrEmpty(item.Source) ? "未注明" : item.Source)}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n点击查看详情，拖动底部边缘调整时长"
         };
 
         var rootGrid = new Grid { ClipToBounds = true };
@@ -1270,7 +1268,7 @@ public partial class MainWindow : Window
         {
             var metaTb = new TextBlock
             {
-                Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm} · [{badge}]",
+                Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm} · [{badge}]" + (!string.IsNullOrEmpty(item.Source) ? $" · {item.Source}" : ""),
                 FontSize = 10.5,
                 Foreground = new SolidColorBrush(Color.FromArgb(220, 0xFF, 0xFF, 0xFF)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1425,17 +1423,19 @@ public partial class MainWindow : Window
             var eventsStack = new StackPanel();
             foreach (var ev in dayEvents)
             {
+                string evSourceTag = !string.IsNullOrEmpty(ev.Source) ? $"[{ev.Source}] " : "";
                 var chip = new Border
                 {
                     Background = ev.WorkType == "DEEP_WORK" ? new SolidColorBrush(Color.FromRgb(0x7C, 0x3A, 0xED)) : (ev.WorkType == "REST_BUFFER" ? new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)) : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
                     CornerRadius = new CornerRadius(3),
                     Padding = new Thickness(4, 1, 4, 1),
                     Margin = new Thickness(0, 0, 0, 2),
-                    Cursor = Cursors.Hand
+                    Cursor = Cursors.Hand,
+                    ToolTip = $"{ev.Title}\n来源: {(string.IsNullOrEmpty(ev.Source) ? "未注明" : ev.Source)}\n时间: {ev.StartTime:HH:mm} - {ev.EndTime:HH:mm}"
                 };
                 chip.Child = new TextBlock
                 {
-                    Text = ev.Title,
+                    Text = evSourceTag + ev.Title,
                     FontSize = 10,
                     Foreground = Brushes.White,
                     TextTrimming = TextTrimming.CharacterEllipsis
@@ -1551,9 +1551,10 @@ public partial class MainWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
         });
+        string sourcePart = !string.IsNullOrEmpty(item.Source) ? $" · [{item.Source}]" : "";
         details.Children.Add(new TextBlock
         {
-            Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm} · DoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}",
+            Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm}{sourcePart} · DoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}",
             FontSize = 11,
             Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1940,6 +1941,8 @@ public partial class MainWindow : Window
         foreach (var c in existingCats) EventCategoryCombo.Items.Add(c);
         EventCategoryCombo.Text = existingCats.Count > 0 ? existingCats[0] : "工作";
 
+        EventSourceInput.Text = ConfigService.Load().ClientSourceTag;
+
         EventDeleteBtn.Visibility = Visibility.Collapsed;
         EventSaveBtn.Content = "保存";
 
@@ -1958,6 +1961,7 @@ public partial class MainWindow : Window
         EventDodInput.Text = item.Dod;
         EventActualMinutesInput.Text = item.ActualMinutes.ToString();
         EventInterruptionMinutesInput.Text = item.InterruptionMinutes.ToString();
+        EventSourceInput.Text = string.IsNullOrWhiteSpace(item.Source) ? ConfigService.Load().ClientSourceTag : item.Source;
 
         // 状态选择
         for (int i = 0; i < EventStatusCombo.Items.Count; i++)
@@ -2164,6 +2168,7 @@ public partial class MainWindow : Window
                 );
                 if (dialogResult == MessageBoxResult.No)
                 {
+                    string sourceTag = string.IsNullOrWhiteSpace(EventSourceInput.Text) ? ConfigService.Load().ClientSourceTag : EventSourceInput.Text.Trim();
                     // 自动剥离至次要任务延期冻结池
                     var deferredItem = new ScheduleItem
                     {
@@ -2182,7 +2187,8 @@ public partial class MainWindow : Window
                         Recurrence = recurrence,
                         ColorHex = colorHex,
                         IsDeferred = true,
-                        IsBacklog = false
+                        IsBacklog = false,
+                        Source = sourceTag
                     };
                     DatabaseService.UpsertSchedule(deferredItem);
                     EventModal.Visibility = Visibility.Collapsed;
@@ -2212,6 +2218,8 @@ public partial class MainWindow : Window
             status = st;
         }
 
+        string itemSource = string.IsNullOrWhiteSpace(EventSourceInput.Text) ? ConfigService.Load().ClientSourceTag : EventSourceInput.Text.Trim();
+
         var item = new ScheduleItem
         {
             Id = _editingEventId ?? Guid.NewGuid().ToString(),
@@ -2232,7 +2240,8 @@ public partial class MainWindow : Window
             ActualMinutes = actualMinutes,
             InterruptionMinutes = interruptionMinutes,
             IsDeferred = false,
-            IsBacklog = false
+            IsBacklog = false,
+            Source = itemSource
         };
 
         DatabaseService.UpsertSchedule(item);
@@ -2299,6 +2308,10 @@ public partial class MainWindow : Window
             _ => "🧠 深度工作"
         };
         QuickDetailWorkTypeText.Text = wtText;
+
+        // 2.5 Source badge
+        string srcTag = string.IsNullOrWhiteSpace(item.Source) ? ConfigService.Load().ClientSourceTag : item.Source;
+        QuickDetailSourceText.Text = srcTag;
 
         // 3. Recurrence badge
         if (!string.IsNullOrEmpty(item.Recurrence) && item.Recurrence != "NONE")
@@ -2666,6 +2679,7 @@ public partial class MainWindow : Window
                         Status = "PENDING",
                         WorkType = "SHALLOW_WORK",
                         EstimatedMinutes = (int)(end - start).TotalMinutes,
+                        Source = "📁 .ics导入",
                         IsDirty = true
                     };
                     DatabaseService.UpsertSchedule(item);
@@ -3120,7 +3134,8 @@ public partial class MainWindow : Window
             IsDeferred = false,
             Status = "PENDING",
             StartTime = DateTime.MinValue,
-            EndTime = DateTime.MinValue
+            EndTime = DateTime.MinValue,
+            Source = ConfigService.Load().ClientSourceTag
         };
 
         DatabaseService.UpsertSchedule(task);
@@ -3746,151 +3761,36 @@ public partial class MainWindow : Window
     }
 
     // =========================================================================
-    // ================= MODULE 5: 增量同步状态与三方冲突决议 =====================
+    // ================= MODULE 5: 客户端来源标识与增量同步遥测 ==================
     // =========================================================================
 
     private void OnSyncBadgeClicked(object sender, MouseButtonEventArgs e)
     {
-        OnOpenConflictModalClicked(sender, e);
+        int dirty = DatabaseService.GetDirtyCount();
+        string clientTag = ConfigService.Load().ClientSourceTag;
+        string msg = dirty > 0
+            ? $"📊 同步与来源遥测状态：\n\n• 当前客户端来源标识：【{clientTag}】\n• 本地未推送变更：{dirty} 项日程\n\n💡 本客户端创建的全部日程均已注明来源【{clientTag}】。"
+            : $"🟢 同步与来源遥测状态：\n\n• 当前客户端来源标识：【{clientTag}】\n• 本地与云端数据保持最新。\n\n💡 本客户端创建的全部日程均已注明来源【{clientTag}】。";
+
+        MessageBox.Show(msg, "数据同步与来源遥测", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void OnOpenConflictModalClicked(object sender, RoutedEventArgs e)
+    private void OnSaveClientSourceTagClicked(object sender, RoutedEventArgs e)
     {
-        // 准备冲突上下文（如果当前没有，则构造一个高保真真实冲突数据供决议）
-        if (_currentConflict == null)
+        string newTag = ClientSourceTagInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(newTag))
         {
-            _currentConflict = new SyncConflict
-            {
-                TaskId = Guid.NewGuid().ToString(),
-                LocalSchedule = new ScheduleItem
-                {
-                    Title = "核心架构增量模块研发",
-                    StartTime = DateTime.Today.AddHours(9),
-                    EndTime = DateTime.Today.AddHours(11).AddMinutes(30),
-                    Category = "工作",
-                    WorkType = "DEEP_WORK",
-                    Dod = "完成五大核心模块本地研发与0错误编译构建",
-                    SyncVersion = 2
-                },
-                RemoteSchedule = new ScheduleItem
-                {
-                    Title = "核心架构研发与验收测试",
-                    StartTime = DateTime.Today.AddHours(9).AddMinutes(30),
-                    EndTime = DateTime.Today.AddHours(12),
-                    Category = "工作",
-                    WorkType = "DEEP_WORK",
-                    Dod = "增加多端增量联调与三方冲突验收测试",
-                    SyncVersion = 3
-                }
-            };
+            newTag = "💻 桌面端";
+            ClientSourceTagInput.Text = newTag;
         }
 
-        ConflictLocalTitleText.Text = $"标题: {_currentConflict.LocalSchedule.Title}";
-        ConflictLocalTimeText.Text = $"时段: {_currentConflict.LocalSchedule.StartTime:HH:mm} - {_currentConflict.LocalSchedule.EndTime:HH:mm}";
-        ConflictLocalWorkTypeText.Text = $"负荷: 🧠 {_currentConflict.LocalSchedule.WorkType}";
-        ConflictLocalDodText.Text = $"DoD: {_currentConflict.LocalSchedule.Dod}";
-        ConflictLocalVersionText.Text = $"版本: v{_currentConflict.LocalSchedule.SyncVersion} (桌面修改)";
+        var config = ConfigService.Load();
+        config.ClientSourceTag = newTag;
+        ConfigService.Save(config);
 
-        ConflictRemoteTitleText.Text = $"标题: {_currentConflict.RemoteSchedule.Title}";
-        ConflictRemoteTimeText.Text = $"时段: {_currentConflict.RemoteSchedule.StartTime:HH:mm} - {_currentConflict.RemoteSchedule.EndTime:HH:mm}";
-        ConflictRemoteWorkTypeText.Text = $"负荷: 🧠 {_currentConflict.RemoteSchedule.WorkType}";
-        ConflictRemoteDodText.Text = $"DoD: {_currentConflict.RemoteSchedule.Dod}";
-        ConflictRemoteVersionText.Text = $"版本: v{_currentConflict.RemoteSchedule.SyncVersion} (云端版本)";
-
-        ConflictResolutionModal.Visibility = Visibility.Visible;
-    }
-
-    private void OnCloseConflictModalClicked(object sender, RoutedEventArgs e)
-    {
-        ConflictResolutionModal.Visibility = Visibility.Collapsed;
-    }
-
-    private void OnResolveKeepLocalClicked(object sender, RoutedEventArgs e)
-    {
-        if (_currentConflict != null)
-        {
-            _currentConflict.LocalSchedule.SyncVersion++;
-            _currentConflict.LocalSchedule.IsDirty = true;
-            DatabaseService.UpsertSchedule(_currentConflict.LocalSchedule);
-        }
-
-        ConflictResolutionModal.Visibility = Visibility.Collapsed;
-        _currentConflict = null;
+        ClientSourceTagStatusText.Text = $"✅ 客户端来源标签已更新为【{newTag}】！";
         UpdateSyncStatusBadge();
         RenderAllCalendarViews();
-        MessageBox.Show("✅ 冲突决议完成：已确认为准【保留本地桌面端版本】，已标记就绪，稍后将向云端覆盖推送。", "决议完成", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void OnResolveKeepRemoteClicked(object sender, RoutedEventArgs e)
-    {
-        if (_currentConflict != null)
-        {
-            _currentConflict.RemoteSchedule.IsDirty = false;
-            DatabaseService.UpsertSchedule(_currentConflict.RemoteSchedule);
-        }
-
-        ConflictResolutionModal.Visibility = Visibility.Collapsed;
-        _currentConflict = null;
-        DatabaseService.MarkAllClean();
-        UpdateSyncStatusBadge();
-        RenderAllCalendarViews();
-        MessageBox.Show("✅ 冲突决议完成：已接收【保留移动端/云端版本】，本地 SQLite 已完成无感对齐更新。", "决议完成", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void OnResolveAutoMergeClicked(object sender, RoutedEventArgs e)
-    {
-        if (_currentConflict != null)
-        {
-            // 智能合并：结合双方 DoD、取更宽的起止时间、融合同步
-            var merged = new ScheduleItem
-            {
-                Id = _currentConflict.LocalSchedule.Id,
-                Title = $"{_currentConflict.LocalSchedule.Title} (合并版)",
-                Description = $"{_currentConflict.LocalSchedule.Description} | [云端同步补充] {_currentConflict.RemoteSchedule.Description}".Trim(' ', '|'),
-                Dod = $"{_currentConflict.LocalSchedule.Dod}；[云端合并DoD] {_currentConflict.RemoteSchedule.Dod}",
-                Category = _currentConflict.LocalSchedule.Category,
-                WorkType = "DEEP_WORK",
-                StartTime = _currentConflict.LocalSchedule.StartTime < _currentConflict.RemoteSchedule.StartTime ? _currentConflict.LocalSchedule.StartTime : _currentConflict.RemoteSchedule.StartTime,
-                EndTime = _currentConflict.LocalSchedule.EndTime > _currentConflict.RemoteSchedule.EndTime ? _currentConflict.LocalSchedule.EndTime : _currentConflict.RemoteSchedule.EndTime,
-                SyncVersion = Math.Max(_currentConflict.LocalSchedule.SyncVersion, _currentConflict.RemoteSchedule.SyncVersion) + 1,
-                IsDirty = true
-            };
-            DatabaseService.UpsertSchedule(merged);
-        }
-
-        ConflictResolutionModal.Visibility = Visibility.Collapsed;
-        _currentConflict = null;
-        UpdateSyncStatusBadge();
-        RenderAllCalendarViews();
-        MessageBox.Show("✅ 任务级智能合并完成：已自动整合双端验收标准 (DoD) 与耗时区间，生成融合版时间块！", "智能合并完成", MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void OnSimulateConflictClicked(object sender, RoutedEventArgs e)
-    {
-        _currentConflict = new SyncConflict
-        {
-            TaskId = Guid.NewGuid().ToString(),
-            LocalSchedule = new ScheduleItem
-            {
-                Title = "RMF 架构扩展编码",
-                StartTime = DateTime.Today.AddHours(14),
-                EndTime = DateTime.Today.AddHours(16),
-                WorkType = "DEEP_WORK",
-                Dod = "完成 WPF 前端控件全部对接",
-                SyncVersion = 1
-            },
-            RemoteSchedule = new ScheduleItem
-            {
-                Title = "RMF 架构扩展编码与联调",
-                StartTime = DateTime.Today.AddHours(14).AddMinutes(30),
-                EndTime = DateTime.Today.AddHours(17),
-                WorkType = "DEEP_WORK",
-                Dod = "包含后端 API 联调与测试用例",
-                SyncVersion = 2
-            }
-        };
-
-        OnOpenConflictModalClicked(sender, e);
     }
 
     // =========================================================================
@@ -4176,7 +4076,8 @@ public partial class MainWindow : Window
                 IsAllDay = _quickDetailItem.IsAllDay,
                 Recurrence = _quickDetailItem.Recurrence,
                 EstimatedMinutes = _quickDetailItem.EstimatedMinutes,
-                Status = "PENDING"
+                Status = "PENDING",
+                Source = ConfigService.Load().ClientSourceTag
             };
 
             DatabaseService.AddSchedule(clone);
@@ -4292,11 +4193,6 @@ public partial class MainWindow : Window
         if (GoToDateModal.Visibility == Visibility.Visible)
         {
             GoToDateModal.Visibility = Visibility.Collapsed;
-            return;
-        }
-        if (ConflictResolutionModal.Visibility == Visibility.Visible)
-        {
-            ConflictResolutionModal.Visibility = Visibility.Collapsed;
             return;
         }
         if (GoogleCalendarSyncModal.Visibility == Visibility.Visible)
@@ -4685,6 +4581,7 @@ public partial class MainWindow : Window
             ? "https://generativelanguage.googleapis.com"
             : config.CustomBaseUrl;
         CustomModelInput.Text = config.CustomModelName;
+        ClientSourceTagInput.Text = string.IsNullOrWhiteSpace(config.ClientSourceTag) ? "💻 桌面端" : config.ClientSourceTag;
 
         bool matched = false;
         for (int i = 0; i < ModelSelectCombo.Items.Count; i++)
@@ -4716,6 +4613,7 @@ public partial class MainWindow : Window
         config.GeminiApiKey = ApiKeyInput.Text.Trim();
         config.CustomBaseUrl = BaseUrlInput.Text.Trim();
         config.CustomModelName = CustomModelInput.Text.Trim();
+        config.ClientSourceTag = string.IsNullOrWhiteSpace(ClientSourceTagInput.Text) ? "💻 桌面端" : ClientSourceTagInput.Text.Trim();
 
         if (ModelSelectCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {

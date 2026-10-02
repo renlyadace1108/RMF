@@ -24,6 +24,11 @@ public class AppConfig
     public bool IsGoogleCalendarLinked { get; set; } = false;
 
     /// <summary>
+    /// 当前客户端自定义来源标识标签 (例如: "💻 桌面端", "💻 Windows办公机", "💻 笔记本")
+    /// </summary>
+    public string ClientSourceTag { get; set; } = "💻 桌面端";
+
+    /// <summary>
     /// 获取当前生效的最终模型名称
     /// </summary>
     public string GetEffectiveModel()

@@ -108,4 +108,10 @@ public class ScheduleItem
     /// </summary>
     [JsonPropertyName("color_hex")]
     public string? ColorHex { get; set; }
+
+    /// <summary>
+    /// 日程/任务来源标识 (由客户端配置或导入通道定义，如 "💻 桌面端", "☁️ Google日历", "📁 .ics导入")
+    /// </summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
 }

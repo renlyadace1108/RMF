@@ -112,7 +112,8 @@ public class DatabaseService
             ["is_dirty"] = "INTEGER DEFAULT 0",
             ["is_all_day"] = "INTEGER DEFAULT 0",
             ["recurrence"] = "TEXT DEFAULT 'NONE'",
-            ["color_hex"] = "TEXT DEFAULT ''"
+            ["color_hex"] = "TEXT DEFAULT ''",
+            ["source"] = "TEXT DEFAULT ''"
         };
 
         foreach (var (col, def) in missingCols)
@@ -271,7 +272,7 @@ public class DatabaseService
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
                    goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE is_deleted = 0
             ORDER BY start_time ASC;
@@ -309,7 +310,7 @@ public class DatabaseService
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
                    goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 0 AND is_deferred = 0 
               AND (
@@ -388,7 +389,8 @@ public class DatabaseService
                                 IsDirty = item.IsDirty,
                                 IsAllDay = item.IsAllDay,
                                 Recurrence = item.Recurrence,
-                                ColorHex = item.ColorHex
+                                ColorHex = item.ColorHex,
+                                Source = item.Source
                             };
                             projected.Add(clone);
                         }
@@ -409,7 +411,7 @@ public class DatabaseService
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
                    goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 1 AND is_deferred = 0
             ORDER BY priority DESC, created_at DESC;
@@ -434,7 +436,7 @@ public class DatabaseService
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
                    goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE is_deleted = 0 AND is_deferred = 1
             ORDER BY updated_at DESC;
@@ -458,7 +460,7 @@ public class DatabaseService
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
                    goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE id = @id AND is_deleted = 0
             LIMIT 1;
@@ -500,7 +502,8 @@ public class DatabaseService
             IsDirty = !reader.IsDBNull(18) && reader.GetInt32(18) == 1,
             IsAllDay = reader.FieldCount > 19 && !reader.IsDBNull(19) && reader.GetInt32(19) == 1,
             Recurrence = reader.FieldCount > 20 && !reader.IsDBNull(20) ? reader.GetString(20) : "NONE",
-            ColorHex = reader.FieldCount > 21 && !reader.IsDBNull(21) ? reader.GetString(21) : null
+            ColorHex = reader.FieldCount > 21 && !reader.IsDBNull(21) ? reader.GetString(21) : null,
+            Source = reader.FieldCount > 22 && !reader.IsDBNull(22) ? reader.GetString(22) : ""
         };
     }
 
@@ -539,10 +542,10 @@ public class DatabaseService
         string sql = @"
             INSERT INTO schedules (id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted, created_at, updated_at,
                                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                                  is_all_day, recurrence, color_hex)
+                                  is_all_day, recurrence, color_hex, source)
             VALUES (@id, @title, @description, @category, @priority, @status, @start_time, @end_time, @estimated_minutes, 0, @now, @now,
                     @goal_id, @work_type, @dod, @actual_minutes, @interruption_minutes, @is_deferred, @is_backlog, @sync_version, 1,
-                    @is_all_day, @recurrence, @color_hex)
+                    @is_all_day, @recurrence, @color_hex, @source)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -564,6 +567,7 @@ public class DatabaseService
                 is_all_day = excluded.is_all_day,
                 recurrence = excluded.recurrence,
                 color_hex = excluded.color_hex,
+                source = COALESCE(NULLIF(excluded.source, ''), schedules.source),
                 updated_at = excluded.updated_at;
         ";
 
@@ -588,6 +592,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@is_all_day", item.IsAllDay ? 1 : 0);
         cmd.Parameters.AddWithValue("@recurrence", item.Recurrence ?? "NONE");
         cmd.Parameters.AddWithValue("@color_hex", (object?)item.ColorHex ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@source", item.Source ?? "");
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
 
         cmd.ExecuteNonQuery();
@@ -656,7 +661,7 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
     }
 
-    public static void ScheduleBacklogTask(string id, DateTime startTime, DateTime endTime)
+    public static void ScheduleBacklogTask(string id, DateTime startTime, DateTime endTime, string? defaultSource = null)
     {
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
@@ -668,6 +673,7 @@ public class DatabaseService
             SET start_time = @start,
                 end_time = @end,
                 estimated_minutes = @est,
+                source = CASE WHEN source IS NULL OR source = '' THEN @source ELSE source END,
                 is_backlog = 0,
                 is_deferred = 0,
                 is_dirty = 1,
@@ -679,6 +685,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@start", startTime.ToString("s"));
         cmd.Parameters.AddWithValue("@end", endTime.ToString("s"));
         cmd.Parameters.AddWithValue("@est", estMins);
+        cmd.Parameters.AddWithValue("@source", defaultSource ?? ConfigService.Load().ClientSourceTag);
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
@@ -797,7 +804,8 @@ public class DatabaseService
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex, source
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 0 AND start_time >= @start AND start_time < @end;
         ";
