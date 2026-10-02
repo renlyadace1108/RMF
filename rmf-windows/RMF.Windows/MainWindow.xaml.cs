@@ -273,53 +273,108 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnModelBadgeClicked(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        SwitchView("Settings");
+    }
+
+    private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ModelSelectCombo.SelectedItem is ComboBoxItem item)
+        {
+            string tag = item.Tag as string ?? "";
+            CustomModelPanel.Visibility = tag == "custom" ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
     // ================== 设置与 API 管理 ==================
 
     private void LoadSettingsIntoUi()
     {
         var config = ConfigService.Load();
         ApiKeyInput.Text = config.GeminiApiKey;
+        BaseUrlInput.Text = string.IsNullOrWhiteSpace(config.CustomBaseUrl)
+            ? "https://generativelanguage.googleapis.com"
+            : config.CustomBaseUrl;
+        CustomModelInput.Text = config.CustomModelName;
+
+        // Model selection
+        bool matched = false;
+        for (int i = 0; i < ModelSelectCombo.Items.Count; i++)
+        {
+            if (ModelSelectCombo.Items[i] is ComboBoxItem cbi && (string)cbi.Tag == config.SelectedModel)
+            {
+                ModelSelectCombo.SelectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched)
+        {
+            ModelSelectCombo.SelectedIndex = 0; // default to 2.5-flash
+        }
+
+        CustomModelPanel.Visibility = config.SelectedModel == "custom" ? Visibility.Visible : Visibility.Collapsed;
+
+        // Tone
+        ToneStrictRadio.IsChecked = config.SupervisorTone == "strict";
+        ToneBalancedRadio.IsChecked = config.SupervisorTone == "balanced" || string.IsNullOrEmpty(config.SupervisorTone);
+        ToneEncouragingRadio.IsChecked = config.SupervisorTone == "encouraging";
+
+        // Update badge
+        ActiveModelBadge.Text = $"⚡ 模型: {config.GetEffectiveModel()}";
     }
 
     private void OnSaveSettingsClicked(object sender, RoutedEventArgs e)
     {
-        string key = ApiKeyInput.Text.Trim();
-        string model = "gemini-2.5-flash";
-        if (ModelSelectCombo.SelectedItem is ComboBoxItem item && item.Content is string text)
+        var config = ConfigService.Load();
+        config.GeminiApiKey = ApiKeyInput.Text.Trim();
+        config.CustomBaseUrl = BaseUrlInput.Text.Trim();
+        config.CustomModelName = CustomModelInput.Text.Trim();
+
+        if (ModelSelectCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
-            if (text.Contains("gemini-1.5-flash")) model = "gemini-1.5-flash";
-            else if (text.Contains("gemini-2.0-flash")) model = "gemini-2.0-flash";
-            else if (text.Contains("gemini-1.5-pro")) model = "gemini-1.5-pro";
+            config.SelectedModel = tag;
         }
 
-        ConfigService.Save(key, model);
+        if (ToneStrictRadio.IsChecked == true) config.SupervisorTone = "strict";
+        else if (ToneEncouragingRadio.IsChecked == true) config.SupervisorTone = "encouraging";
+        else config.SupervisorTone = "balanced";
+
+        ConfigService.Save(config);
+
+        string effectiveModel = config.GetEffectiveModel();
+        ActiveModelBadge.Text = $"⚡ 模型: {effectiveModel}";
+
         SettingsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
-        SettingsStatusText.Text = $"✅ 配置已保存到本地安全存储区 (%APPDATA%\\RMF\\config.json)，模型: {model}";
+        SettingsStatusText.Text = $"✅ 配置已保存并即刻生效！当前模型: {effectiveModel}，监督风格: {config.SupervisorTone}";
     }
 
     private async void OnTestApiClicked(object sender, RoutedEventArgs e)
     {
         OnSaveSettingsClicked(sender, e);
         TestApiBtn.IsEnabled = false;
-        TestApiBtn.Content = "⏳ 正在测试联通...";
+        TestApiBtn.Content = "⏳ 正在连接测试...";
         SettingsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
-        SettingsStatusText.Text = "正在向 Google Gemini 发送测试请求，验证 API Key 有效性...";
+
+        var config = ConfigService.Load();
+        SettingsStatusText.Text = $"正在使用 [{config.GetEffectiveModel()}] 发送握手请求...";
 
         try
         {
-            string reply = await _geminiService.EvaluateIdeaAsync("测试 Gemini 联通状态，回复一句话即可。", "测试环境");
+            string reply = await _geminiService.EvaluateIdeaAsync("测试与 Gemini 模型握手连通，请回复一句话。", "设置测试");
             SettingsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
-            SettingsStatusText.Text = $"🎉 联通成功！Gemini 回复：\n{reply}";
+            SettingsStatusText.Text = $"🎉 联通成功！当前模型 [{config.GetEffectiveModel()}] 回复：\n{reply}";
         }
         catch (Exception ex)
         {
             SettingsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
-            SettingsStatusText.Text = $"❌ 联通失败：{ex.Message}\n请检查网络（若在境内需确保代理环境正常）及 API Key 是否准确。";
+            SettingsStatusText.Text = $"❌ 联通失败：{ex.Message}\n请检查 API Key、所选模型是否在您账号的配额中，以及网络代理设置。";
         }
         finally
         {
             TestApiBtn.IsEnabled = true;
-            TestApiBtn.Content = "⚡ 测试 API 联通";
+            TestApiBtn.Content = "⚡ 测试当前模型联通";
         }
     }
 

@@ -7,7 +7,35 @@ namespace RMF.Windows.Services;
 public class AppConfig
 {
     public string GeminiApiKey { get; set; } = string.Empty;
-    public string GeminiModel { get; set; } = "gemini-2.5-flash";
+    public string SelectedModel { get; set; } = "gemini-2.5-flash";
+    public string CustomModelName { get; set; } = string.Empty;
+    public string CustomBaseUrl { get; set; } = string.Empty; // 可选自定义代理反向代理地址
+    public string SupervisorTone { get; set; } = "balanced"; // strict (严格毒舌), balanced (理性专业), encouraging (温和鼓励)
+    public double Temperature { get; set; } = 0.7;
+
+    /// <summary>
+    /// 获取当前生效的最终模型名称
+    /// </summary>
+    public string GetEffectiveModel()
+    {
+        if (SelectedModel == "custom" && !string.IsNullOrWhiteSpace(CustomModelName))
+        {
+            return CustomModelName.Trim();
+        }
+        return string.IsNullOrWhiteSpace(SelectedModel) ? "gemini-2.5-flash" : SelectedModel;
+    }
+
+    /// <summary>
+    /// 获取当前生效的 API 基础地址
+    /// </summary>
+    public string GetEffectiveBaseUrl()
+    {
+        if (!string.IsNullOrWhiteSpace(CustomBaseUrl))
+        {
+            return CustomBaseUrl.Trim().TrimEnd('/');
+        }
+        return "https://generativelanguage.googleapis.com";
+    }
 }
 
 public static class ConfigService
@@ -54,11 +82,9 @@ public static class ConfigService
         return _current;
     }
 
-    public static void Save(string apiKey, string model = "gemini-2.5-flash")
+    public static void Save(AppConfig config)
     {
-        _current ??= new AppConfig();
-        _current.GeminiApiKey = apiKey.Trim();
-        _current.GeminiModel = model.Trim();
+        _current = config;
 
         try
         {

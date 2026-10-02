@@ -36,6 +36,16 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-02 17:36] - 实装 App 内全功能模型切换中枢与监督官性格控制
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **主要成果**：
+  1. 在应用内打造完整的 **「Gemini 模型与监督模式控制中心」**：
+     * **模型自由切换**：支持随时切换 `gemini-2.5-flash`、`gemini-2.5-pro`、`gemini-2.0-flash`、`gemini-1.5-pro`，并支持 **自定义输入任意新模型名称**。
+     * **监督官性格微调**：支持单选「严格鞭策型 (犀利毒舌/直击要害/逼迫聚焦主线)」、「理性专业型 (高级项目总监视角/重ROI与可行性)」、「温和陪伴型 (正面激励/同理心/减压关怀)」。
+     * **网络反代设置**：支持填写自定义 Base URL（如境内加速反代服务器），避免直接被网络屏蔽阻断。
+  2. 顶部导航栏增加实时 **「⚡ 模型徽章」**，随时直观查看当前生效模型，点击可直接秒跳入设置面板。
+  3. 配置持久化与实时生效：更新 [`ConfigService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/ConfigService.cs) 与 [`GeminiService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/GeminiService.cs)。
+
 ### [2026-10-02 17:33] - 真实 Google Gemini API 全量接入与三大核心智能职能落地
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **主要成果**：

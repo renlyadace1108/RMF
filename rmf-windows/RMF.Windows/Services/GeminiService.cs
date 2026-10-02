@@ -12,7 +12,7 @@ public class GeminiService
 {
     private static readonly HttpClient HttpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(30)
+        Timeout = TimeSpan.FromSeconds(35)
     };
 
     /// <summary>
@@ -23,11 +23,12 @@ public class GeminiService
         var config = ConfigService.Load();
         if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
         {
-            throw new InvalidOperationException("未配置 Gemini API Key！请点击左下角或设置面板填入你的 Google AI Studio API Key。");
+            throw new InvalidOperationException("未配置 Gemini API Key！请点击左侧「⚙️ Gemini 模型与配置」填入你的 Key。");
         }
 
-        string model = string.IsNullOrWhiteSpace(config.GeminiModel) ? "gemini-2.5-flash" : config.GeminiModel;
-        string endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={config.GeminiApiKey}";
+        string model = config.GetEffectiveModel();
+        string baseUrl = config.GetEffectiveBaseUrl();
+        string endpoint = $"{baseUrl}/v1beta/models/{model}:generateContent?key={config.GeminiApiKey}";
 
         var requestBody = new
         {
@@ -44,7 +45,7 @@ public class GeminiService
             },
             generationConfig = new
             {
-                temperature = 0.7,
+                temperature = config.Temperature > 0 ? config.Temperature : 0.7,
                 maxOutputTokens = 2048
             }
         };
@@ -57,7 +58,7 @@ public class GeminiService
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Gemini API 调用失败 [HTTP {response.StatusCode}]: {responseString}");
+            throw new HttpRequestException($"Gemini API 调用失败 [HTTP {response.StatusCode}, 模型: {model}]: {responseString}");
         }
 
         using var doc = JsonDocument.Parse(responseString);
@@ -75,12 +76,25 @@ public class GeminiService
         return "Gemini 未返回有效文本。";
     }
 
+    private string GetToneInstruction()
+    {
+        var config = ConfigService.Load();
+        return config.SupervisorTone switch
+        {
+            "strict" => "【语气风格：严格鞭策型】毫不客气地指出用户的懈怠、拖延和目标偏离，以极高标准要求执行力，语言直接犀利，杜绝温和空话。",
+            "encouraging" => "【语气风格：温和陪伴型】富有同理心，多肯定用户的努力与专注，在指出问题时提供正向激励和缓解压力的方法。",
+            _ => "【语气风格：理性客观型】专业、冷静、基于事实，像一流的高级项目总监一样分析 ROI、时间效率与执行节奏。"
+        };
+    }
+
     /// <summary>
     /// 1. 审查日程排期 (Schedule Audit)
     /// </summary>
     public async Task<string> AuditScheduleAsync(List<ScheduleItem> items, string currentActivity)
     {
-        string systemInstruction = @"你是一个极其敏锐、客观、兼具建设性的私人效能主管与日程审查 AI (RMF Supervisor)。
+        string tone = GetToneInstruction();
+        string systemInstruction = $@"你是用户的个人私人效能主管与日程审查 AI (RMF Supervisor)。
+{tone}
 你的任务是审查用户今日的日程安排：
 1. 评估合理性：任务密度是否过载？是否有足够的缓冲和休息时间？
 2. 识别风险点：哪些任务容易发生拖延？精力峰值与任务类型是否匹配？
@@ -117,7 +131,9 @@ public class GeminiService
     /// </summary>
     public async Task<string> PlanScheduleAsync(string userGoal, List<ScheduleItem> existingItems)
     {
-        string systemInstruction = @"你是 RMF 的智能排程助手。
+        string tone = GetToneInstruction();
+        string systemInstruction = $@"你是 RMF 的智能排程助手。
+{tone}
 用户会提出一个或多个目标想法（可能很模糊），请你：
 1. 将大目标合理拆解为 1~3 个具体可落地的时间块（建议 45~90 分钟单次深度专注）；
 2. 避开用户已有的日程安排；
@@ -140,8 +156,10 @@ public class GeminiService
     /// </summary>
     public async Task<string> EvaluateIdeaAsync(string userIdea, string currentContext)
     {
-        string systemInstruction = @"你是用户的 AI 智囊兼首席监督官。
-面对用户提出的突发想法、技术方案灵感或生活决策，你需要充当严格且深刻的思考伙伴：
+        string tone = GetToneInstruction();
+        string systemInstruction = $@"你是用户的 AI 智囊兼首席监督官。
+{tone}
+面对用户提出的突发想法、技术方案灵感或生活决策，你需要充当深度推演的思考伙伴：
 1. 价值与可行性评估：这个想法的核心亮点是什么？是否有隐藏的坑或高昂的沉没成本？
 2. 注意力防分散审查：当前是启动这个想法的最佳时机吗？它是否在诱惑用户从当前核心主线任务中分心？
 3. 执行路径建议：如果要做，最小可行性（MVP）的第一步应该是什么？
