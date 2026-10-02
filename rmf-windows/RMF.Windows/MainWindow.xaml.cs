@@ -57,6 +57,15 @@ public partial class MainWindow : Window
     // AI 客观重排待确认建议方案
     private SchedulingPlanResult? _pendingSchedulePlan = null;
 
+    // Google Calendar 快速详情卡片与拖拽调整时长状态
+    private ScheduleItem? _quickDetailItem = null;
+    private bool _isResizingEvent = false;
+    private ScheduleItem? _resizingItem = null;
+    private double _resizeStartY = 0;
+    private DateTime _resizeInitialEndTime;
+    private readonly HashSet<string> _notifiedUpcomingEventIds = new(StringComparer.OrdinalIgnoreCase);
+    private ScheduleItem? _upcomingAlertItem = null;
+
     // 内存与窗口嗅探 Win32 API
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -112,6 +121,7 @@ public partial class MainWindow : Window
             UpdateTelemetry();
             UpdateSyncStatusBadge();
             UpdateCognitiveLoadQuota();
+            CheckUpcomingEvents();
         };
         _perfTimer.Start();
     }
@@ -570,27 +580,70 @@ public partial class MainWindow : Window
         var filteredEvents = rawEvents.Where(MatchesFilter).ToList();
 
         // 检索切过当前时间红线的活跃任务
-        activeIntersectingTask = filteredEvents.FirstOrDefault(e => e.StartTime <= DateTime.Now && e.EndTime >= DateTime.Now && e.Status != "COMPLETED");
+        activeIntersectingTask = filteredEvents.FirstOrDefault(e => !e.IsAllDay && e.StartTime <= DateTime.Now && e.EndTime >= DateTime.Now && e.Status != "COMPLETED");
 
-        foreach (var item in filteredEvents)
+        // 2.1 全天日程 (All-Day Events) 分离渲染
+        var allDayEvents = filteredEvents.Where(e => e.IsAllDay).ToList();
+        var timedEvents = filteredEvents.Where(e => !e.IsAllDay).ToList();
+
+        WeekAllDayGrid.Children.Clear();
+        if (allDayEvents.Count > 0)
         {
-            int col = (int)(item.StartTime.Date - monday.Date).TotalDays;
-            if (col < 0 || col >= 7) continue;
+            WeekAllDayBorder.Visibility = Visibility.Visible;
+            for (int d = 0; d < 7; d++)
+            {
+                DateTime dayDate = monday.AddDays(d).Date;
+                var dayAllDay = allDayEvents.Where(e => e.StartTime.Date <= dayDate && e.EndTime.Date >= dayDate).ToList();
+                var dayStack = new StackPanel { Margin = new Thickness(2, 2, 2, 2) };
+                foreach (var ev in dayAllDay)
+                {
+                    dayStack.Children.Add(CreateAllDayEventChip(ev));
+                }
+                WeekAllDayGrid.Children.Add(dayStack);
+            }
+        }
+        else
+        {
+            WeekAllDayBorder.Visibility = Visibility.Collapsed;
+        }
 
-            double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
-            double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
-            if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
-            if (endH <= startH) endH = startH + 0.75;
+        // 2.2 定时时间块渲染 (按天分组 + 并发时间重叠自动分列算法)
+        for (int d = 0; d < 7; d++)
+        {
+            DateTime dayDate = monday.AddDays(d).Date;
+            var dayEvents = timedEvents.Where(e => e.StartTime.Date == dayDate).OrderBy(e => e.StartTime).ThenByDescending(e => e.EndTime).ToList();
+            if (dayEvents.Count == 0) continue;
 
-            double top = startH * HourHeight + 1;
-            double height = Math.Max(24.0, (endH - startH) * HourHeight - 2);
-            double left = col * colWidth + 2;
-            double width = Math.Max(20.0, colWidth - 4);
+            var clusters = ClusterOverlappingEvents(dayEvents);
+            double dayLeft = d * colWidth;
+            double availableDayWidth = Math.Max(20.0, colWidth - 4.0);
 
-            var card = CreateWeekEventChip(item, width, height);
-            Canvas.SetLeft(card, left);
-            Canvas.SetTop(card, top);
-            WeekEventsCanvas.Children.Add(card);
+            foreach (var cluster in clusters)
+            {
+                var colAssignments = AssignEventColumns(cluster);
+                int totalCols = colAssignments.Values.Max() + 1;
+                double subColWidth = availableDayWidth / totalCols;
+
+                foreach (var item in cluster)
+                {
+                    int subCol = colAssignments[item];
+
+                    double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
+                    double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
+                    if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
+                    if (endH <= startH) endH = startH + 0.5;
+
+                    double top = startH * HourHeight + 1;
+                    double height = Math.Max(20.0, (endH - startH) * HourHeight - 2);
+                    double left = dayLeft + 2 + subCol * subColWidth;
+                    double width = Math.Max(18.0, subColWidth - 2);
+
+                    var card = CreateWeekEventChip(item, width, height);
+                    Canvas.SetLeft(card, left);
+                    Canvas.SetTop(card, top);
+                    WeekEventsCanvas.Children.Add(card);
+                }
+            }
         }
 
         // 3. Module 4: 时间线实时联动打卡悬浮条 (如果当前红线切过正在进行的任务)
@@ -601,11 +654,135 @@ public partial class MainWindow : Window
             double lineTop = nowH * HourHeight;
 
             var punchInBanner = CreateRealtimePunchInBanner(activeIntersectingTask, colWidth);
-            Canvas.SetLeft(punchInBanner, Math.Max(0, todayCol * colWidth - 10));
+            Canvas.SetLeft(punchInBanner, Math.Max(0, todayCol * colWidth));
             Canvas.SetTop(punchInBanner, Math.Max(2, lineTop - 36));
             Canvas.SetZIndex(punchInBanner, 100);
             WeekEventsCanvas.Children.Add(punchInBanner);
         }
+    }
+
+    /// <summary>
+    /// 全天日程芯片 (All-Day Event Chip)
+    /// </summary>
+    private FrameworkElement CreateAllDayEventChip(ScheduleItem item)
+    {
+        Brush bgBrush = GetEventBrush(item, 220);
+        var border = new Border
+        {
+            Height = 22,
+            Background = bgBrush,
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(6, 2, 6, 2),
+            Margin = new Thickness(0, 1, 0, 1),
+            Cursor = Cursors.Hand,
+            ToolTip = $"全天: {item.Title}\n点击查看详情",
+            ClipToBounds = true
+        };
+
+        var tb = new TextBlock
+        {
+            Text = (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
+            FontSize = 10.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        border.Child = tb;
+        border.MouseLeftButtonUp += (s, e) =>
+        {
+            e.Handled = true;
+            OpenEventQuickDetail(item);
+        };
+        return border;
+    }
+
+    /// <summary>
+    /// 解析日程颜色画刷 (优先采用 ColorHex，其次按三级认知负荷分配)
+    /// </summary>
+    private static Brush GetEventBrush(ScheduleItem item, byte opacity = 230)
+    {
+        if (!string.IsNullOrEmpty(item.ColorHex))
+        {
+            try
+            {
+                var color = (Color)ColorConverter.ConvertFromString(item.ColorHex);
+                color.A = opacity;
+                return new SolidColorBrush(color);
+            }
+            catch { }
+        }
+
+        return item.WorkType switch
+        {
+            "REST_BUFFER" => new SolidColorBrush(Color.FromArgb(180, 0x06, 0x4E, 0x3B)),
+            "SHALLOW_WORK" => new SolidColorBrush(Color.FromArgb(200, 0x1E, 0x29, 0x3B)),
+            _ => new SolidColorBrush(Color.FromArgb(230, 0x2E, 0x10, 0x65))
+        };
+    }
+
+    /// <summary>
+    /// 重叠事件聚类算法 (Interval Partitioning Clustering)
+    /// </summary>
+    private static List<List<ScheduleItem>> ClusterOverlappingEvents(List<ScheduleItem> sortedEvents)
+    {
+        var clusters = new List<List<ScheduleItem>>();
+        if (sortedEvents.Count == 0) return clusters;
+
+        var currentCluster = new List<ScheduleItem> { sortedEvents[0] };
+        DateTime currentClusterEnd = sortedEvents[0].EndTime;
+
+        for (int i = 1; i < sortedEvents.Count; i++)
+        {
+            var ev = sortedEvents[i];
+            if (ev.StartTime < currentClusterEnd)
+            {
+                currentCluster.Add(ev);
+                if (ev.EndTime > currentClusterEnd)
+                    currentClusterEnd = ev.EndTime;
+            }
+            else
+            {
+                clusters.Add(currentCluster);
+                currentCluster = new List<ScheduleItem> { ev };
+                currentClusterEnd = ev.EndTime;
+            }
+        }
+        clusters.Add(currentCluster);
+        return clusters;
+    }
+
+    /// <summary>
+    /// 贪心列分配算法 (Greedy Slot Coloring)
+    /// </summary>
+    private static Dictionary<ScheduleItem, int> AssignEventColumns(List<ScheduleItem> cluster)
+    {
+        var assignments = new Dictionary<ScheduleItem, int>();
+        var columnEndTimes = new List<DateTime>();
+
+        foreach (var ev in cluster)
+        {
+            int placedCol = -1;
+            for (int c = 0; c < columnEndTimes.Count; c++)
+            {
+                if (columnEndTimes[c] <= ev.StartTime)
+                {
+                    placedCol = c;
+                    columnEndTimes[c] = ev.EndTime;
+                    break;
+                }
+            }
+
+            if (placedCol == -1)
+            {
+                placedCol = columnEndTimes.Count;
+                columnEndTimes.Add(ev.EndTime);
+            }
+
+            assignments[ev] = placedCol;
+        }
+
+        return assignments;
     }
 
     /// <summary>
@@ -621,6 +798,8 @@ public partial class MainWindow : Window
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(8, 3, 8, 3),
             Cursor = Cursors.Arrow,
+            MaxWidth = Math.Max(180, colWidth),
+            ClipToBounds = true,
             Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
                 BlurRadius = 10,
@@ -647,22 +826,24 @@ public partial class MainWindow : Window
         var titleText = new TextBlock
         {
             Text = $"进行中: {task.Title} ({elapsedMinutes}m)",
-            FontSize = 11,
+            FontSize = 10.5,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 100,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
+            Margin = new Thickness(0, 0, 6, 0)
         };
         sp.Children.Add(titleText);
 
         // 1. [✓ 提前完成]
         var finishBtn = new Button
         {
-            Content = "✓ 提前完成",
+            Content = "✓ 完成",
             Background = new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)),
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(6, 2, 6, 2),
+            Padding = new Thickness(5, 2, 5, 2),
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Cursor = Cursors.Hand,
@@ -684,11 +865,11 @@ public partial class MainWindow : Window
         // 2. [+15m 延误缓冲]
         var delayBtn = new Button
         {
-            Content = "+15m 延误",
+            Content = "+15m",
             Background = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06)),
             Foreground = Brushes.White,
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(6, 2, 6, 2),
+            Padding = new Thickness(5, 2, 5, 2),
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
             Cursor = Cursors.Hand,
@@ -705,66 +886,47 @@ public partial class MainWindow : Window
         };
         sp.Children.Add(delayBtn);
 
-        // 3. [⚠️ 记录打断]
-        var interruptBtn = new Button
-        {
-            Content = "⚠️ 打断",
-            Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)),
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(6, 2, 6, 2),
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Cursor = Cursors.Hand
-        };
-        interruptBtn.Click += (s, e) =>
-        {
-            e.Handled = true;
-            task.InterruptionMinutes += 10;
-            DatabaseService.UpsertSchedule(task);
-            RefreshTimePnlData();
-            MessageBox.Show($"已为「{task.Title}」记录 10 分钟外部打断损耗！已自动计入时间损益表坏账工时。", "打断损耗已记录", MessageBoxButton.OK, MessageBoxImage.Information);
-        };
-        sp.Children.Add(interruptBtn);
-
         border.Child = sp;
         return border;
     }
 
     /// <summary>
-    /// Module 4: 三级认知负荷视觉层级与孤立任务警示渲染
+    /// Module 4: 三级认知负荷视觉层级、防文字重叠与底部拖拽调整时长
     /// </summary>
     private UIElement CreateWeekEventChip(ScheduleItem item, double width, double height)
     {
-        // 1. 三级认知负荷视觉样式划分
-        Brush bgBrush;
+        // 1. 颜色与画刷
+        Brush bgBrush = GetEventBrush(item, 230);
         Brush borderBrush;
-        Brush textBrush = Brushes.White;
         string workTypeBadge = "";
 
         if (item.WorkType == "REST_BUFFER")
         {
-            // ☕ 强制休息/缓冲
-            bgBrush = new SolidColorBrush(Color.FromArgb(180, 0x06, 0x4E, 0x3B));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
             workTypeBadge = "☕ ";
         }
         else if (item.WorkType == "SHALLOW_WORK")
         {
-            // ⚡ 浅层事务
-            bgBrush = new SolidColorBrush(Color.FromArgb(200, 0x1E, 0x29, 0x3B));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
             workTypeBadge = "⚡ ";
         }
         else
         {
-            // 🧠 深度工作 (DEEP_WORK) 高对比度高饱和
-            bgBrush = new SolidColorBrush(Color.FromArgb(230, 0x2E, 0x10, 0x65));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
             workTypeBadge = "🧠 ";
         }
 
-        // 2. 检查是否为孤立任务 (未绑定父级战略目标)
+        if (!string.IsNullOrEmpty(item.ColorHex))
+        {
+            try
+            {
+                var c = (Color)ColorConverter.ConvertFromString(item.ColorHex);
+                borderBrush = new SolidColorBrush(c);
+            }
+            catch { }
+        }
+
+        // 2. 检查孤立任务
         bool isIsolated = string.IsNullOrEmpty(item.GoalId) && item.WorkType != "REST_BUFFER";
 
         var border = new Border
@@ -775,55 +937,101 @@ public partial class MainWindow : Window
             BorderBrush = isIsolated ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) : (item.Status == "IN_PROGRESS" ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : borderBrush),
             BorderThickness = new Thickness(isIsolated ? 1.5 : 1),
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(5, 2, 5, 2),
+            Padding = new Thickness(4, 2, 4, 2),
             Cursor = Cursors.Hand,
             Opacity = item.Status == "COMPLETED" ? 0.65 : 1.0,
-            ToolTip = $"{workTypeBadge}{item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n负荷: {item.WorkType}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n{(isIsolated ? "⚠️ 孤立任务：未绑定父级目标\n" : "")}点击查看或修改"
+            ClipToBounds = true,
+            ToolTip = $"{workTypeBadge}{item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\n负荷: {item.WorkType}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n{(isIsolated ? "⚠️ 孤立任务：未绑定父级目标\n" : "")}点击查看详情，拖动底部边缘调整时长"
         };
 
-        var panel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var rootGrid = new Grid { ClipToBounds = true };
 
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        if (isIsolated)
+        // 内容排版布局 (Grid 规范严格约束宽度，彻底杜绝 WPF 横向 StackPanel 文字溢出碰撞)
+        if (height < 34.0)
         {
-            titleRow.Children.Add(new TextBlock
+            // 超短时间块 (<30分钟)：单行极简内联展示
+            var singleLineTb = new TextBlock
             {
-                Text = "⚠️ ",
+                Text = (isIsolated ? "⚠️ " : "") + workTypeBadge + (item.Status == "COMPLETED" ? "✓ " : "") + $"{item.StartTime:HH:mm} {item.Title}",
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
-                ToolTip = "孤立任务：未关联战略目标"
-            });
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
+            };
+            rootGrid.Children.Add(singleLineTb);
         }
-
-        var titleText = new TextBlock
+        else
         {
-            Text = workTypeBadge + (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = textBrush,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
-        };
-        titleRow.Children.Add(titleText);
-        panel.Children.Add(titleRow);
+            // 标准与较长时间块：多行清晰排版
+            var contentPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true };
 
-        if (height >= 34)
-        {
-            var timeText = new TextBlock
+            var titleTb = new TextBlock
+            {
+                Text = (isIsolated ? "⚠️ " : "") + workTypeBadge + (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
+                FontSize = 10.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null,
+                Margin = new Thickness(0, 0, 0, 1)
+            };
+            contentPanel.Children.Add(titleTb);
+
+            var timeTb = new TextBlock
             {
                 Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm}",
-                FontSize = 9.5,
-                Foreground = new SolidColorBrush(Color.FromArgb(200, 0xFF, 0xFF, 0xFF)),
+                FontSize = 9.0,
+                Foreground = new SolidColorBrush(Color.FromArgb(210, 0xFF, 0xFF, 0xFF)),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-            panel.Children.Add(timeText);
+            contentPanel.Children.Add(timeTb);
+
+            if (height >= 50.0 && (!string.IsNullOrEmpty(item.Dod) || !string.IsNullOrEmpty(item.GoalId)))
+            {
+                string extraText = !string.IsNullOrEmpty(item.Dod) ? $"✓ {item.Dod}" : $"🎯 OKR关联";
+                var extraTb = new TextBlock
+                {
+                    Text = extraText,
+                    FontSize = 8.5,
+                    Foreground = new SolidColorBrush(Color.FromArgb(170, 0xDF, 0xE5, 0xEF)),
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 1, 0, 0)
+                };
+                contentPanel.Children.Add(extraTb);
+            }
+
+            rootGrid.Children.Add(contentPanel);
         }
 
-        border.Child = panel;
-        border.MouseLeftButtonUp += (s, e) =>
+        // 底部 6px 拖拽手柄：调整日程时长 (Google Calendar 经典交互)
+        var resizeThumb = new Border
+        {
+            Height = 6,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.SizeNS
+        };
+        resizeThumb.MouseLeftButtonDown += (s, e) =>
         {
             e.Handled = true;
-            OpenEventEditModal(item);
+            _isResizingEvent = true;
+            _resizingItem = item;
+            _resizeStartY = e.GetPosition(WeekEventsCanvas).Y;
+            _resizeInitialEndTime = item.EndTime;
+            WeekEventsCanvas.CaptureMouse();
+        };
+        rootGrid.Children.Add(resizeThumb);
+
+        border.Child = rootGrid;
+
+        // 单击卡片弹出 Google Calendar 轻量快速详情卡片
+        border.MouseLeftButtonUp += (s, e) =>
+        {
+            if (_isResizingEvent) return;
+            e.Handled = true;
+            OpenEventQuickDetail(item);
         };
 
         return border;
@@ -939,47 +1147,88 @@ public partial class MainWindow : Window
         var rawEvents = DatabaseService.GetSchedulesForDate(_currentDate);
         var filteredEvents = rawEvents.Where(MatchesFilter).ToList();
 
-        foreach (var item in filteredEvents)
+        var timedEvents = filteredEvents.Where(e => !e.IsAllDay).OrderBy(e => e.StartTime).ThenByDescending(e => e.EndTime).ToList();
+        var allDayEvents = filteredEvents.Where(e => e.IsAllDay).ToList();
+
+        // 渲染全天日程 (在日视图顶部)
+        double currentTopOffset = 8.0;
+        foreach (var allDay in allDayEvents)
         {
-            double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
-            double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
-            if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
-            if (endH <= startH) endH = startH + 0.75;
+            var chip = CreateAllDayEventChip(allDay);
+            Canvas.SetLeft(chip, 8);
+            Canvas.SetTop(chip, currentTopOffset);
+            chip.Width = Math.Max(200.0, canvasWidth - 16);
+            DayEventsCanvas.Children.Add(chip);
+            currentTopOffset += 26.0;
+        }
 
-            double top = startH * HourHeight + 1;
-            double height = Math.Max(26.0, (endH - startH) * HourHeight - 2);
-            double width = Math.Max(200.0, canvasWidth - 16);
+        // 渲染定时日程 (支持多任务并发并列分列算法)
+        if (timedEvents.Count > 0)
+        {
+            var clusters = ClusterOverlappingEvents(timedEvents);
+            double availableWidth = Math.Max(200.0, canvasWidth - 16.0);
 
-            var card = CreateDayEventCard(item, width, height);
-            Canvas.SetLeft(card, 8);
-            Canvas.SetTop(card, top);
-            DayEventsCanvas.Children.Add(card);
+            foreach (var cluster in clusters)
+            {
+                var colAssignments = AssignEventColumns(cluster);
+                int totalCols = colAssignments.Values.Max() + 1;
+                double subColWidth = availableWidth / totalCols;
+
+                foreach (var item in cluster)
+                {
+                    int subCol = colAssignments[item];
+
+                    double startH = item.StartTime.Hour + item.StartTime.Minute / 60.0;
+                    double endH = item.EndTime.Hour + item.EndTime.Minute / 60.0;
+                    if (item.EndTime.Date > item.StartTime.Date) endH = 24.0;
+                    if (endH <= startH) endH = startH + 0.5;
+
+                    double top = startH * HourHeight + 1;
+                    double height = Math.Max(24.0, (endH - startH) * HourHeight - 2);
+                    double left = 8 + subCol * subColWidth;
+                    double width = Math.Max(60.0, subColWidth - 4);
+
+                    var card = CreateDayEventCard(item, width, height);
+                    Canvas.SetLeft(card, left);
+                    Canvas.SetTop(card, top);
+                    DayEventsCanvas.Children.Add(card);
+                }
+            }
         }
     }
 
     private UIElement CreateDayEventCard(ScheduleItem item, double width, double height)
     {
-        Brush bgBrush;
+        Brush bgBrush = GetEventBrush(item, 230);
         Brush borderBrush;
-        string badge = "";
+        string badge = item.WorkType switch
+        {
+            "REST_BUFFER" => "☕ 休息缓冲",
+            "SHALLOW_WORK" => "⚡ 浅层事务",
+            _ => "🧠 深度工作"
+        };
 
         if (item.WorkType == "REST_BUFFER")
         {
-            bgBrush = new SolidColorBrush(Color.FromArgb(180, 0x06, 0x4E, 0x3B));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
-            badge = "☕ 休息缓冲";
         }
         else if (item.WorkType == "SHALLOW_WORK")
         {
-            bgBrush = new SolidColorBrush(Color.FromArgb(200, 0x1E, 0x29, 0x3B));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
-            badge = "⚡ 浅层事务";
         }
         else
         {
-            bgBrush = new SolidColorBrush(Color.FromArgb(230, 0x2E, 0x10, 0x65));
             borderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
-            badge = "🧠 深度工作";
+        }
+
+        if (!string.IsNullOrEmpty(item.ColorHex))
+        {
+            try
+            {
+                var c = (Color)ColorConverter.ConvertFromString(item.ColorHex);
+                borderBrush = new SolidColorBrush(c);
+            }
+            catch { }
         }
 
         bool isIsolated = string.IsNullOrEmpty(item.GoalId) && item.WorkType != "REST_BUFFER";
@@ -992,102 +1241,129 @@ public partial class MainWindow : Window
             BorderBrush = isIsolated ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) : (item.Status == "IN_PROGRESS" ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : borderBrush),
             BorderThickness = new Thickness(isIsolated ? 1.5 : 1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 4, 10, 4),
+            Padding = new Thickness(8, 3, 8, 3),
             Cursor = Cursors.Hand,
             Opacity = item.Status == "COMPLETED" ? 0.7 : 1.0,
-            ToolTip = "点击查看或编辑"
+            ClipToBounds = true,
+            ToolTip = $"{badge} · {item.Title}\n{item.StartTime:HH:mm} - {item.EndTime:HH:mm}\nDoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}\n点击查看详情，拖动底部边缘调整时长"
         };
 
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var rootGrid = new Grid { ClipToBounds = true };
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
+        // 信息排版区 (使用标准 Grid + StackPanel，限制内部宽度，防止任何文字重叠)
+        var infoPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true };
 
-        if (isIsolated)
+        var titleTb = new TextBlock
         {
-            titleRow.Children.Add(new TextBlock
-            {
-                Text = "⚠️ ",
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B))
-            });
-        }
-
-        titleRow.Children.Add(new TextBlock
-        {
-            Text = (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
-            FontSize = 13,
+            Text = (isIsolated ? "⚠️ " : "") + (item.Status == "COMPLETED" ? "✓ " : "") + item.Title,
+            FontSize = 12.5,
             FontWeight = FontWeights.Bold,
             Foreground = Brushes.White,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
-        });
+        };
+        infoPanel.Children.Add(titleTb);
 
-        titleRow.Children.Add(new TextBlock
+        if (height >= 34.0)
         {
-            Text = $" · {item.StartTime:HH:mm} - {item.EndTime:HH:mm} [{badge}]",
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromArgb(220, 0xFF, 0xFF, 0xFF)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(6, 0, 0, 0)
-        });
-        infoPanel.Children.Add(titleRow);
+            var metaTb = new TextBlock
+            {
+                Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm} · [{badge}]",
+                FontSize = 10.5,
+                Foreground = new SolidColorBrush(Color.FromArgb(220, 0xFF, 0xFF, 0xFF)),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 1, 0, 0)
+            };
+            infoPanel.Children.Add(metaTb);
+        }
 
-        if (height >= 46 && (!string.IsNullOrWhiteSpace(item.Dod) || !string.IsNullOrWhiteSpace(item.Description)))
+        if (height >= 50.0 && (!string.IsNullOrWhiteSpace(item.Dod) || !string.IsNullOrWhiteSpace(item.Description)))
         {
             string detailText = !string.IsNullOrWhiteSpace(item.Dod) ? $"DoD: {item.Dod}" : item.Description;
-            infoPanel.Children.Add(new TextBlock
+            var dodTb = new TextBlock
             {
                 Text = detailText,
-                FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromArgb(200, 0xFF, 0xFF, 0xFF)),
+                FontSize = 10.0,
+                Foreground = new SolidColorBrush(Color.FromArgb(190, 0xD1, 0xD5, 0xDB)),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Margin = new Thickness(0, 2, 0, 0)
-            });
+            };
+            infoPanel.Children.Add(dodTb);
         }
-        Grid.SetColumn(infoPanel, 0);
-        grid.Children.Add(infoPanel);
 
-        // Status badge button
-        string statusText = item.Status switch
+        Grid.SetColumn(infoPanel, 0);
+        rootGrid.Children.Add(infoPanel);
+
+        // 状态切换按钮 (仅在宽度充裕且高度足够时显示)
+        if (width >= 160 && height >= 32)
         {
-            "COMPLETED" => "已完成",
-            "IN_PROGRESS" => "进行中",
-            _ => "待办"
-        };
-        var statusBtn = new Button
+            string statusText = item.Status switch
+            {
+                "COMPLETED" => "已完成",
+                "IN_PROGRESS" => "进行中",
+                _ => "待办"
+            };
+            var statusBtn = new Button
+            {
+                Content = statusText,
+                Background = new SolidColorBrush(Color.FromArgb(50, 0x00, 0x00, 0x00)),
+                Foreground = Brushes.White,
+                BorderBrush = Brushes.White,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(8, 2, 8, 2),
+                FontSize = 10.5,
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            };
+            statusBtn.Click += (s, e) =>
+            {
+                e.Handled = true;
+                string next = item.Status switch
+                {
+                    "PENDING" => "IN_PROGRESS",
+                    "IN_PROGRESS" => "COMPLETED",
+                    _ => "PENDING"
+                };
+                DatabaseService.UpdateScheduleStatus(item.Id, next);
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+            };
+            Grid.SetColumn(statusBtn, 1);
+            rootGrid.Children.Add(statusBtn);
+        }
+
+        // 底部 6px 拖拽时长手柄
+        var resizeThumb = new Border
         {
-            Content = statusText,
-            Background = new SolidColorBrush(Color.FromArgb(50, 0x00, 0x00, 0x00)),
-            Foreground = Brushes.White,
-            BorderBrush = Brushes.White,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 2, 8, 2),
-            FontSize = 11,
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center
+            Height = 6,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.SizeNS
         };
-        statusBtn.Click += (s, e) =>
+        resizeThumb.MouseLeftButtonDown += (s, e) =>
         {
             e.Handled = true;
-            string next = item.Status switch
-            {
-                "PENDING" => "IN_PROGRESS",
-                "IN_PROGRESS" => "COMPLETED",
-                _ => "PENDING"
-            };
-            DatabaseService.UpdateScheduleStatus(item.Id, next);
-            RenderAllCalendarViews();
-            RefreshTimePnlData();
-            UpdateCognitiveLoadQuota();
+            _isResizingEvent = true;
+            _resizingItem = item;
+            _resizeStartY = e.GetPosition(DayEventsCanvas).Y;
+            _resizeInitialEndTime = item.EndTime;
+            DayEventsCanvas.CaptureMouse();
         };
-        Grid.SetColumn(statusBtn, 1);
-        grid.Children.Add(statusBtn);
+        Grid.SetColumnSpan(resizeThumb, 2);
+        rootGrid.Children.Add(resizeThumb);
 
-        border.Child = grid;
-        border.MouseLeftButtonUp += (s, e) => OpenEventEditModal(item);
+        border.Child = rootGrid;
+
+        border.MouseLeftButtonUp += (s, e) =>
+        {
+            if (_isResizingEvent) return;
+            e.Handled = true;
+            OpenEventQuickDetail(item);
+        };
         return border;
     }
 
@@ -1265,13 +1541,14 @@ public partial class MainWindow : Window
         Grid.SetColumn(catPill, 0);
         grid.Children.Add(catPill);
 
-        var details = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var details = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         details.Children.Add(new TextBlock
         {
             Text = item.Title,
             FontSize = 13,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED)),
+            TextTrimming = TextTrimming.CharacterEllipsis,
             TextDecorations = item.Status == "COMPLETED" ? TextDecorations.Strikethrough : null
         });
         details.Children.Add(new TextBlock
@@ -1279,6 +1556,7 @@ public partial class MainWindow : Window
             Text = $"{item.StartTime:HH:mm} - {item.EndTime:HH:mm} · DoD: {(string.IsNullOrEmpty(item.Dod) ? "未填写" : item.Dod)}",
             FontSize = 11,
             Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+            TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(0, 2, 0, 0)
         });
         Grid.SetColumn(details, 1);
@@ -1376,11 +1654,33 @@ public partial class MainWindow : Window
 
     private void OnCanvasMouseMove(object sender, MouseEventArgs e)
     {
+        // 1. 拖拽调整日程时间块时长 (Duration Resize with 15m Snap)
+        if (_isResizingEvent && _resizingItem != null && sender is Canvas resCanvas)
+        {
+            Point currentPt = e.GetPosition(resCanvas);
+            double deltaY = currentPt.Y - _resizeStartY;
+            int deltaMins = (int)Math.Round((deltaY / HourHeight) * 60.0);
+            deltaMins = (deltaMins / 15) * 15;
+
+            DateTime newEnd = _resizeInitialEndTime.AddMinutes(deltaMins);
+            if (newEnd < _resizingItem.StartTime.AddMinutes(15))
+                newEnd = _resizingItem.StartTime.AddMinutes(15);
+
+            if (newEnd != _resizingItem.EndTime)
+            {
+                _resizingItem.EndTime = newEnd;
+                _resizingItem.EstimatedMinutes = (int)(newEnd - _resizingItem.StartTime).TotalMinutes;
+                if (resCanvas == WeekEventsCanvas) RenderWeekEvents();
+                else RenderDayEvents();
+            }
+            return;
+        }
+
         if (!_isDragSelecting || _dragSelectBorder == null || sender is not Canvas canvas) return;
 
-        Point currentPt = e.GetPosition(canvas);
-        double top = Math.Min(_dragSelectStartPoint.Y, currentPt.Y);
-        double height = Math.Abs(currentPt.Y - _dragSelectStartPoint.Y);
+        Point currentPt2 = e.GetPosition(canvas);
+        double top = Math.Min(_dragSelectStartPoint.Y, currentPt2.Y);
+        double height = Math.Abs(currentPt2.Y - _dragSelectStartPoint.Y);
 
         double totalWidth = canvas.ActualWidth;
         if (totalWidth <= 0) totalWidth = 700;
@@ -1408,6 +1708,22 @@ public partial class MainWindow : Window
 
     private void OnCanvasMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // 1. 释放拖拽调整日程时长
+        if (_isResizingEvent)
+        {
+            _isResizingEvent = false;
+            if (_resizingItem != null)
+            {
+                DatabaseService.UpsertSchedule(_resizingItem);
+                _resizingItem = null;
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+            }
+            if (sender is Canvas c) c.ReleaseMouseCapture();
+            return;
+        }
+
         if (!_isDragSelecting || sender is not Canvas canvas) return;
         _isDragSelecting = false;
 
@@ -1585,6 +1901,15 @@ public partial class MainWindow : Window
         OpenEventCreateModalWithRange(date, st, et);
     }
 
+    private void OnEventIsAllDayChecked(object sender, RoutedEventArgs e)
+    {
+        bool isAllDay = EventIsAllDayCheck.IsChecked == true;
+        EventStartTimeInput.IsEnabled = !isAllDay;
+        EventEndTimeInput.IsEnabled = !isAllDay;
+        EventStartTimeInput.Opacity = isAllDay ? 0.35 : 1.0;
+        EventEndTimeInput.Opacity = isAllDay ? 0.35 : 1.0;
+    }
+
     private void OpenEventCreateModalWithRange(DateTime date, DateTime startTime, DateTime endTime)
     {
         _editingEventId = null;
@@ -1598,6 +1923,11 @@ public partial class MainWindow : Window
         EventInterruptionMinutesInput.Text = "0";
         EventStatusCombo.SelectedIndex = 0;
         EventWorkTypeCombo.SelectedIndex = 0; // Default DEEP_WORK
+
+        EventIsAllDayCheck.IsChecked = false;
+        EventRecurrenceCombo.SelectedIndex = 0;
+        EventColorCombo.SelectedIndex = 0;
+        OnEventIsAllDayChecked(null!, null!);
 
         EventDateDisplayText.Text = date.ToString("yyyy年M月d日");
         EventStartTimeInput.Text = startTime.ToString("HH:mm");
@@ -1648,6 +1978,35 @@ public partial class MainWindow : Window
                 break;
             }
         }
+
+        // 全天与重复与主题色选择
+        EventIsAllDayCheck.IsChecked = item.IsAllDay;
+        OnEventIsAllDayChecked(null!, null!);
+
+        int recIdx = 0;
+        for (int i = 0; i < EventRecurrenceCombo.Items.Count; i++)
+        {
+            if (EventRecurrenceCombo.Items[i] is ComboBoxItem cbi && (string)cbi.Tag == item.Recurrence)
+            {
+                recIdx = i;
+                break;
+            }
+        }
+        EventRecurrenceCombo.SelectedIndex = recIdx;
+
+        int colIdx = 0;
+        if (!string.IsNullOrEmpty(item.ColorHex))
+        {
+            for (int i = 0; i < EventColorCombo.Items.Count; i++)
+            {
+                if (EventColorCombo.Items[i] is ComboBoxItem cbi && (string)cbi.Tag == item.ColorHex)
+                {
+                    colIdx = i;
+                    break;
+                }
+            }
+        }
+        EventColorCombo.SelectedIndex = colIdx;
 
         EventDateDisplayText.Text = item.StartTime.ToString("yyyy年M月d日");
         EventStartTimeInput.Text = item.StartTime.ToString("HH:mm");
@@ -1740,25 +2099,46 @@ public partial class MainWindow : Window
             }
         }
 
+        bool isAllDay = EventIsAllDayCheck.IsChecked == true;
+        string recurrence = "NONE";
+        if (EventRecurrenceCombo.SelectedItem is ComboBoxItem recCbi && recCbi.Tag is string recTag)
+        {
+            recurrence = recTag;
+        }
+
+        string? colorHex = null;
+        if (EventColorCombo.SelectedItem is ComboBoxItem colCbi && colCbi.Tag is string colTag && !string.IsNullOrEmpty(colTag))
+        {
+            colorHex = colTag;
+        }
+
         DateTime baseDate = _clickedSlotDateTime.Date;
         DateTime startTime = baseDate.AddHours(9);
         DateTime endTime = startTime.AddHours(1);
 
-        if (TimeSpan.TryParse(EventStartTimeInput.Text.Trim(), out var tsStart))
+        if (isAllDay)
         {
-            startTime = baseDate.Add(tsStart);
+            startTime = baseDate.Date;
+            endTime = baseDate.Date.AddDays(1).AddSeconds(-1);
         }
-        if (TimeSpan.TryParse(EventEndTimeInput.Text.Trim(), out var tsEnd))
+        else
         {
-            endTime = baseDate.Add(tsEnd);
-        }
-        if (endTime <= startTime)
-        {
-            endTime = startTime.AddHours(1);
+            if (TimeSpan.TryParse(EventStartTimeInput.Text.Trim(), out var tsStart))
+            {
+                startTime = baseDate.Add(tsStart);
+            }
+            if (TimeSpan.TryParse(EventEndTimeInput.Text.Trim(), out var tsEnd))
+            {
+                endTime = baseDate.Add(tsEnd);
+            }
+            if (endTime <= startTime)
+            {
+                endTime = startTime.AddHours(1);
+            }
         }
 
         // ================= MODULE 4: 缓冲区域禁止重叠排期规则 =================
-        if (CheckRestBufferConflict(baseDate, startTime, endTime, _editingEventId))
+        if (!isAllDay && CheckRestBufferConflict(baseDate, startTime, endTime, _editingEventId))
         {
             MessageBox.Show(
                 "⚠️ 缓冲保护排期熔断：该时段与已设置的【☕ 强制休息/缓冲】时间块发生重叠！\n科学研究表明，强制缓冲期禁止被侵占，请调整起止时段或保留缓冲时间。",
@@ -1773,7 +2153,7 @@ public partial class MainWindow : Window
         if (workType == "DEEP_WORK")
         {
             int currentDeepMins = DatabaseService.GetTodayDeepWorkMinutes(baseDate);
-            int thisTaskMins = (int)(endTime - startTime).TotalMinutes;
+            int thisTaskMins = isAllDay ? 240 : (int)(endTime - startTime).TotalMinutes;
             if (currentDeepMins + thisTaskMins > 270) // 4.5 小时
             {
                 var dialogResult = MessageBox.Show(
@@ -1798,6 +2178,9 @@ public partial class MainWindow : Window
                         StartTime = startTime,
                         EndTime = endTime,
                         EstimatedMinutes = thisTaskMins,
+                        IsAllDay = isAllDay,
+                        Recurrence = recurrence,
+                        ColorHex = colorHex,
                         IsDeferred = true,
                         IsBacklog = false
                     };
@@ -1843,6 +2226,9 @@ public partial class MainWindow : Window
             GoalId = goalId,
             WorkType = workType,
             Dod = dod,
+            IsAllDay = isAllDay,
+            Recurrence = recurrence,
+            ColorHex = colorHex,
             ActualMinutes = actualMinutes,
             InterruptionMinutes = interruptionMinutes,
             IsDeferred = false,
@@ -1891,6 +2277,471 @@ public partial class MainWindow : Window
         RefreshDeferredQueue();
         UpdateCognitiveLoadQuota();
         RefreshTimePnlData();
+    }
+
+    // =========================================================================
+    // =========== GOOGLE CALENDAR QUICK DETAIL POPOVER (轻量卡片详情) ==========
+    // =========================================================================
+
+    private void OpenEventQuickDetail(ScheduleItem item)
+    {
+        _quickDetailItem = item;
+
+        // 1. Color stripe
+        Brush colorBrush = GetEventBrush(item, 255);
+        QuickDetailColorStripe.Fill = colorBrush;
+
+        // 2. WorkType badge
+        string wtText = item.WorkType switch
+        {
+            "REST_BUFFER" => "☕ 强制休息/缓冲",
+            "SHALLOW_WORK" => "⚡ 浅层事务",
+            _ => "🧠 深度工作"
+        };
+        QuickDetailWorkTypeText.Text = wtText;
+
+        // 3. Recurrence badge
+        if (!string.IsNullOrEmpty(item.Recurrence) && item.Recurrence != "NONE")
+        {
+            QuickDetailRecurrenceBadge.Visibility = Visibility.Visible;
+            QuickDetailRecurrenceText.Text = item.Recurrence switch
+            {
+                "DAILY" => "🔁 每天重复",
+                "WEEKDAYS" => "🔁 工作日重复",
+                "WEEKLY" => "🔁 每周重复",
+                "MONTHLY" => "🔁 每月重复",
+                _ => "🔁 循环"
+            };
+        }
+        else
+        {
+            QuickDetailRecurrenceBadge.Visibility = Visibility.Collapsed;
+        }
+
+        // 4. Title
+        QuickDetailTitleText.Text = item.Title;
+
+        // 5. Time & Date
+        if (item.IsAllDay)
+        {
+            QuickDetailTimeText.Text = $"{item.StartTime:yyyy年M月d日} · 全天日程";
+        }
+        else
+        {
+            int durationMins = Math.Max(1, (int)(item.EndTime - item.StartTime).TotalMinutes);
+            QuickDetailTimeText.Text = $"{item.StartTime:yyyy年M月d日} · {item.StartTime:HH:mm} - {item.EndTime:HH:mm} ({durationMins}分钟)";
+        }
+
+        // 6. Linked Goal
+        if (!string.IsNullOrEmpty(item.GoalId))
+        {
+            var goal = DatabaseService.GetGoalById(item.GoalId);
+            QuickDetailGoalRow.Visibility = Visibility.Visible;
+            QuickDetailGoalText.Text = goal != null ? $"关联目标: {goal.Title}" : "关联战略目标";
+        }
+        else
+        {
+            QuickDetailGoalRow.Visibility = Visibility.Collapsed;
+        }
+
+        // 7. DoD
+        if (!string.IsNullOrWhiteSpace(item.Dod))
+        {
+            QuickDetailDodBorder.Visibility = Visibility.Visible;
+            QuickDetailDodText.Text = item.Dod;
+        }
+        else
+        {
+            QuickDetailDodBorder.Visibility = Visibility.Collapsed;
+        }
+
+        // 8. Description
+        if (!string.IsNullOrWhiteSpace(item.Description))
+        {
+            QuickDetailDescBorder.Visibility = Visibility.Visible;
+            QuickDetailDescText.Text = item.Description;
+        }
+        else
+        {
+            QuickDetailDescBorder.Visibility = Visibility.Collapsed;
+        }
+
+        // 9. Metrics
+        QuickDetailStatusText.Text = item.Status switch
+        {
+            "COMPLETED" => "已完成 ✓",
+            "IN_PROGRESS" => "进行中 ⏳",
+            _ => "待进行"
+        };
+        QuickDetailActualText.Text = $"{item.ActualMinutes} 分钟";
+        QuickDetailInterruptText.Text = $"{item.InterruptionMinutes} 分钟";
+
+        // Toggle complete button text
+        QuickDetailCompleteBtn.Content = item.Status == "COMPLETED" ? "↩" : "✓";
+        QuickDetailCompleteBtn.ToolTip = item.Status == "COMPLETED" ? "重新标为未完成" : "标记为已完成";
+
+        EventQuickDetailModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseQuickDetailClicked(object sender, RoutedEventArgs e)
+    {
+        EventQuickDetailModal.Visibility = Visibility.Collapsed;
+        _quickDetailItem = null;
+    }
+
+    private void OnQuickDetailEditClicked(object sender, RoutedEventArgs e)
+    {
+        if (_quickDetailItem == null) return;
+        var target = _quickDetailItem;
+        EventQuickDetailModal.Visibility = Visibility.Collapsed;
+        OpenEventEditModal(target);
+    }
+
+    private void OnQuickDetailToggleStatusClicked(object sender, RoutedEventArgs e)
+    {
+        if (_quickDetailItem == null) return;
+        if (_quickDetailItem.Status == "COMPLETED")
+        {
+            _quickDetailItem.Status = "PENDING";
+        }
+        else
+        {
+            _quickDetailItem.Status = "COMPLETED";
+            if (_quickDetailItem.ActualMinutes == 0)
+            {
+                _quickDetailItem.ActualMinutes = Math.Max(15, (int)(_quickDetailItem.EndTime - _quickDetailItem.StartTime).TotalMinutes);
+            }
+        }
+        DatabaseService.UpsertSchedule(_quickDetailItem);
+        EventQuickDetailModal.Visibility = Visibility.Collapsed;
+        RenderAllCalendarViews();
+        RefreshTimePnlData();
+        UpdateCognitiveLoadQuota();
+    }
+
+    private void OnQuickDetailDeleteClicked(object sender, RoutedEventArgs e)
+    {
+        if (_quickDetailItem == null) return;
+        var res = MessageBox.Show($"确定删除日程「{_quickDetailItem.Title}」吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (res == MessageBoxResult.Yes)
+        {
+            DatabaseService.DeleteSchedule(_quickDetailItem.Id);
+            EventQuickDetailModal.Visibility = Visibility.Collapsed;
+            _quickDetailItem = null;
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            UpdateCognitiveLoadQuota();
+        }
+    }
+
+    // =========================================================================
+    // ================= UPCOMING EVENT TOAST REMINDER (<15 MIN) ================
+    // =========================================================================
+
+    private void CheckUpcomingEvents()
+    {
+        try
+        {
+            DateTime now = DateTime.Now;
+            DateTime lookahead = now.AddMinutes(15);
+
+            var todayEvents = DatabaseService.GetSchedulesForDate(DateTime.Today);
+            var upcoming = todayEvents.FirstOrDefault(e =>
+                !e.IsAllDay &&
+                e.Status != "COMPLETED" &&
+                e.StartTime >= now &&
+                e.StartTime <= lookahead &&
+                !_notifiedUpcomingEventIds.Contains(e.Id));
+
+            if (upcoming != null)
+            {
+                _upcomingAlertItem = upcoming;
+                int mins = Math.Max(1, (int)(upcoming.StartTime - now).TotalMinutes);
+                UpcomingEventTimeText.Text = $"🔔 即将开始 ({mins}分钟后)";
+                UpcomingEventTitleText.Text = $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})";
+                UpcomingEventToast.Visibility = Visibility.Visible;
+            }
+        }
+        catch { }
+    }
+
+    private void OnUpcomingEventViewClicked(object sender, RoutedEventArgs e)
+    {
+        if (_upcomingAlertItem != null)
+        {
+            UpcomingEventToast.Visibility = Visibility.Collapsed;
+            OpenEventQuickDetail(_upcomingAlertItem);
+        }
+    }
+
+    private void OnUpcomingEventDismissClicked(object sender, RoutedEventArgs e)
+    {
+        if (_upcomingAlertItem != null)
+        {
+            _notifiedUpcomingEventIds.Add(_upcomingAlertItem.Id);
+        }
+        UpcomingEventToast.Visibility = Visibility.Collapsed;
+    }
+
+    // =========================================================================
+    // ============== OFFLINE STANDARD iCALENDAR (.ics) EXPORT & IMPORT =========
+    // =========================================================================
+
+    private void OnExportIcsFileClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var sfd = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "导出日历到 iCalendar (.ics) 文件",
+                Filter = "iCalendar 文件 (*.ics)|*.ics|所有文件 (*.*)|*.*",
+                FileName = $"RMF_Calendar_{DateTime.Today:yyyyMMdd}.ics"
+            };
+
+            if (sfd.ShowDialog() == true)
+            {
+                var allSchedules = DatabaseService.GetAllSchedules();
+                var sb = new StringBuilder();
+                sb.AppendLine("BEGIN:VCALENDAR");
+                sb.AppendLine("VERSION:2.0");
+                sb.AppendLine("PRODID:-//RMF Personal Workspace//CN");
+                sb.AppendLine("CALSCALE:GREGORIAN");
+                sb.AppendLine("METHOD:PUBLISH");
+
+                foreach (var item in allSchedules)
+                {
+                    if (item.IsDeferred) continue;
+
+                    sb.AppendLine("BEGIN:VEVENT");
+                    sb.AppendLine($"UID:{item.Id}@rmf.local");
+                    sb.AppendLine($"SUMMARY:{EscapeIcsText(item.Title)}");
+
+                    string desc = item.Description ?? "";
+                    if (!string.IsNullOrEmpty(item.Dod))
+                    {
+                        desc += (string.IsNullOrEmpty(desc) ? "" : "\n") + $"[DoD] {item.Dod}";
+                    }
+                    if (!string.IsNullOrEmpty(desc))
+                    {
+                        sb.AppendLine($"DESCRIPTION:{EscapeIcsText(desc)}");
+                    }
+
+                    if (item.IsAllDay)
+                    {
+                        sb.AppendLine($"DTSTART;VALUE=DATE:{item.StartTime:yyyyMMdd}");
+                        sb.AppendLine($"DTEND;VALUE=DATE:{item.EndTime.AddDays(1):yyyyMMdd}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"DTSTART:{item.StartTime:yyyyMMdd\\THHmmss}");
+                        sb.AppendLine($"DTEND:{item.EndTime:yyyyMMdd\\THHmmss}");
+                    }
+
+                    if (!string.IsNullOrEmpty(item.Recurrence) && item.Recurrence != "NONE")
+                    {
+                        string freq = item.Recurrence switch
+                        {
+                            "DAILY" => "FREQ=DAILY",
+                            "WEEKDAYS" => "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+                            "WEEKLY" => "FREQ=WEEKLY",
+                            "MONTHLY" => "FREQ=MONTHLY",
+                            _ => ""
+                        };
+                        if (!string.IsNullOrEmpty(freq))
+                        {
+                            sb.AppendLine($"RRULE:{freq}");
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(item.Category))
+                    {
+                        sb.AppendLine($"CATEGORIES:{EscapeIcsText(item.Category)}");
+                    }
+
+                    sb.AppendLine(item.Status == "COMPLETED" ? "STATUS:COMPLETED" : "STATUS:CONFIRMED");
+                    sb.AppendLine("END:VEVENT");
+                }
+
+                sb.AppendLine("END:VCALENDAR");
+
+                File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                IcsTransferStatusText.Text = $"✅ 成功导出 {allSchedules.Count} 项日程至 {System.IO.Path.GetFileName(sfd.FileName)}！";
+                MessageBox.Show($"成功导出 {allSchedules.Count} 项日程至标准 .ics 文件！可在 Apple Calendar、Outlook 或 Google Calendar 中直接导入打开。", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导出 .ics 失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnImportIcsFileClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var ofd = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "从 iCalendar (.ics) 文件导入日程",
+                Filter = "iCalendar 文件 (*.ics)|*.ics|所有文件 (*.*)|*.*"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                string content = File.ReadAllText(ofd.FileName, Encoding.UTF8);
+                int importedCount = ParseAndImportIcs(content);
+
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+
+                IcsTransferStatusText.Text = $"✅ 成功从 {System.IO.Path.GetFileName(ofd.FileName)} 导入 {importedCount} 项日程！";
+                MessageBox.Show($"成功导入 {importedCount} 项日程！已实时更新到日历主网格中。", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导入 .ics 失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static string EscapeIcsText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Replace("\\", "\\\\").Replace(";", "\\;").Replace(",", "\\,").Replace("\r\n", "\\n").Replace("\n", "\\n");
+    }
+
+    private static string UnescapeIcsText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Replace("\\n", "\n").Replace("\\,", ",").Replace("\\;", ";").Replace("\\\\", "\\");
+    }
+
+    private int ParseAndImportIcs(string icsContent)
+    {
+        var lines = icsContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        int imported = 0;
+        bool inEvent = false;
+
+        string? summary = null;
+        string? description = null;
+        DateTime? dtStart = null;
+        DateTime? dtEnd = null;
+        bool isAllDay = false;
+        string recurrence = "NONE";
+        string category = "外部导入";
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (line == "BEGIN:VEVENT")
+            {
+                inEvent = true;
+                summary = null;
+                description = null;
+                dtStart = null;
+                dtEnd = null;
+                isAllDay = false;
+                recurrence = "NONE";
+                category = "外部导入";
+            }
+            else if (line == "END:VEVENT" && inEvent)
+            {
+                inEvent = false;
+                if (!string.IsNullOrWhiteSpace(summary) && dtStart.HasValue)
+                {
+                    DateTime start = dtStart.Value;
+                    DateTime end = dtEnd.HasValue && dtEnd.Value > start ? dtEnd.Value : start.AddHours(1);
+
+                    var item = new ScheduleItem
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Title = summary,
+                        Description = description ?? "",
+                        StartTime = start,
+                        EndTime = end,
+                        IsAllDay = isAllDay,
+                        Recurrence = recurrence,
+                        Category = category,
+                        Priority = "MEDIUM",
+                        Status = "PENDING",
+                        WorkType = "SHALLOW_WORK",
+                        EstimatedMinutes = (int)(end - start).TotalMinutes,
+                        IsDirty = true
+                    };
+                    DatabaseService.UpsertSchedule(item);
+                    imported++;
+                }
+            }
+            else if (inEvent)
+            {
+                if (line.StartsWith("SUMMARY:", StringComparison.OrdinalIgnoreCase))
+                {
+                    summary = UnescapeIcsText(line.Substring(8).Trim());
+                }
+                else if (line.StartsWith("DESCRIPTION:", StringComparison.OrdinalIgnoreCase))
+                {
+                    description = UnescapeIcsText(line.Substring(12).Trim());
+                }
+                else if (line.StartsWith("DTSTART", StringComparison.OrdinalIgnoreCase))
+                {
+                    int colonIdx = line.IndexOf(':');
+                    if (colonIdx > 0)
+                    {
+                        string dateStr = line.Substring(colonIdx + 1).Trim();
+                        isAllDay = line.Contains("VALUE=DATE");
+                        dtStart = ParseIcsDateTime(dateStr);
+                    }
+                }
+                else if (line.StartsWith("DTEND", StringComparison.OrdinalIgnoreCase))
+                {
+                    int colonIdx = line.IndexOf(':');
+                    if (colonIdx > 0)
+                    {
+                        string dateStr = line.Substring(colonIdx + 1).Trim();
+                        dtEnd = ParseIcsDateTime(dateStr);
+                    }
+                }
+                else if (line.StartsWith("RRULE:", StringComparison.OrdinalIgnoreCase))
+                {
+                    string rrule = line.Substring(6).ToUpperInvariant();
+                    if (rrule.Contains("FREQ=DAILY")) recurrence = "DAILY";
+                    else if (rrule.Contains("BYDAY=MO,TU,WE,TH,FR")) recurrence = "WEEKDAYS";
+                    else if (rrule.Contains("FREQ=WEEKLY")) recurrence = "WEEKLY";
+                    else if (rrule.Contains("FREQ=MONTHLY")) recurrence = "MONTHLY";
+                }
+                else if (line.StartsWith("CATEGORIES:", StringComparison.OrdinalIgnoreCase))
+                {
+                    category = UnescapeIcsText(line.Substring(11).Trim());
+                }
+            }
+        }
+
+        return imported;
+    }
+
+    private static DateTime? ParseIcsDateTime(string dateStr)
+    {
+        try
+        {
+            if (dateStr.Length == 8) // yyyyMMdd
+            {
+                if (DateTime.TryParseExact(dateStr, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                    return d;
+            }
+            else if (dateStr.EndsWith("Z", StringComparison.OrdinalIgnoreCase))
+            {
+                string clean = dateStr.TrimEnd('Z');
+                if (DateTime.TryParseExact(clean, "yyyyMMddTHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dtUtc))
+                    return dtUtc.ToLocalTime();
+            }
+            else
+            {
+                if (DateTime.TryParseExact(dateStr, "yyyyMMddTHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+                    return dt;
+            }
+        }
+        catch { }
+        return null;
     }
 
     // =========================================================================
@@ -2160,9 +3011,8 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var sp = new StackPanel();
-        var titleRow = new StackPanel { Orientation = Orientation.Horizontal };
-        titleRow.Children.Add(new TextBlock
+        var sp = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+        sp.Children.Add(new TextBlock
         {
             Text = item.Title,
             FontSize = 11,
@@ -2170,7 +3020,6 @@ public partial class MainWindow : Window
             Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED)),
             TextTrimming = TextTrimming.CharacterEllipsis
         });
-        sp.Children.Add(titleRow);
 
         string metaText = $"{item.EstimatedMinutes}m · {item.Priority}";
         if (!string.IsNullOrEmpty(item.Dod)) metaText += $" · DoD已设定";
@@ -3177,7 +4026,288 @@ public partial class MainWindow : Window
     private void OnSearchEventsTextChanged(object sender, TextChangedEventArgs e)
     {
         _searchKeyword = SearchEventsInput.Text.Trim();
+        ClearSearchBtn.Visibility = string.IsNullOrEmpty(_searchKeyword) ? Visibility.Collapsed : Visibility.Visible;
         RenderCalendarCanvasOnly();
+        UpdateSearchResultsPopup();
+    }
+
+    private void OnClearSearchClicked(object sender, RoutedEventArgs e)
+    {
+        SearchEventsInput.Clear();
+        SearchResultsPopup.IsOpen = false;
+        RenderCalendarCanvasOnly();
+    }
+
+    private void UpdateSearchResultsPopup()
+    {
+        if (string.IsNullOrWhiteSpace(_searchKeyword) || _searchKeyword.Length < 1)
+        {
+            SearchResultsPopup.IsOpen = false;
+            return;
+        }
+
+        SearchResultsListPanel.Children.Clear();
+        var allEvents = DatabaseService.GetAllSchedules();
+        var matched = allEvents
+            .Where(MatchesFilter)
+            .OrderByDescending(x => x.StartTime)
+            .Take(8)
+            .ToList();
+
+        if (matched.Count == 0)
+        {
+            SearchResultsEmptyText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            SearchResultsEmptyText.Visibility = Visibility.Collapsed;
+            foreach (var item in matched)
+            {
+                var rowBorder = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0x30, 0x31, 0x34)),
+                    BorderThickness = new Thickness(0),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(10, 6, 10, 6),
+                    Margin = new Thickness(0, 0, 0, 4),
+                    Cursor = Cursors.Hand
+                };
+
+                var rowGrid = new Grid();
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var leftSp = new StackPanel { Margin = new Thickness(0, 0, 8, 0) };
+                leftSp.Children.Add(new TextBlock
+                {
+                    Text = item.Title,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED)),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+
+                string meta = $"{item.StartTime:yyyy/MM/dd HH:mm}";
+                if (!string.IsNullOrEmpty(item.Dod)) meta += $" · DoD: {item.Dod}";
+                leftSp.Children.Add(new TextBlock
+                {
+                    Text = meta,
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA6)),
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 2, 0, 0)
+                });
+                Grid.SetColumn(leftSp, 0);
+                rowGrid.Children.Add(leftSp);
+
+                var badge = new Border
+                {
+                    Background = item.WorkType == "DEEP_WORK" ? new SolidColorBrush(Color.FromRgb(0x7C, 0x3A, 0xED)) : (item.WorkType == "REST_BUFFER" ? new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)) : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69))),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 2, 6, 2),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                badge.Child = new TextBlock
+                {
+                    Text = item.WorkType == "DEEP_WORK" ? "深度" : (item.WorkType == "REST_BUFFER" ? "缓冲" : "浅层"),
+                    FontSize = 10,
+                    Foreground = Brushes.White
+                };
+                Grid.SetColumn(badge, 1);
+                rowGrid.Children.Add(badge);
+
+                rowBorder.Child = rowGrid;
+                ScheduleItem captured = item;
+                rowBorder.MouseLeftButtonUp += (s, e) =>
+                {
+                    SearchResultsPopup.IsOpen = false;
+                    _currentDate = captured.StartTime.Date;
+                    _miniCalMonth = captured.StartTime.Date;
+                    RenderAllCalendarViews();
+                    OpenEventQuickDetail(captured);
+                };
+
+                SearchResultsListPanel.Children.Add(rowBorder);
+            }
+        }
+
+        SearchResultsPopup.IsOpen = true;
+    }
+
+    private void OnTopDateHeaderClicked(object sender, MouseButtonEventArgs? e)
+    {
+        GoToDatePicker.SelectedDate = _currentDate;
+        GoToDateModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseGoToDateClicked(object sender, RoutedEventArgs e)
+    {
+        GoToDateModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnConfirmGoToDateClicked(object sender, RoutedEventArgs e)
+    {
+        if (GoToDatePicker.SelectedDate.HasValue)
+        {
+            _currentDate = GoToDatePicker.SelectedDate.Value.Date;
+            _miniCalMonth = _currentDate;
+            RenderAllCalendarViews();
+        }
+        GoToDateModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnQuickDetailDuplicateClicked(object sender, RoutedEventArgs e)
+    {
+        if (_quickDetailItem == null) return;
+        try
+        {
+            var clone = new ScheduleItem
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Title = _quickDetailItem.Title + " (副本)",
+                StartTime = _quickDetailItem.StartTime,
+                EndTime = _quickDetailItem.EndTime,
+                WorkType = _quickDetailItem.WorkType,
+                GoalId = _quickDetailItem.GoalId,
+                Dod = _quickDetailItem.Dod,
+                Category = _quickDetailItem.Category,
+                Description = _quickDetailItem.Description,
+                ColorHex = _quickDetailItem.ColorHex,
+                IsAllDay = _quickDetailItem.IsAllDay,
+                Recurrence = _quickDetailItem.Recurrence,
+                EstimatedMinutes = _quickDetailItem.EstimatedMinutes,
+                Status = "PENDING"
+            };
+
+            DatabaseService.AddSchedule(clone);
+            EventQuickDetailModal.Visibility = Visibility.Collapsed;
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            UpdateCognitiveLoadQuota();
+            MessageBox.Show($"已成功复制日程「{clone.Title}」！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"复制日程失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // 如果焦点在输入框中，不抢占普通文字输入，只处理 Escape
+        if (Keyboard.FocusedElement is TextBox or PasswordBox)
+        {
+            if (e.Key == Key.Escape)
+            {
+                Keyboard.ClearFocus();
+                SearchResultsPopup.IsOpen = false;
+                CloseAllModals();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Escape:
+                SearchResultsPopup.IsOpen = false;
+                CloseAllModals();
+                e.Handled = true;
+                break;
+            case Key.T:
+                OnCalTodayClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.W:
+                OnViewWeekClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.D:
+                OnViewDayClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.M:
+                OnViewMonthClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.A:
+                OnViewAgendaClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.C:
+                OpenEventCreateModal(_currentDate, 9);
+                e.Handled = true;
+                break;
+            case Key.J:
+            case Key.P:
+                OnCalPrevClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.K:
+            case Key.N:
+                OnCalNextClicked(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case Key.G:
+                OnTopDateHeaderClicked(this, null);
+                e.Handled = true;
+                break;
+            case Key.OemQuestion: // '/' 键聚焦搜索框
+                SearchEventsInput.Focus();
+                SearchEventsInput.SelectAll();
+                e.Handled = true;
+                break;
+            case Key.Delete:
+                if (EventQuickDetailModal.Visibility == Visibility.Visible && _quickDetailItem != null)
+                {
+                    OnQuickDetailDeleteClicked(this, new RoutedEventArgs());
+                    e.Handled = true;
+                }
+                break;
+        }
+    }
+
+    private void CloseAllModals()
+    {
+        if (EventQuickDetailModal.Visibility == Visibility.Visible)
+        {
+            EventQuickDetailModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (EventModal.Visibility == Visibility.Visible)
+        {
+            EventModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (GoalModal.Visibility == Visibility.Visible)
+        {
+            GoalModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (BacklogModal.Visibility == Visibility.Visible)
+        {
+            BacklogModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (GoToDateModal.Visibility == Visibility.Visible)
+        {
+            GoToDateModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (ConflictResolutionModal.Visibility == Visibility.Visible)
+        {
+            ConflictResolutionModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (GoogleCalendarSyncModal.Visibility == Visibility.Visible)
+        {
+            GoogleCalendarSyncModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+        if (RightDrawerColumn.Width.Value > 0)
+        {
+            RightDrawerColumn.Width = new GridLength(0);
+        }
     }
 
     // =========================================================================

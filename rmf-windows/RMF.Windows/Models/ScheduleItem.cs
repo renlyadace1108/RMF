@@ -90,4 +90,22 @@ public class ScheduleItem
     /// </summary>
     [JsonPropertyName("is_dirty")]
     public bool IsDirty { get; set; } = false;
+
+    /// <summary>
+    /// 是否为全天日程 (All-Day Event)
+    /// </summary>
+    [JsonPropertyName("is_all_day")]
+    public bool IsAllDay { get; set; } = false;
+
+    /// <summary>
+    /// 重复规则: NONE, DAILY, WEEKLY, WEEKDAYS, MONTHLY
+    /// </summary>
+    [JsonPropertyName("recurrence")]
+    public string Recurrence { get; set; } = "NONE";
+
+    /// <summary>
+    /// 自定义日程专属颜色 Hex (#1A73E8)
+    /// </summary>
+    [JsonPropertyName("color_hex")]
+    public string? ColorHex { get; set; }
 }

@@ -109,7 +109,10 @@ public class DatabaseService
             ["is_deferred"] = "INTEGER DEFAULT 0",
             ["is_backlog"] = "INTEGER DEFAULT 0",
             ["sync_version"] = "INTEGER DEFAULT 1",
-            ["is_dirty"] = "INTEGER DEFAULT 0"
+            ["is_dirty"] = "INTEGER DEFAULT 0",
+            ["is_all_day"] = "INTEGER DEFAULT 0",
+            ["recurrence"] = "TEXT DEFAULT 'NONE'",
+            ["color_hex"] = "TEXT DEFAULT ''"
         };
 
         foreach (var (col, def) in missingCols)
@@ -191,6 +194,11 @@ public class DatabaseService
         return list;
     }
 
+    public static GoalItem? GetGoalById(string id)
+    {
+        return GetAllGoals().FirstOrDefault(g => g.Id == id);
+    }
+
     public static List<GoalItem> GetGoalsHierarchy()
     {
         var all = GetAllGoals();
@@ -254,6 +262,31 @@ public class DatabaseService
 
     // ==================== 日程管理 (Schedules) ====================
 
+    public static List<ScheduleItem> GetAllSchedules()
+    {
+        var list = new List<ScheduleItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex
+            FROM schedules
+            WHERE is_deleted = 0
+            ORDER BY start_time ASC;
+        ";
+
+        using var cmd = new SqliteCommand(sql, conn);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(ReadScheduleFromReader(reader, DateTime.MinValue, DateTime.MaxValue));
+        }
+
+        return list;
+    }
+
     public static List<ScheduleItem> GetTodaySchedules()
     {
         return GetSchedulesForDate(DateTime.Today);
@@ -275,9 +308,14 @@ public class DatabaseService
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex
             FROM schedules
-            WHERE is_deleted = 0 AND is_backlog = 0 AND is_deferred = 0 AND start_time < @end AND end_time >= @start
+            WHERE is_deleted = 0 AND is_backlog = 0 AND is_deferred = 0 
+              AND (
+                  (start_time < @end AND end_time >= @start)
+                  OR (recurrence IS NOT NULL AND recurrence != 'NONE' AND recurrence != '' AND start_time < @end)
+              )
             ORDER BY start_time ASC;
         ";
 
@@ -285,13 +323,81 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@start", startIso);
         cmd.Parameters.AddWithValue("@end", endIso);
 
+        var directEvents = new List<ScheduleItem>();
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
-            list.Add(ReadScheduleFromReader(reader, start, end));
+            directEvents.Add(ReadScheduleFromReader(reader, start, end));
         }
 
-        return list;
+        // 展开重复事件并按起止时间投影
+        var projected = new List<ScheduleItem>();
+        foreach (var item in directEvents)
+        {
+            if (string.IsNullOrEmpty(item.Recurrence) || item.Recurrence == "NONE")
+            {
+                if (item.StartTime < end && item.EndTime >= start)
+                {
+                    projected.Add(item);
+                }
+            }
+            else
+            {
+                // 投影重复事件
+                TimeSpan duration = item.EndTime - item.StartTime;
+                for (DateTime d = start.Date; d < end.Date; d = d.AddDays(1))
+                {
+                    if (d < item.StartTime.Date) continue;
+
+                    bool matches = item.Recurrence switch
+                    {
+                        "DAILY" => true,
+                        "WEEKDAYS" => d.DayOfWeek >= DayOfWeek.Monday && d.DayOfWeek <= DayOfWeek.Friday,
+                        "WEEKLY" => d.DayOfWeek == item.StartTime.DayOfWeek,
+                        "MONTHLY" => d.Day == item.StartTime.Day,
+                        _ => false
+                    };
+
+                    if (matches)
+                    {
+                        if (d == item.StartTime.Date)
+                        {
+                            projected.Add(item);
+                        }
+                        else
+                        {
+                            var clone = new ScheduleItem
+                            {
+                                Id = item.Id,
+                                Title = item.Title,
+                                Description = item.Description,
+                                Category = item.Category,
+                                Priority = item.Priority,
+                                Status = item.Status,
+                                StartTime = d.Add(item.StartTime.TimeOfDay),
+                                EndTime = d.Add(item.StartTime.TimeOfDay).Add(duration),
+                                EstimatedMinutes = item.EstimatedMinutes,
+                                GoalId = item.GoalId,
+                                WorkType = item.WorkType,
+                                Dod = item.Dod,
+                                ActualMinutes = item.ActualMinutes,
+                                InterruptionMinutes = item.InterruptionMinutes,
+                                IsDeferred = item.IsDeferred,
+                                IsBacklog = item.IsBacklog,
+                                SyncVersion = item.SyncVersion,
+                                IsDirty = item.IsDirty,
+                                IsAllDay = item.IsAllDay,
+                                Recurrence = item.Recurrence,
+                                ColorHex = item.ColorHex
+                            };
+                            projected.Add(clone);
+                        }
+                    }
+                }
+            }
+        }
+
+        return projected.OrderBy(e => e.StartTime).ToList();
     }
 
     public static List<ScheduleItem> GetBacklogSchedules()
@@ -302,7 +408,8 @@ public class DatabaseService
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 1 AND is_deferred = 0
             ORDER BY priority DESC, created_at DESC;
@@ -326,7 +433,8 @@ public class DatabaseService
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex
             FROM schedules
             WHERE is_deleted = 0 AND is_deferred = 1
             ORDER BY updated_at DESC;
@@ -349,7 +457,8 @@ public class DatabaseService
 
         string sql = @"
             SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty
+                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                   is_all_day, recurrence, color_hex
             FROM schedules
             WHERE id = @id AND is_deleted = 0
             LIMIT 1;
@@ -388,7 +497,10 @@ public class DatabaseService
             IsDeferred = !reader.IsDBNull(15) && reader.GetInt32(15) == 1,
             IsBacklog = !reader.IsDBNull(16) && reader.GetInt32(16) == 1,
             SyncVersion = reader.IsDBNull(17) ? 1 : reader.GetInt32(17),
-            IsDirty = !reader.IsDBNull(18) && reader.GetInt32(18) == 1
+            IsDirty = !reader.IsDBNull(18) && reader.GetInt32(18) == 1,
+            IsAllDay = reader.FieldCount > 19 && !reader.IsDBNull(19) && reader.GetInt32(19) == 1,
+            Recurrence = reader.FieldCount > 20 && !reader.IsDBNull(20) ? reader.GetString(20) : "NONE",
+            ColorHex = reader.FieldCount > 21 && !reader.IsDBNull(21) ? reader.GetString(21) : null
         };
     }
 
@@ -426,9 +538,11 @@ public class DatabaseService
 
         string sql = @"
             INSERT INTO schedules (id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted, created_at, updated_at,
-                                  goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty)
+                                  goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+                                  is_all_day, recurrence, color_hex)
             VALUES (@id, @title, @description, @category, @priority, @status, @start_time, @end_time, @estimated_minutes, 0, @now, @now,
-                    @goal_id, @work_type, @dod, @actual_minutes, @interruption_minutes, @is_deferred, @is_backlog, @sync_version, 1)
+                    @goal_id, @work_type, @dod, @actual_minutes, @interruption_minutes, @is_deferred, @is_backlog, @sync_version, 1,
+                    @is_all_day, @recurrence, @color_hex)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -447,6 +561,9 @@ public class DatabaseService
                 is_backlog = excluded.is_backlog,
                 sync_version = sync_version + 1,
                 is_dirty = 1,
+                is_all_day = excluded.is_all_day,
+                recurrence = excluded.recurrence,
+                color_hex = excluded.color_hex,
                 updated_at = excluded.updated_at;
         ";
 
@@ -468,6 +585,9 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@is_deferred", item.IsDeferred ? 1 : 0);
         cmd.Parameters.AddWithValue("@is_backlog", item.IsBacklog ? 1 : 0);
         cmd.Parameters.AddWithValue("@sync_version", item.SyncVersion);
+        cmd.Parameters.AddWithValue("@is_all_day", item.IsAllDay ? 1 : 0);
+        cmd.Parameters.AddWithValue("@recurrence", item.Recurrence ?? "NONE");
+        cmd.Parameters.AddWithValue("@color_hex", (object?)item.ColorHex ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
 
         cmd.ExecuteNonQuery();

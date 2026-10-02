@@ -9,7 +9,8 @@
         MinHeight="680" MinWidth="1050"
         WindowStartupLocation="CenterScreen"
         Background="#202124"
-        Foreground="#E8EAED">
+        Foreground="#E8EAED"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
 
     <Window.Resources>
         <!-- Google Calendar Dark Theme Colors -->
@@ -179,23 +180,48 @@
                 <!-- Left: Hamburger, Today, Chevrons, Date Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="HamburgerBtn" Content="☰" Style="{StaticResource GoogleTopBtnStyle}" Width="40" Height="40" FontSize="18" ToolTip="主菜单 (展开/收起左侧栏)" Click="OnToggleLeftSidebarClicked" Margin="0,0,14,0" />
-                    <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#E8EAED" Padding="14,6" FontSize="14" FontWeight="Medium" Margin="0,0,14,0" Click="OnCalTodayClicked" />
-                    <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="前一个时段" Click="OnCalPrevClicked" Margin="0,0,2,0" />
-                    <Button x:Name="TopNextBtn" Content="›" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="后一个时段" Click="OnCalNextClicked" Margin="0,0,18,0" />
-                    <TextBlock x:Name="TopDateHeaderTitle" Text="2026年10月" FontSize="20" FontWeight="Normal" Foreground="#E8EAED" VerticalAlignment="Center" />
+                    <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#E8EAED" Padding="14,6" FontSize="14" FontWeight="Medium" Margin="0,0,14,0" Click="OnCalTodayClicked" ToolTip="跳转到今天 (快捷键: T)" />
+                    <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="前一个时段 (快捷键: J 或 P)" Click="OnCalPrevClicked" Margin="0,0,2,0" />
+                    <Button x:Name="TopNextBtn" Content="›" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="22" FontWeight="Bold" ToolTip="后一个时段 (快捷键: K 或 N)" Click="OnCalNextClicked" Margin="0,0,14,0" />
+                    <Border Background="Transparent" CornerRadius="4" Padding="6,4" Cursor="Hand" MouseLeftButtonUp="OnTopDateHeaderClicked" ToolTip="点击快速跳转指定日期 (快捷键: G)">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="TopDateHeaderTitle" Text="2026年10月" FontSize="20" FontWeight="Normal" Foreground="#E8EAED" VerticalAlignment="Center" />
+                            <TextBlock Text=" ▾" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="2,2,0,0" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
-                <!-- Center: Google Search Pill -->
-                <Border Grid.Column="1" HorizontalAlignment="Center" Background="#303134" CornerRadius="8" Width="300" Height="40" Padding="12,0" VerticalAlignment="Center" Margin="16,0">
-                    <Grid VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="🔍" FontSize="13" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBox x:Name="SearchEventsInput" Grid.Column="1" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" FontSize="13" VerticalAlignment="Center" TextChanged="OnSearchEventsTextChanged" />
-                    </Grid>
-                </Border>
+                <!-- Center: Google Search Pill with Floating Dropdown -->
+                <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="#303134" CornerRadius="8" MaxWidth="280" Width="260" Height="36" Padding="10,0" VerticalAlignment="Center" Margin="8,0">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="🔍" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox x:Name="SearchEventsInput" Grid.Column="1" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" FontSize="12" VerticalAlignment="Center" TextChanged="OnSearchEventsTextChanged" ToolTip="搜索日程、DoD 或标签 (快捷键: /)" />
+                            <Button Grid.Column="2" x:Name="ClearSearchBtn" Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" Cursor="Hand" Visibility="Collapsed" Click="OnClearSearchClicked" ToolTip="清空搜索" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Search Results Floating Popup Dropdown -->
+                    <Popup x:Name="SearchResultsPopup" PlacementTarget="{Binding ElementName=SearchEventsInput}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" VerticalOffset="8" HorizontalOffset="-30">
+                        <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="8" Width="360" MaxHeight="320" Padding="8">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.5" Color="Black" />
+                            </Border.Effect>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="🔍 搜索匹配结果" FontSize="11" Foreground="#9AA0A6" Margin="4,2,4,6" FontWeight="SemiBold" />
+                                    <StackPanel x:Name="SearchResultsListPanel" />
+                                    <TextBlock x:Name="SearchResultsEmptyText" Text="未找到匹配的日程" FontSize="11" Foreground="#71717A" Margin="4,4,4,4" Visibility="Collapsed" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
+                </Grid>
 
                 <!-- Right: Sync Telemetry Badge, Conflict Button, View Switcher, Settings, Avatar -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -210,15 +236,15 @@
                     <!-- Conflict Resolution Trigger Button (Visible or available) -->
                     <Button x:Name="ConflictCenterBtn" Content="🔀 冲突决议" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#FBBF24" BorderBrush="#F59E0B" Padding="10,5" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnOpenConflictModalClicked" ToolTip="三方编辑冲突决议中心" />
 
-                    <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="13" FontWeight="Medium" Margin="0,0,14,0" Click="OnSyncGoogleCalendarClicked" />
+                    <Button x:Name="CalSyncNowBtn" Content="🔄 同步" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="12,5" FontSize="13" FontWeight="Medium" Margin="0,0,14,0" Click="OnSyncGoogleCalendarClicked" ToolTip="立即同步 Google 日历" />
 
                     <!-- View Selector: 周 (Week) / 天 (Day) / 月 (Month) / 日程 (Agenda) -->
                     <Border Background="#303134" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,14,0">
                         <StackPanel Orientation="Horizontal">
-                            <Button x:Name="ViewWeekBtn" Content="周" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="12,4" FontSize="13" FontWeight="SemiBold" Click="OnViewWeekClicked" />
-                            <Button x:Name="ViewDayBtn" Content="天" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewDayClicked" />
-                            <Button x:Name="ViewMonthBtn" Content="月" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewMonthClicked" />
-                            <Button x:Name="ViewAgendaBtn" Content="日程" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewAgendaClicked" />
+                            <Button x:Name="ViewWeekBtn" Content="周" Style="{StaticResource GoogleTopBtnStyle}" Background="#1A73E8" Foreground="#FFFFFF" Padding="12,4" FontSize="13" FontWeight="SemiBold" Click="OnViewWeekClicked" ToolTip="周视图 (快捷键: W)" />
+                            <Button x:Name="ViewDayBtn" Content="天" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
+                            <Button x:Name="ViewMonthBtn" Content="月" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewMonthClicked" ToolTip="月视图 (快捷键: M)" />
+                            <Button x:Name="ViewAgendaBtn" Content="日程" Style="{StaticResource GoogleTopBtnStyle}" Foreground="#E8EAED" Padding="12,4" FontSize="13" FontWeight="Normal" Click="OnViewAgendaClicked" ToolTip="日程清单 (快捷键: A)" />
                         </StackPanel>
                     </Border>
 
@@ -300,14 +326,18 @@
                         <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,14">
                             <StackPanel>
                                 <Grid Margin="0,0,0,8">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="📥" FontSize="13" Margin="0,0,6,0" />
                                         <TextBlock Text="待办敏捷池 (Backlog)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
                                         <Border x:Name="BacklogCountBadge" Background="#37383B" CornerRadius="10" Padding="6,1" Margin="6,0,0,0">
                                             <TextBlock x:Name="BacklogCountText" Text="0" FontSize="10" Foreground="#8AB4F8" FontWeight="Bold" />
                                         </Border>
                                     </StackPanel>
-                                    <Button Content="+" Style="{StaticResource GoogleTopBtnStyle}" Width="24" Height="24" FontSize="14" HorizontalAlignment="Right" ToolTip="添加待办任务" Click="OnAddBacklogClicked" />
+                                    <Button Grid.Column="1" Content="+" Style="{StaticResource GoogleTopBtnStyle}" Width="24" Height="24" FontSize="14" HorizontalAlignment="Right" ToolTip="添加待办任务" Click="OnAddBacklogClicked" />
                                 </Grid>
 
                                 <TextBlock Text="💡 提示：点击或拖拽卡片，可直接投放至主时间轴任意空白槽排期" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,6" TextWrapping="Wrap" />
@@ -321,11 +351,15 @@
                         <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,14">
                             <StackPanel>
                                 <Grid Margin="0,0,0,8">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="🎯" FontSize="13" Margin="0,0,6,0" />
                                         <TextBlock Text="目标层级树 (OKR)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
                                     </StackPanel>
-                                    <Button Content="+ 目标" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnAddGoalClicked" ToolTip="新增战略目标 (愿景/季度/周成果)" />
+                                    <Button Grid.Column="1" Content="+ 目标" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnAddGoalClicked" ToolTip="新增战略目标 (愿景/季度/周成果)" />
                                 </Grid>
 
                                 <TextBlock Text="长期愿景 ➔ 季度目标 ➔ 周关键任务" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,8" />
@@ -535,13 +569,17 @@
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="🧠 深度工作配额 (DeepWork)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
-                                                <Border x:Name="AuditHealthScoreBadge" Background="#132E27" CornerRadius="4" Padding="6,1" Margin="8,0,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🧠 深度工作配额" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
+                                                <Border x:Name="AuditHealthScoreBadge" Background="#132E27" CornerRadius="4" Padding="6,1" Margin="6,0,0,0">
                                                     <TextBlock x:Name="AuditHealthScoreText" Text="体检: 100分" FontSize="10" Foreground="#34D399" FontWeight="Bold" />
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock x:Name="CognitiveLoadText" Text="已用 0.0h / 4.5h (0%)" FontSize="11" Foreground="#8AB4F8" HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Column="1" x:Name="CognitiveLoadText" Text="已用 0.0h / 4.5h (0%)" FontSize="11" Foreground="#8AB4F8" VerticalAlignment="Center" Margin="6,0,0,0" />
                                         </Grid>
                                         <ProgressBar x:Name="CognitiveLoadProgressBar" Minimum="0" Maximum="270" Value="0" Height="8" Background="#1E1B4B" Foreground="#8B5CF6" Margin="0,0,0,6" />
                                         
@@ -570,8 +608,12 @@
                                 <Border x:Name="AutoSchedulePreviewCard" Background="#1E1E2E" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12" Visibility="Collapsed">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="📋 客观重排方案建议 (待确认)" FontSize="12" FontWeight="Bold" Foreground="#93C5FD" VerticalAlignment="Center" />
-                                            <Button Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCancelAutoSchedulePlanClicked" />
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="📋 客观重排方案建议 (待确认)" FontSize="12" FontWeight="Bold" Foreground="#93C5FD" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCancelAutoSchedulePlanClicked" />
                                         </Grid>
 
                                         <!-- 决策归因日志 -->
@@ -600,8 +642,12 @@
                                 <Border x:Name="AuditScanResultCard" Background="#231A38" BorderBrush="#5B21B6" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12" Visibility="Collapsed">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="🩺 排期审计体检剖析" FontSize="12" FontWeight="Bold" Foreground="#D8B4FE" VerticalAlignment="Center" />
-                                            <Button Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCloseAuditScanResultClicked" />
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🩺 排期审计体检剖析" FontSize="12" FontWeight="Bold" Foreground="#D8B4FE" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <Button Grid.Column="1" Content="✕" Background="Transparent" Foreground="#9AA0A6" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnCloseAuditScanResultClicked" />
                                         </Grid>
 
                                         <TextBlock x:Name="AuditScanSummaryText" Text="体检扫描中..." FontSize="11" Foreground="#E9D5FF" LineHeight="16" Margin="0,0,0,8" TextWrapping="Wrap" />
@@ -624,8 +670,12 @@
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,4">
-                                            <TextBlock Text="📈 历史乐观偏差率 (α 乘数)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
-                                            <Border Background="#3B1C54" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="📈 历史乐观偏差率 (α 乘数)" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <Border Grid.Column="1" Background="#3B1C54" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right">
                                                 <TextBlock x:Name="OptimismAlphaText" Text="α = 1.35x" FontSize="12" FontWeight="Bold" Foreground="#D8B4FE" />
                                             </Border>
                                         </Grid>
@@ -639,13 +689,17 @@
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                                 <TextBlock Text="❄️ 次要延期冻结池" FontSize="12" FontWeight="SemiBold" Foreground="#E8EAED" />
                                                 <Border Background="#1E293B" CornerRadius="10" Padding="6,1" Margin="6,0,0,0">
                                                     <TextBlock x:Name="DeferredCountText" Text="0" FontSize="10" Foreground="#94A3B8" FontWeight="Bold" />
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="锁定今日不可排入" FontSize="10" Foreground="#F472B6" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="锁定今日不可排入" FontSize="10" Foreground="#F472B6" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0" />
                                         </Grid>
                                         <TextBlock Text="超出 4.5h 负荷硬顶或被审计驳回的任务自动在此冻结：" FontSize="10" Foreground="#9AA0A6" Margin="0,0,0,6" />
                                         
@@ -766,8 +820,12 @@
                                     <TextBlock x:Name="ExpenseResultText" Text="" Foreground="#10B981" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
 
                                     <Grid Margin="0,0,0,10">
-                                        <TextBlock Text="今日流水明细" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" />
-                                        <TextBlock x:Name="FinanceSummaryText" Text="合计: ¥ 0.00" HorizontalAlignment="Right" FontSize="13" FontWeight="Bold" Foreground="#F43F5E" />
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="今日流水明细" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" x:Name="FinanceSummaryText" Text="合计: ¥ 0.00" HorizontalAlignment="Right" FontSize="13" FontWeight="Bold" Foreground="#F43F5E" VerticalAlignment="Center" />
                                     </Grid>
                                     <StackPanel x:Name="ExpenseHistoryPanel" />
                                 </StackPanel>
@@ -794,12 +852,34 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- 离线通用 iCal (.ics) 导入导出 (兼容 Apple Calendar, Outlook, Google Calendar) -->
+                                <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="📁 通用日历文件导入导出 (.ics)" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" Margin="0,0,0,6" />
+                                        <TextBlock Text="符合 RFC 5545 国际标准，支持与 Apple 日历、Outlook、各类手机离线互通。" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,10" TextWrapping="Wrap" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="📤 导出 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#8AB4F8" BorderBrush="#5F6368" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnExportIcsFileClicked" ToolTip="导出全本日历至标准 .ics 文件" />
+                                            <Button Grid.Column="2" Content="📥 导入 .ics" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#34D399" BorderBrush="#059669" Padding="8,7" FontSize="12" FontWeight="Medium" Click="OnImportIcsFileClicked" ToolTip="从外部 .ics 文件批量导入日程" />
+                                        </Grid>
+                                        <TextBlock x:Name="IcsTransferStatusText" Text="" FontSize="11" Foreground="#10B981" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Gemini API Model -->
                                 <Border Background="#28292C" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="🧠 接入模型选择" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                                            <Button x:Name="FetchModelsBtn" Content="🔄 联网拉取模型" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnFetchModelsClicked" />
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🧠 接入模型选择" FontSize="13" FontWeight="Bold" Foreground="#E8EAED" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" x:Name="FetchModelsBtn" Content="🔄 联网拉取模型" Background="Transparent" Foreground="#8AB4F8" BorderThickness="0" FontSize="11" HorizontalAlignment="Right" Cursor="Hand" Click="OnFetchModelsClicked" />
                                         </Grid>
                                         <TextBlock x:Name="FetchModelsStatusText" Text="" FontSize="11" Foreground="#8AB4F8" Margin="0,0,0,6" TextWrapping="Wrap" />
                                         <ComboBox x:Name="ModelSelectCombo" SelectedIndex="0" Background="#37383B" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,10" SelectionChanged="OnModelSelectionChanged">
@@ -841,6 +921,118 @@
             </Border>
         </Grid>
 
+        <!-- ================= UPCOMING EVENT TOAST BANNER (GOOGLE CALENDAR REMINDER) ================= -->
+        <Border x:Name="UpcomingEventToast" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,24,0" Background="#1E1B4B" BorderBrush="#8B5CF6" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Panel.ZIndex="1000" MaxWidth="380">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.6" Color="Black" />
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="🔔" FontSize="18" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="UpcomingEventTimeText" Text="即将开始 (10分钟后)" FontSize="11" FontWeight="Bold" Foreground="#A78BFA" />
+                    <TextBlock x:Name="UpcomingEventTitleText" Text="日程任务标题" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Button Content="查看" Background="#6D28D9" Foreground="#FFFFFF" BorderThickness="0" Padding="8,4" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,6,0" Click="OnUpcomingEventViewClicked" />
+                    <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="24" Height="24" FontSize="11" Click="OnUpcomingEventDismissClicked" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= MODAL: EVENT QUICK DETAIL CARD (GOOGLE CALENDAR STYLE) ================= -->
+        <Grid x:Name="EventQuickDetailModal" Visibility="Collapsed" Background="#66000000" Grid.RowSpan="2" Panel.ZIndex="998">
+            <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="4" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <!-- Top Action Header: Color bar / Work type indicator + Actions (Edit, Status, Delete, Close) -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Rectangle x:Name="QuickDetailColorStripe" Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="#1A73E8" Margin="0,0,8,0" />
+                            <Border x:Name="QuickDetailWorkTypeBadge" Background="#1E1B4B" CornerRadius="4" Padding="6,2">
+                                <TextBlock x:Name="QuickDetailWorkTypeText" Text="🧠 深度工作" FontSize="11" Foreground="#C084FC" FontWeight="SemiBold" />
+                            </Border>
+                            <Border x:Name="QuickDetailRecurrenceBadge" Background="#374151" CornerRadius="4" Padding="6,2" Margin="6,0,0,0" Visibility="Collapsed">
+                                <TextBlock x:Name="QuickDetailRecurrenceText" Text="🔁 每天重复" FontSize="10" Foreground="#E5E7EB" />
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Action icons on the right -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button x:Name="QuickDetailDuplicateBtn" Content="📋" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="13" ToolTip="复制日程 (Duplicate)" Click="OnQuickDetailDuplicateClicked" Margin="0,0,4,0" />
+                            <Button x:Name="QuickDetailCompleteBtn" Content="✓" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="14" ToolTip="标记为已完成 / 未完成" Click="OnQuickDetailToggleStatusClicked" Margin="0,0,4,0" />
+                            <Button x:Name="QuickDetailEditBtn" Content="✏️" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="13" ToolTip="编辑日程详情" Click="OnQuickDetailEditClicked" Margin="0,0,4,0" />
+                            <Button x:Name="QuickDetailDeleteBtn" Content="🗑️" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="13" Foreground="#F87171" ToolTip="删除日程" Click="OnQuickDetailDeleteClicked" Margin="0,0,6,0" />
+                            <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="32" Height="32" FontSize="14" ToolTip="关闭 (Esc)" Click="OnCloseQuickDetailClicked" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Event Title -->
+                    <TextBlock x:Name="QuickDetailTitleText" Text="日程标题" FontSize="18" FontWeight="Bold" Foreground="#E8EAED" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                    <!-- Time & Date -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                        <TextBlock Text="🕒" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="QuickDetailTimeText" Text="2026年10月2日 · 09:00 - 10:30" FontSize="13" Foreground="#9AA0A6" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Linked Goal (if any) -->
+                    <StackPanel x:Name="QuickDetailGoalRow" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10" Visibility="Collapsed">
+                        <TextBlock Text="🎯" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="QuickDetailGoalText" Text="关联目标: 核心战役 Q4" FontSize="12" Foreground="#60A5FA" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Definition of Done (DoD) -->
+                    <Border x:Name="QuickDetailDodBorder" Background="#1E1B4B" BorderBrush="#6D28D9" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="📋 验收标准 (Definition of Done)：" FontSize="11" FontWeight="Bold" Foreground="#C084FC" Margin="0,0,0,4" />
+                            <TextBlock x:Name="QuickDetailDodText" Text="完成相关代码编写与自测" FontSize="12" Foreground="#E9D5FF" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Description / Notes (if any) -->
+                    <Border x:Name="QuickDetailDescBorder" Background="#202124" CornerRadius="6" Padding="10,8" Margin="0,0,0,12" Visibility="Collapsed">
+                        <TextBlock x:Name="QuickDetailDescText" Text="详细描述内容..." FontSize="12" Foreground="#9AA0A6" TextWrapping="Wrap" />
+                    </Border>
+
+                    <!-- Actual Time & Status Metrics -->
+                    <Grid Background="#202124" Margin="0,0,0,4">
+                        <Border CornerRadius="6" Padding="10,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="当前状态" FontSize="10" Foreground="#9AA0A6" />
+                                    <TextBlock x:Name="QuickDetailStatusText" Text="待进行" FontSize="12" FontWeight="SemiBold" Foreground="#8AB4F8" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="实际耗时" FontSize="10" Foreground="#9AA0A6" />
+                                    <TextBlock x:Name="QuickDetailActualText" Text="0 分钟" FontSize="12" FontWeight="SemiBold" Foreground="#34D399" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="打断损耗" FontSize="10" Foreground="#9AA0A6" />
+                                    <TextBlock x:Name="QuickDetailInterruptText" Text="0 分钟" FontSize="12" FontWeight="SemiBold" Foreground="#F87171" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- ================= MODAL 1: GOOGLE CALENDAR EVENT DIALOG (WITH DOD & COGNITIVE LEVEL) ================= -->
         <Grid x:Name="EventModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">
             <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
@@ -848,16 +1040,39 @@
                     <StackPanel>
                         <!-- Header with Title & Close -->
                         <Grid Margin="0,0,0,14">
-                            <TextBlock x:Name="EventModalHeaderTitle" Text="添加日程时间块" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                            <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseEventModalClicked" />
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" x:Name="EventModalHeaderTitle" Text="添加日程时间块" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseEventModalClicked" ToolTip="关闭 (Esc)" />
                         </Grid>
 
                         <!-- Event Title Input -->
                         <TextBlock Text="日程任务标题：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
                         <TextBox x:Name="EventTitleInput" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" BorderThickness="1" Padding="10,8" FontSize="14" Margin="0,0,0,12" />
 
+                        <!-- All-Day & Recurrence Controls -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="EventIsAllDayCheck" Content="全天日程 (All-Day)" Foreground="#E8EAED" FontSize="12" VerticalAlignment="Center" Checked="OnEventIsAllDayChecked" Unchecked="OnEventIsAllDayChecked" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="🔁 重复:" FontSize="12" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <ComboBox x:Name="EventRecurrenceCombo" Background="#202124" Foreground="#FFFFFF" Padding="8,4" FontSize="11" Width="140" SelectedIndex="0">
+                                    <ComboBoxItem Content="不重复" Tag="NONE" />
+                                    <ComboBoxItem Content="每天" Tag="DAILY" />
+                                    <ComboBoxItem Content="工作日 (周一至周五)" Tag="WEEKDAYS" />
+                                    <ComboBoxItem Content="每周" Tag="WEEKLY" />
+                                    <ComboBoxItem Content="每月" Tag="MONTHLY" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
                         <!-- Date & Time Row -->
-                        <Grid Margin="0,0,0,12">
+                        <Grid x:Name="EventDateTimeGrid" Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.5*" />
                                 <ColumnDefinition Width="8" />
@@ -897,6 +1112,18 @@
                         <!-- Description Input -->
                         <TextBlock Text="说明或成果：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
                         <TextBox x:Name="EventDescInput" Background="#202124" Foreground="#E8EAED" BorderBrush="#3C4043" BorderThickness="1" Padding="10,8" FontSize="12" Height="50" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,12" />
+
+                        <!-- 日程主题色 (Color) -->
+                        <TextBlock Text="日程主题色 (Color)：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
+                        <ComboBox x:Name="EventColorCombo" Background="#202124" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,12" SelectedIndex="0">
+                            <ComboBoxItem Content="🔵 默认蓝 (#1A73E8)" Tag="#1A73E8" />
+                            <ComboBoxItem Content="🟢 翡翠绿 (#059669)" Tag="#059669" />
+                            <ComboBoxItem Content="🟣 薰衣紫 (#7C3AED)" Tag="#7C3AED" />
+                            <ComboBoxItem Content="🟠 琥珀橙 (#D97706)" Tag="#D97706" />
+                            <ComboBoxItem Content="🔴 玫瑰红 (#DC2626)" Tag="#DC2626" />
+                            <ComboBoxItem Content="🩵 青碧色 (#0891B2)" Tag="#0891B2" />
+                            <ComboBoxItem Content="🔘 炭石灰 (#4B5563)" Tag="#4B5563" />
+                        </ComboBox>
 
                         <!-- Actuals & Tracking Row (用于复盘与 P&L) -->
                         <Grid Margin="0,0,0,16">
@@ -944,8 +1171,12 @@
             <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="460" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
                 <StackPanel>
                     <Grid Margin="0,0,0,14">
-                        <TextBlock x:Name="GoalModalHeaderTitle" Text="🎯 创建战略层级目标" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                        <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoalModalClicked" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="GoalModalHeaderTitle" Text="🎯 创建战略层级目标" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoalModalClicked" ToolTip="关闭 (Esc)" />
                     </Grid>
 
                     <TextBlock Text="目标层级 (Level)：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
@@ -980,8 +1211,12 @@
             <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="460" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
                 <StackPanel>
                     <Grid Margin="0,0,0,14">
-                        <TextBlock Text="📥 添加待办任务至敏捷池" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" />
-                        <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseBacklogModalClicked" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="📥 添加待办任务至敏捷池" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseBacklogModalClicked" ToolTip="关闭 (Esc)" />
                     </Grid>
 
                     <TextBlock Text="任务名称：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,4" />
@@ -1027,11 +1262,15 @@
             <Border Background="#28292C" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="12" Width="680" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
                 <StackPanel>
                     <Grid Margin="0,0,0,14">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="🔀" FontSize="20" Margin="0,0,8,0" />
                             <TextBlock Text="多端增量同步三方冲突决议中心" FontSize="16" FontWeight="Bold" Foreground="#E8EAED" />
                         </StackPanel>
-                        <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseConflictModalClicked" />
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseConflictModalClicked" ToolTip="关闭 (Esc)" />
                     </Grid>
 
                     <TextBlock Text="检测到移动端/云端与桌面端在同一时间切片发生冲突，请对比版本差异并选择决议策略：" FontSize="12" Foreground="#9AA0A6" Margin="0,0,0,14" />
@@ -1087,11 +1326,15 @@
             <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Padding="24" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="📅" FontSize="18" Margin="0,0,8,0" />
                             <TextBlock Text="Google Calendar 日历同步配置" FontSize="16" FontWeight="SemiBold" Foreground="#E8EAED" />
                         </StackPanel>
-                        <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoogleCalendarConfigClicked" />
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoogleCalendarConfigClicked" ToolTip="关闭 (Esc)" />
                     </Grid>
 
                     <Border Background="#202124" BorderBrush="#3C4043" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14">
@@ -1116,6 +1359,36 @@
                             <Button x:Name="SaveGoogleCalSyncBtn" Content="💾 保存并立即同步" Style="{StaticResource GoogleActionBtnStyle}" Padding="18,8" FontWeight="SemiBold" FontSize="13" Cursor="Hand" Click="OnSaveGoogleCalendarSyncClicked" />
                         </StackPanel>
                     </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL 6: 快速跳转指定日期 (GO TO DATE) ================= -->
+        <Grid x:Name="GoToDateModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="999">
+            <Border Background="#28292C" BorderBrush="#5F6368" BorderThickness="1" CornerRadius="12" Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="22">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="4" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📅" FontSize="16" Margin="0,0,8,0" />
+                            <TextBlock Text="跳转到指定日期" FontSize="15" FontWeight="SemiBold" Foreground="#E8EAED" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Width="28" Height="28" HorizontalAlignment="Right" Click="OnCloseGoToDateClicked" ToolTip="关闭 (Esc)" />
+                    </Grid>
+
+                    <TextBlock Text="选择目标年月日：" FontSize="11" Foreground="#9AA0A6" Margin="0,0,0,6" />
+                    <DatePicker x:Name="GoToDatePicker" Background="#202124" Foreground="#E8EAED" BorderBrush="#5F6368" Margin="0,0,0,18" Padding="6" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="取消" Background="Transparent" Foreground="#E8EAED" BorderThickness="0" Padding="14,6" FontSize="12" Cursor="Hand" Margin="0,0,8,0" Click="OnCloseGoToDateClicked" />
+                        <Button Content="立即跳转" Style="{StaticResource GoogleActionBtnStyle}" Padding="18,6" FontSize="12" FontWeight="SemiBold" Click="OnConfirmGoToDateClicked" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>
