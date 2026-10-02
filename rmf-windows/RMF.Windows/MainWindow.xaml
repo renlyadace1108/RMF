@@ -1,0 +1,167 @@
+<ui:FluentWindow x:Class="RMF.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:RMF.Windows"
+        mc:Ignorable="d"
+        Title="RMF - Renly Manage Platform" 
+        Height="680" Width="1060"
+        MinHeight="500" MinWidth="800"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Custom TitleBar -->
+        <ui:TitleBar Grid.Row="0" Title="RMF (Renly Manage Platform) - 个人多端中枢" ShowMaximize="True" ShowMinimize="True" />
+
+        <!-- Main Body -->
+        <Grid Grid.Row="1" Margin="16,8,16,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Navigation Panel -->
+            <Border Grid.Column="0" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Margin="0,0,12,0" Padding="12">
+                <StackPanel>
+                    <TextBlock Text="Renly Manage" FontSize="18" FontWeight="SemiBold" Margin="8,8,8,16" />
+                    
+                    <ui:Button Name="NavScheduleBtn" Content="📅  日程与时间表" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavScheduleClicked" Appearance="Primary" />
+                    <ui:Button Name="NavFocusBtn" Content="⏱️  专注与AI监管" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavFocusClicked" Appearance="Secondary" />
+                    <ui:Button Name="NavFinanceBtn" Content="💰  收入与支出" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavFinanceClicked" Appearance="Secondary" />
+                    <ui:Button Name="NavSyncBtn" Content="☁️  Google同步" HorizontalAlignment="Stretch" Margin="0,0,0,6" Click="OnNavSyncClicked" Appearance="Secondary" />
+
+                    <Separator Margin="0,16,0,16" />
+
+                    <!-- Live Hardware / Memory Footprint Badge -->
+                    <Border CornerRadius="6" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Padding="10">
+                        <StackPanel>
+                            <TextBlock Text="⚡ 性能与轻量化监控" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Name="MemoryUsageText" Text="内存: 24.5 MB" FontSize="14" FontWeight="Bold" Margin="0,4,0,2" />
+                            <TextBlock Name="CpuUsageText" Text="CPU: 0.0% (纯原生硬件渲染)" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <ui:Button Content="一键压制工作集内存" Appearance="Secondary" HorizontalAlignment="Stretch" Margin="0,8,0,0" Click="OnTrimMemoryClicked" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Content Area -->
+            <Border Grid.Column="1" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" Padding="20">
+                <Grid>
+                    <!-- Schedule View -->
+                    <StackPanel Name="ScheduleView" Visibility="Visible">
+                        <TextBlock Text="📅 今日日程与时间块 (Schedule &amp; Timetable)" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+                        
+                        <ui:CardControl Margin="0,0,0,12">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="09:30 - 11:30 | 核心研发" FontWeight="SemiBold" FontSize="15" />
+                                    <TextBlock Text="RMF Windows 客户端轻量化架构搭建与 Win32 前台采集" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:Button Content="执行中" Appearance="Primary" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,12">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="14:00 - 15:30 | AI 监管联动" FontWeight="SemiBold" FontSize="15" />
+                                    <TextBlock Text="接入 Google Gemini API 进行日程偏差与专注复盘" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:Button Content="待开始" Appearance="Secondary" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,12">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="16:00 - 17:00 | 多端协同" FontWeight="SemiBold" FontSize="15" />
+                                    <TextBlock Text="Google Drive AppData 增量同步通道联调" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:Button Content="待开始" Appearance="Secondary" />
+                        </ui:CardControl>
+                    </StackPanel>
+
+                    <!-- AI Supervision View -->
+                    <StackPanel Name="FocusView" Visibility="Collapsed">
+                        <TextBlock Text="⏱️ 专注管理与 Gemini AI 监管中枢" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+                        <ui:CardControl Margin="0,0,0,12">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="📡 当前 Windows 前台活跃窗口实时嗅探" FontWeight="SemiBold" FontSize="14" />
+                                    <TextBlock Name="ActiveWindowText" Text="正在捕获..." FontSize="13" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:Button Content="刷新嗅探" Appearance="Primary" Click="OnRefreshTrackingClicked" />
+                        </ui:CardControl>
+
+                        <Border CornerRadius="8" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Padding="16" Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="🤖 Gemini 智能监管评价" FontWeight="SemiBold" FontSize="15" />
+                                <TextBlock Text="当前状态良好：检测到你正在进行软件开发工作，符合「09:30-11:30 核心研发」时间块目标，专注度评分 95 分。继续保持！" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Finance View -->
+                    <StackPanel Name="FinanceView" Visibility="Collapsed">
+                        <TextBlock Text="💰 收入与支出 (支持 Gemini 一句话智能记账)" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Name="QuickExpenseInput" PlaceholderText="输入如：今天中午吃麻辣烫35.5元微信支付" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <ui:Button Grid.Column="1" Content="Gemini 解析并记账" Appearance="Primary" Click="OnQuickExpenseClicked" />
+                        </Grid>
+                        <TextBlock Name="ExpenseResultText" Text="" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,0,12" />
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="午餐 - 工作餐" FontWeight="SemiBold" />
+                                    <TextBlock Text="2026-10-02 12:15 | 微信支付" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <TextBlock Text="- ¥ 35.50" FontWeight="Bold" FontSize="16" Foreground="#FF453A" VerticalAlignment="Center" />
+                        </ui:CardControl>
+                    </StackPanel>
+
+                    <!-- Sync View -->
+                    <StackPanel Name="SyncView" Visibility="Collapsed">
+                        <TextBlock Text="☁️ Google Drive AppData 多端同步状态" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+                        <ui:CardControl Margin="0,0,0,12">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="同步通道状态" FontWeight="SemiBold" />
+                                    <TextBlock Text="本地优先 (Local-First SQLite) -> 云端隐式空间" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:Button Content="立即检查同步" Appearance="Primary" Click="OnSyncNowClicked" />
+                        </ui:CardControl>
+                        <TextBlock Name="SyncStatusText" Text="就绪：未检测到冲突，本地离线队列安全。" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Row="2" Background="Transparent" Margin="16,0,16,6">
+            <StatusBarItem>
+                <TextBlock Text="● RMF Core 就绪 | Local-First SQLite" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock Text="Windows 11 Native | .NET 10" FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</ui:FluentWindow>

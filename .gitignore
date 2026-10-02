@@ -1,0 +1,22 @@
+# Visual Studio / .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Logs & temp
+*.log
+startup_error.txt
+crash.log
+
+# Android / Gradle
+.gradle/
+build/
+*.apk
+*.aab
+local.properties
+.idea/
+*.iml
