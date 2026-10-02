@@ -1012,7 +1012,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="AiActiveModelText" Text="🤖 模型: gemini-2.5-flash" FontSize="11" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock x:Name="AiActiveModelText" Text="🤖 模型: gemini-1.5-flash" FontSize="11" Foreground="#9AA0A6" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <TextBlock x:Name="AiApiKeyStatusText" Text="🟢 API 已就绪" FontSize="11" Foreground="#34D399" VerticalAlignment="Center" />
                             </StackPanel>
                             <Button Grid.Column="1" Content="⚙️ 配置 Key" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#8AB4F8" BorderBrush="#5F6368" Padding="6,3" FontSize="11" Click="OnAiSidebarConfigureKeyClicked" ToolTip="前往 AI 配置面板修改 Gemini API Key 或模型" />
@@ -1558,9 +1558,9 @@
                                     </Grid>
                                     <TextBlock x:Name="FetchModelsStatusText" Text="" FontSize="11" Foreground="#8AB4F8" Margin="0,0,0,6" TextWrapping="Wrap" />
                                     <ComboBox x:Name="ModelSelectCombo" SelectedIndex="0" Background="#37383B" Foreground="#FFFFFF" Padding="10,6" FontSize="12" Margin="0,0,0,8" SelectionChanged="OnModelSelectionChanged">
-                                        <ComboBoxItem Content="gemini-2.5-flash (推荐首选)" Tag="gemini-2.5-flash" />
-                                        <ComboBoxItem Content="gemini-2.5-pro (深度推理)" Tag="gemini-2.5-pro" />
-                                        <ComboBoxItem Content="gemini-2.0-flash (最新极速)" Tag="gemini-2.0-flash" />
+                                        <ComboBoxItem Content="gemini-1.5-flash (推荐首选，快速低延时)" Tag="gemini-1.5-flash" />
+                                        <ComboBoxItem Content="gemini-1.5-pro (深度逻辑与复杂推理)" Tag="gemini-1.5-pro" />
+                                        <ComboBoxItem Content="gemini-1.5-pro (深度逻辑与复杂推理)" Tag="gemini-1.5-pro" />
                                         <ComboBoxItem Content="[自定义模型名称...]" Tag="custom" />
                                     </ComboBox>
                                     <StackPanel x:Name="CustomModelPanel" Visibility="Collapsed" Margin="0,0,0,8">

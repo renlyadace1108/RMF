@@ -74,7 +74,11 @@ public class GeminiService
             throw new InvalidOperationException("未配置 Gemini API Key！请点击左侧「⚙️ Gemini 模型与配置」填入你的 Key。");
         }
 
-        string model = config.GetEffectiveModel();
+        string model = config.GetEffectiveModel().Trim();
+        if (model.StartsWith("models/"))
+        {
+            model = model.Substring("models/".Length);
+        }
         string baseUrl = config.GetEffectiveBaseUrl();
         string endpoint = $"{baseUrl}/v1beta/models/{model}:generateContent?key={config.GeminiApiKey}";
 

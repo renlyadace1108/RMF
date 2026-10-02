@@ -4084,9 +4084,140 @@ public partial class MainWindow : Window
         _pendingSchedulePlan = null;
     }
 
-    // =========================================================================
-    // ================= AI 客观排期体检引擎 (AUDIT SCAN) =======================
-    // =========================================================================
+    private void RenderAuditIssuesList(List<AuditIssue> issues)
+    {
+        AuditScanIssuesPanel.Children.Clear();
+        if (issues.Count == 0)
+        {
+            AuditScanIssuesPanel.Children.Add(new TextBlock
+            {
+                Text = "🎉 未检出违规隐患！排期符合 DoD 质检、认知上限与转场缓冲规则。",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
+                Margin = new Thickness(0, 2, 0, 4)
+            });
+            return;
+        }
+
+        foreach (var iss in issues)
+        {
+            var card = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x1B, 0x4E)),
+                BorderBrush = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) :
+                              iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) :
+                              new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            var sp = new StackPanel();
+            sp.Children.Add(new TextBlock
+            {
+                Text = $"[{iss.Severity}] {iss.Title}",
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
+                             iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
+                             new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
+            });
+            sp.Children.Add(new TextBlock
+            {
+                Text = iss.Description,
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE9, 0xD5, 0xFF)),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 2, 0, 2)
+            });
+
+            // 快捷修复交互动作
+            if (!string.IsNullOrEmpty(iss.RelatedScheduleId))
+            {
+                var actionRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+                if (iss.IssueType == "DOD_MISSING")
+                {
+                    var applyDodBtn = new Button
+                    {
+                        Content = "✓ 采纳建议 DoD",
+                        Background = new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)),
+                        Foreground = Brushes.White,
+                        BorderThickness = new Thickness(0),
+                        Padding = new Thickness(8, 2, 8, 2),
+                        FontSize = 10,
+                        FontWeight = FontWeights.SemiBold,
+                        Cursor = Cursors.Hand,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    };
+                    string targetId = iss.RelatedScheduleId;
+                    string desc = iss.Description;
+                    applyDodBtn.Click += (s, e) =>
+                    {
+                        var item = DatabaseService.GetScheduleById(targetId);
+                        if (item != null)
+                        {
+                            string suggested = desc.Contains("建议补充: ") ? desc.Substring(desc.IndexOf("建议补充: ") + "建议补充: ".Length).Trim() : "完成产出并归档验收";
+                            item.Dod = suggested;
+                            item.IsDirty = true;
+                            DatabaseService.UpsertSchedule(item);
+                            RenderAllCalendarViews();
+                            OnRunAuditScanClicked(this, new RoutedEventArgs());
+                        }
+                    };
+                    actionRow.Children.Add(applyDodBtn);
+                }
+                else if (iss.IssueType == "MISSING_BUFFER")
+                {
+                    var addBufferBtn = new Button
+                    {
+                        Content = "☕ 插入 15m 缓冲",
+                        Background = new SolidColorBrush(Color.FromRgb(0x4F, 0x46, 0xE5)),
+                        Foreground = Brushes.White,
+                        BorderThickness = new Thickness(0),
+                        Padding = new Thickness(8, 2, 8, 2),
+                        FontSize = 10,
+                        FontWeight = FontWeights.SemiBold,
+                        Cursor = Cursors.Hand,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    };
+                    string targetId = iss.RelatedScheduleId;
+                    addBufferBtn.Click += (s, e) =>
+                    {
+                        var item = DatabaseService.GetScheduleById(targetId);
+                        if (item != null)
+                        {
+                            var buffer = new ScheduleItem
+                            {
+                                Id = Guid.NewGuid().ToString(),
+                                Title = "☕ 科学认知冷却缓冲",
+                                Description = $"紧随高强度任务「{item.Title}」的转场缓冲",
+                                WorkType = "REST_BUFFER",
+                                Category = "健康",
+                                Priority = "MEDIUM",
+                                Status = "PENDING",
+                                StartTime = item.EndTime,
+                                EndTime = item.EndTime.AddMinutes(15),
+                                EstimatedMinutes = 15,
+                                Source = ConfigService.Load().ClientSourceTag
+                            };
+                            DatabaseService.UpsertSchedule(buffer);
+                            RenderAllCalendarViews();
+                            OnRunAuditScanClicked(this, new RoutedEventArgs());
+                        }
+                    };
+                    actionRow.Children.Add(addBufferBtn);
+                }
+
+                if (actionRow.Children.Count > 0)
+                {
+                    sp.Children.Add(actionRow);
+                }
+            }
+
+            card.Child = sp;
+            AuditScanIssuesPanel.Children.Add(card);
+        }
+    }
 
     private async void OnRunAuditScanClicked(object sender, RoutedEventArgs e)
     {
@@ -4120,54 +4251,7 @@ public partial class MainWindow : Window
             AuditScanSummaryText.Text = $"综合健康得分 {report.OverallHealthScore}/100。\n今日排期总计 {report.TotalScheduledHours:F1}h，深度工作 {report.DeepWorkHours:F1}h / 4.5h 额度，DoD 合规率 {report.DoDComplianceRatio:F0}%。";
 
             // 渲染违规隐患
-            AuditScanIssuesPanel.Children.Clear();
-            if (report.Issues.Count == 0)
-            {
-                AuditScanIssuesPanel.Children.Add(new TextBlock
-                {
-                    Text = "🎉 未检出违规隐患！排期符合 DoD 质检、认知上限与转场缓冲规则。",
-                    FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
-                    Margin = new Thickness(0, 2, 0, 4)
-                });
-            }
-            else
-            {
-                foreach (var iss in report.Issues)
-                {
-                    var card = new Border
-                    {
-                        Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x1B, 0x4E)),
-                        BorderBrush = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) :
-                                      iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) :
-                                      new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
-                        BorderThickness = new Thickness(1),
-                        CornerRadius = new CornerRadius(4),
-                        Padding = new Thickness(8, 4, 8, 4),
-                        Margin = new Thickness(0, 0, 0, 4)
-                    };
-                    var sp = new StackPanel();
-                    sp.Children.Add(new TextBlock
-                    {
-                        Text = $"[{iss.Severity}] {iss.Title}",
-                        FontSize = 11,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
-                                     iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
-                                     new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
-                    });
-                    sp.Children.Add(new TextBlock
-                    {
-                        Text = iss.Description,
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0xE9, 0xD5, 0xFF)),
-                        TextWrapping = TextWrapping.Wrap,
-                        Margin = new Thickness(0, 2, 0, 0)
-                    });
-                    card.Child = sp;
-                    AuditScanIssuesPanel.Children.Add(card);
-                }
-            }
+            RenderAuditIssuesList(report.Issues);
 
             // 建议
             AuditRecommendationsText.Text = string.Join("\n", report.Recommendations);
@@ -5336,55 +5420,8 @@ public partial class MainWindow : Window
 
             var report = SchedulerAuditEngine.RunAuditScan(targetDate, dayItems);
 
-            // Update issues panel
-            AuditScanIssuesPanel.Children.Clear();
-            if (report.Issues.Count == 0)
-            {
-                AuditScanIssuesPanel.Children.Add(new TextBlock
-                {
-                    Text = "🎉 未检出违规隐患！排期符合 DoD 质检、4.5h 脑力上限与转场缓冲规则。",
-                    FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)),
-                    Margin = new Thickness(0, 2, 0, 4)
-                });
-            }
-            else
-            {
-                foreach (var iss in report.Issues)
-                {
-                    var card = new Border
-                    {
-                        Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x1B, 0x4E)),
-                        BorderBrush = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) :
-                                      iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) :
-                                      new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
-                        BorderThickness = new Thickness(1),
-                        CornerRadius = new CornerRadius(4),
-                        Padding = new Thickness(8, 4, 8, 4),
-                        Margin = new Thickness(0, 0, 0, 4)
-                    };
-                    var sp = new StackPanel();
-                    sp.Children.Add(new TextBlock
-                    {
-                        Text = $"[{iss.Severity}] {iss.Title}",
-                        FontSize = 11,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = iss.Severity == "CRITICAL" ? new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)) :
-                                     iss.Severity == "WARNING" ? new SolidColorBrush(Color.FromRgb(0xFB, 0x92, 0x3C)) :
-                                     new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD))
-                    });
-                    sp.Children.Add(new TextBlock
-                    {
-                        Text = iss.Description,
-                        FontSize = 10,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0xE9, 0xD5, 0xFF)),
-                        TextWrapping = TextWrapping.Wrap,
-                        Margin = new Thickness(0, 2, 0, 0)
-                    });
-                    card.Child = sp;
-                    AuditScanIssuesPanel.Children.Add(card);
-                }
-            }
+            // Update issues panel with interactive quick fix buttons
+            RenderAuditIssuesList(report.Issues);
 
             // Call Gemini
             string aiAudit = await _geminiService.AuditScheduleAsync(dayItems, targetDate, report);

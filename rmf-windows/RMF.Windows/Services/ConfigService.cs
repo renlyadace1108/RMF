@@ -7,7 +7,7 @@ namespace RMF.Windows.Services;
 public class AppConfig
 {
     public string GeminiApiKey { get; set; } = string.Empty;
-    public string SelectedModel { get; set; } = "gemini-2.5-flash";
+    public string SelectedModel { get; set; } = "gemini-1.5-flash";
     public string CustomModelName { get; set; } = string.Empty;
     public string CustomBaseUrl { get; set; } = string.Empty; // 可选自定义代理反向代理地址
     public double Temperature { get; set; } = 0.2; // 默认采用低采样温度，确保输出绝对客观、严谨、一致且可靠
@@ -37,7 +37,11 @@ public class AppConfig
         {
             return CustomModelName.Trim();
         }
-        return string.IsNullOrWhiteSpace(SelectedModel) ? "gemini-2.5-flash" : SelectedModel;
+        if (string.IsNullOrWhiteSpace(SelectedModel) || SelectedModel == "gemini-2.5-flash")
+        {
+            return "gemini-1.5-flash";
+        }
+        return SelectedModel.Trim();
     }
 
     /// <summary>
