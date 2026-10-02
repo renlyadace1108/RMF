@@ -10,8 +10,7 @@ public class AppConfig
     public string SelectedModel { get; set; } = "gemini-2.5-flash";
     public string CustomModelName { get; set; } = string.Empty;
     public string CustomBaseUrl { get; set; } = string.Empty; // 可选自定义代理反向代理地址
-    public string SupervisorTone { get; set; } = "balanced"; // strict (严格毒舌), balanced (理性专业), encouraging (温和鼓励)
-    public double Temperature { get; set; } = 0.7;
+    public double Temperature { get; set; } = 0.2; // 默认采用低采样温度，确保输出绝对客观、严谨、一致且可靠
 
     /// <summary>
     /// 获取当前生效的最终模型名称

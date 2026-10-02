@@ -36,6 +36,16 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-02 17:55] - 彻底移除性格与严厉度设定，全面强化模型绝对客观、严谨与可靠性
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **主要成果**：
+  1. **彻底剥离拟人化语气/性格设定**：从 [`ConfigService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/ConfigService.cs)、[`MainWindow.xaml`](file:///d:/RMF/rmf-windows/RMF.Windows/MainWindow.xaml) 与 [`MainWindow.xaml.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/MainWindow.xaml.cs) 中彻底移除 `SupervisorTone`（严厉/平衡/温和）相关 UI 控件与配置字段。
+  2. **锁定确定性低采样温度**：将 Gemini 请求参数 `temperature` 设定为 `0.2`，抑制随机发散，确保分析与推演高度严谨、客观、一致且可靠。
+  3. **重写客观审计与评估 Prompt 体系**：
+     * **日程审计引擎**：基于时间工时、连续专注负荷、认知疲劳规律进行定量核算，结合活动偏离比对，仅输出清晰条理与具体可执行的排期调整建议。
+     * **想法推演与决策分析**：摒弃情绪化评价与虚浮鼓励，以客观逻辑为基准，严格从目标对齐度、执行成本、潜在沉没成本与即时落地风险进行理性拆解。
+  4. **精简优化设置界面**：设置面板简化为「1. 模型选择与实时拉取」与「2. API 凭据与网络代理」，界面更加聚焦、高效。
+
 ### [2026-10-02 17:43] - 实现直接通过 Google Gemini 官方 API 动态探测并拉取可用模型列表
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **主要成果**：

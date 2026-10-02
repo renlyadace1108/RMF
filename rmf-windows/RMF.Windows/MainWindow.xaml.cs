@@ -318,11 +318,6 @@ public partial class MainWindow : Window
 
         CustomModelPanel.Visibility = config.SelectedModel == "custom" ? Visibility.Visible : Visibility.Collapsed;
 
-        // Tone
-        ToneStrictRadio.IsChecked = config.SupervisorTone == "strict";
-        ToneBalancedRadio.IsChecked = config.SupervisorTone == "balanced" || string.IsNullOrEmpty(config.SupervisorTone);
-        ToneEncouragingRadio.IsChecked = config.SupervisorTone == "encouraging";
-
         // Update badge
         ActiveModelBadge.Text = $"⚡ 模型: {config.GetEffectiveModel()}";
     }
@@ -339,17 +334,13 @@ public partial class MainWindow : Window
             config.SelectedModel = tag;
         }
 
-        if (ToneStrictRadio.IsChecked == true) config.SupervisorTone = "strict";
-        else if (ToneEncouragingRadio.IsChecked == true) config.SupervisorTone = "encouraging";
-        else config.SupervisorTone = "balanced";
-
         ConfigService.Save(config);
 
         string effectiveModel = config.GetEffectiveModel();
         ActiveModelBadge.Text = $"⚡ 模型: {effectiveModel}";
 
         SettingsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
-        SettingsStatusText.Text = $"✅ 配置已保存并即刻生效！当前模型: {effectiveModel}，监督风格: {config.SupervisorTone}";
+        SettingsStatusText.Text = $"✅ 配置已保存并即刻生效！当前模型: {effectiveModel}（已启用绝对客观严谨模式，低采样温度确保确定性与可靠性）";
     }
 
     private async void OnFetchModelsClicked(object sender, RoutedEventArgs e)

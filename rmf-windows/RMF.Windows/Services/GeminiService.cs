@@ -44,7 +44,6 @@ public class GeminiService
         {
             foreach (var m in result.Models)
             {
-                // 只保留支持 generateContent 的文本/多模态推理模型
                 if (m.SupportedGenerationMethods != null && m.SupportedGenerationMethods.Contains("generateContent"))
                 {
                     list.Add(m);
@@ -52,7 +51,6 @@ public class GeminiService
             }
         }
 
-        // 默认将 flash/pro 置顶排序
         list.Sort((a, b) =>
         {
             bool aIsFlash = a.ModelId.Contains("flash", StringComparison.OrdinalIgnoreCase);
@@ -95,7 +93,7 @@ public class GeminiService
             },
             generationConfig = new
             {
-                temperature = config.Temperature > 0 ? config.Temperature : 0.7,
+                temperature = config.Temperature > 0 ? config.Temperature : 0.2,
                 maxOutputTokens = 2048
             }
         };
@@ -126,73 +124,57 @@ public class GeminiService
         return "Gemini 未返回有效文本。";
     }
 
-    private string GetToneInstruction()
-    {
-        var config = ConfigService.Load();
-        return config.SupervisorTone switch
-        {
-            "strict" => "【语气风格：严格鞭策型】毫不客气地指出用户的懈怠、拖延和目标偏离，以极高标准要求执行力，语言直接犀利，杜绝温和空话。",
-            "encouraging" => "【语气风格：温和陪伴型】富有同理心，多肯定用户的努力与专注，在指出问题时提供正向激励和缓解压力的方法。",
-            _ => "【语气风格：理性客观型】专业、冷静、基于事实，像一流的高级项目总监一样分析 ROI、时间效率与执行节奏。"
-        };
-    }
-
     /// <summary>
-    /// 1. 审查日程排期 (Schedule Audit)
+    /// 1. 绝对客观可靠的日程审查 (Schedule Audit)
     /// </summary>
     public async Task<string> AuditScheduleAsync(List<ScheduleItem> items, string currentActivity)
     {
-        string tone = GetToneInstruction();
-        string systemInstruction = $@"你是用户的个人私人效能主管与日程审查 AI (RMF Supervisor)。
-{tone}
-你的任务是审查用户今日的日程安排：
-1. 评估合理性：任务密度是否过载？是否有足够的缓冲和休息时间？
-2. 识别风险点：哪些任务容易发生拖延？精力峰值与任务类型是否匹配？
-3. 结合当前前台状态：用户当前电脑正在运行的应用是否与计划冲突？
-4. 给出 2~3 条极为具体、立竿见影的排期优化建议。
-请用清晰精炼的 Markdown 格式输出。";
+        string systemInstruction = @"你是一个追求绝对客观、事实为本、高度严谨的效能分析与排期审计引擎 (RMF Objective Audit Engine)。
+原则要求：
+1. 严禁任何情绪化修辞、口号式打气或夸张说教，完全基于时间规划数据与客观规律进行理性推演。
+2. 负荷与平衡性审计：定量核算总工时、连续专注时长，指出是否存在认知疲劳风险或无缓冲连续排期的致命弱点。
+3. 真实活动偏离核验：比对当前桌面活跃进程与此时段的计划目标，指出实际执行与规划的契合状态。
+4. 输出 2~3 条高度具体、具备执行可行性的排期调整建议。格式清晰、条理分明。";
 
         var sb = new StringBuilder();
-        sb.AppendLine("【用户今日排期日程表】：");
+        sb.AppendLine("【今日排期日程数据清单】：");
         if (items.Count == 0)
         {
-            sb.AppendLine("（暂无安排）");
+            sb.AppendLine("（今日暂无录入排期）");
         }
         else
         {
             foreach (var item in items)
             {
-                sb.AppendLine($"- [{item.StartTime:HH:mm} - {item.EndTime:HH:mm}] [{item.Category}] {item.Title} (状态: {item.Status}, 优先级: {item.Priority})");
+                sb.AppendLine($"- [{item.StartTime:HH:mm} - {item.EndTime:HH:mm}] [{item.Category}] {item.Title} (状态: {item.Status}, 优先级: {item.Priority}, 预计: {item.EstimatedMinutes}分钟)");
                 if (!string.IsNullOrWhiteSpace(item.Description))
                 {
-                    sb.AppendLine($"  备注: {item.Description}");
+                    sb.AppendLine($"  描述: {item.Description}");
                 }
             }
         }
 
         sb.AppendLine($"\n【当前桌面实际活动嗅探】：{currentActivity}");
-        sb.AppendLine("请开始审查并给出专业建议：");
+        sb.AppendLine("请进行客观日程审查与可行性评估：");
 
         return await GenerateContentAsync(systemInstruction, sb.ToString());
     }
 
     /// <summary>
-    /// 2. 智能辅助编排日程 (Smart Planning)
+    /// 2. 精确严密的智能辅助编排日程 (Smart Planning)
     /// </summary>
     public async Task<string> PlanScheduleAsync(string userGoal, List<ScheduleItem> existingItems)
     {
-        string tone = GetToneInstruction();
-        string systemInstruction = $@"你是 RMF 的智能排程助手。
-{tone}
-用户会提出一个或多个目标想法（可能很模糊），请你：
-1. 将大目标合理拆解为 1~3 个具体可落地的时间块（建议 45~90 分钟单次深度专注）；
-2. 避开用户已有的日程安排；
-3. 输出明确的时间建议、任务名称与优先级。
-请用简洁有条理的 Markdown 输出推荐安排。";
+        string systemInstruction = @"你是一个严谨精确的日程编排与时间块规划引擎。
+原则要求：
+1. 绝对客观，不添加任何情绪化语言。
+2. 将用户提出的目标按认知负荷和工程实践拆解为具体的专注时间块（单块一般为 45~90 分钟）。
+3. 严格避开已占用的时间段，并预留合理的休息和切换缓冲（至少 10~15 分钟）。
+4. 明确给出建议时间段、具体交付产物及执行优先级。";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"【用户想要安排的目标】：\n{userGoal}\n");
-        sb.AppendLine("【已占用时间段】：");
+        sb.AppendLine($"【目标诉求】：\n{userGoal}\n");
+        sb.AppendLine("【已占用不可冲突的时段】：");
         foreach (var item in existingItems)
         {
             sb.AppendLine($"- {item.StartTime:HH:mm} - {item.EndTime:HH:mm}: {item.Title}");
@@ -202,20 +184,18 @@ public class GeminiService
     }
 
     /// <summary>
-    /// 3. 评估用户的想法、灵感与决策 (Idea & Strategy Evaluation)
+    /// 3. 绝对客观的想法与决策推演 (Idea & Strategy Evaluation)
     /// </summary>
     public async Task<string> EvaluateIdeaAsync(string userIdea, string currentContext)
     {
-        string tone = GetToneInstruction();
-        string systemInstruction = $@"你是用户的 AI 智囊兼首席监督官。
-{tone}
-面对用户提出的突发想法、技术方案灵感或生活决策，你需要充当深度推演的思考伙伴：
-1. 价值与可行性评估：这个想法的核心亮点是什么？是否有隐藏的坑或高昂的沉没成本？
-2. 注意力防分散审查：当前是启动这个想法的最佳时机吗？它是否在诱惑用户从当前核心主线任务中分心？
-3. 执行路径建议：如果要做，最小可行性（MVP）的第一步应该是什么？
-请直切要害，避免空话套话，用富有洞察力的语言回复。";
+        string systemInstruction = @"你是一个基于第一性原理的高级架构师与客观决策分析引擎。
+原则要求：
+1. 绝对客观、求真务实，拒绝无意义的迎合赞美，也不做情绪化的盲目否定。
+2. 价值与边界审查：清晰界定该想法的核心价值、技术可行性边界与隐性风险/潜在陷阱。
+3. 机会成本与主线冲突评估：结合用户当前的核心工作主线，评估若执行该想法所付出的精力分心代价与沉没成本。
+4. 验证闭环路径：给出验证该想法有效性的最小可行步骤（MVP）与关键指标。语言精炼，直击本质。";
 
-        string userPrompt = $"【用户的突发想法 / 决策诉求】：\n{userIdea}\n\n【用户当前工作主线背景】：\n{currentContext}\n\n请进行深度评估与监督反馈：";
+        string userPrompt = $"【待评估的想法 / 规划决策】：\n{userIdea}\n\n【当前进行中的主线任务背景】：\n{currentContext}\n\n请进行客观深度的推演评估：";
 
         return await GenerateContentAsync(systemInstruction, userPrompt);
     }

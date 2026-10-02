@@ -521,24 +521,10 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- SECTION 2: SUPERVISOR PERSONALITY -->
-                                <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,18">
-                                    <StackPanel>
-                                        <TextBlock Text="🎭 2. AI 监督官性格与严厉度 (Supervisor Persona)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
-                                        <TextBlock Text="控制 Gemini 在审查日程、评估想法时的语气风格：" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" />
-
-                                        <StackPanel Orientation="Horizontal">
-                                            <RadioButton Name="ToneStrictRadio" GroupName="SupervisorTone" Content="严格鞭策型 (犀利毒舌/直击要害/逼迫聚焦主线)" Foreground="#F87171" FontSize="13" Margin="0,0,16,0" Cursor="Hand" />
-                                            <RadioButton Name="ToneBalancedRadio" GroupName="SupervisorTone" IsChecked="True" Content="理性专业型 (高级项目总监视角/重ROI与可行性)" Foreground="#38BDF8" FontSize="13" Margin="0,0,16,0" Cursor="Hand" />
-                                            <RadioButton Name="ToneEncouragingRadio" GroupName="SupervisorTone" Content="温和陪伴型 (正面激励/同理心/减压关怀)" Foreground="#34D399" FontSize="13" Cursor="Hand" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- SECTION 3: API CREDENTIALS & NETWORK -->
+                                <!-- SECTION 2: API CREDENTIALS & NETWORK -->
                                 <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,20">
                                     <StackPanel>
-                                        <TextBlock Text="🔑 3. API 凭据与网络代理" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,12" />
+                                        <TextBlock Text="🔑 2. API 凭据与网络代理" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,12" />
 
                                         <TextBlock Text="Google AI Studio API Key (密钥)：" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4" />
                                         <TextBox Name="ApiKeyInput" Background="#27272A" Foreground="#FAFAFA" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" Padding="12,10" FontSize="13" Margin="0,0,0,14" />
