@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RMF_DataSchema",
+  "description": "Unified data exchange schema for Renly Manage Platform",
+  "definitions": {
+    "ScheduleItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["WORK", "STUDY", "LIFE", "HEALTH", "FINANCE", "OTHER"] },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "POSTPONED", "CANCELLED"] },
+        "start_time": { "type": "string", "format": "date-time" },
+        "end_time": { "type": "string", "format": "date-time" },
+        "is_all_day": { "type": "boolean" },
+        "recurrence_rule": { "type": ["string", "null"] },
+        "reminders_minutes_before": { "type": "array", "items": { "type": "integer" } },
+        "estimated_minutes": { "type": "integer" },
+        "actual_minutes": { "type": "integer" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "device_id": { "type": "string" },
+        "is_deleted": { "type": "boolean" }
+      },
+      "required": ["id", "title", "status", "start_time", "end_time", "created_at", "updated_at", "is_deleted"]
+    },
+    "FinanceTransaction": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "type": { "type": "string", "enum": ["EXPENSE", "INCOME", "TRANSFER"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "default": "CNY" },
+        "category": { "type": "string" },
+        "sub_category": { "type": ["string", "null"] },
+        "account_id": { "type": "string" },
+        "to_account_id": { "type": ["string", "null"] },
+        "transaction_time": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "raw_input_text": { "type": ["string", "null"] },
+        "is_ai_parsed": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "device_id": { "type": "string" },
+        "is_deleted": { "type": "boolean" }
+      },
+      "required": ["id", "type", "amount", "category", "transaction_time", "created_at", "updated_at", "is_deleted"]
+    },
+    "TimeSession": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "schedule_item_id": { "type": ["string", "null"], "format": "uuid" },
+        "session_type": { "type": "string", "enum": ["POMODORO", "STOPWATCH", "BACKGROUND_TRACK"] },
+        "source_device": { "type": "string", "enum": ["WINDOWS", "PHONE", "TABLET"] },
+        "start_time": { "type": "string", "format": "date-time" },
+        "end_time": { "type": "string", "format": "date-time" },
+        "duration_seconds": { "type": "integer" },
+        "interruptions_count": { "type": "integer" },
+        "user_rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "device_id": { "type": "string" },
+        "is_deleted": { "type": "boolean" }
+      },
+      "required": ["id", "session_type", "source_device", "start_time", "end_time", "duration_seconds", "created_at", "updated_at"]
+    }
+  }
+}
