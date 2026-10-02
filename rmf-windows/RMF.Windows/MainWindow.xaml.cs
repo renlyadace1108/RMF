@@ -352,6 +352,80 @@ public partial class MainWindow : Window
         SettingsStatusText.Text = $"✅ 配置已保存并即刻生效！当前模型: {effectiveModel}，监督风格: {config.SupervisorTone}";
     }
 
+    private async void OnFetchModelsClicked(object sender, RoutedEventArgs e)
+    {
+        string key = ApiKeyInput.Text.Trim();
+        if (string.IsNullOrEmpty(key))
+        {
+            FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+            FetchModelsStatusText.Text = "请先填入 Gemini API Key，再进行联网拉取！";
+            return;
+        }
+
+        var config = ConfigService.Load();
+        config.GeminiApiKey = key;
+        config.CustomBaseUrl = BaseUrlInput.Text.Trim();
+        ConfigService.Save(config);
+
+        FetchModelsBtn.IsEnabled = false;
+        FetchModelsBtn.Content = "⏳ 正在探测...";
+        FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        FetchModelsStatusText.Text = "正在连接 Google Gemini API 获取当前账户所有授权模型...";
+
+        try
+        {
+            var models = await _geminiService.ListModelsAsync();
+            if (models.Count == 0)
+            {
+                FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+                FetchModelsStatusText.Text = "Google 返回了 0 个支持内容生成的模型。";
+                return;
+            }
+
+            string currentSelected = config.SelectedModel;
+            ModelSelectCombo.Items.Clear();
+
+            int selectedIndex = 0;
+            for (int i = 0; i < models.Count; i++)
+            {
+                var m = models[i];
+                var cbi = new ComboBoxItem
+                {
+                    Content = $"{m.DisplayName} ({m.ModelId})",
+                    Tag = m.ModelId,
+                    ToolTip = m.Description
+                };
+                ModelSelectCombo.Items.Add(cbi);
+
+                if (m.ModelId == currentSelected)
+                {
+                    selectedIndex = i;
+                }
+            }
+
+            ModelSelectCombo.Items.Add(new ComboBoxItem
+            {
+                Content = "[自定义输入模型名称...]",
+                Tag = "custom"
+            });
+
+            ModelSelectCombo.SelectedIndex = selectedIndex;
+
+            FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
+            FetchModelsStatusText.Text = $"✅ 成功探测到 {models.Count} 个官方可用模型！已自动填入下拉列表供选择。";
+        }
+        catch (Exception ex)
+        {
+            FetchModelsStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+            FetchModelsStatusText.Text = $"❌ 拉取失败: {ex.Message}";
+        }
+        finally
+        {
+            FetchModelsBtn.IsEnabled = true;
+            FetchModelsBtn.Content = "🔄 联网拉取官方模型";
+        }
+    }
+
     private async void OnTestApiClicked(object sender, RoutedEventArgs e)
     {
         OnSaveSettingsClicked(sender, e);

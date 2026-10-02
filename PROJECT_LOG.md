@@ -36,6 +36,14 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-02 17:43] - 实现直接通过 Google Gemini 官方 API 动态探测并拉取可用模型列表
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **主要成果**：
+  1. 在 [`GeminiService.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Services/GeminiService.cs) 中实现 `ListModelsAsync()`，对接 Google 官方 `GET /v1beta/models` 接口。
+  2. 智能筛选支持 `generateContent` 的推理模型，自动排除纯 embedding 向量模型，并智能将 flash 与 pro 模型优先置顶。
+  3. 在界面设置中实装 **「🔄 联网拉取官方模型」** 按钮，一键动态读取用户 API Key 下授权的全部可用模型（含最新实验性模型与专属微调版本），自动填充至下拉列表供即时切换。
+  4. 增加模型数据契约 [`GeminiModelInfo.cs`](file:///d:/RMF/rmf-windows/RMF.Windows/Models/GeminiModelInfo.cs)。
+
 ### [2026-10-02 17:39] - 修复 XAML 初始化阶段 ComboBox SelectionChanged 空指针异常
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **主要成果**：

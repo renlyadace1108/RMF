@@ -16,6 +16,56 @@ public class GeminiService
     };
 
     /// <summary>
+    /// 联网从 Google Gemini API 动态拉取当前 API Key 可用的官方模型列表
+    /// </summary>
+    public async Task<List<GeminiModelInfo>> ListModelsAsync()
+    {
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(config.GeminiApiKey))
+        {
+            throw new InvalidOperationException("未配置 Gemini API Key！请先填入 Key 再拉取模型。");
+        }
+
+        string baseUrl = config.GetEffectiveBaseUrl();
+        string endpoint = $"{baseUrl}/v1beta/models?key={config.GeminiApiKey}";
+
+        HttpResponseMessage response = await HttpClient.GetAsync(endpoint);
+        string responseString = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"拉取模型列表失败 [HTTP {response.StatusCode}]: {responseString}");
+        }
+
+        var result = JsonSerializer.Deserialize<GeminiModelListResponse>(responseString);
+        var list = new List<GeminiModelInfo>();
+
+        if (result?.Models != null)
+        {
+            foreach (var m in result.Models)
+            {
+                // 只保留支持 generateContent 的文本/多模态推理模型
+                if (m.SupportedGenerationMethods != null && m.SupportedGenerationMethods.Contains("generateContent"))
+                {
+                    list.Add(m);
+                }
+            }
+        }
+
+        // 默认将 flash/pro 置顶排序
+        list.Sort((a, b) =>
+        {
+            bool aIsFlash = a.ModelId.Contains("flash", StringComparison.OrdinalIgnoreCase);
+            bool bIsFlash = b.ModelId.Contains("flash", StringComparison.OrdinalIgnoreCase);
+            if (aIsFlash && !bIsFlash) return -1;
+            if (!aIsFlash && bIsFlash) return 1;
+            return string.Compare(a.ModelId, b.ModelId, StringComparison.OrdinalIgnoreCase);
+        });
+
+        return list;
+    }
+
+    /// <summary>
     /// 核心调用：向 Google Gemini 发送 Prompt
     /// </summary>
     private async Task<string> GenerateContentAsync(string systemInstruction, string userPrompt)

@@ -490,8 +490,19 @@
                                 <!-- SECTION 1: MODEL SELECTION -->
                                 <Border Background="#18181B" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,18">
                                     <StackPanel>
-                                        <TextBlock Text="🧠 1. 接入模型版本选择 (Model Selection)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" Margin="0,0,0,6" />
-                                        <TextBlock Text="不同场景可随时在 App 内无缝切换不同的模型：" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" />
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="🧠 1. 接入模型版本选择 (支持 API 动态探测)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimary}" />
+                                                <TextBlock Text="可直接从 Google 官方 API 实时拉取你账号权限下的所有可用模型列表：" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Name="FetchModelsBtn" Content="🔄 联网拉取官方模型" Background="#27272A" Foreground="#38BDF8" BorderBrush="#38BDF8" BorderThickness="1" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="OnFetchModelsClicked" />
+                                        </Grid>
+
+                                        <TextBlock Name="FetchModelsStatusText" Text="" FontSize="11" Foreground="#38BDF8" Margin="0,0,0,6" />
 
                                         <ComboBox Name="ModelSelectCombo" SelectedIndex="0" Background="#27272A" Foreground="#FFFFFF" Padding="12,8" FontSize="13" Margin="0,0,0,12" SelectionChanged="OnModelSelectionChanged">
                                             <ComboBoxItem Content="gemini-2.5-flash (推荐 · 最新首选 · 秒级响应 · 免费额度高)" Tag="gemini-2.5-flash" />
