@@ -850,8 +850,8 @@
                                                 <ColumnDefinition Width="8" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBox x:Name="ClientSourceTagInput" Text="💻 桌面端" Style="{StaticResource GoogleTextBoxStyle}" Height="32" FontSize="12" />
-                                            <Button Grid.Column="2" Content="保存标签" Style="{StaticResource GooglePrimaryBtnStyle}" Padding="12,4" Height="32" FontSize="12" Click="OnSaveClientSourceTagClicked" />
+                                            <TextBox x:Name="ClientSourceTagInput" Text="💻 桌面端" Background="#202124" Foreground="#38BDF8" BorderBrush="#3C4043" BorderThickness="1" Padding="10,6" Height="32" FontSize="12" VerticalContentAlignment="Center" />
+                                            <Button Grid.Column="2" Content="保存标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="12,4" Height="32" FontSize="12" Click="OnSaveClientSourceTagClicked" />
                                         </Grid>
                                         <TextBlock x:Name="ClientSourceTagStatusText" Text="" FontSize="11" Foreground="#10B981" />
                                     </StackPanel>
