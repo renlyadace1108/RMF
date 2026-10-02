@@ -179,19 +179,7 @@
                 <!-- Left: Hamburger, Google Calendar Logo, Today, Chevrons, Date Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Hamburger Menu Button (Collapses/expands left sidebar) -->
-                    <Button x:Name="HamburgerBtn" Content="☰" Style="{StaticResource GoogleTopBtnStyle}" Width="40" Height="40" FontSize="18" ToolTip="主菜单 (展开/收起左侧栏)" Click="OnToggleLeftSidebarClicked" Margin="0,0,10,0" />
-
-                    <!-- Calendar 31 Logo -->
-                    <Border Background="#1A73E8" CornerRadius="6" Width="36" Height="36" Margin="0,0,20,0" VerticalAlignment="Center">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="10" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#1557B0" CornerRadius="6,6,0,0" />
-                            <TextBlock Grid.Row="1" x:Name="LogoDateNumText" Text="2" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
+                    <Button x:Name="HamburgerBtn" Content="☰" Style="{StaticResource GoogleTopBtnStyle}" Width="40" Height="40" FontSize="18" ToolTip="主菜单 (展开/收起左侧栏)" Click="OnToggleLeftSidebarClicked" Margin="0,0,14,0" />
 
                     <!-- "今天" (Today) Button -->
                     <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#E8EAED" Padding="14,6" FontSize="14" FontWeight="Medium" Margin="0,0,14,0" Click="OnCalTodayClicked" />

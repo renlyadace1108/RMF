@@ -165,8 +165,6 @@ public partial class MainWindow : Window
 
     private void RenderAllCalendarViews()
     {
-        LogoDateNumText.Text = DateTime.Today.Day.ToString();
-
         // 1. 更新顶部日期大标题 (依照 Google Calendar 规则)
         var culture = new CultureInfo("zh-CN");
         if (_currentView == "Week")
