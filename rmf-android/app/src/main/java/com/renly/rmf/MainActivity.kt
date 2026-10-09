@@ -229,8 +229,11 @@ class MainActivity : ComponentActivity() {
             var currentThemeMode by remember {
                 mutableStateOf(com.renly.rmf.ui.theme.ThemePreferences.getThemeMode(this@MainActivity))
             }
+            var currentAccentColorHex by remember {
+                mutableStateOf(com.renly.rmf.ui.theme.ThemePreferences.getAccentColorHex(this@MainActivity))
+            }
 
-            RMFTheme(themeMode = currentThemeMode) {
+            RMFTheme(themeMode = currentThemeMode, accentColorHex = currentAccentColorHex) {
                 var showSplashScreen by remember { mutableStateOf(true) }
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Schedule) }
 
@@ -303,6 +306,7 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
+                                tagsFlow = db.syncDao().getAllTags(),
                                 onToggleStatus = { schedule ->
                                     lifecycleScope.launch {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
@@ -560,6 +564,12 @@ class MainActivity : ComponentActivity() {
                                     currentThemeMode = newMode
                                     com.renly.rmf.ui.theme.ThemePreferences.setThemeMode(this@MainActivity, newMode)
                                 },
+                                currentAccentColorHex = currentAccentColorHex,
+                                onAccentColorChange = { newHex ->
+                                    currentAccentColorHex = newHex
+                                    com.renly.rmf.ui.theme.ThemePreferences.setAccentColorHex(this@MainActivity, newHex)
+                                },
+                                syncDao = db.syncDao(),
                                 onNavigateToGoals = { currentScreen = Screen.Goals },
                                 onNavigateToExpenses = { currentScreen = Screen.Expenses },
                                 onNavigateToFitness = { currentScreen = Screen.Fitness },

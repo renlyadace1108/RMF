@@ -115,6 +115,10 @@ val DopamineBlue: Color
     @Composable
     get() = LocalAppColors.current.dopamineBlue
 
+val DopamineAccent: Color
+    @Composable
+    get() = LocalAppColors.current.dopamineBlue
+
 val DopamineGreen: Color
     @Composable
     get() = LocalAppColors.current.dopamineGreen

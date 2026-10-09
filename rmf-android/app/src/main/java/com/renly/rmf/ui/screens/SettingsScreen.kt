@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
+    currentAccentColorHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_ACCENT_COLOR,
+    onAccentColorChange: (String) -> Unit = {},
+    syncDao: com.renly.rmf.data.local.dao.SyncDao? = null,
     onNavigateToGoals: () -> Unit,
     onNavigateToExpenses: () -> Unit,
     onNavigateToFitness: () -> Unit = {},
@@ -122,6 +125,105 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "🎨 主题强调色 (Accent Color)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "选择预设调色盘或输入自定义十六进制色号，全局光效与按钮高亮即时生效",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                )
+
+                // 预设强调色圆点
+                val presetAccentColors = listOf(
+                    "#1A73E8" to "Google蓝",
+                    "#38BDF8" to "天青蓝",
+                    "#8B5CF6" to "罗兰紫",
+                    "#10B981" to "翡翠绿",
+                    "#F59E0B" to "琥珀橙",
+                    "#EF4444" to "珊瑚红",
+                    "#EC4899" to "蔷薇粉",
+                    "#06B6D4" to "极光青"
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    presetAccentColors.forEach { (hex, title) ->
+                        val isSelected = currentAccentColorHex.equals(hex, ignoreCase = true)
+                        val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Cyan }
+                        Surface(
+                            onClick = { onAccentColorChange(hex) },
+                            shape = CircleShape,
+                            color = color,
+                            border = BorderStroke(if (isSelected) 2.5.dp else 0.dp, if (isSelected) TextPrimary else Color.Transparent),
+                            modifier = Modifier.size(32.dp)
+                        ) {}
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 自定义 HEX 输入框
+                var customHexInput by remember(currentAccentColorHex) { mutableStateOf(currentAccentColorHex) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = customHexInput,
+                        onValueChange = { input ->
+                            customHexInput = input
+                            if (input.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                onAccentColorChange(input)
+                            }
+                        },
+                        label = { Text("自定义色号 (如 #1A73E8)", fontSize = 11.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        leadingIcon = {
+                            val previewColor = try {
+                                Color(android.graphics.Color.parseColor(customHexInput))
+                            } catch (_: Exception) {
+                                Color.Transparent
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = previewColor,
+                                border = BorderStroke(1.dp, DarkBorder),
+                                modifier = Modifier.size(20.dp)
+                            ) {}
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (customHexInput.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                onAccentColorChange(customHexInput)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineAccent),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("应用", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
@@ -1335,6 +1437,7 @@ fun SettingsScreen(
     // 标签分类库与色彩管理弹窗 (TagManagementModal)
     if (showTagModal) {
         TagManagementDialog(
+            syncDao = syncDao,
             onDismiss = { showTagModal = false }
         )
     }
@@ -1345,55 +1448,69 @@ fun SettingsScreen(
 // -----------------------------------------------------------------------------------------
 @Composable
 fun TagManagementDialog(
+    syncDao: com.renly.rmf.data.local.dao.SyncDao?,
     onDismiss: () -> Unit
 ) {
-    val defaultTags = remember {
-        mutableStateListOf(
-            Pair("工作", "#38BDF8"),
-            Pair("学习", "#34D399"),
-            Pair("生活", "#FBBF24"),
-            Pair("健康", "#F472B6"),
-            Pair("财务", "#FB923C"),
-            Pair("技术", "#A78BFA"),
-            Pair("攻坚", "#22D3EE"),
-            Pair("紧急", "#F87171")
-        )
-    }
+    val coroutineScope = rememberCoroutineScope()
+    val dbTags by (syncDao?.getAllTags() ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = emptyList())
 
     var newTagName by remember { mutableStateOf("") }
     var selectedColorIdx by remember { mutableIntStateOf(0) }
 
     val colorPalette = listOf(
+        "#1A73E8",
         "#38BDF8",
-        "#34D399",
-        "#FBBF24",
-        "#FB923C",
-        "#F472B6",
-        "#A78BFA",
-        "#F87171",
-        "#22D3EE"
+        "#8B5CF6",
+        "#10B981",
+        "#F59E0B",
+        "#EF4444",
+        "#EC4899",
+        "#06B6D4",
+        "#7C3AED",
+        "#D97706",
+        "#059669",
+        "#6366F1"
     )
+
+    var customHexInput by remember { mutableStateOf(colorPalette[0]) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
-        title = { Text("🏷️ 日程分类标签库与色彩", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🏷️ 日程分类标签库与色彩", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Spacer(modifier = Modifier.weight(1f))
+                Surface(
+                    color = DopaminePurple.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = "共${dbTags.size}个标签",
+                        fontSize = 11.sp,
+                        color = DopaminePurple,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 440.dp)
+                    .heightIn(max = 480.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("管理系统日程业务标签体系与专属高质感色彩：", fontSize = 11.5.sp, color = TextSecondary)
+                Text("管理系统日程业务标签体系与专属高质感色彩（与 Windows 端 100% 双端互通）：", fontSize = 11.5.sp, color = TextSecondary)
 
-                // 添加新标签
+                // 添加新标签输入区
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = newTagName,
                         onValueChange = { newTagName = it },
-                        placeholder = { Text("输入新标签名称...", fontSize = 12.sp, color = TextMuted) },
+                        placeholder = { Text("输入新标签名称 (如: 竞赛)...", fontSize = 12.sp, color = TextMuted) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = DopaminePurple,
                             unfocusedBorderColor = DarkBorder,
@@ -1407,28 +1524,65 @@ fun TagManagementDialog(
                     Spacer(modifier = Modifier.width(6.dp))
                     Button(
                         onClick = {
-                            if (newTagName.isNotBlank()) {
-                                val hex = colorPalette[selectedColorIdx]
-                                defaultTags.add(Pair(newTagName, hex))
-                                newTagName = ""
+                            if (newTagName.isNotBlank() && syncDao != null) {
+                                val hex = customHexInput.ifBlank { colorPalette[selectedColorIdx] }
+                                coroutineScope.launch {
+                                    syncDao.insertOrUpdateTag(
+                                        com.renly.rmf.data.local.entity.ScheduleTagEntity(
+                                            id = java.util.UUID.randomUUID().toString(),
+                                            name = newTagName.trim(),
+                                            colorHex = hex,
+                                            sortOrder = dbTags.size + 1,
+                                            createdAt = java.time.Instant.now().toString()
+                                        )
+                                    )
+                                    newTagName = ""
+                                }
                             }
                         },
+                        enabled = newTagName.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
+                        contentPadding = PaddingValues(horizontal = 14.dp)
                     ) {
                         Text("添加", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
 
-                // 多巴胺调色盘选择器 (RgbColorPicker)
-                Text("选择专属标签色彩:", fontSize = 12.sp, color = TextSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                    colorPalette.forEachIndexed { idx, hex ->
+                // 调色盘选择器 (12色专属标签色盘)
+                Text("选择专属标签色彩:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    colorPalette.take(6).forEachIndexed { idx, hex ->
                         val isSelected = selectedColorIdx == idx
                         val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Cyan }
                         Surface(
-                            onClick = { selectedColorIdx = idx },
+                            onClick = {
+                                selectedColorIdx = idx
+                                customHexInput = hex
+                            },
+                            shape = CircleShape,
+                            color = color,
+                            border = BorderStroke(if (isSelected) 2.5.dp else 0.dp, if (isSelected) TextPrimary else Color.Transparent),
+                            modifier = Modifier.size(28.dp)
+                        ) {}
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    colorPalette.drop(6).forEachIndexed { idx, hex ->
+                        val actualIdx = idx + 6
+                        val isSelected = selectedColorIdx == actualIdx
+                        val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Cyan }
+                        Surface(
+                            onClick = {
+                                selectedColorIdx = actualIdx
+                                customHexInput = hex
+                            },
                             shape = CircleShape,
                             color = color,
                             border = BorderStroke(if (isSelected) 2.5.dp else 0.dp, if (isSelected) TextPrimary else Color.Transparent),
@@ -1439,10 +1593,14 @@ fun TagManagementDialog(
 
                 HorizontalDivider(color = DarkBorder, thickness = 1.dp)
 
-                Text("已有标签库列表 (${defaultTags.size}项):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("已有标签库列表 (${dbTags.size}项):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
 
-                defaultTags.forEach { (name, hex) ->
-                    val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Cyan }
+                if (dbTags.isEmpty()) {
+                    Text("暂无自定义标签，可输入名称创建新标签。", fontSize = 11.5.sp, color = TextMuted)
+                }
+
+                dbTags.forEach { tag ->
+                    val color = try { Color(android.graphics.Color.parseColor(tag.colorHex)) } catch (_: Exception) { Color.Cyan }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = DarkSurface,
@@ -1460,24 +1618,47 @@ fun TagManagementDialog(
                                 modifier = Modifier.height(24.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
-                                    Text(name, fontSize = 11.5.sp, color = color, fontWeight = FontWeight.SemiBold)
+                                    Text(tag.name, fontSize = 11.5.sp, color = color, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(hex, fontSize = 11.sp, color = TextMuted)
+                            Text(tag.colorHex, fontSize = 11.sp, color = TextMuted)
                             Spacer(modifier = Modifier.weight(1f))
-                            if (defaultTags.size > 1) {
-                                IconButton(
-                                    onClick = { defaultTags.remove(Pair(name, hex)) },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.DeleteOutline,
-                                        contentDescription = "删除",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
+
+                            // 快捷换色调色小圆点
+                            colorPalette.take(4).forEach { palHex ->
+                                val pColor = try { Color(android.graphics.Color.parseColor(palHex)) } catch (_: Exception) { Color.Cyan }
+                                Surface(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            syncDao?.insertOrUpdateTag(tag.copy(colorHex = palHex))
+                                        }
+                                    },
+                                    shape = CircleShape,
+                                    color = pColor,
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .padding(horizontal = 1.dp)
+                                ) {}
+                                Spacer(modifier = Modifier.width(3.dp))
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        syncDao?.deleteTag(tag.id)
+                                    }
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.DeleteOutline,
+                                    contentDescription = "删除",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }

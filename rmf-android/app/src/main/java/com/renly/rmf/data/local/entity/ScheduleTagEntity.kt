@@ -27,5 +27,5 @@ data class ScheduleTagEntity(
     val sortOrder: Int = 0,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: String
+    val createdAt: String = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
 )

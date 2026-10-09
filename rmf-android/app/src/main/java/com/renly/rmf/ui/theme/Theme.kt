@@ -23,6 +23,8 @@ enum class ThemeMode(val title: String, val icon: String) {
 object ThemePreferences {
     private const val PREFS_NAME = "rmf_theme_prefs"
     private const val KEY_THEME_MODE = "theme_mode"
+    private const val KEY_ACCENT_COLOR = "theme_accent_color"
+    const val DEFAULT_ACCENT_COLOR = "#38BDF8"
 
     fun getThemeMode(context: Context): ThemeMode {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -37,6 +39,16 @@ object ThemePreferences {
     fun setThemeMode(context: Context, mode: ThemeMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+    }
+
+    fun getAccentColorHex(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_ACCENT_COLOR, DEFAULT_ACCENT_COLOR) ?: DEFAULT_ACCENT_COLOR
+    }
+
+    fun setAccentColorHex(context: Context, hex: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_ACCENT_COLOR, hex.trim()).apply()
     }
 }
 
@@ -67,6 +79,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun RMFTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accentColorHex: String = ThemePreferences.DEFAULT_ACCENT_COLOR,
     content: @Composable () -> Unit
 ) {
     val isSystemDark = isSystemInDarkTheme()
@@ -76,8 +89,20 @@ fun RMFTheme(
         ThemeMode.DARK -> true
     }
 
-    val currentColors = if (isDark) DarkPalette else LightPalette
-    val colorScheme = if (isDark) DarkColorScheme else LightColorScheme
+    val parsedAccent = try {
+        Color(android.graphics.Color.parseColor(accentColorHex))
+    } catch (_: Exception) {
+        if (isDark) DarkPalette.dopamineBlue else LightPalette.dopamineBlue
+    }
+
+    val basePalette = if (isDark) DarkPalette else LightPalette
+    val currentColors = basePalette.copy(
+        dopamineBlue = parsedAccent
+    )
+    val baseScheme = if (isDark) DarkColorScheme else LightColorScheme
+    val colorScheme = baseScheme.copy(
+        primary = parsedAccent
+    )
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -98,5 +123,14 @@ fun RMFTheme(
             colorScheme = colorScheme,
             content = content
         )
+    }
+}
+
+fun parseHexColor(hex: String?, defaultColor: Color = Color(0xFF38BDF8)): Color {
+    if (hex.isNullOrBlank()) return defaultColor
+    return try {
+        Color(android.graphics.Color.parseColor(hex.trim()))
+    } catch (_: Exception) {
+        defaultColor
     }
 }

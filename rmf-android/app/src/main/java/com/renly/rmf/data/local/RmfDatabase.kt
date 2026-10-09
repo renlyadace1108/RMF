@@ -225,6 +225,49 @@ abstract class RmfDatabase : RoomDatabase() {
                         "sort_order" to "INTEGER DEFAULT 0"
                     )
                 )
+
+                // 4. 初始化日程分类标签库并同步现有分类 (1:1 对齐 Windows 端)
+                ensureDefaultScheduleTags(db)
+            } catch (_: Exception) {}
+        }
+
+        private fun ensureDefaultScheduleTags(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS schedule_tags (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        name TEXT NOT NULL,
+                        color_hex TEXT NOT NULL DEFAULT '#1A73E8',
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_schedule_tags_name ON schedule_tags (name);")
+
+                val defaultTags = listOf(
+                    Triple("工作", "#1A73E8", 0),
+                    Triple("学习", "#7C3AED", 1),
+                    Triple("日常", "#059669", 2),
+                    Triple("运动", "#D97706", 3),
+                    Triple("会议", "#0891B2", 4),
+                    Triple("娱乐", "#EC4899", 5)
+                )
+                val nowStr = java.time.Instant.now().toString()
+                for ((name, color, order) in defaultTags) {
+                    db.execSQL(
+                        "INSERT OR IGNORE INTO schedule_tags (id, name, color_hex, sort_order, created_at) VALUES (?, ?, ?, ?, ?);",
+                        arrayOf(java.util.UUID.randomUUID().toString(), name, color, order, nowStr)
+                    )
+                }
+
+                // 自动同步 schedules 表中既往已有分类至 schedule_tags 标签库
+                db.execSQL("""
+                    INSERT OR IGNORE INTO schedule_tags (id, name, color_hex, sort_order, created_at)
+                    SELECT lower(hex(randomblob(16))), TRIM(category), '#1A73E8', 100, datetime('now')
+                    FROM schedules
+                    WHERE is_deleted = 0 AND category IS NOT NULL AND TRIM(category) != ''
+                    GROUP BY TRIM(category);
+                """)
             } catch (_: Exception) {}
         }
 

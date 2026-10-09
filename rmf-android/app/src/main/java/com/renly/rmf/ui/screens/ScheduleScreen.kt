@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.RmfApplication
 import com.renly.rmf.data.local.entity.ScheduleEntity
+import com.renly.rmf.data.local.entity.ScheduleTagEntity
 import com.renly.rmf.domain.service.CalendarSyncResult
 import com.renly.rmf.domain.service.GoogleCalendarSyncService
 import com.renly.rmf.domain.service.GoogleDrivePreferences
@@ -69,6 +70,7 @@ enum class ScheduleViewMode(val title: String, val icon: String) {
 @Composable
 fun ScheduleScreen(
     schedulesFlow: Flow<List<ScheduleEntity>>,
+    tagsFlow: Flow<List<ScheduleTagEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onToggleStatus: (ScheduleEntity) -> Unit,
     onAddSchedule: (String, String, String, Int, String, String) -> Unit,
     onUpdateSchedule: (ScheduleEntity) -> Unit = {},
@@ -78,6 +80,23 @@ fun ScheduleScreen(
     onNavigateToFitness: () -> Unit = {}
 ) {
     val schedules by schedulesFlow.collectAsState(initial = emptyList())
+    val dbTags by tagsFlow.collectAsState(initial = emptyList())
+    val defaultTags = remember {
+        listOf(
+            ScheduleTagEntity(id = "1", name = "工作", colorHex = "#38BDF8", createdAt = ""),
+            ScheduleTagEntity(id = "2", name = "学习", colorHex = "#818CF8", createdAt = ""),
+            ScheduleTagEntity(id = "3", name = "日常", colorHex = "#34D399", createdAt = ""),
+            ScheduleTagEntity(id = "4", name = "运动", colorHex = "#F59E0B", createdAt = ""),
+            ScheduleTagEntity(id = "5", name = "会议", colorHex = "#EC4899", createdAt = ""),
+            ScheduleTagEntity(id = "6", name = "娱乐", colorHex = "#10B981", createdAt = "")
+        )
+    }
+    val availableTags = if (dbTags.isNotEmpty()) dbTags else defaultTags
+    val defaultAccent = DopamineBlue
+    val tagColorMap = remember(availableTags, defaultAccent) {
+        availableTags.associate { it.name to parseHexColor(it.colorHex, defaultAccent) }
+    }
+
     var currentViewMode by remember { mutableStateOf(ScheduleViewMode.DAY_GRID) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var quickInputText by remember { mutableStateOf("") }
@@ -317,6 +336,8 @@ fun ScheduleScreen(
                             schedules = calendarSchedules,
                             backlogItems = backlogSchedules,
                             selectedDate = selectedDate,
+                            availableTags = availableTags,
+                            tagColorMap = tagColorMap,
                             onSelectDate = { selectedDate = it },
                             onItemClick = { detailItem = it },
                             onScheduleBacklog = { item, dt ->
@@ -342,6 +363,8 @@ fun ScheduleScreen(
                             schedules = calendarSchedules,
                             backlogItems = backlogSchedules,
                             selectedDate = selectedDate,
+                            availableTags = availableTags,
+                            tagColorMap = tagColorMap,
                             onSelectDate = { selectedDate = it },
                             onItemClick = { detailItem = it },
                             onScheduleBacklog = { item, dt ->
@@ -359,7 +382,8 @@ fun ScheduleScreen(
                                 val dt = selectedDate.atTime(hour, 0)
                                 val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
                                 val endStr = dt.plusMinutes(45).format(DateTimeFormatter.ISO_DATE_TIME)
-                                onAddSchedule("新任务", "DEEP_WORK", "WORK", 45, startStr, endStr)
+                                val defaultCat = availableTags.firstOrNull()?.name ?: "工作"
+                                onAddSchedule("新任务", "DEEP_WORK", defaultCat, 45, startStr, endStr)
                             },
                             onAddScheduleWithRange = { title, workType, category, mins, startStr, endStr ->
                                 onAddSchedule(title, workType, category, mins, startStr, endStr)
@@ -471,28 +495,44 @@ fun ScheduleScreen(
 
                     // 过滤 Chips
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val filters = listOf(
+                        val baseFilters = listOf(
                             "ALL" to "全部日程",
                             "PENDING" to "待完成",
                             "DEEP_WORK" to "深度工作",
                             "SHALLOW_WORK" to "浅层事务",
                             "REST_BUFFER" to "休息缓冲"
                         )
+                        val tagFilters = availableTags.map { it.name to it.name }
+                        val filters = baseFilters + tagFilters
+
                         items(filters) { (key, label) ->
                             val isSelected = selectedFilter == key
+                            val customColor = tagColorMap[key] ?: DopamineBlue
                             Surface(
                                 onClick = { selectedFilter = key },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) DopamineBlue.copy(alpha = 0.18f) else DarkSurface,
-                                border = BorderStroke(1.dp, if (isSelected) DopamineBlue else DarkBorder),
+                                color = if (isSelected) customColor.copy(alpha = 0.18f) else DarkSurface,
+                                border = BorderStroke(1.dp, if (isSelected) customColor else DarkBorder),
                                 modifier = Modifier.height(28.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                ) {
+                                    if (tagColorMap.containsKey(key)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(customColor)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
                                     Text(
                                         text = label,
                                         fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (isSelected) DopamineBlue else TextSecondary
+                                        color = if (isSelected) customColor else TextSecondary
                                     )
                                 }
                             }
@@ -508,7 +548,8 @@ fun ScheduleScreen(
                             "SHALLOW_WORK" -> item.workType == "SHALLOW_WORK"
                             "REST_BUFFER" -> item.workType == "REST_BUFFER"
                             "PENDING" -> item.status != "COMPLETED"
-                            else -> true
+                            "ALL" -> true
+                            else -> item.category == selectedFilter
                         }
                     }
 
@@ -528,6 +569,7 @@ fun ScheduleScreen(
                             items(filtered, key = { it.id }) { item ->
                                 ScheduleItemCard(
                                     item = item,
+                                    tagColorMap = tagColorMap,
                                     onToggleStatus = { onToggleStatus(item) },
                                     onClickCard = { detailItem = item }
                                 )
@@ -559,6 +601,7 @@ fun ScheduleScreen(
         // 新建日程弹窗 (AddScheduleDialog)
         if (showAddDialog) {
             AddScheduleDialog(
+                availableTags = availableTags,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { title, workType, category, minutes ->
                     val now = LocalDateTime.now()
@@ -574,6 +617,8 @@ fun ScheduleScreen(
         if (showBacklogDialog) {
             BacklogDialog(
                 backlogItems = backlogSchedules,
+                availableTags = availableTags,
+                tagColorMap = tagColorMap,
                 onDismiss = { showBacklogDialog = false },
                 onAddBacklog = { title, workType, category, minutes, dod ->
                     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
@@ -636,6 +681,7 @@ fun ScheduleScreen(
         detailItem?.let { item ->
             ScheduleDetailModal(
                 item = item,
+                tagColorMap = tagColorMap,
                 onToggleStatus = {
                     onToggleStatus(item)
                     detailItem = null
@@ -658,6 +704,7 @@ fun ScheduleScreen(
         if (showEditDialog && editingSchedule != null) {
             EditScheduleDialog(
                 item = editingSchedule!!,
+                availableTags = availableTags,
                 onDismiss = {
                     showEditDialog = false
                     editingSchedule = null
@@ -694,13 +741,14 @@ data class DragRangeData(
 fun DragRangeScheduleDialog(
     range: DragRangeData,
     backlogItems: List<ScheduleEntity> = emptyList(),
+    availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
     onAddSchedule: (String, String, String, Int, String, String) -> Unit,
     onAssignBacklog: (ScheduleEntity, LocalDateTime, LocalDateTime, Int) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var workType by remember { mutableStateOf("DEEP_WORK") }
-    var category by remember { mutableStateOf("WORK") }
+    var category by remember { mutableStateOf(availableTags.firstOrNull()?.name ?: "工作") }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: 新建日程, 1: 待办填入
 
     val startDt = range.date.atTime(range.startHour, range.startMinute)
@@ -801,13 +849,24 @@ fun DragRangeScheduleDialog(
                     }
 
                     Text("分类标签:", fontSize = 11.sp, color = TextSecondary)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("WORK" to "工作", "STUDY" to "学习", "HEALTH" to "健康", "LIFE" to "生活").forEach { (k, v) ->
-                            FilterChip(
-                                selected = category == k,
-                                onClick = { category = k },
-                                label = { Text(v, fontSize = 11.sp) }
-                            )
+                    if (availableTags.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(availableTags) { tagItem ->
+                                val tagColor = parseHexColor(tagItem.colorHex, DopamineBlue)
+                                FilterChip(
+                                    selected = category == tagItem.name,
+                                    onClick = { category = tagItem.name },
+                                    leadingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(tagColor)
+                                        )
+                                    },
+                                    label = { Text(tagItem.name, fontSize = 11.sp) }
+                                )
+                            }
                         }
                     }
                 } else {
@@ -892,6 +951,8 @@ fun ScheduleWeekGridView(
     schedules: List<ScheduleEntity>,
     backlogItems: List<ScheduleEntity> = emptyList(),
     selectedDate: LocalDate,
+    availableTags: List<ScheduleTagEntity> = emptyList(),
+    tagColorMap: Map<String, Color> = emptyMap(),
     onSelectDate: (LocalDate) -> Unit,
     onItemClick: (ScheduleEntity) -> Unit,
     onScheduleBacklog: (ScheduleEntity, LocalDateTime) -> Unit = { _, _ -> },
@@ -1039,7 +1100,7 @@ fun ScheduleWeekGridView(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(backlogItems, key = { it.id }) { item ->
-                                val chipColor = when (item.workType) {
+                                val chipColor = tagColorMap[item.category] ?: when (item.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
                                     "REST_BUFFER" -> DopamineGreen
@@ -1417,7 +1478,7 @@ fun ScheduleWeekGridView(
                                             val topY = (startMinute.toFloat() / 60f) * 46f
                                             val blockH = (duration.toFloat() / 60f) * 46f
 
-                                            val accentColor = when (item.workType) {
+                                            val accentColor = tagColorMap[item.category] ?: when (item.workType) {
                                                 "DEEP_WORK" -> DopamineBlue
                                                 "SHALLOW_WORK" -> DopamineAmber
                                                 "REST_BUFFER" -> DopamineGreen
@@ -1510,6 +1571,7 @@ fun ScheduleWeekGridView(
         DragRangeScheduleDialog(
             range = dragSelectedRange!!,
             backlogItems = backlogItems,
+            availableTags = availableTags,
             onDismiss = { dragSelectedRange = null },
             onAddSchedule = { title, workType, category, mins, startStr, endStr ->
                 onAddScheduleWithRange(title, workType, category, mins, startStr, endStr)
@@ -1537,6 +1599,8 @@ fun ScheduleDayGridView(
     schedules: List<ScheduleEntity>,
     backlogItems: List<ScheduleEntity> = emptyList(),
     selectedDate: LocalDate,
+    availableTags: List<ScheduleTagEntity> = emptyList(),
+    tagColorMap: Map<String, Color> = emptyMap(),
     onSelectDate: (LocalDate) -> Unit,
     onItemClick: (ScheduleEntity) -> Unit,
     onScheduleBacklog: (ScheduleEntity, LocalDateTime) -> Unit = { _, _ -> },
@@ -1691,7 +1755,7 @@ fun ScheduleDayGridView(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(backlogItems, key = { it.id }) { item ->
-                                val chipColor = when (item.workType) {
+                                val chipColor = tagColorMap[item.category] ?: when (item.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
                                     "REST_BUFFER" -> DopamineGreen
@@ -2010,7 +2074,7 @@ fun ScheduleDayGridView(
                                 val topY = (startMinute.toFloat() / 60f) * 50f
                                 val blockH = (displayDuration.toFloat() / 60f) * 50f
 
-                                val accentColor = when (item.workType) {
+                                val accentColor = tagColorMap[item.category] ?: when (item.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
                                     "REST_BUFFER" -> DopamineGreen
@@ -2347,6 +2411,7 @@ fun ScheduleDayGridView(
             DragRangeScheduleDialog(
                 range = dragSelectedRange!!,
                 backlogItems = backlogItems,
+                availableTags = availableTags,
                 onDismiss = { dragSelectedRange = null },
                 onAddSchedule = { title, workType, category, mins, startStr, endStr ->
                     onAddScheduleWithRange(title, workType, category, mins, startStr, endStr)
@@ -2372,6 +2437,8 @@ fun ScheduleDayGridView(
 @Composable
 fun BacklogDialog(
     backlogItems: List<ScheduleEntity>,
+    availableTags: List<ScheduleTagEntity> = emptyList(),
+    tagColorMap: Map<String, Color> = emptyMap(),
     onDismiss: () -> Unit,
     onAddBacklog: (String, String, String, Int, String) -> Unit,
     onScheduleToToday: (ScheduleEntity) -> Unit,
@@ -2381,7 +2448,7 @@ fun BacklogDialog(
     var newTitle by remember { mutableStateOf("") }
     var newMinutes by remember { mutableIntStateOf(30) }
     var newWorkType by remember { mutableStateOf("DEEP_WORK") }
-    var newCategory by remember { mutableStateOf("WORK") }
+    var newCategory by remember { mutableStateOf(availableTags.firstOrNull()?.name ?: "工作") }
     var newDod by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -2454,6 +2521,28 @@ fun BacklogDialog(
                     }
                 }
 
+                if (availableTags.isNotEmpty()) {
+                    Text("分类标签:", fontSize = 11.sp, color = TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(availableTags) { tagItem ->
+                            val tagColor = tagColorMap[tagItem.name] ?: parseHexColor(tagItem.colorHex, DopamineAmber)
+                            FilterChip(
+                                selected = newCategory == tagItem.name,
+                                onClick = { newCategory = tagItem.name },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(tagColor)
+                                    )
+                                },
+                                label = { Text(tagItem.name, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
                 HorizontalDivider(color = DarkBorder, thickness = 1.dp)
 
                 if (backlogItems.isEmpty()) {
@@ -2495,11 +2584,38 @@ fun BacklogDialog(
                                         textDecoration = if (isDone) TextDecoration.LineThrough else null,
                                         color = if (isDone) TextMuted else TextPrimary
                                     )
-                                    Text(
-                                        text = "预估 ${item.estimatedMinutes}m · ${item.workType}",
-                                        fontSize = 10.5.sp,
-                                        color = TextSecondary
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "预估 ${item.estimatedMinutes}m · ${item.workType}",
+                                            fontSize = 10.5.sp,
+                                            color = TextSecondary
+                                        )
+                                        if (item.category.isNotBlank()) {
+                                            val tagColor = tagColorMap[item.category] ?: DopamineAmber
+                                            Surface(
+                                                color = tagColor.copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(4.dp),
+                                                border = BorderStroke(0.5.dp, tagColor.copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                ) {
+                                                    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(tagColor))
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = item.category,
+                                                        fontSize = 9.5.sp,
+                                                        color = tagColor,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 // 一键排期到今日
@@ -2647,6 +2763,7 @@ fun GoToDateDialog(
 @Composable
 fun EditScheduleDialog(
     item: ScheduleEntity,
+    availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (ScheduleEntity) -> Unit,
     onDelete: () -> Unit
@@ -2696,6 +2813,28 @@ fun EditScheduleDialog(
                             onClick = { workType = k },
                             label = { Text(v, fontSize = 12.sp) }
                         )
+                    }
+                }
+
+                if (availableTags.isNotEmpty()) {
+                    Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(availableTags) { tagItem ->
+                            val tagColor = parseHexColor(tagItem.colorHex, DopamineBlue)
+                            FilterChip(
+                                selected = category == tagItem.name,
+                                onClick = { category = tagItem.name },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(tagColor)
+                                    )
+                                },
+                                label = { Text(tagItem.name, fontSize = 11.5.sp) }
+                            )
+                        }
                     }
                 }
 
@@ -2754,6 +2893,7 @@ fun EditScheduleDialog(
 @Composable
 fun ScheduleDetailModal(
     item: ScheduleEntity,
+    tagColorMap: Map<String, Color> = emptyMap(),
     onToggleStatus: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -2761,7 +2901,7 @@ fun ScheduleDetailModal(
     onDismiss: () -> Unit
 ) {
     val isDone = item.status == "COMPLETED"
-    val accentColor = when (item.workType) {
+    val accentColor = tagColorMap[item.category] ?: when (item.workType) {
         "DEEP_WORK" -> DopamineBlue
         "SHALLOW_WORK" -> DopamineAmber
         "REST_BUFFER" -> DopamineGreen
@@ -2820,7 +2960,24 @@ fun ScheduleDetailModal(
                     fontWeight = FontWeight.SemiBold
                 )
                 if (item.category.isNotBlank()) {
-                    Text(text = "📂 业务分类: ${item.category}", fontSize = 12.5.sp, color = TextSecondary)
+                    val tagColor = tagColorMap[item.category] ?: accentColor
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "📂 业务标签: ", fontSize = 12.5.sp, color = TextSecondary)
+                        Surface(
+                            color = tagColor.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(1.dp, tagColor.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(tagColor))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = item.category, fontSize = 11.sp, color = tagColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
                 if (item.dod.isNotBlank()) {
                     Text(text = "🎯 验收标准: ${item.dod}", fontSize = 12.sp, color = DopamineCyan)
@@ -2895,11 +3052,12 @@ fun parseDateTime(str: String): LocalDateTime? {
 @Composable
 fun ScheduleItemCard(
     item: ScheduleEntity,
+    tagColorMap: Map<String, Color> = emptyMap(),
     onToggleStatus: () -> Unit,
     onClickCard: () -> Unit = {}
 ) {
     val isCompleted = item.status == "COMPLETED"
-    val accentColor = when (item.workType) {
+    val accentColor = tagColorMap[item.category] ?: when (item.workType) {
         "DEEP_WORK" -> DopamineBlue
         "SHALLOW_WORK" -> DopamineAmber
         "REST_BUFFER" -> DopamineGreen
@@ -2990,17 +3148,30 @@ fun ScheduleItemCard(
                     }
 
                     if (item.category.isNotBlank()) {
+                        val tagColor = tagColorMap[item.category] ?: DopamineBlue
                         Surface(
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
+                            color = tagColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, tagColor.copy(alpha = 0.45f)),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text(
-                                text = item.category,
-                                color = TextMuted,
-                                fontSize = 10.5.sp,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(tagColor)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = item.category,
+                                    color = tagColor,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
@@ -3012,12 +3183,13 @@ fun ScheduleItemCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddScheduleDialog(
+    availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (String, String, String, Int) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var workType by remember { mutableStateOf("DEEP_WORK") }
-    var category by remember { mutableStateOf("STUDY") }
+    var category by remember { mutableStateOf(availableTags.firstOrNull()?.name ?: "工作") }
     var minutes by remember { mutableIntStateOf(45) }
 
     AlertDialog(
@@ -3048,6 +3220,28 @@ fun AddScheduleDialog(
                             onClick = { workType = k },
                             label = { Text(v, fontSize = 12.sp) }
                         )
+                    }
+                }
+
+                if (availableTags.isNotEmpty()) {
+                    Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(availableTags) { tagItem ->
+                            val tagColor = parseHexColor(tagItem.colorHex, DopamineBlue)
+                            FilterChip(
+                                selected = category == tagItem.name,
+                                onClick = { category = tagItem.name },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(tagColor)
+                                    )
+                                },
+                                label = { Text(tagItem.name, fontSize = 11.5.sp) }
+                            )
+                        }
                     }
                 }
 

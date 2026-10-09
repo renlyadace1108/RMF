@@ -26,13 +26,22 @@ interface SyncDao {
     suspend fun setSetting(setting: TimetableSettingEntity)
 
     // Schedule Tags
-    @Query("SELECT * FROM schedule_tags ORDER BY sort_order ASC")
+    @Query("SELECT * FROM schedule_tags ORDER BY sort_order ASC, name ASC")
     fun getAllTags(): Flow<List<ScheduleTagEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateTag(tag: ScheduleTagEntity)
 
-    @Query("SELECT * FROM schedule_tags")
+    @Query("DELETE FROM schedule_tags WHERE id = :id")
+    suspend fun deleteTag(id: String)
+
+    @Query("DELETE FROM schedule_tags WHERE name = :name")
+    suspend fun deleteTagByName(name: String)
+
+    @Query("SELECT * FROM schedule_tags WHERE name = :name LIMIT 1")
+    suspend fun getTagByName(name: String): ScheduleTagEntity?
+
+    @Query("SELECT * FROM schedule_tags ORDER BY sort_order ASC, name ASC")
     suspend fun getAllRawTags(): List<ScheduleTagEntity>
 
     @Query("SELECT * FROM timetable_settings")
