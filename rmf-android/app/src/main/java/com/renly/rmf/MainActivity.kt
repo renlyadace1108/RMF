@@ -323,9 +323,20 @@ class MainActivity : ComponentActivity() {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                         db.scheduleDao().updateStatus(schedule.id, newStatus, nowStr)
+                                        if (newStatus == "COMPLETED") {
+                                            com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, schedule.id)
+                                        } else if (schedule.reminderMinutes >= 0 && schedule.startTime.isNotBlank()) {
+                                            com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
+                                                context = this@MainActivity,
+                                                scheduleId = schedule.id,
+                                                title = schedule.title,
+                                                startTimeStr = schedule.startTime,
+                                                advanceMinutes = schedule.reminderMinutes
+                                            )
+                                        }
                                     }
                                 },
-                                onAddSchedule = { title, workType, category, mins, startStr, endStr ->
+                                onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                         val entity = ScheduleEntity(
@@ -335,30 +346,57 @@ class MainActivity : ComponentActivity() {
                                             estimatedMinutes = mins,
                                             startTime = startStr,
                                             endTime = endStr,
+                                            reminderMinutes = reminderMinutes,
                                             createdAt = nowStr,
                                             updatedAt = nowStr
                                         )
                                         db.scheduleDao().insertOrUpdate(entity)
-                                        if (startStr.isNotBlank()) {
+                                        if (startStr.isNotBlank() && reminderMinutes >= 0) {
                                             com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
                                                 context = this@MainActivity,
                                                 scheduleId = entity.id,
                                                 title = entity.title,
                                                 startTimeStr = entity.startTime,
-                                                advanceMinutes = 10
+                                                advanceMinutes = reminderMinutes
                                             )
+                                        }
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, entity)
                                         }
                                     }
                                 },
                                 onUpdateSchedule = { schedule ->
                                     lifecycleScope.launch {
                                         db.scheduleDao().insertOrUpdate(schedule)
+                                        if (schedule.startTime.isNotBlank()) {
+                                            if (schedule.reminderMinutes >= 0 && schedule.status != "COMPLETED" && schedule.status != "ABANDONED") {
+                                                com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
+                                                    context = this@MainActivity,
+                                                    scheduleId = schedule.id,
+                                                    title = schedule.title,
+                                                    startTimeStr = schedule.startTime,
+                                                    advanceMinutes = schedule.reminderMinutes
+                                                )
+                                            } else {
+                                                com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(
+                                                    context = this@MainActivity,
+                                                    scheduleId = schedule.id
+                                                )
+                                            }
+                                        }
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
+                                        }
                                     }
                                 },
                                 onDeleteSchedule = { id ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                         db.scheduleDao().softDelete(id, nowStr)
+                                        com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, id)
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.deleteScheduleEvent(this@MainActivity, id)
+                                        }
                                     }
                                 },
                                 onOpenQuickCapture = { showQuickCaptureDialog = true },
@@ -485,6 +523,15 @@ class MainActivity : ComponentActivity() {
 
                             Screen.Focus -> FocusScreen(
                                 isInPip = isInPipMode,
+                                schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
+                                onUpdateSchedule = { schedule ->
+                                    lifecycleScope.launch {
+                                        db.scheduleDao().insertOrUpdate(schedule)
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
+                                        }
+                                    }
+                                },
                                 onRecordInterruption = { interruption ->
                                     lifecycleScope.launch {
                                         db.interruptionDao().insert(interruption)

@@ -52,6 +52,7 @@ class FocusLiveService : Service() {
 
     private fun startFocusSession(title: String, seconds: Int) {
         _currentTaskTitle.value = title
+        _initialTotalSeconds.value = seconds
         _remainingSeconds.value = seconds
         _isRunning.value = true
         targetEndTimeRealtime = SystemClock.elapsedRealtime() + (seconds * 1000L)
@@ -92,7 +93,7 @@ class FocusLiveService : Service() {
     private fun stopFocusSession() {
         cancelFinishAlarm()
         _isRunning.value = false
-        _remainingSeconds.value = 25 * 60
+        _remainingSeconds.value = _initialTotalSeconds.value
         timerJob?.cancel()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -323,6 +324,9 @@ class FocusLiveService : Service() {
 
         private val _isRunning = MutableStateFlow(false)
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+
+        private val _initialTotalSeconds = MutableStateFlow(25 * 60)
+        val initialTotalSeconds: StateFlow<Int> = _initialTotalSeconds.asStateFlow()
 
         private val _remainingSeconds = MutableStateFlow(25 * 60)
         val remainingSeconds: StateFlow<Int> = _remainingSeconds.asStateFlow()

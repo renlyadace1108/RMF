@@ -24,7 +24,7 @@ import com.renly.rmf.data.local.entity.*
         FitnessPlanEntity::class,
         FitnessRecordEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -89,6 +89,15 @@ abstract class RmfDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE schedules ADD COLUMN reminder_minutes INTEGER NOT NULL DEFAULT 10;")
+                } catch (_: Exception) {}
+                ensureLosslessSchema(db)
+            }
+        }
+
         private fun createFitnessTables(db: SupportSQLiteDatabase) {
             try {
                 db.execSQL("""
@@ -148,7 +157,7 @@ abstract class RmfDatabase : RoomDatabase() {
                     RmfDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
@@ -197,7 +206,8 @@ abstract class RmfDatabase : RoomDatabase() {
                         "is_locked" to "INTEGER DEFAULT 0",
                         "depends_on_task_id" to "TEXT",
                         "postpone_count" to "INTEGER DEFAULT 0",
-                        "eisenhower_quadrant" to "TEXT DEFAULT 'Q2'"
+                        "eisenhower_quadrant" to "TEXT DEFAULT 'Q2'",
+                        "reminder_minutes" to "INTEGER NOT NULL DEFAULT 10"
                     )
                 )
 

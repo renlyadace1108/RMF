@@ -105,6 +105,9 @@ data class ScheduleEntity(
     @ColumnInfo(name = "eisenhower_quadrant", defaultValue = "'Q2'")
     val eisenhowerQuadrant: String? = "Q2",
 
+    @ColumnInfo(name = "reminder_minutes", defaultValue = "10")
+    val reminderMinutes: Int = 10,
+
     @ColumnInfo(name = "created_at")
     val createdAt: String,
 

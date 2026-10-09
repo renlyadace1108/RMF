@@ -72,7 +72,7 @@ fun ScheduleScreen(
     schedulesFlow: Flow<List<ScheduleEntity>>,
     tagsFlow: Flow<List<ScheduleTagEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onToggleStatus: (ScheduleEntity) -> Unit,
-    onAddSchedule: (String, String, String, Int, String, String) -> Unit,
+    onAddSchedule: (String, String, String, Int, String, String, Int) -> Unit,
     onUpdateSchedule: (ScheduleEntity) -> Unit = {},
     onDeleteSchedule: (String) -> Unit = {},
     onOpenQuickCapture: () -> Unit = {},
@@ -352,7 +352,7 @@ fun ScheduleScreen(
                                 onUpdateSchedule(updated)
                             },
                             onAddScheduleWithRange = { title, workType, category, mins, startStr, endStr ->
-                                onAddSchedule(title, workType, category, mins, startStr, endStr)
+                                onAddSchedule(title, workType, category, mins, startStr, endStr, 10)
                             },
                             onUpdateSchedule = onUpdateSchedule
                         )
@@ -383,10 +383,10 @@ fun ScheduleScreen(
                                 val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
                                 val endStr = dt.plusMinutes(45).format(DateTimeFormatter.ISO_DATE_TIME)
                                 val defaultCat = availableTags.firstOrNull()?.name ?: "工作"
-                                onAddSchedule("新任务", "DEEP_WORK", defaultCat, 45, startStr, endStr)
+                                onAddSchedule("新任务", "DEEP_WORK", defaultCat, 45, startStr, endStr, 10)
                             },
                             onAddScheduleWithRange = { title, workType, category, mins, startStr, endStr ->
-                                onAddSchedule(title, workType, category, mins, startStr, endStr)
+                                onAddSchedule(title, workType, category, mins, startStr, endStr, 10)
                             },
                             onUpdateSchedule = onUpdateSchedule
                         )
@@ -475,7 +475,8 @@ fun ScheduleScreen(
                                             parsed.category,
                                             parsed.durationMinutes,
                                             parsed.startTime.format(DateTimeFormatter.ISO_DATE_TIME),
-                                            parsed.endTime.format(DateTimeFormatter.ISO_DATE_TIME)
+                                            parsed.endTime.format(DateTimeFormatter.ISO_DATE_TIME),
+                                            10
                                         )
                                         quickInputText = ""
                                     }
@@ -603,11 +604,11 @@ fun ScheduleScreen(
             AddScheduleDialog(
                 availableTags = availableTags,
                 onDismiss = { showAddDialog = false },
-                onConfirm = { title, workType, category, minutes ->
+                onConfirm = { title, workType, category, minutes, reminderMins ->
                     val now = LocalDateTime.now()
                     val startStr = now.format(DateTimeFormatter.ISO_DATE_TIME)
                     val endStr = now.plusMinutes(minutes.toLong()).format(DateTimeFormatter.ISO_DATE_TIME)
-                    onAddSchedule(title, workType, category, minutes, startStr, endStr)
+                    onAddSchedule(title, workType, category, minutes, startStr, endStr, reminderMins)
                     showAddDialog = false
                 }
             )
@@ -2773,6 +2774,7 @@ fun EditScheduleDialog(
     var category by remember { mutableStateOf(item.category) }
     var minutes by remember { mutableIntStateOf(item.estimatedMinutes) }
     var dod by remember { mutableStateOf(item.dod) }
+    var reminderMinutes by remember { mutableIntStateOf(item.reminderMinutes) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2860,6 +2862,27 @@ fun EditScheduleDialog(
                     steps = 14,
                     colors = SliderDefaults.colors(thumbColor = DopamineBlue, activeTrackColor = DopamineBlue)
                 )
+
+                Text("⏰ 闹钟与流体云提醒:", fontSize = 12.sp, color = TextSecondary)
+                val reminderOptions = listOf(
+                    -1 to "不提醒",
+                    0 to "准时",
+                    5 to "提前5分",
+                    10 to "提前10分",
+                    15 to "提前15分",
+                    30 to "提前30分",
+                    60 to "提前1小时"
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(reminderOptions) { (mins, label) ->
+                        val isSel = reminderMinutes == mins
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { reminderMinutes = mins },
+                            label = { Text(label, fontSize = 11.5.sp) }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -2871,6 +2894,7 @@ fun EditScheduleDialog(
                         category = category,
                         estimatedMinutes = minutes,
                         dod = dod,
+                        reminderMinutes = reminderMinutes,
                         updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                     )
                     onSave(updated)
@@ -2946,6 +2970,18 @@ fun ScheduleDetailModal(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = "📅 预估起止: $timeStr · ${item.estimatedMinutes}分钟", fontSize = 12.5.sp, color = TextSecondary)
+                val reminderText = when (item.reminderMinutes) {
+                    -1 -> "🔕 未开启提前提醒"
+                    0 -> "⏰ 准时开始强提醒"
+                    60 -> "⏰ 提前1小时提醒"
+                    else -> "⏰ 提前${item.reminderMinutes}分钟提醒"
+                }
+                Text(
+                    text = reminderText,
+                    fontSize = 12.sp,
+                    color = if (item.reminderMinutes >= 0) DopamineAmber else TextMuted,
+                    fontWeight = FontWeight.Medium
+                )
                 Text(
                     text = "🏷️ 工作类型: ${
                         when (item.workType) {
@@ -3185,12 +3221,13 @@ fun ScheduleItemCard(
 fun AddScheduleDialog(
     availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, Int) -> Unit
+    onConfirm: (String, String, String, Int, Int) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var workType by remember { mutableStateOf("DEEP_WORK") }
     var category by remember { mutableStateOf(availableTags.firstOrNull()?.name ?: "工作") }
     var minutes by remember { mutableIntStateOf(45) }
+    var reminderMinutes by remember { mutableIntStateOf(10) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -3253,13 +3290,34 @@ fun AddScheduleDialog(
                     steps = 10,
                     colors = SliderDefaults.colors(thumbColor = DopamineBlue, activeTrackColor = DopamineBlue)
                 )
+
+                Text("⏰ 闹钟与流体云提醒:", fontSize = 12.sp, color = TextSecondary)
+                val reminderOptions = listOf(
+                    -1 to "不提醒",
+                    0 to "准时",
+                    5 to "提前5分",
+                    10 to "提前10分",
+                    15 to "提前15分",
+                    30 to "提前30分",
+                    60 to "提前1小时"
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(reminderOptions) { (mins, label) ->
+                        val isSel = reminderMinutes == mins
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { reminderMinutes = mins },
+                            label = { Text(label, fontSize = 11.5.sp) }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        onConfirm(title, workType, category, minutes)
+                        onConfirm(title, workType, category, minutes, reminderMinutes)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),

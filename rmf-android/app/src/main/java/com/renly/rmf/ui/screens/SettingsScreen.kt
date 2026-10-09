@@ -19,11 +19,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.domain.service.AuditReport
+import com.renly.rmf.domain.service.CalendarSyncResult
+import com.renly.rmf.domain.service.FocusLiveService
 import com.renly.rmf.domain.service.GoogleDrivePreferences
 import com.renly.rmf.domain.service.GoogleDriveSyncService
+import com.renly.rmf.domain.service.ScheduleReminderManager
+import com.renly.rmf.domain.service.SystemCalendarSyncService
 import com.renly.rmf.ui.components.ExpandableRgbColorPicker
 import com.renly.rmf.ui.components.RgbColorPicker
 import com.renly.rmf.ui.theme.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
@@ -1207,6 +1212,348 @@ fun SettingsScreen(
                     }
                 }
             )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ---------------------------------------------------------------------------------
+        // 🔔 通知与 ColorOS 流体云实验室 (Notification & Fluid Cloud Lab)
+        // ---------------------------------------------------------------------------------
+        val notifContext = androidx.compose.ui.platform.LocalContext.current
+        val isFluidRunning by FocusLiveService.isRunning.collectAsState()
+        val fluidRemaining by FocusLiveService.remainingSeconds.collectAsState()
+        val fluidTaskTitle by FocusLiveService.currentTaskTitle.collectAsState()
+        var notifFeedbackText by remember { mutableStateOf<String?>(null) }
+
+        val notifPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                ScheduleReminderManager.sendStandardTestNotification(notifContext)
+                notifFeedbackText = "✓ 通知权限已就绪，已向通知栏发送测试横幅！"
+            } else {
+                notifFeedbackText = "⚠️ 未授予通知权限，请在系统设置中允许本应用通知"
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkCard),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔔", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
+                        Text(
+                            text = "通知与流体云实验室",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                    Surface(
+                        color = if (isFluidRunning) Color(0xFF064E3B) else DarkSurface,
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, if (isFluidRunning) DopamineGreen else DarkBorder)
+                    ) {
+                        Text(
+                            text = if (isFluidRunning) "流体云实时运行中" else "胶囊已待命",
+                            color = if (isFluidRunning) DopamineGreen else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "深度适配 ColorOS / HyperOS / OriginOS 状态栏动态胶囊、锁屏实时活动、常驻展开卡片以及精准高优先级系统闹钟到期提醒。",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                )
+
+                // 按钮 1: 测试标准日程到期通知
+                Button(
+                    onClick = {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                notifContext,
+                                android.Manifest.permission.POST_NOTIFICATIONS
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (!hasPermission) {
+                                notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                return@Button
+                            }
+                        }
+                        ScheduleReminderManager.sendStandardTestNotification(notifContext)
+                        notifFeedbackText = "✓ 已发送高优先级标准日程提醒通知！请下拉通知中心查看"
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🔔 测试标准日程提醒通知 (高优先级横幅+声音震动)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 按钮 2: 流体云实时胶囊前台服务启动/停止切换
+                OutlinedButton(
+                    onClick = {
+                        if (isFluidRunning) {
+                            FocusLiveService.stop(notifContext)
+                            notifFeedbackText = "✓ 已停止流体云前台实时胶囊服务"
+                        } else {
+                            FocusLiveService.start(notifContext, "流体云实时胶囊测试", 25 * 60)
+                            notifFeedbackText = "✓ 已启动流体云实时胶囊！切至桌面或息屏锁屏，挖孔旁将呈现胶囊"
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isFluidRunning) DopamineAmber else DopamineCyan
+                    ),
+                    border = BorderStroke(1.dp, if (isFluidRunning) DopamineAmber else DopamineCyan),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = if (isFluidRunning) "⏹️ 停止流体云实时胶囊服务 (剩余: ${fluidRemaining / 60}m${fluidRemaining % 60}s)" else "🌊 启动流体云实时胶囊测试 (25分钟心流前台服务)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 按钮 3 & 4: 流体云通知卡片效果测试
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = true)
+                            notifFeedbackText = "✓ 已触发课表专属流体云胶囊通知卡片！"
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("🎓 模拟上课流体云通知", fontSize = 11.5.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = false)
+                            notifFeedbackText = "✓ 已触发日程专属流体云胶囊通知卡片！"
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("📌 模拟日程流体云通知", fontSize = 11.5.sp)
+                    }
+                }
+
+                if (notifFeedbackText != null) {
+                    Text(
+                        text = notifFeedbackText!!,
+                        fontSize = 11.5.sp,
+                        color = if (notifFeedbackText!!.startsWith("✓")) DopamineGreen else DopamineOrange,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ---------------------------------------------------------------------------------
+        // 📱 手机系统原生日历同步卡片 (System Calendar Sync Engine)
+        // ---------------------------------------------------------------------------------
+        val sysCalContext = androidx.compose.ui.platform.LocalContext.current
+        var sysCalStatusText by remember { mutableStateOf("") }
+        var isSysCalWorking by remember { mutableStateOf(false) }
+        var lastSysCalSyncTime by remember { mutableStateOf(SystemCalendarSyncService.getLastSyncTime(sysCalContext)) }
+        var isAutoSyncSysCal by remember { mutableStateOf(SystemCalendarSyncService.isAutoSyncEnabled(sysCalContext)) }
+
+        val sysCalPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+        ) { perms ->
+            val readGranted = perms[android.Manifest.permission.READ_CALENDAR] ?: false
+            val writeGranted = perms[android.Manifest.permission.WRITE_CALENDAR] ?: false
+            if (readGranted && writeGranted) {
+                isSysCalWorking = true
+                sysCalStatusText = "权限已授予，正在同步全部日程到系统日历..."
+                coroutineScope.launch {
+                    val db = (sysCalContext.applicationContext as com.renly.rmf.RmfApplication).database
+                    val activeSchedules = db.scheduleDao().getAllActiveSchedules().first()
+                    val result = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                    isSysCalWorking = false
+                    when (result) {
+                        is CalendarSyncResult.Success -> {
+                            sysCalStatusText = "✓ ${result.message}"
+                            lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
+                        }
+                        is CalendarSyncResult.Error -> {
+                            sysCalStatusText = "✗ ${result.error}"
+                        }
+                    }
+                }
+            } else {
+                sysCalStatusText = "✗ 需要日历读写权限方可将时间块同步至手机系统日历"
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkCard),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📱", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
+                        Text(
+                            text = "手机系统日历互通同步",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                    Surface(
+                        color = Color(0xFF064E3B),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, Color(0xFF059669))
+                    ) {
+                        Text(
+                            text = "小米/OPPO/vivo/华为等",
+                            color = Color(0xFF6EE7B7),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "一键将本地全部日程时间块、验收标准(DoD)和提前提醒无缝同步至手机系统自带日历。无需启动 App 即可在锁屏小组件与负一屏日历卡片中实时查阅。",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                )
+
+                Text(
+                    text = "上次同步时间: $lastSysCalSyncTime",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // 一键全量同步按钮
+                Button(
+                    onClick = {
+                        if (!SystemCalendarSyncService.hasCalendarPermissions(sysCalContext)) {
+                            sysCalPermissionLauncher.launch(
+                                arrayOf(
+                                    android.Manifest.permission.READ_CALENDAR,
+                                    android.Manifest.permission.WRITE_CALENDAR
+                                )
+                            )
+                            return@Button
+                        }
+                        isSysCalWorking = true
+                        sysCalStatusText = "正在同步全部日程到手机系统日历..."
+                        coroutineScope.launch {
+                            val db = (sysCalContext.applicationContext as com.renly.rmf.RmfApplication).database
+                            val activeSchedules = db.scheduleDao().getAllActiveSchedules().first()
+                            val result = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                            isSysCalWorking = false
+                            when (result) {
+                                is CalendarSyncResult.Success -> {
+                                    sysCalStatusText = "✓ ${result.message}"
+                                    lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
+                                }
+                                is CalendarSyncResult.Error -> {
+                                    sysCalStatusText = "✗ ${result.error}"
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isSysCalWorking,
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = if (isSysCalWorking) "正在同步至系统日历..." else "🔄 立即全量同步日程至手机系统日历",
+                        color = Color.Black,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 自动同步开关
+                Surface(
+                    color = DarkSurface,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("⚡ 自动增量同步", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text("新增或修改时间块时，自动即时写入手机自带日历", fontSize = 10.5.sp, color = TextMuted)
+                        }
+                        Switch(
+                            checked = isAutoSyncSysCal,
+                            onCheckedChange = { checked ->
+                                if (checked && !SystemCalendarSyncService.hasCalendarPermissions(sysCalContext)) {
+                                    sysCalPermissionLauncher.launch(
+                                        arrayOf(
+                                            android.Manifest.permission.READ_CALENDAR,
+                                            android.Manifest.permission.WRITE_CALENDAR
+                                        )
+                                    )
+                                } else {
+                                    isAutoSyncSysCal = checked
+                                    SystemCalendarSyncService.setAutoSyncEnabled(sysCalContext, checked)
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = DopamineGreen
+                            )
+                        )
+                    }
+                }
+
+                if (sysCalStatusText.isNotBlank()) {
+                    Text(
+                        text = sysCalStatusText,
+                        fontSize = 11.5.sp,
+                        color = if (sysCalStatusText.startsWith("✓")) DopamineGreen else if (sysCalStatusText.startsWith("✗")) DopamineRed else DopamineCyan,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
