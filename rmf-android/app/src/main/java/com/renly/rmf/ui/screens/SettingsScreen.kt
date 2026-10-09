@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import com.renly.rmf.domain.service.AuditReport
 import com.renly.rmf.domain.service.GoogleDrivePreferences
 import com.renly.rmf.domain.service.GoogleDriveSyncService
+import com.renly.rmf.ui.components.ExpandableRgbColorPicker
+import com.renly.rmf.ui.components.RgbColorPicker
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -226,6 +229,19 @@ fun SettingsScreen(
                         Text("应用", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // RGB 实时预览调色微调器
+                ExpandableRgbColorPicker(
+                    colorHex = currentAccentColorHex,
+                    onColorChange = { newHex ->
+                        customHexInput = newHex
+                        onAccentColorChange(newHex)
+                    },
+                    title = "🎨 RGB 实时微调选色",
+                    defaultExpanded = false
+                )
             }
         }
 
@@ -1591,6 +1607,16 @@ fun TagManagementDialog(
                     }
                 }
 
+                // RGB 实时选色微调器 (新建标签)
+                ExpandableRgbColorPicker(
+                    colorHex = customHexInput.ifBlank { colorPalette[selectedColorIdx] },
+                    onColorChange = { newHex ->
+                        customHexInput = newHex
+                    },
+                    title = "🎨 RGB 实时微调新标签色",
+                    defaultExpanded = false
+                )
+
                 HorizontalDivider(color = DarkBorder, thickness = 1.dp)
 
                 Text("已有标签库列表 (${dbTags.size}项):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -1599,65 +1625,96 @@ fun TagManagementDialog(
                     Text("暂无自定义标签，可输入名称创建新标签。", fontSize = 11.5.sp, color = TextMuted)
                 }
 
+                var editingTagId by remember { mutableStateOf<String?>(null) }
+
                 dbTags.forEach { tag ->
                     val color = try { Color(android.graphics.Color.parseColor(tag.colorHex)) } catch (_: Exception) { Color.Cyan }
+                    val isEditingThis = editingTagId == tag.id
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
+                        border = BorderStroke(1.dp, if (isEditingThis) color.copy(alpha = 0.8f) else DarkBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = color.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, color.copy(alpha = 0.6f)),
-                                modifier = Modifier.height(24.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
-                                    Text(tag.name, fontSize = 11.5.sp, color = color, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(tag.colorHex, fontSize = 11.sp, color = TextMuted)
-                            Spacer(modifier = Modifier.weight(1f))
-
-                            // 快捷换色调色小圆点
-                            colorPalette.take(4).forEach { palHex ->
-                                val pColor = try { Color(android.graphics.Color.parseColor(palHex)) } catch (_: Exception) { Color.Cyan }
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = color.copy(alpha = 0.2f),
+                                    border = BorderStroke(1.dp, color.copy(alpha = 0.6f)),
+                                    modifier = Modifier.height(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                                        Text(tag.name, fontSize = 11.5.sp, color = color, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(tag.colorHex, fontSize = 11.sp, color = TextMuted)
+                                Spacer(modifier = Modifier.weight(1f))
+
+                                // 快捷换色调色小圆点
+                                colorPalette.take(4).forEach { palHex ->
+                                    val pColor = try { Color(android.graphics.Color.parseColor(palHex)) } catch (_: Exception) { Color.Cyan }
+                                    Surface(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                syncDao?.insertOrUpdateTag(tag.copy(colorHex = palHex))
+                                            }
+                                        },
+                                        shape = CircleShape,
+                                        color = pColor,
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .padding(horizontal = 1.dp)
+                                    ) {}
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                IconButton(
+                                    onClick = { editingTagId = if (isEditingThis) null else tag.id },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Palette,
+                                        contentDescription = "RGB调色",
+                                        tint = if (isEditingThis) color else TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(2.dp))
+
+                                IconButton(
                                     onClick = {
                                         coroutineScope.launch {
-                                            syncDao?.insertOrUpdateTag(tag.copy(colorHex = palHex))
+                                            syncDao?.deleteTag(tag.id)
                                         }
                                     },
-                                    shape = CircleShape,
-                                    color = pColor,
-                                    modifier = Modifier
-                                        .size(14.dp)
-                                        .padding(horizontal = 1.dp)
-                                ) {}
-                                Spacer(modifier = Modifier.width(3.dp))
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.DeleteOutline,
+                                        contentDescription = "删除",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            IconButton(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        syncDao?.deleteTag(tag.id)
+                            // 展开为该标签专属 RGB 选色器
+                            if (isEditingThis) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("调整「${tag.name}」的 RGB 专属色彩:", fontSize = 11.sp, color = TextSecondary)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                RgbColorPicker(
+                                    colorHex = tag.colorHex,
+                                    onColorChange = { newHex ->
+                                        coroutineScope.launch {
+                                            syncDao?.insertOrUpdateTag(tag.copy(colorHex = newHex))
+                                        }
                                     }
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.DeleteOutline,
-                                    contentDescription = "删除",
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }

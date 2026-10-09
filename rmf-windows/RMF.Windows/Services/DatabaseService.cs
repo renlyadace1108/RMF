@@ -1056,6 +1056,31 @@ public class DatabaseService
         }
     }
 
+    public static bool UpdateScheduleTagColor(string tagName, string colorHex)
+    {
+        tagName = tagName.Trim();
+        colorHex = colorHex.Trim();
+        if (string.IsNullOrEmpty(tagName) || string.IsNullOrEmpty(colorHex)) return false;
+
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        try
+        {
+            using var cmd = new SqliteCommand(@"
+                UPDATE schedule_tags 
+                SET color_hex = @color
+                WHERE name = @name;
+            ", conn);
+            cmd.Parameters.AddWithValue("@name", tagName);
+            cmd.Parameters.AddWithValue("@color", colorHex);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static bool DeleteScheduleTag(string tagName)
     {
         tagName = tagName.Trim();

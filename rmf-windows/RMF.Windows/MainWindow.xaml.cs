@@ -5502,7 +5502,18 @@ public partial class MainWindow : Window
         if (ThemeCustomAccentPreviewBadge != null)
         {
             var parsedAccent = ThemeService.ParseHexColor(accentHex, Color.FromRgb(0x1A, 0x73, 0xE8));
-            ThemeCustomAccentPreviewBadge.Background = new SolidColorBrush(parsedAccent);
+            var brush = new SolidColorBrush(parsedAccent);
+            ThemeCustomAccentPreviewBadge.Background = brush;
+            if (ThemeAccentLargePreviewSwatch != null) ThemeAccentLargePreviewSwatch.Background = brush;
+            if (ThemeAccentRgbSummaryText != null) ThemeAccentRgbSummaryText.Text = $"RGB({parsedAccent.R},{parsedAccent.G},{parsedAccent.B})";
+            _isUpdatingThemeAccentSliders = true;
+            if (ThemeAccentSliderR != null) ThemeAccentSliderR.Value = parsedAccent.R;
+            if (ThemeAccentSliderG != null) ThemeAccentSliderG.Value = parsedAccent.G;
+            if (ThemeAccentSliderB != null) ThemeAccentSliderB.Value = parsedAccent.B;
+            if (ThemeAccentRText != null) ThemeAccentRText.Text = parsedAccent.R.ToString();
+            if (ThemeAccentGText != null) ThemeAccentGText.Text = parsedAccent.G.ToString();
+            if (ThemeAccentBText != null) ThemeAccentBText.Text = parsedAccent.B.ToString();
+            _isUpdatingThemeAccentSliders = false;
         }
 
         if (ThemeCustomDarkBgInput != null)
@@ -5565,7 +5576,42 @@ public partial class MainWindow : Window
             ThemeService.ApplyTheme(this, config);
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
             ThemeStatusText.Text = $"✓ 已应用主题强调色：{hex}，配置已保存";
+            if (ThemeCustomAccentHexInput != null)
+            {
+                ThemeCustomAccentHexInput.Text = hex;
+            }
         }
+    }
+
+    private bool _isUpdatingThemeAccentSliders = false;
+
+    private void OnThemeAccentRgbSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isUpdatingThemeAccentSliders) return;
+        if (ThemeAccentSliderR == null || ThemeAccentSliderG == null || ThemeAccentSliderB == null) return;
+
+        byte r = (byte)Math.Clamp((int)Math.Round(ThemeAccentSliderR.Value), 0, 255);
+        byte g = (byte)Math.Clamp((int)Math.Round(ThemeAccentSliderG.Value), 0, 255);
+        byte b = (byte)Math.Clamp((int)Math.Round(ThemeAccentSliderB.Value), 0, 255);
+
+        if (ThemeAccentRText != null) ThemeAccentRText.Text = r.ToString();
+        if (ThemeAccentGText != null) ThemeAccentGText.Text = g.ToString();
+        if (ThemeAccentBText != null) ThemeAccentBText.Text = b.ToString();
+
+        var color = Color.FromRgb(r, g, b);
+        var brush = new SolidColorBrush(color);
+
+        if (ThemeCustomAccentPreviewBadge != null) ThemeCustomAccentPreviewBadge.Background = brush;
+        if (ThemeAccentLargePreviewSwatch != null) ThemeAccentLargePreviewSwatch.Background = brush;
+        if (ThemeAccentRgbSummaryText != null) ThemeAccentRgbSummaryText.Text = $"RGB({r},{g},{b})";
+
+        string hex = $"#{r:X2}{g:X2}{b:X2}";
+        _isUpdatingThemeAccentSliders = true;
+        if (ThemeCustomAccentHexInput != null)
+        {
+            ThemeCustomAccentHexInput.Text = hex;
+        }
+        _isUpdatingThemeAccentSliders = false;
     }
 
     private void OnThemeCustomAccentHexTextChanged(object sender, TextChangedEventArgs e)
@@ -5577,8 +5623,66 @@ public partial class MainWindow : Window
             var color = ThemeService.ParseHexColor(text, Colors.Transparent);
             if (color != Colors.Transparent)
             {
-                ThemeCustomAccentPreviewBadge.Background = new SolidColorBrush(color);
+                var brush = new SolidColorBrush(color);
+                ThemeCustomAccentPreviewBadge.Background = brush;
+                if (ThemeAccentLargePreviewSwatch != null) ThemeAccentLargePreviewSwatch.Background = brush;
+                if (ThemeAccentRgbSummaryText != null) ThemeAccentRgbSummaryText.Text = $"RGB({color.R},{color.G},{color.B})";
+
+                if (!_isUpdatingThemeAccentSliders)
+                {
+                    _isUpdatingThemeAccentSliders = true;
+                    if (ThemeAccentSliderR != null) ThemeAccentSliderR.Value = color.R;
+                    if (ThemeAccentSliderG != null) ThemeAccentSliderG.Value = color.G;
+                    if (ThemeAccentSliderB != null) ThemeAccentSliderB.Value = color.B;
+                    if (ThemeAccentRText != null) ThemeAccentRText.Text = color.R.ToString();
+                    if (ThemeAccentGText != null) ThemeAccentGText.Text = color.G.ToString();
+                    if (ThemeAccentBText != null) ThemeAccentBText.Text = color.B.ToString();
+                    _isUpdatingThemeAccentSliders = false;
+                }
             }
+        }
+    }
+
+    private void OnOpenThemeRgbPickerModalClicked(object sender, RoutedEventArgs e)
+    {
+        _rgbPickerTarget = "THEME";
+        string startHex = ThemeCustomAccentHexInput?.Text?.Trim() ?? "#1A73E8";
+        if (!startHex.StartsWith("#")) startHex = "#" + startHex;
+
+        try
+        {
+            var col = ThemeService.ParseHexColor(startHex, Color.FromRgb(0x1A, 0x73, 0xE8));
+            _isUpdatingRgbPicker = true;
+            if (RgbSliderR != null) RgbSliderR.Value = col.R;
+            if (RgbSliderG != null) RgbSliderG.Value = col.G;
+            if (RgbSliderB != null) RgbSliderB.Value = col.B;
+            if (RgbInputR != null) RgbInputR.Text = col.R.ToString();
+            if (RgbInputG != null) RgbInputG.Text = col.G.ToString();
+            if (RgbInputB != null) RgbInputB.Text = col.B.ToString();
+            if (RgbInputHex != null) RgbInputHex.Text = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _currentRgbPickerHex = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _isUpdatingRgbPicker = false;
+
+            UpdateRgbPickerVisuals(col.R, col.G, col.B);
+        }
+        catch { }
+
+        if (RgbModalPreviewTitle != null)
+        {
+            RgbModalPreviewTitle.Text = "全局主题强调色预览";
+        }
+        if (RgbModalPreviewTagText != null)
+        {
+            RgbModalPreviewTagText.Text = "主题色";
+        }
+        if (RgbModalPreviewTime != null)
+        {
+            RgbModalPreviewTime.Text = "实时生效";
+        }
+
+        if (RgbColorPickerModal != null)
+        {
+            RgbColorPickerModal.Visibility = Visibility.Visible;
         }
     }
 
@@ -6581,6 +6685,22 @@ public partial class MainWindow : Window
                 }
             };
 
+            var colorBtn = new Button
+            {
+                Content = "🎨",
+                Style = (Style)FindResource("GoogleTopBtnStyle"),
+                Width = 28,
+                Height = 28,
+                FontSize = 11,
+                ToolTip = "调整标签色彩 (RGB 实时调色)",
+                Margin = new Thickness(0, 0, 4, 0)
+            };
+            colorBtn.Click += (s, e) =>
+            {
+                OpenTagColorPicker(tag.Name, tag.ColorHex);
+            };
+
+            rightSp.Children.Add(colorBtn);
             rightSp.Children.Add(editBtn);
             rightSp.Children.Add(deleteBtn);
             Grid.SetColumn(rightSp, 1);
@@ -6695,6 +6815,96 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnOpenNewTagRgbPickerClicked(object sender, RoutedEventArgs e)
+    {
+        _rgbPickerTarget = "TAG_NEW";
+        string startHex = "#1A73E8";
+        if (NewTagColorCombo?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag && !string.IsNullOrEmpty(tag))
+        {
+            startHex = tag;
+        }
+
+        try
+        {
+            var col = (Color)ColorConverter.ConvertFromString(startHex);
+            _isUpdatingRgbPicker = true;
+            if (RgbSliderR != null) RgbSliderR.Value = col.R;
+            if (RgbSliderG != null) RgbSliderG.Value = col.G;
+            if (RgbSliderB != null) RgbSliderB.Value = col.B;
+            if (RgbInputR != null) RgbInputR.Text = col.R.ToString();
+            if (RgbInputG != null) RgbInputG.Text = col.G.ToString();
+            if (RgbInputB != null) RgbInputB.Text = col.B.ToString();
+            if (RgbInputHex != null) RgbInputHex.Text = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _currentRgbPickerHex = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _isUpdatingRgbPicker = false;
+
+            UpdateRgbPickerVisuals(col.R, col.G, col.B);
+        }
+        catch { }
+
+        if (RgbModalPreviewTitle != null)
+        {
+            string tName = NewTagNameInput?.Text?.Trim() ?? "";
+            RgbModalPreviewTitle.Text = string.IsNullOrEmpty(tName) ? "新标签" : tName;
+        }
+        if (RgbModalPreviewTagText != null)
+        {
+            string tName = NewTagNameInput?.Text?.Trim() ?? "";
+            RgbModalPreviewTagText.Text = string.IsNullOrEmpty(tName) ? "新标签" : tName;
+        }
+        if (RgbModalPreviewTime != null)
+        {
+            RgbModalPreviewTime.Text = "新标签色彩选色";
+        }
+
+        if (RgbColorPickerModal != null)
+        {
+            RgbColorPickerModal.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OpenTagColorPicker(string tagName, string currentHex)
+    {
+        _rgbPickerTarget = $"TAG_EDIT:{tagName}";
+        string startHex = string.IsNullOrEmpty(currentHex) ? "#1A73E8" : currentHex;
+
+        try
+        {
+            var col = (Color)ColorConverter.ConvertFromString(startHex);
+            _isUpdatingRgbPicker = true;
+            if (RgbSliderR != null) RgbSliderR.Value = col.R;
+            if (RgbSliderG != null) RgbSliderG.Value = col.G;
+            if (RgbSliderB != null) RgbSliderB.Value = col.B;
+            if (RgbInputR != null) RgbInputR.Text = col.R.ToString();
+            if (RgbInputG != null) RgbInputG.Text = col.G.ToString();
+            if (RgbInputB != null) RgbInputB.Text = col.B.ToString();
+            if (RgbInputHex != null) RgbInputHex.Text = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _currentRgbPickerHex = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _isUpdatingRgbPicker = false;
+
+            UpdateRgbPickerVisuals(col.R, col.G, col.B);
+        }
+        catch { }
+
+        if (RgbModalPreviewTitle != null)
+        {
+            RgbModalPreviewTitle.Text = tagName;
+        }
+        if (RgbModalPreviewTagText != null)
+        {
+            RgbModalPreviewTagText.Text = tagName;
+        }
+        if (RgbModalPreviewTime != null)
+        {
+            RgbModalPreviewTime.Text = "标签色彩实时调色";
+        }
+
+        if (RgbColorPickerModal != null)
+        {
+            RgbColorPickerModal.Visibility = Visibility.Visible;
+        }
+    }
+
     private void OnCloseRgbColorPickerClicked(object sender, RoutedEventArgs e)
     {
         if (RgbColorPickerModal != null)
@@ -6720,6 +6930,63 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#") || hex.Length != 7)
         {
             hex = "#1A73E8";
+        }
+
+        if (_rgbPickerTarget == "THEME")
+        {
+            string cleanHex = hex.ToUpperInvariant();
+            if (ThemeCustomAccentHexInput != null)
+            {
+                ThemeCustomAccentHexInput.Text = cleanHex;
+            }
+            var config = ConfigService.Load();
+            config.AccentColorHex = cleanHex;
+            ConfigService.Save(config);
+            ThemeService.ApplyTheme(this, config);
+            ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            ThemeStatusText.Text = $"✓ 已自定义主题强调色为 {cleanHex}，配置已保存！";
+            return;
+        }
+
+        if (_rgbPickerTarget == "TAG_NEW")
+        {
+            string cleanHex = hex.ToUpperInvariant();
+            bool foundTag = false;
+            if (NewTagColorCombo != null)
+            {
+                for (int i = 0; i < NewTagColorCombo.Items.Count; i++)
+                {
+                    if (NewTagColorCombo.Items[i] is ComboBoxItem cbi && (cbi.Tag as string) == cleanHex)
+                    {
+                        NewTagColorCombo.SelectedIndex = i;
+                        foundTag = true;
+                        break;
+                    }
+                }
+                if (!foundTag)
+                {
+                    var customTagItem = new ComboBoxItem
+                    {
+                        Content = $"🎨 自选色 ({cleanHex})",
+                        Tag = cleanHex
+                    };
+                    NewTagColorCombo.Items.Add(customTagItem);
+                    NewTagColorCombo.SelectedItem = customTagItem;
+                }
+            }
+            return;
+        }
+
+        if (_rgbPickerTarget.StartsWith("TAG_EDIT:"))
+        {
+            string tagName = _rgbPickerTarget.Substring("TAG_EDIT:".Length);
+            string cleanHex = hex.ToUpperInvariant();
+            DatabaseService.UpdateScheduleTagColor(tagName, cleanHex);
+            RenderTagManagementList();
+            RefreshEventCategoryCombo();
+            RenderMyCalendarsList();
+            RenderAllCalendarViews();
+            return;
         }
 
         if (_rgbPickerTarget == "COURSE")

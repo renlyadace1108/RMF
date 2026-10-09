@@ -2519,23 +2519,97 @@
                                             </Button>
                                         </WrapPanel>
 
-                                        <!-- Custom Hex Input -->
-                                        <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="160" />
-                                                    <ColumnDefinition Width="10" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
+                                        <!-- Custom Hex & RGB Real-time Preview Color Picker -->
+                                        <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="130" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
 
-                                                <TextBlock Text="自定义十六进制颜色：" FontSize="12" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                                <Border Grid.Column="1" x:Name="ThemeCustomAccentPreviewBadge" Width="26" Height="26" CornerRadius="4" Background="#1A73E8" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                <TextBox Grid.Column="2" x:Name="ThemeCustomAccentHexInput" Text="#1A73E8" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,4" Height="30" FontSize="12" VerticalContentAlignment="Center" FontFamily="Cascadia Code, Consolas" TextChanged="OnThemeCustomAccentHexTextChanged" />
-                                                <Button Grid.Column="4" Content="应用强调色" Style="{StaticResource GoogleActionBtnStyle}" Padding="16,4" Height="30" FontSize="12" FontWeight="SemiBold" Click="OnApplyCustomAccentClicked" />
-                                            </Grid>
+                                                    <TextBlock Text="HEX 颜色代码：" FontSize="12" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <Border Grid.Column="1" x:Name="ThemeCustomAccentPreviewBadge" Width="26" Height="26" CornerRadius="4" Background="#1A73E8" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="2" x:Name="ThemeCustomAccentHexInput" Text="#1A73E8" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,4" Height="30" FontSize="12" VerticalContentAlignment="Center" FontFamily="Cascadia Code, Consolas" TextChanged="OnThemeCustomAccentHexTextChanged" />
+                                                    <Button Grid.Column="4" Content="应用强调色" Style="{StaticResource GoogleActionBtnStyle}" Padding="14,4" Height="30" FontSize="12" FontWeight="SemiBold" Click="OnApplyCustomAccentClicked" />
+                                                    <Button Grid.Column="6" Content="🎨 独立调色大弹窗" Style="{StaticResource GoogleTopBtnStyle}" Padding="10,4" Height="30" FontSize="11" Click="OnOpenThemeRgbPickerModalClicked" ToolTip="打开全功能 RGB 调色盘弹窗" />
+                                                </Grid>
+
+                                                <!-- RGB 实时调色滑块面板 -->
+                                                <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="14" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- 3 原色滑块 -->
+                                                        <StackPanel Grid.Column="0">
+                                                            <!-- R 滑块 -->
+                                                            <Grid Margin="0,0,0,6">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="48" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="38" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Border Width="8" Height="8" CornerRadius="4" Background="#EF4444" Margin="0,0,5,0" />
+                                                                    <TextBlock Text="R (红)" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                                                </StackPanel>
+                                                                <Slider x:Name="ThemeAccentSliderR" Grid.Column="1" Minimum="0" Maximum="255" SmallChange="1" LargeChange="10" Value="26" VerticalAlignment="Center" Margin="6,0" ValueChanged="OnThemeAccentRgbSliderChanged" />
+                                                                <TextBlock x:Name="ThemeAccentRText" Grid.Column="2" Text="26" FontSize="11" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Consolas, monospace" />
+                                                            </Grid>
+
+                                                            <!-- G 滑块 -->
+                                                            <Grid Margin="0,0,0,6">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="48" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="38" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Border Width="8" Height="8" CornerRadius="4" Background="#10B981" Margin="0,0,5,0" />
+                                                                    <TextBlock Text="G (绿)" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                                                </StackPanel>
+                                                                <Slider x:Name="ThemeAccentSliderG" Grid.Column="1" Minimum="0" Maximum="255" SmallChange="1" LargeChange="10" Value="115" VerticalAlignment="Center" Margin="6,0" ValueChanged="OnThemeAccentRgbSliderChanged" />
+                                                                <TextBlock x:Name="ThemeAccentGText" Grid.Column="2" Text="115" FontSize="11" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Consolas, monospace" />
+                                                            </Grid>
+
+                                                            <!-- B 滑块 -->
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="48" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="38" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Border Width="8" Height="8" CornerRadius="4" Background="#3B82F6" Margin="0,0,5,0" />
+                                                                    <TextBlock Text="B (蓝)" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                                                </StackPanel>
+                                                                <Slider x:Name="ThemeAccentSliderB" Grid.Column="1" Minimum="0" Maximum="255" SmallChange="1" LargeChange="10" Value="232" VerticalAlignment="Center" Margin="6,0" ValueChanged="OnThemeAccentRgbSliderChanged" />
+                                                                <TextBlock x:Name="ThemeAccentBText" Grid.Column="2" Text="232" FontSize="11" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Consolas, monospace" />
+                                                            </Grid>
+                                                        </StackPanel>
+
+                                                        <!-- 实时预览色块 -->
+                                                        <Border Grid.Column="2" CornerRadius="6" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12,6" VerticalAlignment="Center" MinWidth="130">
+                                                            <StackPanel HorizontalAlignment="Center">
+                                                                <Border x:Name="ThemeAccentLargePreviewSwatch" Width="68" Height="36" CornerRadius="5" Background="#1A73E8" BorderBrush="#33FFFFFF" BorderThickness="1" HorizontalAlignment="Center" Margin="0,0,0,4">
+                                                                    <TextBlock x:Name="ThemeAccentRgbSummaryText" Text="RGB(26,115,232)" FontSize="9" Foreground="White" Background="#80000000" VerticalAlignment="Bottom" HorizontalAlignment="Center" Padding="3,1" FontFamily="Consolas, monospace" />
+                                                                </Border>
+                                                                <TextBlock Text="RGB 实时预览色样" FontSize="10" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
                                         </Border>
                                     </StackPanel>
                                 </Border>
@@ -5053,6 +5127,7 @@
                                             <ComboBoxItem Content="🌸 樱花粉 (#EC4899)" Tag="#EC4899" />
                                             <ComboBoxItem Content="🔘 炭石灰 (#4B5563)" Tag="#4B5563" />
                                         </ComboBox>
+                                        <Button Content="🎨 RGB 调色盘" Style="{StaticResource GoogleTopBtnStyle}" Padding="8,3" FontSize="11" Margin="8,0,0,0" ToolTip="打开 RGB 调色盘实时自选颜色" Click="OnOpenNewTagRgbPickerClicked" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
