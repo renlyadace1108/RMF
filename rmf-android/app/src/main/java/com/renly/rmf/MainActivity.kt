@@ -435,6 +435,19 @@ class MainActivity : ComponentActivity() {
                                             Toast.makeText(this@MainActivity, "已成功将今日 ${projected.size} 门课程投影到时间块！", Toast.LENGTH_SHORT).show()
                                         }
                                     }
+                                },
+                                onImportCourses = { courses ->
+                                    lifecycleScope.launch {
+                                        courses.forEach { course ->
+                                            db.courseDao().insertOrUpdateCourse(course)
+                                        }
+                                        com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            daysAhead = 7
+                                        )
+                                        Toast.makeText(this@MainActivity, "🎉 成功导入 ${courses.size} 门课程！", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
 
@@ -557,7 +570,7 @@ class MainActivity : ComponentActivity() {
                                     val currentList = runBlockingOrCachedSchedules()
                                     SchedulerAuditEngine.audit(currentList)
                                 },
-                                onTriggerAiReview = { apiKey, callback ->
+                                onTriggerAiReview = { _, callback ->
                                     lifecycleScope.launch {
                                         val schedules = db.scheduleDao().getAllRawSchedules().filter { it.isDeleted == 0 }
                                         val completed = schedules.count { it.status == "COMPLETED" }
@@ -565,16 +578,16 @@ class MainActivity : ComponentActivity() {
                                         val topics = db.studyTopicDao().getAllRawTopics().filter { it.isDeleted == 0 }
                                         val studySum = topics.joinToString { "${it.title}: ${it.progressPercent}%" }
 
-                                        when (val res = GeminiService.generateDailyReview(
-                                            apiKey = apiKey,
+                                        when (val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
+                                            context = this@MainActivity,
                                             completedCount = completed,
                                             totalSchedules = schedules.size,
                                             focusMinutes = completed * 30,
                                             interruptionCount = interruptions.size,
                                             studySummary = studySum.ifBlank { "无专项更新" }
                                         )) {
-                                            is GeminiResult.Success -> callback(res.responseText)
-                                            is GeminiResult.Error -> callback("生成失败: ${res.errorMessage}")
+                                            is com.renly.rmf.domain.service.AiResult.Success -> callback(res.data)
+                                            is com.renly.rmf.domain.service.AiResult.Error -> callback("生成失败: ${res.errorMessage}")
                                         }
                                     }
                                 },

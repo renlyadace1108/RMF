@@ -33,6 +33,9 @@ import com.renly.rmf.data.local.entity.CourseEntity
 import com.renly.rmf.domain.service.TimetablePreferences
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -46,14 +49,54 @@ fun TimetableScreen(
     onDeleteCourse: (String) -> Unit = {},
     onAddAdjustment: (CourseAdjustmentEntity) -> Unit = {},
     onDeleteAdjustment: (String) -> Unit = {},
-    onProjectToToday: () -> Unit = {}
+    onProjectToToday: () -> Unit = {},
+    onImportCourses: (List<CourseEntity>) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val courses by coursesFlow.collectAsState(initial = emptyList())
     val adjustments by adjustmentsFlow.collectAsState(initial = emptyList())
 
     var semesterStartDate by remember { mutableStateOf(TimetablePreferences.getSemesterStartDate(context)) }
     var totalWeeks by remember { mutableIntStateOf(TimetablePreferences.getTotalWeeks(context)) }
+
+    // AI 课表截图自动提取状态
+    var isAnalyzingImage by remember { mutableStateOf(false) }
+    var analysisStatusText by remember { mutableStateOf("") }
+    var recognizedCourses by remember { mutableStateOf<List<CourseEntity>>(emptyList()) }
+    var showImportPreviewDialog by remember { mutableStateOf(false) }
+    var importErrorText by remember { mutableStateOf<String?>(null) }
+
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                isAnalyzingImage = true
+                analysisStatusText = "正在预处理课表图片..."
+                val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.renly.rmf.domain.service.AiService.compressImageFromUri(context, uri)
+                }
+                if (bytes == null) {
+                    isAnalyzingImage = false
+                    importErrorText = "未能成功读取图片文件，请重试"
+                    return@launch
+                }
+                analysisStatusText = "AI 视觉大模型正在解析排课网格与课程信息..."
+                when (val res = com.renly.rmf.domain.service.AiService.extractTimetableFromImage(context, bytes)) {
+                    is com.renly.rmf.domain.service.AiResult.Success -> {
+                        isAnalyzingImage = false
+                        recognizedCourses = res.data
+                        showImportPreviewDialog = true
+                    }
+                    is com.renly.rmf.domain.service.AiResult.Error -> {
+                        isAnalyzingImage = false
+                        importErrorText = res.errorMessage
+                    }
+                }
+            }
+        }
+    }
 
     // 自动根据开学日期推算当前周次
     val calculatedCurrentWeek = remember(semesterStartDate) {
@@ -155,6 +198,34 @@ fun TimetableScreen(
                 Spacer(modifier = Modifier.weight(1f))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // 📷 截图导入 (AI 视觉多模态智能提取)
+                    Surface(
+                        onClick = {
+                            if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "请先在「工作台」中配置 Gemini 或 通义千问 API 密钥！",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                imagePickerLauncher.launch("image/*")
+                            }
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = DopaminePurple.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 9.dp)
+                        ) {
+                            Text("📷", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("截图导入", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DopaminePurple)
+                        }
+                    }
+
                     // 🔄 调停课与补课管理弹窗 (CourseAdjustmentModal)
                     Surface(
                         onClick = { showAdjustmentDialog = true },
@@ -419,7 +490,233 @@ fun TimetableScreen(
                 }
             )
         }
+
+        // 🤖 AI 课表截图分析中加载弹窗
+        if (isAnalyzingImage) {
+            AlertDialog(
+                onDismissRequest = {},
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = DopaminePurple,
+                            strokeWidth = 2.5.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("AI 正在提取课表...", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    }
+                },
+                text = {
+                    Column {
+                        Text(analysisStatusText, fontSize = 13.sp, color = TextSecondary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "提示：提取耗时约 3~10 秒，模型将自动解析周几、节次、教室与单双周。",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+                },
+                confirmButton = {},
+                containerColor = DarkCard,
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+
+        // ⚠️ 课表识别异常提示弹窗
+        if (importErrorText != null) {
+            AlertDialog(
+                onDismissRequest = { importErrorText = null },
+                title = { Text("⚠️ 课表识别提示", fontWeight = FontWeight.Bold, color = TextPrimary) },
+                text = {
+                    Text(
+                        text = importErrorText ?: "",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { importErrorText = null }) {
+                        Text("我知道了", color = DopamineBlue, fontWeight = FontWeight.Bold)
+                    }
+                },
+                containerColor = DarkCard,
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+
+        // 📋 AI 课表识别结果核对与导入确认弹窗
+        if (showImportPreviewDialog) {
+            AiTimetableImportPreviewDialog(
+                initialCourses = recognizedCourses,
+                onDismiss = { showImportPreviewDialog = false },
+                onConfirmImport = { selectedCourses ->
+                    onImportCourses(selectedCourses)
+                    showImportPreviewDialog = false
+                }
+            )
+        }
     }
+}
+
+/**
+ * 📋 AI 识别课表清单二次确认弹窗
+ */
+@Composable
+fun AiTimetableImportPreviewDialog(
+    initialCourses: List<CourseEntity>,
+    onDismiss: () -> Unit,
+    onConfirmImport: (List<CourseEntity>) -> Unit
+) {
+    var selectedIds by remember { mutableStateOf(initialCourses.map { it.id }.toSet()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "📋 识别出 ${initialCourses.size} 门课程",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = {
+                        selectedIds = if (selectedIds.size == initialCourses.size) emptySet() else initialCourses.map { it.id }.toSet()
+                    },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = if (selectedIds.size == initialCourses.size) "取消全选" else "全选",
+                        fontSize = 12.sp,
+                        color = DopaminePurple,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "请核对识别出的排课信息，点击条目可取消导入不需要的课程：",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(initialCourses) { course ->
+                        val isChecked = selectedIds.contains(course.id)
+                        val color = try {
+                            Color(android.graphics.Color.parseColor(course.colorHex))
+                        } catch (_: Exception) {
+                            DopamineBlue
+                        }
+                        val dayStr = when (course.dayOfWeek) {
+                            1 -> "周一"
+                            2 -> "周二"
+                            3 -> "周三"
+                            4 -> "周四"
+                            5 -> "周五"
+                            6 -> "周六"
+                            7 -> "周日"
+                            else -> "周${course.dayOfWeek}"
+                        }
+                        val weekTypeStr = when (course.weekType) {
+                            "ODD" -> "(单周)"
+                            "EVEN" -> "(双周)"
+                            else -> ""
+                        }
+
+                        Surface(
+                            onClick = {
+                                selectedIds = if (isChecked) selectedIds - course.id else selectedIds + course.id
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isChecked) DarkSurface else DarkCard.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, if (isChecked) color.copy(alpha = 0.6f) else DarkBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedIds = if (checked) selectedIds + course.id else selectedIds - course.id
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = DopaminePurple,
+                                        uncheckedColor = TextSecondary
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = color,
+                                            modifier = Modifier.size(8.dp)
+                                        ) {}
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = course.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "$dayStr 第${course.startSection}-${course.startSection + course.sectionSpan - 1}节 · ${course.startWeek}-${course.endWeek}周 $weekTypeStr",
+                                        fontSize = 11.5.sp,
+                                        color = TextSecondary
+                                    )
+                                    if (course.location.isNotBlank() || course.teacher.isNotBlank()) {
+                                        Text(
+                                            text = listOf(course.location, course.teacher).filter { it.isNotBlank() }.joinToString(" · "),
+                                            fontSize = 11.sp,
+                                            color = DopamineCyan.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val toImport = initialCourses.filter { selectedIds.contains(it.id) }
+                    onConfirmImport(toImport)
+                },
+                enabled = selectedIds.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("一键导入勾选课程 (${selectedIds.size})", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = TextSecondary)
+            }
+        },
+        containerColor = DarkCard,
+        shape = RoundedCornerShape(16.dp)
+    )
 }
 
 @Composable
