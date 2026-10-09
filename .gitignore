@@ -12,11 +12,17 @@ obj/
 startup_error.txt
 crash.log
 
+# Publish & installers
+publish/
+installer_output/
+*.exe
+
 # Android / Gradle
 .gradle/
-build/
+**/build/
 *.apk
 *.aab
 local.properties
 .idea/
 *.iml
+.cxx/

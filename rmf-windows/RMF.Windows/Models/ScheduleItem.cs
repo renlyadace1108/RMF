@@ -44,6 +44,12 @@ public class ScheduleItem
     public string? GoalId { get; set; }
 
     /// <summary>
+    /// 学习主题关联 ID (用于学时打卡自动反哺至 Study 档案)
+    /// </summary>
+    [JsonPropertyName("study_topic_id")]
+    public string? StudyTopicId { get; set; }
+
+    /// <summary>
     /// 三级认知负荷类型: DEEP_WORK (深度工作), SHALLOW_WORK (浅层事务), REST_BUFFER (强制休息/缓冲)
     /// </summary>
     [JsonPropertyName("work_type")]
@@ -114,4 +120,34 @@ public class ScheduleItem
     /// </summary>
     [JsonPropertyName("source")]
     public string Source { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 是否为弹性/幽灵占位块 (Ghost / Tentative Block)
+    /// </summary>
+    [JsonPropertyName("is_tentative")]
+    public bool IsTentative { get; set; } = false;
+
+    /// <summary>
+    /// 是否锁定日程坐标 (禁止拖拽微调防篡改)
+    /// </summary>
+    [JsonPropertyName("is_locked")]
+    public bool IsLocked { get; set; } = false;
+
+    /// <summary>
+    /// 前置依赖任务 ID (前置任务未完成时本任务锁定/灰显)
+    /// </summary>
+    [JsonPropertyName("depends_on_task_id")]
+    public string? DependsOnTaskId { get; set; }
+
+    /// <summary>
+    /// 连续推迟/延期次数 (>=3 次触发滚雪球告警)
+    /// </summary>
+    [JsonPropertyName("postpone_count")]
+    public int PostponeCount { get; set; } = 0;
+
+    /// <summary>
+    /// 艾森豪威尔四象限: Q1 (重要且紧急), Q2 (重要不紧急), Q3 (紧急不重要), Q4 (不重要不紧急)
+    /// </summary>
+    [JsonPropertyName("eisenhower_quadrant")]
+    public string EisenhowerQuadrant { get; set; } = "Q2";
 }

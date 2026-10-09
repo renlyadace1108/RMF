@@ -36,6 +36,18 @@ public class GoalItem
     [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// 是否为常驻置顶北极星目标 (North Star Pin)
+    /// </summary>
+    [JsonPropertyName("is_north_star")]
+    public bool IsNorthStar { get; set; } = false;
+
+    /// <summary>
+    /// 周期中途置信度自评 (0.1 ~ 1.0)
+    /// </summary>
+    [JsonPropertyName("confidence")]
+    public double Confidence { get; set; } = 1.0;
+
     // 非数据库序列化辅助属性
     [JsonIgnore]
     public List<GoalItem> Children { get; set; } = new();

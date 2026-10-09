@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RMF" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#090B0E</item>
+        <item name="android:navigationBarColor">#11141A</item>
+        <item name="android:windowBackground">#090B0E</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

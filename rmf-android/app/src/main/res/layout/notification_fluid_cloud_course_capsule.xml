@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/fluid_course_capsule_root"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="#18191C"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp">
+
+    <!-- 应用/课程图标 -->
+    <ImageView
+        android:id="@+id/fluid_course_capsule_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_logo"
+        android:contentDescription="RMF Course Icon" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="10dp">
+
+        <TextView
+            android:id="@+id/fluid_course_capsule_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎓 高等数学"
+            android:textColor="#F1F5F9"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/fluid_course_capsule_location"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📍 教学楼 302 | 10分钟后上课"
+            android:textColor="#38BDF8"
+            android:textSize="10.5sp"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <!-- 动态倒计时/上课时间 -->
+    <Chronometer
+        android:id="@+id/fluid_course_capsule_chronometer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#00F0FF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:layout_marginEnd="10dp" />
+
+    <!-- 快捷确认/进入专注按钮 -->
+    <TextView
+        android:id="@+id/fluid_course_capsule_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp"
+        android:text="进入专注"
+        android:textColor="#00F0FF"
+        android:textSize="11.5sp"
+        android:background="#222C2E33" />
+
+</LinearLayout>

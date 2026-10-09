@@ -1,0 +1,109 @@
+<Window x:Class="RMF.Windows.DesktopWidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="RMF 桌面智能小组件"
+        Height="420" Width="300"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual">
+    <Window.Resources>
+        <Style x:Key="WidgetBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Margin="10" Background="#EE18191C" BorderBrush="#2D3748" BorderThickness="1" CornerRadius="16" Padding="14,12" MouseLeftButtonDown="OnWindowMouseDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.45"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/> <!-- 标题栏与吸顶 -->
+                <RowDefinition Height="Auto"/> <!-- 北极星目标 -->
+                <RowDefinition Height="Auto"/> <!-- 今日课程摘要 -->
+                <RowDefinition Height="*"/>    <!-- 待办与日程 -->
+                <RowDefinition Height="Auto"/> <!-- 底部状态 -->
+            </Grid.RowDefinitions>
+
+            <!-- 0. 标题栏 -->
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⚡ RMF 桌面简报" FontSize="12" FontWeight="Bold" Foreground="#38BDF8"/>
+                    <TextBlock x:Name="DateText" Text="10-04 周日" FontSize="11" Foreground="#94A3B8" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Style="{StaticResource WidgetBtn}" ToolTip="刷新数据" Click="OnRefreshClicked">
+                        <TextBlock Text="🔄" FontSize="11" Foreground="#94A3B8"/>
+                    </Button>
+                    <Button Style="{StaticResource WidgetBtn}" ToolTip="切换置顶/置底" Click="OnToggleTopmostClicked" Margin="4,0,0,0">
+                        <TextBlock x:Name="PinIconText" Text="📌" FontSize="11" Foreground="#94A3B8"/>
+                    </Button>
+                    <Button Style="{StaticResource WidgetBtn}" ToolTip="关闭挂件" Click="OnCloseClicked" Margin="4,0,0,0">
+                        <TextBlock Text="✕" FontSize="11" Foreground="#94A3B8"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- 1. 北极星战略目标卡片 -->
+            <Border Grid.Row="1" Background="#202227" CornerRadius="8" Padding="10,8" Margin="0,0,0,10" BorderBrush="#3B82F6" BorderThickness="1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⭐ 北极星战略目标" FontSize="10.5" FontWeight="Bold" Foreground="#F59E0B"/>
+                        <TextBlock x:Name="NorthStarProgressText" Text="0%" FontSize="10" Foreground="#38BDF8" Margin="6,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock x:Name="NorthStarTitleText" Text="暂无置顶北极星目标" FontSize="12" FontWeight="SemiBold" Foreground="#F1F5F9" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 2. 今日课程投影 -->
+            <Border Grid.Row="2" Background="#1B2430" CornerRadius="8" Padding="10,8" Margin="0,0,0,10" BorderBrush="#06B6D4" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="📚 今日课表动态投影" FontSize="10.5" FontWeight="Bold" Foreground="#67E8F9"/>
+                    <TextBlock x:Name="TodayCoursesText" Text="今日无课 / 自主攻坚日" FontSize="11.5" Foreground="#E2E8F0" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- 3. 待办与今日排期日程 -->
+            <Border Grid.Row="3" Background="#1A1C20" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="📋 今日重点日程" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,6"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden">
+                        <StackPanel x:Name="ScheduleItemsList"/>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- 4. 底部快捷操作 -->
+            <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+                <TextBlock Text="拖拽挂件可任意吸附" FontSize="9.5" Foreground="#64748B" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -17,6 +17,30 @@
                 <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
                 <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI Emoji, Segoe UI, sans-serif" />
             </Style>
+
+            <!-- 全局彻底消除软件内所有滚动条视觉元素，保留滚轮与触控板平滑滚动响应 -->
+            <Style TargetType="{x:Type ScrollBar}">
+                <Setter Property="Width" Value="0" />
+                <Setter Property="Height" Value="0" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="MaxWidth" Value="0" />
+                <Setter Property="MaxHeight" Value="0" />
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Setter Property="Opacity" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollBar}">
+                            <Grid Width="0" Height="0" Visibility="Collapsed" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="{x:Type ScrollViewer}">
+                <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
+                <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
