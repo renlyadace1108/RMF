@@ -232,8 +232,19 @@ class MainActivity : ComponentActivity() {
             var currentAccentColorHex by remember {
                 mutableStateOf(com.renly.rmf.ui.theme.ThemePreferences.getAccentColorHex(this@MainActivity))
             }
+            var currentCustomDarkBgHex by remember {
+                mutableStateOf(com.renly.rmf.ui.theme.ThemePreferences.getDarkBgColorHex(this@MainActivity))
+            }
+            var currentCustomLightBgHex by remember {
+                mutableStateOf(com.renly.rmf.ui.theme.ThemePreferences.getLightBgColorHex(this@MainActivity))
+            }
 
-            RMFTheme(themeMode = currentThemeMode, accentColorHex = currentAccentColorHex) {
+            RMFTheme(
+                themeMode = currentThemeMode,
+                accentColorHex = currentAccentColorHex,
+                darkBgColorHex = currentCustomDarkBgHex,
+                lightBgColorHex = currentCustomLightBgHex
+            ) {
                 var showSplashScreen by remember { mutableStateOf(true) }
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Schedule) }
 
@@ -568,6 +579,16 @@ class MainActivity : ComponentActivity() {
                                 onAccentColorChange = { newHex ->
                                     currentAccentColorHex = newHex
                                     com.renly.rmf.ui.theme.ThemePreferences.setAccentColorHex(this@MainActivity, newHex)
+                                },
+                                currentCustomDarkBgHex = currentCustomDarkBgHex,
+                                onDarkBgColorChange = { newHex ->
+                                    currentCustomDarkBgHex = newHex
+                                    com.renly.rmf.ui.theme.ThemePreferences.setDarkBgColorHex(this@MainActivity, newHex)
+                                },
+                                currentCustomLightBgHex = currentCustomLightBgHex,
+                                onLightBgColorChange = { newHex ->
+                                    currentCustomLightBgHex = newHex
+                                    com.renly.rmf.ui.theme.ThemePreferences.setLightBgColorHex(this@MainActivity, newHex)
                                 },
                                 syncDao = db.syncDao(),
                                 onNavigateToGoals = { currentScreen = Screen.Goals },

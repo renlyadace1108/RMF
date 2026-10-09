@@ -32,6 +32,10 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit = {},
     currentAccentColorHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_ACCENT_COLOR,
     onAccentColorChange: (String) -> Unit = {},
+    currentCustomDarkBgHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_DARK_BG_COLOR,
+    onDarkBgColorChange: (String) -> Unit = {},
+    currentCustomLightBgHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_LIGHT_BG_COLOR,
+    onLightBgColorChange: (String) -> Unit = {},
     syncDao: com.renly.rmf.data.local.dao.SyncDao? = null,
     onNavigateToGoals: () -> Unit,
     onNavigateToExpenses: () -> Unit,
@@ -242,6 +246,251 @@ fun SettingsScreen(
                     title = "🎨 RGB 实时微调选色",
                     defaultExpanded = false
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ============================================
+                // 自定义背景底色风格 (Background Tone Customization)
+                // ============================================
+                Text(
+                    text = "🌌 自定义背景底色风格 (Background Tone)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "自由定制深色或日间模式的主背景基调，支持预设色盘与 RGB 实时调色预览",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                )
+
+                // 选项卡：切换设置深色背景 或 日间背景
+                var selectedBgTab by remember { mutableStateOf(if (currentThemeMode == ThemeMode.LIGHT) 1 else 0) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        onClick = { selectedBgTab = 0 },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (selectedBgTab == 0) DopamineBlue.copy(alpha = 0.15f) else DarkSurface,
+                        border = BorderStroke(1.dp, if (selectedBgTab == 0) DopamineBlue else DarkBorder),
+                        modifier = Modifier.weight(1f).height(38.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🌙 深色底色", fontSize = 12.sp, fontWeight = if (selectedBgTab == 0) FontWeight.Bold else FontWeight.Normal, color = if (selectedBgTab == 0) DopamineBlue else TextSecondary)
+                        }
+                    }
+
+                    Surface(
+                        onClick = { selectedBgTab = 1 },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (selectedBgTab == 1) DopamineBlue.copy(alpha = 0.15f) else DarkSurface,
+                        border = BorderStroke(1.dp, if (selectedBgTab == 1) DopamineBlue else DarkBorder),
+                        modifier = Modifier.weight(1f).height(38.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("☀️ 日间底色", fontSize = 12.sp, fontWeight = if (selectedBgTab == 1) FontWeight.Bold else FontWeight.Normal, color = if (selectedBgTab == 1) DopamineBlue else TextSecondary)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (selectedBgTab == 0) {
+                    // 深色模式预设
+                    val presetDarkBgs = listOf(
+                        "#090B0E" to "极光黑",
+                        "#000000" to "AMOLED纯黑",
+                        "#18191B" to "炭墨黑",
+                        "#111827" to "幽蓝深夜",
+                        "#0F172A" to "深海沉夜",
+                        "#171717" to "中性黑"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        presetDarkBgs.forEach { (hex, title) ->
+                            val isSelected = currentCustomDarkBgHex.equals(hex, ignoreCase = true)
+                            val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Black }
+                            Surface(
+                                onClick = { onDarkBgColorChange(hex) },
+                                shape = CircleShape,
+                                color = color,
+                                border = BorderStroke(if (isSelected) 2.5.dp else 1.dp, if (isSelected) DopamineBlue else DarkBorder),
+                                modifier = Modifier.size(32.dp)
+                            ) {}
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    var customDarkBgInput by remember(currentCustomDarkBgHex) { mutableStateOf(currentCustomDarkBgHex) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = customDarkBgInput,
+                            onValueChange = { input ->
+                                customDarkBgInput = input
+                                if (input.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                    onDarkBgColorChange(input)
+                                }
+                            },
+                            label = { Text("深色背景 HEX (如 #090B0E)", fontSize = 11.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            leadingIcon = {
+                                val previewColor = try {
+                                    Color(android.graphics.Color.parseColor(customDarkBgInput))
+                                } catch (_: Exception) {
+                                    Color.Black
+                                }
+                                Surface(
+                                    shape = CircleShape,
+                                    color = previewColor,
+                                    border = BorderStroke(1.dp, DarkBorder),
+                                    modifier = Modifier.size(20.dp)
+                                ) {}
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (customDarkBgInput.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                    onDarkBgColorChange(customDarkBgInput)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DopamineAccent),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("应用", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // RGB 实时预览调色微调器
+                    ExpandableRgbColorPicker(
+                        colorHex = currentCustomDarkBgHex,
+                        onColorChange = { newHex ->
+                            customDarkBgInput = newHex
+                            onDarkBgColorChange(newHex)
+                        },
+                        title = "🌙 深色背景 RGB 实时调色",
+                        defaultExpanded = false
+                    )
+                } else {
+                    // 日间模式预设
+                    val presetLightBgs = listOf(
+                        "#F8FAFC" to "象牙暖玉白",
+                        "#FFFFFF" to "极简纯白",
+                        "#F1F5F9" to "冰川冷灰",
+                        "#F0FDF4" to "护眼薄荷",
+                        "#FFFBEB" to "暖阳淡米",
+                        "#F5F5F7" to "原色金属灰"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        presetLightBgs.forEach { (hex, title) ->
+                            val isSelected = currentCustomLightBgHex.equals(hex, ignoreCase = true)
+                            val color = try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.White }
+                            Surface(
+                                onClick = { onLightBgColorChange(hex) },
+                                shape = CircleShape,
+                                color = color,
+                                border = BorderStroke(if (isSelected) 2.5.dp else 1.dp, if (isSelected) DopamineBlue else DarkBorder),
+                                modifier = Modifier.size(32.dp)
+                            ) {}
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    var customLightBgInput by remember(currentCustomLightBgHex) { mutableStateOf(currentCustomLightBgHex) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = customLightBgInput,
+                            onValueChange = { input ->
+                                customLightBgInput = input
+                                if (input.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                    onLightBgColorChange(input)
+                                }
+                            },
+                            label = { Text("日间背景 HEX (如 #F8FAFC)", fontSize = 11.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            leadingIcon = {
+                                val previewColor = try {
+                                    Color(android.graphics.Color.parseColor(customLightBgInput))
+                                } catch (_: Exception) {
+                                    Color.White
+                                }
+                                Surface(
+                                    shape = CircleShape,
+                                    color = previewColor,
+                                    border = BorderStroke(1.dp, DarkBorder),
+                                    modifier = Modifier.size(20.dp)
+                                ) {}
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (customLightBgInput.matches("^#[0-9a-fA-F]{6}$".toRegex())) {
+                                    onLightBgColorChange(customLightBgInput)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DopamineAccent),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("应用", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // RGB 实时预览调色微调器
+                    ExpandableRgbColorPicker(
+                        colorHex = currentCustomLightBgHex,
+                        onColorChange = { newHex ->
+                            customLightBgInput = newHex
+                            onLightBgColorChange(newHex)
+                        },
+                        title = "☀️ 日间背景 RGB 实时调色",
+                        defaultExpanded = false
+                    )
+                }
             }
         }
 

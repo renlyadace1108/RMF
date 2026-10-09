@@ -5520,9 +5520,20 @@ public partial class MainWindow : Window
         {
             ThemeCustomDarkBgInput.Text = string.IsNullOrWhiteSpace(config.CustomDarkBgHex) ? "#202124" : config.CustomDarkBgHex;
         }
+        if (ThemeCustomDarkBgPreviewBadge != null)
+        {
+            var darkCol = ThemeService.ParseHexColor(config.CustomDarkBgHex, Color.FromRgb(0x20, 0x21, 0x24));
+            ThemeCustomDarkBgPreviewBadge.Background = new SolidColorBrush(darkCol);
+        }
+
         if (ThemeCustomLightBgInput != null)
         {
             ThemeCustomLightBgInput.Text = string.IsNullOrWhiteSpace(config.CustomLightBgHex) ? "#F8F9FA" : config.CustomLightBgHex;
+        }
+        if (ThemeCustomLightBgPreviewBadge != null)
+        {
+            var lightCol = ThemeService.ParseHexColor(config.CustomLightBgHex, Color.FromRgb(0xF8, 0xF9, 0xFA));
+            ThemeCustomLightBgPreviewBadge.Background = new SolidColorBrush(lightCol);
         }
 
         if (ThemePreviewBadge != null) ThemePreviewBadge.Background = ThemeService.CurrentAccentBrush;
@@ -5721,6 +5732,11 @@ public partial class MainWindow : Window
             config.CustomDarkBgHex = hex;
             ConfigService.Save(config);
             ThemeService.ApplyTheme(this, config);
+            if (ThemeCustomDarkBgInput != null) ThemeCustomDarkBgInput.Text = hex;
+            if (ThemeCustomDarkBgPreviewBadge != null)
+            {
+                ThemeCustomDarkBgPreviewBadge.Background = new SolidColorBrush(ThemeService.ParseHexColor(hex, Color.FromRgb(0x20, 0x21, 0x24)));
+            }
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
             ThemeStatusText.Text = $"✓ 已应用深色模式底色：{hex}";
         }
@@ -5734,8 +5750,127 @@ public partial class MainWindow : Window
             config.CustomLightBgHex = hex;
             ConfigService.Save(config);
             ThemeService.ApplyTheme(this, config);
+            if (ThemeCustomLightBgInput != null) ThemeCustomLightBgInput.Text = hex;
+            if (ThemeCustomLightBgPreviewBadge != null)
+            {
+                ThemeCustomLightBgPreviewBadge.Background = new SolidColorBrush(ThemeService.ParseHexColor(hex, Color.FromRgb(0xF8, 0xF9, 0xFA)));
+            }
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
             ThemeStatusText.Text = $"✓ 已应用日间模式底色：{hex}";
+        }
+    }
+
+    private void OnThemeCustomDarkBgTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (ThemeCustomDarkBgInput == null || ThemeCustomDarkBgPreviewBadge == null) return;
+        string text = ThemeCustomDarkBgInput.Text.Trim();
+        if (text.Length >= 4)
+        {
+            var color = ThemeService.ParseHexColor(text, Colors.Transparent);
+            if (color != Colors.Transparent)
+            {
+                ThemeCustomDarkBgPreviewBadge.Background = new SolidColorBrush(color);
+            }
+        }
+    }
+
+    private void OnThemeCustomLightBgTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (ThemeCustomLightBgInput == null || ThemeCustomLightBgPreviewBadge == null) return;
+        string text = ThemeCustomLightBgInput.Text.Trim();
+        if (text.Length >= 4)
+        {
+            var color = ThemeService.ParseHexColor(text, Colors.Transparent);
+            if (color != Colors.Transparent)
+            {
+                ThemeCustomLightBgPreviewBadge.Background = new SolidColorBrush(color);
+            }
+        }
+    }
+
+    private void OnOpenDarkBgRgbPickerClicked(object sender, RoutedEventArgs e)
+    {
+        _rgbPickerTarget = "DARK_BG";
+        string startHex = ThemeCustomDarkBgInput?.Text?.Trim() ?? "#202124";
+        if (!startHex.StartsWith("#")) startHex = "#" + startHex;
+
+        try
+        {
+            var col = ThemeService.ParseHexColor(startHex, Color.FromRgb(0x20, 0x21, 0x24));
+            _isUpdatingRgbPicker = true;
+            if (RgbSliderR != null) RgbSliderR.Value = col.R;
+            if (RgbSliderG != null) RgbSliderG.Value = col.G;
+            if (RgbSliderB != null) RgbSliderB.Value = col.B;
+            if (RgbInputR != null) RgbInputR.Text = col.R.ToString();
+            if (RgbInputG != null) RgbInputG.Text = col.G.ToString();
+            if (RgbInputB != null) RgbInputB.Text = col.B.ToString();
+            if (RgbInputHex != null) RgbInputHex.Text = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _currentRgbPickerHex = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _isUpdatingRgbPicker = false;
+
+            UpdateRgbPickerVisuals(col.R, col.G, col.B);
+        }
+        catch { }
+
+        if (RgbModalPreviewTitle != null)
+        {
+            RgbModalPreviewTitle.Text = "深色模式背景基调预览";
+        }
+        if (RgbModalPreviewTagText != null)
+        {
+            RgbModalPreviewTagText.Text = "深色底色";
+        }
+        if (RgbModalPreviewTime != null)
+        {
+            RgbModalPreviewTime.Text = "实时渲染生效";
+        }
+
+        if (RgbColorPickerModal != null)
+        {
+            RgbColorPickerModal.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnOpenLightBgRgbPickerClicked(object sender, RoutedEventArgs e)
+    {
+        _rgbPickerTarget = "LIGHT_BG";
+        string startHex = ThemeCustomLightBgInput?.Text?.Trim() ?? "#F8F9FA";
+        if (!startHex.StartsWith("#")) startHex = "#" + startHex;
+
+        try
+        {
+            var col = ThemeService.ParseHexColor(startHex, Color.FromRgb(0xF8, 0xF9, 0xFA));
+            _isUpdatingRgbPicker = true;
+            if (RgbSliderR != null) RgbSliderR.Value = col.R;
+            if (RgbSliderG != null) RgbSliderG.Value = col.G;
+            if (RgbSliderB != null) RgbSliderB.Value = col.B;
+            if (RgbInputR != null) RgbInputR.Text = col.R.ToString();
+            if (RgbInputG != null) RgbInputG.Text = col.G.ToString();
+            if (RgbInputB != null) RgbInputB.Text = col.B.ToString();
+            if (RgbInputHex != null) RgbInputHex.Text = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _currentRgbPickerHex = $"#{col.R:X2}{col.G:X2}{col.B:X2}";
+            _isUpdatingRgbPicker = false;
+
+            UpdateRgbPickerVisuals(col.R, col.G, col.B);
+        }
+        catch { }
+
+        if (RgbModalPreviewTitle != null)
+        {
+            RgbModalPreviewTitle.Text = "日间模式背景基调预览";
+        }
+        if (RgbModalPreviewTagText != null)
+        {
+            RgbModalPreviewTagText.Text = "日间底色";
+        }
+        if (RgbModalPreviewTime != null)
+        {
+            RgbModalPreviewTime.Text = "实时渲染生效";
+        }
+
+        if (RgbColorPickerModal != null)
+        {
+            RgbColorPickerModal.Visibility = Visibility.Visible;
         }
     }
 
@@ -5749,6 +5884,10 @@ public partial class MainWindow : Window
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
             ThemeStatusText.Text = "✗ 请输入有效的十六进制暗色底色代码";
             return;
+        }
+        if (ThemeCustomDarkBgPreviewBadge != null)
+        {
+            ThemeCustomDarkBgPreviewBadge.Background = new SolidColorBrush(color);
         }
         var config = ConfigService.Load();
         config.CustomDarkBgHex = hex;
@@ -5768,6 +5907,10 @@ public partial class MainWindow : Window
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
             ThemeStatusText.Text = "✗ 请输入有效的十六进制日间底色代码";
             return;
+        }
+        if (ThemeCustomLightBgPreviewBadge != null)
+        {
+            ThemeCustomLightBgPreviewBadge.Background = new SolidColorBrush(color);
         }
         var config = ConfigService.Load();
         config.CustomLightBgHex = hex;
@@ -6945,6 +7088,46 @@ public partial class MainWindow : Window
             ThemeService.ApplyTheme(this, config);
             ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
             ThemeStatusText.Text = $"✓ 已自定义主题强调色为 {cleanHex}，配置已保存！";
+            return;
+        }
+
+        if (_rgbPickerTarget == "DARK_BG")
+        {
+            string cleanHex = hex.ToUpperInvariant();
+            if (ThemeCustomDarkBgInput != null)
+            {
+                ThemeCustomDarkBgInput.Text = cleanHex;
+            }
+            if (ThemeCustomDarkBgPreviewBadge != null)
+            {
+                ThemeCustomDarkBgPreviewBadge.Background = new SolidColorBrush(ThemeService.ParseHexColor(cleanHex, Color.FromRgb(0x20, 0x21, 0x24)));
+            }
+            var config = ConfigService.Load();
+            config.CustomDarkBgHex = cleanHex;
+            ConfigService.Save(config);
+            ThemeService.ApplyTheme(this, config);
+            ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            ThemeStatusText.Text = $"✓ 已自定义深色模式底色为 {cleanHex}，配置已保存！";
+            return;
+        }
+
+        if (_rgbPickerTarget == "LIGHT_BG")
+        {
+            string cleanHex = hex.ToUpperInvariant();
+            if (ThemeCustomLightBgInput != null)
+            {
+                ThemeCustomLightBgInput.Text = cleanHex;
+            }
+            if (ThemeCustomLightBgPreviewBadge != null)
+            {
+                ThemeCustomLightBgPreviewBadge.Background = new SolidColorBrush(ThemeService.ParseHexColor(cleanHex, Color.FromRgb(0xF8, 0xF9, 0xFA)));
+            }
+            var config = ConfigService.Load();
+            config.CustomLightBgHex = cleanHex;
+            ConfigService.Save(config);
+            ThemeService.ApplyTheme(this, config);
+            ThemeStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            ThemeStatusText.Text = $"✓ 已自定义日间模式底色为 {cleanHex}，配置已保存！";
             return;
         }
 

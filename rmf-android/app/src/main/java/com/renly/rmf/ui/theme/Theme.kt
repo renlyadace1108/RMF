@@ -24,7 +24,11 @@ object ThemePreferences {
     private const val PREFS_NAME = "rmf_theme_prefs"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_ACCENT_COLOR = "theme_accent_color"
+    private const val KEY_DARK_BG_COLOR = "theme_dark_bg_color"
+    private const val KEY_LIGHT_BG_COLOR = "theme_light_bg_color"
     const val DEFAULT_ACCENT_COLOR = "#38BDF8"
+    const val DEFAULT_DARK_BG_COLOR = "#090B0E"
+    const val DEFAULT_LIGHT_BG_COLOR = "#F8FAFC"
 
     fun getThemeMode(context: Context): ThemeMode {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -49,6 +53,26 @@ object ThemePreferences {
     fun setAccentColorHex(context: Context, hex: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_ACCENT_COLOR, hex.trim()).apply()
+    }
+
+    fun getDarkBgColorHex(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_DARK_BG_COLOR, DEFAULT_DARK_BG_COLOR) ?: DEFAULT_DARK_BG_COLOR
+    }
+
+    fun setDarkBgColorHex(context: Context, hex: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_DARK_BG_COLOR, hex.trim()).apply()
+    }
+
+    fun getLightBgColorHex(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LIGHT_BG_COLOR, DEFAULT_LIGHT_BG_COLOR) ?: DEFAULT_LIGHT_BG_COLOR
+    }
+
+    fun setLightBgColorHex(context: Context, hex: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_LIGHT_BG_COLOR, hex.trim()).apply()
     }
 }
 
@@ -80,6 +104,8 @@ private val LightColorScheme = lightColorScheme(
 fun RMFTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     accentColorHex: String = ThemePreferences.DEFAULT_ACCENT_COLOR,
+    darkBgColorHex: String = ThemePreferences.DEFAULT_DARK_BG_COLOR,
+    lightBgColorHex: String = ThemePreferences.DEFAULT_LIGHT_BG_COLOR,
     content: @Composable () -> Unit
 ) {
     val isSystemDark = isSystemInDarkTheme()
@@ -95,13 +121,32 @@ fun RMFTheme(
         if (isDark) DarkPalette.dopamineBlue else LightPalette.dopamineBlue
     }
 
+    val targetBgHex = if (isDark) darkBgColorHex else lightBgColorHex
+    val parsedBg = try {
+        Color(android.graphics.Color.parseColor(targetBgHex))
+    } catch (_: Exception) {
+        if (isDark) DarkPalette.bg else LightPalette.bg
+    }
+
     val basePalette = if (isDark) DarkPalette else LightPalette
-    val currentColors = basePalette.copy(
-        dopamineBlue = parsedAccent
-    )
+    val currentColors = if (isDark) {
+        basePalette.copy(
+            dopamineBlue = parsedAccent,
+            bg = parsedBg,
+            surface = if (parsedBg == Color(0xFF000000)) Color(0xFF111111) else basePalette.surface
+        )
+    } else {
+        basePalette.copy(
+            dopamineBlue = parsedAccent,
+            bg = parsedBg
+        )
+    }
+
     val baseScheme = if (isDark) DarkColorScheme else LightColorScheme
     val colorScheme = baseScheme.copy(
-        primary = parsedAccent
+        primary = parsedAccent,
+        background = currentColors.bg,
+        surface = currentColors.surface
     )
 
     val view = LocalView.current
@@ -109,7 +154,7 @@ fun RMFTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = currentColors.bg.toArgb()
-            window.navigationBarColor = currentColors.surface.toArgb()
+            window.navigationBarColor = currentColors.bg.toArgb()
             val insetsController = WindowCompat.getInsetsController(window, view)
             insetsController.isAppearanceLightStatusBars = !isDark
             insetsController.isAppearanceLightNavigationBars = !isDark
