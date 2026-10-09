@@ -59,6 +59,25 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Summary : Screen("summary", "统计", Icons.Default.Insights)
     object Tutorial : Screen("tutorial", "教程", Icons.Default.MenuBook)
     object Fitness : Screen("fitness", "健身", Icons.Default.FitnessCenter)
+
+    companion object {
+        fun fromRoute(route: String): Screen {
+            return when (route) {
+                "schedule" -> Schedule
+                "timetable" -> Timetable
+                "study" -> Study
+                "focus" -> Focus
+                "fitness" -> Fitness
+                "goals" -> Goals
+                "expenses" -> Expenses
+                "daily_report" -> DailyReport
+                "summary" -> Summary
+                "tutorial" -> Tutorial
+                "settings" -> Settings
+                else -> Schedule
+            }
+        }
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -246,7 +265,19 @@ class MainActivity : ComponentActivity() {
                 lightBgColorHex = currentCustomLightBgHex
             ) {
                 var showSplashScreen by remember { mutableStateOf(true) }
-                var currentScreen by remember { mutableStateOf<Screen>(Screen.Schedule) }
+                var isBottomBarVisible by remember {
+                    mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.isBottomBarVisible(this@MainActivity))
+                }
+                var enabledNavRoutes by remember {
+                    mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.getEnabledRoutes(this@MainActivity))
+                }
+                var defaultHomeRoute by remember {
+                    mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity))
+                }
+                var currentScreen by remember {
+                    mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
+                }
+                var showFloatingNavMenu by remember { mutableStateOf(false) }
 
                 var showQuickCaptureDialog by remember { mutableStateOf(false) }
                 var dailyReportDate by remember { mutableStateOf(java.time.LocalDate.now()) }
@@ -264,56 +295,52 @@ class MainActivity : ComponentActivity() {
                         Scaffold(
                     containerColor = DarkBg,
                     bottomBar = {
-                        if (!isInPipMode) {
+                        if (!isInPipMode && isBottomBarVisible) {
                             Surface(
                                 color = DarkSurface,
                                 border = BorderStroke(1.dp, DarkBorder),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                            NavigationBar(
-                                containerColor = DarkSurface,
-                                tonalElevation = 0.dp
-                            ) {
-                                val navItems = listOf(
-                                    Screen.Schedule,
-                                    Screen.Timetable,
-                                    Screen.Study,
-                                    Screen.Focus,
-                                    Screen.Settings
-                                )
-                                navItems.forEach { screen ->
-                                    val isSelected = currentScreen == screen
-                                    NavigationBarItem(
-                                        selected = isSelected,
-                                        onClick = { currentScreen = screen },
-                                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                                        label = {
-                                            Text(
-                                                screen.title,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                NavigationBar(
+                                    containerColor = DarkSurface,
+                                    tonalElevation = 0.dp
+                                ) {
+                                    val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
+                                    val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Settings) else navScreens
+                                    safeNavScreens.forEach { screen ->
+                                        val isSelected = currentScreen == screen
+                                        NavigationBarItem(
+                                            selected = isSelected,
+                                            onClick = { currentScreen = screen },
+                                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                                            label = {
+                                                Text(
+                                                    screen.title,
+                                                    fontSize = if (safeNavScreens.size > 5) 10.sp else 11.5.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = DopamineBlue,
+                                                selectedTextColor = DopamineBlue,
+                                                unselectedIconColor = TextMuted,
+                                                unselectedTextColor = TextMuted,
+                                                indicatorColor = DopamineBlue.copy(alpha = 0.15f)
                                             )
-                                        },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = DopamineBlue,
-                                            selectedTextColor = DopamineBlue,
-                                            unselectedIconColor = TextMuted,
-                                            unselectedTextColor = TextMuted,
-                                            indicatorColor = DopamineBlue.copy(alpha = 0.15f)
                                         )
-                                    )
+                                    }
                                 }
                             }
                         }
                     }
-                }
                 ) { innerPadding ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
-                        color = DarkBg
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
+                            color = DarkBg
+                        ) {
                         when (currentScreen) {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
@@ -637,6 +664,22 @@ class MainActivity : ComponentActivity() {
                                     currentCustomLightBgHex = newHex
                                     com.renly.rmf.ui.theme.ThemePreferences.setLightBgColorHex(this@MainActivity, newHex)
                                 },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onBottomBarVisibleChange = { visible ->
+                                    isBottomBarVisible = visible
+                                    com.renly.rmf.domain.service.NavigationPreferences.setBottomBarVisible(this@MainActivity, visible)
+                                },
+                                enabledNavRoutes = enabledNavRoutes,
+                                onEnabledNavRoutesChange = { routes ->
+                                    enabledNavRoutes = routes
+                                    com.renly.rmf.domain.service.NavigationPreferences.setEnabledRoutes(this@MainActivity, routes)
+                                },
+                                defaultHomeRoute = defaultHomeRoute,
+                                onDefaultHomeRouteChange = { route ->
+                                    defaultHomeRoute = route
+                                    com.renly.rmf.domain.service.NavigationPreferences.setDefaultHomeRoute(this@MainActivity, route)
+                                    Toast.makeText(this@MainActivity, "已设为冷启动默认主页", Toast.LENGTH_SHORT).show()
+                                },
                                 syncDao = db.syncDao(),
                                 onNavigateToGoals = { currentScreen = Screen.Goals },
                                 onNavigateToExpenses = { currentScreen = Screen.Expenses },
@@ -729,12 +772,161 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
+
+                    // 当用户选择取消不显示底部快捷栏时，提供右下角悬浮快捷导航入口，防止迷航
+                    if (!isBottomBarVisible && !isInPipMode) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = 24.dp, end = 18.dp),
+                            contentAlignment = Alignment.BottomEnd
+                        ) {
+                            Surface(
+                                onClick = { showFloatingNavMenu = true },
+                                shape = RoundedCornerShape(24.dp),
+                                color = DopamineBlue,
+                                shadowElevation = 8.dp,
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("🧭", fontSize = 15.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "快捷导航",
+                                        fontSize = 12.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (showFloatingNavMenu) {
+                        AlertDialog(
+                            onDismissRequest = { showFloatingNavMenu = false },
+                            containerColor = DarkCard,
+                            shape = RoundedCornerShape(20.dp),
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🧭", fontSize = 20.sp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "全屏快捷导航",
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                }
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "当前处于沉浸全屏模式（底栏已隐藏）。可直接点击切换任意模块：",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    val allScreens = listOf(
+                                        Screen.Schedule,
+                                        Screen.Timetable,
+                                        Screen.Study,
+                                        Screen.Focus,
+                                        Screen.Fitness,
+                                        Screen.Goals,
+                                        Screen.Expenses,
+                                        Screen.DailyReport,
+                                        Screen.Summary,
+                                        Screen.Settings
+                                    )
+                                    allScreens.chunked(2).forEach { rowScreens ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 3.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            rowScreens.forEach { scr ->
+                                                val isCurrent = currentScreen == scr
+                                                Surface(
+                                                    onClick = {
+                                                        currentScreen = scr
+                                                        showFloatingNavMenu = false
+                                                    },
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    color = if (isCurrent) DopamineBlue.copy(alpha = 0.2f) else DarkSurface,
+                                                    border = BorderStroke(1.dp, if (isCurrent) DopamineBlue else DarkBorder),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(42.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            scr.icon,
+                                                            contentDescription = scr.title,
+                                                            tint = if (isCurrent) DopamineBlue else TextSecondary,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(
+                                                            text = scr.title,
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                            color = if (isCurrent) DopamineBlue else TextPrimary
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Surface(
+                                        onClick = {
+                                            isBottomBarVisible = true
+                                            com.renly.rmf.domain.service.NavigationPreferences.setBottomBarVisible(this@MainActivity, true)
+                                            showFloatingNavMenu = false
+                                            Toast.makeText(this@MainActivity, "已恢复显示底部快捷导航栏", Toast.LENGTH_SHORT).show()
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = DopaminePurple.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.4f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "🔄 恢复显示底部快捷栏",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = DopaminePurple
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showFloatingNavMenu = false }) {
+                                    Text("关闭", color = TextSecondary)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
     }
-    }
-    }
+}
+}
+}
 
     private var cachedSchedules: List<ScheduleEntity> = emptyList()
 

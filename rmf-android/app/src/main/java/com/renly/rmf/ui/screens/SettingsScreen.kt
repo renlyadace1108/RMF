@@ -31,6 +31,8 @@ import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+import com.renly.rmf.domain.service.NavigationPreferences
+
 @Composable
 fun SettingsScreen(
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -41,6 +43,12 @@ fun SettingsScreen(
     onDarkBgColorChange: (String) -> Unit = {},
     currentCustomLightBgHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_LIGHT_BG_COLOR,
     onLightBgColorChange: (String) -> Unit = {},
+    isBottomBarVisible: Boolean = true,
+    onBottomBarVisibleChange: (Boolean) -> Unit = {},
+    enabledNavRoutes: List<String> = NavigationPreferences.DEFAULT_ENABLED_ROUTES,
+    onEnabledNavRoutesChange: (List<String>) -> Unit = {},
+    defaultHomeRoute: String = NavigationPreferences.DEFAULT_HOME_ROUTE,
+    onDefaultHomeRouteChange: (String) -> Unit = {},
     syncDao: com.renly.rmf.data.local.dao.SyncDao? = null,
     onNavigateToGoals: () -> Unit,
     onNavigateToExpenses: () -> Unit,
@@ -495,6 +503,334 @@ fun SettingsScreen(
                         title = "☀️ 日间背景 RGB 实时调色",
                         defaultExpanded = false
                     )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 📱 导航与主页展示自定义卡片 (Navigation & Home Customization)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "📱 主页与底部快捷栏自定义",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "自选是否在底部栏展示健身、目标等模块，或彻底隐藏底部栏开启全屏沉浸",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    Switch(
+                        checked = isBottomBarVisible,
+                        onCheckedChange = { onBottomBarVisibleChange(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = DopamineBlue,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkSurface
+                        )
+                    )
+                }
+
+                if (!isBottomBarVisible) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = DopaminePurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("✨", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "底部快捷栏已隐藏（全屏沉浸模式）。页面右下角已开启轻量悬浮导航胶囊，可随时点击切换任意模块或返回工作台重新开启底部栏。",
+                                fontSize = 11.5.sp,
+                                color = DopaminePurple,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "📌 底部快捷栏选项 (已选 ${enabledNavRoutes.size} 项，建议 3~6 项最佳)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "可自选是否把「健身」加入底部快捷栏，随时增减个性化选项",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                    )
+
+                    // 快捷预设按钮组
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            onClick = {
+                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "settings"))
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("经典 5 项", fontSize = 11.sp, color = TextSecondary)
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "focus", "fitness", "settings"))
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = DopamineCyan.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("🏋️ 健身专属 5 项", fontSize = 11.sp, color = DopamineCyan, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "fitness", "settings"))
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("全能 6 项", fontSize = 11.sp, color = TextSecondary)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 所有可选模块列表（两列排列）
+                    val allItems = NavigationPreferences.ALL_AVAILABLE_NAV_ITEMS
+                    allItems.chunked(2).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { item ->
+                                val isChecked = enabledNavRoutes.contains(item.route)
+                                Surface(
+                                    onClick = {
+                                        val newRoutes = if (isChecked) {
+                                            if (enabledNavRoutes.size > 1) {
+                                                enabledNavRoutes.filter { it != item.route }
+                                            } else {
+                                                enabledNavRoutes
+                                            }
+                                        } else {
+                                            enabledNavRoutes + item.route
+                                        }
+                                        onEnabledNavRoutesChange(newRoutes)
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isChecked) DopamineBlue.copy(alpha = 0.16f) else DarkSurface,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isChecked) DopamineBlue else DarkBorder
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(46.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(item.iconEmoji, fontSize = 15.sp)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text(
+                                                    text = item.title,
+                                                    fontSize = 12.5.sp,
+                                                    fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isChecked) TextPrimary else TextSecondary
+                                                )
+                                                if (item.route == "fitness") {
+                                                    Text(
+                                                        text = "⭐ 健身模块",
+                                                        fontSize = 9.sp,
+                                                        color = DopamineCyan
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Checkbox(
+                                            checked = isChecked,
+                                            onCheckedChange = null,
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = DopamineBlue,
+                                                checkmarkColor = Color.White,
+                                                uncheckedColor = DarkBorder
+                                            ),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 实时底栏布局预览
+                    Text(
+                        text = "👀 底部栏实时模拟预览 (即时生效):",
+                        fontSize = 11.5.sp,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            enabledNavRoutes.forEach { route ->
+                                val item = allItems.find { it.route == route }
+                                if (item != null) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(item.iconEmoji, fontSize = 13.sp)
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 9.5.sp,
+                                            color = if (route == "fitness") DopamineCyan else DopamineBlue
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 默认启动主页单选
+                Text(
+                    text = "🏠 默认启动主页 (Default Launch Screen)",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "每次打开应用冷启动时优先展示的页面",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                )
+
+                val homeCandidates = listOf(
+                    "schedule" to "📅 日程",
+                    "timetable" to "🎓 课表",
+                    "study" to "📖 学习",
+                    "focus" to "⏱️ 专注",
+                    "fitness" to "🏋️ 健身",
+                    "goals" to "🎯 目标",
+                    "expenses" to "💰 记账",
+                    "settings" to "⚙️ 工作台"
+                )
+
+                homeCandidates.chunked(4).forEach { rowList ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        rowList.forEach { (route, label) ->
+                            val isSelected = defaultHomeRoute == route
+                            Surface(
+                                onClick = { onDefaultHomeRouteChange(route) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) DopamineBlue.copy(alpha = 0.2f) else DarkSurface,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) DopamineBlue else DarkBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) DopamineBlue else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
