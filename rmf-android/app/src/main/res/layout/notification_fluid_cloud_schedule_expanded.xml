@@ -4,8 +4,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="#1E2024"
-    android:padding="16dp">
+    android:background="@android:color/transparent"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp">
 
     <!-- 顶部状态栏 -->
     <LinearLayout
@@ -14,82 +17,82 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <ImageView
-            android:layout_width="22dp"
-            android:layout_height="22dp"
-            android:src="@drawable/ic_logo"
-            android:contentDescription="RMF Logo" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="ColorOS 流体云 · 日程准时提醒"
+            android:textColor="@color/fluid_notif_tag_text"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_fluid_tag" />
 
         <TextView
-            android:id="@+id/fluid_schedule_expanded_header"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="ColorOS 流体云 · 日程准时提醒"
-            android:textColor="#38BDF8"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:layout_weight="1" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="准时出发 / 准备"
             android:textColor="#10B981"
-            android:textSize="11sp" />
-    </LinearLayout>
-
-    <!-- 中间日程信息与倒计时 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:layout_marginTop="10dp"
-        android:layout_marginBottom="12dp">
-
-        <TextView
-            android:id="@+id/fluid_schedule_expanded_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📌 日程名称"
-            android:textColor="#FFFFFF"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:maxLines="2" />
-
-        <TextView
-            android:id="@+id/fluid_schedule_expanded_desc"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="提前 10 分钟提醒"
-            android:textColor="#38BDF8"
-            android:textSize="12sp" />
-
-        <Chronometer
-            android:id="@+id/fluid_schedule_expanded_chronometer"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="#00F0FF"
-            android:textSize="26sp"
+            android:textSize="11.5sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/fluid_schedule_expanded_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="开始时间: 14:00"
-            android:textColor="#94A3B8"
-            android:textSize="11sp" />
     </LinearLayout>
 
-    <!-- 底部操作按钮 -->
+    <!-- 核心日程标题 -->
+    <TextView
+        android:id="@+id/fluid_schedule_expanded_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="📌 日程准时提醒"
+        android:textColor="@color/fluid_notif_title"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/fluid_schedule_expanded_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="10 分钟后开始专注，已就绪"
+        android:textColor="@color/fluid_notif_sub"
+        android:textSize="12.5sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <!-- 动态 Chronometer 倒计时展示 -->
+    <Chronometer
+        android:id="@+id/fluid_schedule_expanded_chronometer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textColor="@color/fluid_notif_chronometer"
+        android:textSize="30sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="center"
+        android:text="即将到期，点击一键进入沉浸心流"
+        android:textColor="@color/fluid_notif_muted"
+        android:textSize="11.5sp" />
+
+    <!-- 底部双快捷交互按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:orientation="horizontal"
         android:gravity="center">
 
@@ -101,10 +104,10 @@
             android:layout_marginEnd="6dp"
             android:gravity="center"
             android:text="🎯 一键开启专注"
-            android:textColor="#00F0FF"
-            android:textSize="12.5sp"
+            android:textColor="@color/fluid_notif_btn_primary_text"
+            android:textSize="13sp"
             android:textStyle="bold"
-            android:background="#2C2E33" />
+            android:background="@drawable/bg_fluid_btn_primary" />
 
         <TextView
             android:id="@+id/fluid_schedule_btn_view"
@@ -114,9 +117,10 @@
             android:layout_marginStart="6dp"
             android:gravity="center"
             android:text="📅 查看日程清单"
-            android:textColor="#F1F5F9"
-            android:textSize="12.5sp"
-            android:background="#2C2E33" />
+            android:textColor="@color/fluid_notif_btn_secondary_text"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_fluid_btn_secondary" />
     </LinearLayout>
 
 </LinearLayout>

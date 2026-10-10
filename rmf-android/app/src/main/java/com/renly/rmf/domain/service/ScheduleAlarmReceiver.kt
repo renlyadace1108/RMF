@@ -133,8 +133,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 .setCustomContentView(capsuleView)
                 .setCustomBigContentView(expandedView)
                 .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .addAction(R.drawable.ic_logo, "🎯 听课专注", focusPendingIntent)
-                .addAction(R.drawable.ic_logo, "📖 查看课表", pendingIntent)
 
             if (remainingMillis > 0) {
                 builder.setUsesChronometer(true)
@@ -215,8 +213,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 .setCustomContentView(schedCapsule)
                 .setCustomBigContentView(schedExpanded)
                 .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .addAction(R.drawable.ic_logo, "🎯 开启专注", focusPendingIntent)
-                .addAction(R.drawable.ic_logo, "📅 查看日程", pendingIntent)
 
             if (remMillis > 0) {
                 builder.setUsesChronometer(true)

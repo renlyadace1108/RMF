@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 流体云通知深色模式色彩规范 (Night / Dark Mode) -->
+    <color name="fluid_notif_title">#F8FAFC</color>
+    <color name="fluid_notif_sub">#94A3B8</color>
+    <color name="fluid_notif_muted">#64748B</color>
+    <color name="fluid_notif_chronometer">#00F0FF</color>
+    <color name="fluid_notif_accent">#00F0FF</color>
+
+    <color name="fluid_notif_tag_bg">#1E293B</color>
+    <color name="fluid_notif_tag_text">#38BDF8</color>
+
+    <color name="fluid_notif_btn_primary_bg">#00F0FF</color>
+    <color name="fluid_notif_btn_primary_text">#090D16</color>
+
+    <color name="fluid_notif_btn_secondary_bg">#262930</color>
+    <color name="fluid_notif_btn_secondary_text">#F1F5F9</color>
+
+    <color name="fluid_notif_btn_danger_bg">#3B181E</color>
+    <color name="fluid_notif_btn_danger_text">#F87171</color>
+</resources>

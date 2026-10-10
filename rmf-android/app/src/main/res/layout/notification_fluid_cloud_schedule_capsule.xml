@@ -5,43 +5,38 @@
     android:layout_height="64dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:background="#18191C"
-    android:paddingStart="14dp"
-    android:paddingEnd="14dp">
+    android:background="@android:color/transparent"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp">
 
-    <!-- 应用图标 -->
-    <ImageView
-        android:id="@+id/fluid_schedule_capsule_icon"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:src="@drawable/ic_logo"
-        android:contentDescription="RMF Schedule Icon" />
-
+    <!-- 日程信息区 -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:layout_marginStart="10dp">
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/fluid_schedule_capsule_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📌 日程名称"
-            android:textColor="#F1F5F9"
-            android:textSize="13sp"
+            android:textColor="@color/fluid_notif_title"
+            android:textSize="14.5sp"
             android:textStyle="bold"
-            android:maxLines="1" />
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/fluid_schedule_capsule_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="即将开始 | ColorOS 流体云"
-            android:textColor="#38BDF8"
-            android:textSize="10.5sp"
-            android:maxLines="1" />
+            android:textColor="@color/fluid_notif_sub"
+            android:textSize="11.5sp"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:ellipsize="end" />
     </LinearLayout>
 
     <!-- 动态倒计时 -->
@@ -49,23 +44,23 @@
         android:id="@+id/fluid_schedule_capsule_chronometer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#00F0FF"
-        android:textSize="15sp"
+        android:textColor="@color/fluid_notif_chronometer"
+        android:textSize="16sp"
         android:textStyle="bold"
         android:layout_marginEnd="10dp" />
 
-    <!-- 快捷专注按钮 -->
+    <!-- 快捷专注胶囊按钮 -->
     <TextView
         android:id="@+id/fluid_schedule_capsule_btn"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:paddingStart="10dp"
-        android:paddingEnd="10dp"
-        android:paddingTop="5dp"
-        android:paddingBottom="5dp"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
         android:text="开启专注"
-        android:textColor="#00F0FF"
-        android:textSize="11.5sp"
-        android:background="#222C2E33" />
+        android:textColor="@color/fluid_notif_btn_primary_text"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_fluid_btn_primary" />
 
 </LinearLayout>
