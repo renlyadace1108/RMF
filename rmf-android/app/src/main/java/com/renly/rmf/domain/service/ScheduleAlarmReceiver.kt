@@ -132,11 +132,21 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
             }
 
-            builder.setContentTitle("🎓 上课提醒: $title")
-                .setContentText(message)
-                .setCustomContentView(capsuleView)
-                .setCustomBigContentView(expandedView)
-                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            val bridgeMode = FluidCloudPreferences.getBridgeMode(context)
+            if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
+                builder.setContentTitle("🎓 上课提醒: $title")
+                    .setContentText(message)
+                    .setCustomContentView(capsuleView)
+                    .setCustomBigContentView(expandedView)
+                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            } else {
+                // 原生实时活动 / 借道模式：采用原生卡片与标准 Action，保证系统状态栏与锁屏胶囊解析通畅
+                val detail = if (courseLocation.isNotBlank()) " [$courseLocation]" else ""
+                builder.setContentTitle("🎓 上课提醒: $title$detail")
+                    .setContentText(message)
+                    .addAction(android.R.drawable.ic_media_play, "🎯 听课专注", focusPendingIntent)
+                    .addAction(android.R.drawable.ic_menu_view, "👀 查看详情", pendingIntent)
+            }
 
             if (remainingMillis > 0) {
                 builder.setUsesChronometer(true)
@@ -212,11 +222,19 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
             }
 
-            builder.setContentTitle("📌 日程提醒: $title")
-                .setContentText(message)
-                .setCustomContentView(schedCapsule)
-                .setCustomBigContentView(schedExpanded)
-                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            val bridgeMode = FluidCloudPreferences.getBridgeMode(context)
+            if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
+                builder.setContentTitle("📌 日程提醒: $title")
+                    .setContentText(message)
+                    .setCustomContentView(schedCapsule)
+                    .setCustomBigContentView(schedExpanded)
+                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            } else {
+                builder.setContentTitle("📌 日程提醒: $title")
+                    .setContentText(message)
+                    .addAction(android.R.drawable.ic_media_play, "🎯 立即专注", focusPendingIntent)
+                    .addAction(android.R.drawable.ic_menu_view, "👀 查看日程", pendingIntent)
+            }
 
             if (remMillis > 0) {
                 builder.setUsesChronometer(true)

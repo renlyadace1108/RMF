@@ -6,11 +6,16 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import com.renly.rmf.MainActivity
 import com.renly.rmf.R
 import com.renly.rmf.RmfApplication
@@ -19,12 +24,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * FocusLiveService
+ * 专注实时活动前台服务 (ColorOS 流体云 / Android 原生实时活动双借道引擎)
+ */
 class FocusLiveService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var timerJob: Job? = null
+    private var mediaSession: MediaSessionCompat? = null
+    private var silentAudioPlayer: SilentAudioPlayer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        silentAudioPlayer = SilentAudioPlayer()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -58,13 +74,19 @@ class FocusLiveService : Service() {
         targetEndTimeRealtime = SystemClock.elapsedRealtime() + (seconds * 1000L)
 
         scheduleFinishAlarm(seconds)
+        initOrUpdateMediaSession(title, isPlaying = true)
+
+        if (FluidCloudPreferences.isSilentAudioEnabled(this)) {
+            silentAudioPlayer?.start()
+        }
 
         val notification = buildFluidCloudNotification()
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -80,6 +102,9 @@ class FocusLiveService : Service() {
         _isRunning.value = false
         timerJob?.cancel()
 
+        silentAudioPlayer?.stop()
+        initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = false)
+
         val notification = buildFluidCloudNotification()
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
@@ -90,6 +115,11 @@ class FocusLiveService : Service() {
             _isRunning.value = true
             targetEndTimeRealtime = SystemClock.elapsedRealtime() + (_remainingSeconds.value * 1000L)
             scheduleFinishAlarm(_remainingSeconds.value)
+
+            initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = true)
+            if (FluidCloudPreferences.isSilentAudioEnabled(this)) {
+                silentAudioPlayer?.start()
+            }
 
             val notification = buildFluidCloudNotification()
             val manager = getSystemService(NotificationManager::class.java)
@@ -103,6 +133,10 @@ class FocusLiveService : Service() {
         _isRunning.value = false
         _remainingSeconds.value = _initialTotalSeconds.value
         timerJob?.cancel()
+
+        silentAudioPlayer?.stop()
+        releaseMediaSession()
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -112,9 +146,78 @@ class FocusLiveService : Service() {
         _isRunning.value = false
         _remainingSeconds.value = 0
         timerJob?.cancel()
+
+        silentAudioPlayer?.stop()
+        releaseMediaSession()
+
         showCompletedNotification()
         stopForeground(STOP_FOREGROUND_DETACH)
         stopSelf()
+    }
+
+    private fun initOrUpdateMediaSession(title: String, isPlaying: Boolean) {
+        val bridgeMode = FluidCloudPreferences.getBridgeMode(this)
+        // 模式包含媒体会话借道 (HYBRID 或 MEDIA_SESSION)
+        if (bridgeMode == FluidCloudPreferences.MODE_HYBRID || bridgeMode == FluidCloudPreferences.MODE_MEDIA_SESSION) {
+            if (mediaSession == null) {
+                mediaSession = MediaSessionCompat(this, "RmfFluidCloudBridge").apply {
+                    setFlags(
+                        MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
+                        MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+                    )
+                    setCallback(object : MediaSessionCompat.Callback() {
+                        override fun onPlay() {
+                            resumeFocusSession()
+                        }
+                        override fun onPause() {
+                            pauseFocusSession()
+                        }
+                        override fun onStop() {
+                            stopFocusSession()
+                        }
+                    })
+                }
+            }
+
+            val elapsedMillis = ((_initialTotalSeconds.value - _remainingSeconds.value) * 1000L)
+            val durationMillis = (_initialTotalSeconds.value * 1000L)
+
+            val state = PlaybackStateCompat.Builder()
+                .setActions(
+                    PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                    PlaybackStateCompat.ACTION_STOP
+                )
+                .setState(
+                    if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                    elapsedMillis,
+                    if (isPlaying) 1.0f else 0.0f,
+                    SystemClock.elapsedRealtime()
+                )
+                .build()
+
+            val metadata = MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "🎯 $title")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "ColorOS 流体云 · 心流倒计时")
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "RMF 实时活动")
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMillis)
+                .build()
+
+            mediaSession?.setPlaybackState(state)
+            mediaSession?.setMetadata(metadata)
+            mediaSession?.isActive = true
+        } else {
+            releaseMediaSession()
+        }
+    }
+
+    private fun releaseMediaSession() {
+        try {
+            mediaSession?.isActive = false
+            mediaSession?.release()
+        } catch (_: Exception) {}
+        mediaSession = null
     }
 
     private fun scheduleFinishAlarm(seconds: Int) {
@@ -174,7 +277,7 @@ class FocusLiveService : Service() {
         val sec = remSec % 60
         val timeStr = "%02d:%02d".format(min, sec)
 
-        // 1. 点击跳转回应用专注页
+        // 1. 点击跳转回应用
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -207,81 +310,157 @@ class FocusLiveService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // ColorOS 流体云小胶囊 RemoteViews
-        val capsuleView = RemoteViews(packageName, R.layout.notification_fluid_cloud_capsule).apply {
-            setTextViewText(R.id.fluid_capsule_title, "🎯 $title")
-            setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "ColorOS 流体云专注中" else "已暂停")
-            setTextViewText(R.id.fluid_capsule_action_btn, if (isRunning) "暂停" else "继续")
-            setOnClickPendingIntent(R.id.fluid_capsule_action_btn, togglePendingIntent)
+        val toggleAction = NotificationCompat.Action.Builder(
+            if (isRunning) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+            if (isRunning) "暂停" else "继续",
+            togglePendingIntent
+        ).build()
 
-            // 设置 Chronometer 倒计时
-            if (isRunning) {
-                setChronometer(
-                    R.id.fluid_capsule_chronometer,
-                    SystemClock.elapsedRealtime() + (remSec * 1000L),
-                    "%s",
-                    true
-                )
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    setChronometerCountDown(R.id.fluid_capsule_chronometer, true)
+        val stopAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "结束",
+            stopPendingIntent
+        ).build()
+
+        val bridgeMode = FluidCloudPreferences.getBridgeMode(this)
+
+        // 模式 3: 经典抽屉卡片模式 (使用自定义 RemoteViews 布局)
+        if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
+            val capsuleView = RemoteViews(packageName, R.layout.notification_fluid_cloud_capsule).apply {
+                setTextViewText(R.id.fluid_capsule_title, "🎯 $title")
+                setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "ColorOS 流体云专注中" else "已暂停")
+                setTextViewText(R.id.fluid_capsule_action_btn, if (isRunning) "暂停" else "继续")
+                setOnClickPendingIntent(R.id.fluid_capsule_action_btn, togglePendingIntent)
+
+                if (isRunning) {
+                    setChronometer(
+                        R.id.fluid_capsule_chronometer,
+                        SystemClock.elapsedRealtime() + (remSec * 1000L),
+                        "%s",
+                        true
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        setChronometerCountDown(R.id.fluid_capsule_chronometer, true)
+                    }
+                } else {
+                    setChronometer(
+                        R.id.fluid_capsule_chronometer,
+                        SystemClock.elapsedRealtime(),
+                        timeStr,
+                        false
+                    )
                 }
-            } else {
-                setChronometer(
-                    R.id.fluid_capsule_chronometer,
-                    SystemClock.elapsedRealtime(),
-                    timeStr,
-                    false
-                )
             }
+
+            val expandedView = RemoteViews(packageName, R.layout.notification_fluid_cloud_expanded).apply {
+                setTextViewText(R.id.fluid_expanded_task_title, title)
+                setTextViewText(R.id.fluid_btn_pause, if (isRunning) "⏸️ 暂停专注" else "▶️ 继续专注")
+                setOnClickPendingIntent(R.id.fluid_btn_pause, togglePendingIntent)
+                setOnClickPendingIntent(R.id.fluid_btn_stop, stopPendingIntent)
+
+                if (isRunning) {
+                    setChronometer(
+                        R.id.fluid_expanded_chronometer,
+                        SystemClock.elapsedRealtime() + (remSec * 1000L),
+                        "%s",
+                        true
+                    )
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        setChronometerCountDown(R.id.fluid_expanded_chronometer, true)
+                    }
+                } else {
+                    setChronometer(
+                        R.id.fluid_expanded_chronometer,
+                        SystemClock.elapsedRealtime(),
+                        timeStr,
+                        false
+                    )
+                }
+            }
+
+            val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
+                .setSmallIcon(R.drawable.ic_logo)
+                .setContentTitle("🎯 深度专注中: $title")
+                .setContentText(if (isRunning) "剩余: $timeStr" else "已暂停 ($timeStr)")
+                .setSubText("ColorOS 流体云")
+                .setColor(0xFF00F0FF.toInt())
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setContentIntent(openPendingIntent)
+                .setCustomContentView(capsuleView)
+                .setCustomBigContentView(expandedView)
+                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+
+            if (isRunning) {
+                builder.setUsesChronometer(true)
+                builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(true)
+                }
+            }
+            return builder.build()
         }
 
-        // ColorOS 流体云展开卡片 RemoteViews
-        val expandedView = RemoteViews(packageName, R.layout.notification_fluid_cloud_expanded).apply {
-            setTextViewText(R.id.fluid_expanded_task_title, title)
-            setTextViewText(R.id.fluid_btn_pause, if (isRunning) "⏸️ 暂停专注" else "▶️ 继续专注")
-            setOnClickPendingIntent(R.id.fluid_btn_pause, togglePendingIntent)
-            setOnClickPendingIntent(R.id.fluid_btn_stop, stopPendingIntent)
-
-            if (isRunning) {
-                setChronometer(
-                    R.id.fluid_expanded_chronometer,
-                    SystemClock.elapsedRealtime() + (remSec * 1000L),
-                    "%s",
-                    true
-                )
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    setChronometerCountDown(R.id.fluid_expanded_chronometer, true)
-                }
-            } else {
-                setChronometer(
-                    R.id.fluid_expanded_chronometer,
-                    SystemClock.elapsedRealtime(),
-                    timeStr,
-                    false
-                )
-            }
-        }
-
+        // 模式 0 (双借道融合)、模式 1 (媒体借道)、模式 2 (原生实时活动芯片)：
+        // 核心突破：严禁包含任何 setCustomContentView，确保 ColorOS Pantanal 与 Android Live Updates 引擎能直接解析原生芯片！
         val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
             .setSmallIcon(R.drawable.ic_logo)
-            .setContentTitle("🎯 深度专注中: $title")
-            .setContentText(if (isRunning) "剩余: $timeStr" else "已暂停 ($timeStr)")
-            .setSubText("ColorOS 流体云")
             .setColor(0xFF00F0FF.toInt())
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
-            .setCustomContentView(capsuleView)
-            .setCustomBigContentView(expandedView)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .addAction(toggleAction)
+            .addAction(stopAction)
 
-        if (isRunning) {
-            builder.setUsesChronometer(true)
-            builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                builder.setChronometerCountDown(true)
+        when (bridgeMode) {
+            FluidCloudPreferences.MODE_HYBRID -> {
+                // 双借道融合引擎：MediaStyle + Chronometer 原生倒计时芯片
+                val mediaStyle = MediaStyle()
+                    .setShowActionsInCompactView(0, 1)
+                mediaSession?.let { mediaStyle.setMediaSession(it.sessionToken) }
+
+                builder.setContentTitle("🎯 $title")
+                    .setContentText(if (isRunning) "心流倒计时 · 状态栏胶囊运行中" else "已暂停 ($timeStr)")
+                    .setSubText("ColorOS 流体云")
+                    .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+                    .setStyle(mediaStyle)
+
+                if (isRunning) {
+                    builder.setUsesChronometer(true)
+                    builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        builder.setChronometerCountDown(true)
+                    }
+                }
+            }
+            FluidCloudPreferences.MODE_MEDIA_SESSION -> {
+                // 纯媒体会话借道：针对 ColorOS 14/15 挖孔胶囊与锁屏灵动大卡片
+                val mediaStyle = MediaStyle()
+                    .setShowActionsInCompactView(0, 1)
+                mediaSession?.let { mediaStyle.setMediaSession(it.sessionToken) }
+
+                builder.setContentTitle("🎯 $title")
+                    .setContentText(if (isRunning) "剩余心流时间: $timeStr" else "已暂停 ($timeStr)")
+                    .setSubText("流体云胶囊")
+                    .setStyle(mediaStyle)
+            }
+            FluidCloudPreferences.MODE_NATIVE_LIVE_UPDATE -> {
+                // Android 15/16 纯净原生实时活动芯片 (Ongoing Activity Chip)
+                builder.setContentTitle("🎯 深度专注: $title")
+                    .setContentText(if (isRunning) "剩余倒计时: $timeStr" else "已暂停 ($timeStr)")
+                    .setSubText("实时活动")
+                    .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+
+                if (isRunning) {
+                    builder.setUsesChronometer(true)
+                    builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        builder.setChronometerCountDown(true)
+                    }
+                }
             }
         }
 
@@ -315,6 +494,8 @@ class FocusLiveService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         cancelFinishAlarm()
+        silentAudioPlayer?.stop()
+        releaseMediaSession()
         serviceScope.cancel()
     }
 
