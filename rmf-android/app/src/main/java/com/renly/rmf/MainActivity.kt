@@ -244,13 +244,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 异步后台自动检查并排期未来课程的 ColorOS 流体云上课提醒
-        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
-                context = this@MainActivity,
-                courseDao = db.courseDao(),
-                daysAhead = 7
-            )
+        // 异步后台自动检查并排期未来课程的 ColorOS 流体云上课提醒 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
+        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                    context = this@MainActivity,
+                    courseDao = db.courseDao(),
+                    daysAhead = 7
+                )
+            }
         }
 
         setContent {
@@ -273,6 +275,29 @@ class MainActivity : ComponentActivity() {
                 darkBgColorHex = currentCustomDarkBgHex,
                 lightBgColorHex = currentCustomLightBgHex
             ) {
+                var showPrivacyDialog by remember {
+                    mutableStateOf(!com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this@MainActivity))
+                }
+
+                if (showPrivacyDialog) {
+                    com.renly.rmf.ui.screens.PrivacyComplianceDialog(
+                        onAccept = {
+                            com.renly.rmf.domain.service.PrivacyPreferences.setPrivacyAccepted(this@MainActivity, true)
+                            showPrivacyDialog = false
+                            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                                    context = this@MainActivity,
+                                    courseDao = db.courseDao(),
+                                    daysAhead = 7
+                                )
+                            }
+                        },
+                        onDecline = {
+                            finishAffinity()
+                        }
+                    )
+                }
+
                 var showSplashScreen by remember { mutableStateOf(true) }
                 var isBottomBarVisible by remember {
                     mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.isBottomBarVisible(this@MainActivity))

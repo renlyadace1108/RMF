@@ -204,7 +204,7 @@ fun TimetableScreen(
                             if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
                                 android.widget.Toast.makeText(
                                     context,
-                                    "请先在「工作台」中配置 Gemini 或 通义千问 API 密钥！",
+                                    "请先在「工作台 -> AI 接口与大模型配置」中填写 API 密钥！",
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             } else {

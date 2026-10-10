@@ -12,15 +12,6 @@ enum class AiProvider(
     val isVisionSupported: Boolean,
     val description: String
 ) {
-    GEMINI(
-        id = "GEMINI",
-        displayName = "Google Gemini (官方原生)",
-        defaultBaseUrl = "https://generativelanguage.googleapis.com",
-        defaultModel = "gemini-1.5-flash",
-        recommendedModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"),
-        isVisionSupported = true,
-        description = "多模态视觉理解极强，提供充裕免费额度，课表截图识别首选"
-    ),
     QWEN(
         id = "QWEN",
         displayName = "通义千问 (Qwen / 阿里百炼)",
@@ -28,7 +19,7 @@ enum class AiProvider(
         defaultModel = "qwen-vl-plus",
         recommendedModels = listOf("qwen-vl-plus", "qwen-vl-max", "qwen2.5-vl-72b-instruct", "qwen-plus", "qwen-turbo"),
         isVisionSupported = true,
-        description = "阿里百炼兼容模式，qwen-vl 系列视觉模型对中文表格与课表识别效果极佳"
+        description = "已通过国家网信办大模型备案，qwen-vl 系列视觉模型对中文表格与课表识别效果极佳"
     ),
     DEEPSEEK(
         id = "DEEPSEEK",
@@ -47,11 +38,20 @@ enum class AiProvider(
         recommendedModels = listOf("gpt-4o-mini", "gpt-4o", "claude-3-5-sonnet"),
         isVisionSupported = true,
         description = "支持自建中转、OneAPI、反代或任意遵循 OpenAI 规范的 API 接口"
+    ),
+    GEMINI(
+        id = "GEMINI",
+        displayName = "Google Gemini (海外原生直连)",
+        defaultBaseUrl = "https://generativelanguage.googleapis.com",
+        defaultModel = "gemini-1.5-flash",
+        recommendedModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"),
+        isVisionSupported = true,
+        description = "Google 官方原生多模态视觉模型，需特定国际网络环境支持"
     );
 
     companion object {
         fun fromId(id: String): AiProvider {
-            return entries.find { it.id.equals(id, ignoreCase = true) } ?: GEMINI
+            return entries.find { it.id.equals(id, ignoreCase = true) } ?: QWEN
         }
     }
 }
@@ -68,7 +68,7 @@ object AiPreferences {
     }
 
     fun getProvider(context: Context): AiProvider {
-        val id = getPrefs(context).getString(KEY_PROVIDER, AiProvider.GEMINI.id) ?: AiProvider.GEMINI.id
+        val id = getPrefs(context).getString(KEY_PROVIDER, AiProvider.QWEN.id) ?: AiProvider.QWEN.id
         return AiProvider.fromId(id)
     }
 

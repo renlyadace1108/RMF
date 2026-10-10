@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.*
@@ -65,11 +66,13 @@ fun SettingsScreen(
     onTriggerUpload: () -> Unit,
     onTriggerDownload: () -> Unit
 ) {
-    var geminiApiKey by remember { mutableStateOf("") }
     var auditReport by remember { mutableStateOf<AuditReport?>(null) }
     var aiReviewText by remember { mutableStateOf<String?>(null) }
     var isGeneratingAi by remember { mutableStateOf(false) }
     var showTagModal by remember { mutableStateOf(false) }
+    var showAiConfigDialog by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    var showUserAgreementDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     Column(
@@ -954,300 +957,72 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 🤖 多模型 AI 服务中枢卡片 (Gemini / 通义千问 / DeepSeek / 自定义)
+        // 🤖 AI 接口与大模型配置 (独立入口项，符合应用商店审核合规规范)
         val aiContext = androidx.compose.ui.platform.LocalContext.current
-        var currentAiProvider by remember { mutableStateOf(com.renly.rmf.domain.service.AiPreferences.getProvider(aiContext)) }
-        var currentAiApiKey by remember { mutableStateOf(com.renly.rmf.domain.service.AiPreferences.getApiKey(aiContext)) }
-        var currentAiBaseUrl by remember { mutableStateOf(com.renly.rmf.domain.service.AiPreferences.getBaseUrl(aiContext)) }
-        var currentAiModel by remember { mutableStateOf(com.renly.rmf.domain.service.AiPreferences.getModel(aiContext)) }
-        var isApiKeyVisible by remember { mutableStateOf(false) }
-        var testConnectionStatus by remember { mutableStateOf<String?>(null) }
-        var isTestingConnection by remember { mutableStateOf(false) }
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = DarkCard),
+        Surface(
+            onClick = { showAiConfigDialog = true },
             shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
             border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "🤖 AI 模型服务中枢",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    if (currentAiProvider.isVisionSupported) {
-                        Surface(
-                            color = DopamineGreen.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "📷 支持课表截图识别",
-                                fontSize = 10.sp,
-                                color = DopamineGreen,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
-                    } else {
-                        Surface(
-                            color = DopamineOrange.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "📝 纯文本规划",
-                                fontSize = 10.sp,
-                                color = DopamineOrange,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                            )
-                        }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DopaminePurple.copy(alpha = 0.16f),
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🤖", fontSize = 22.sp)
                     }
                 }
-
-                Text(
-                    text = "支持 Google Gemini、通义千问 (Qwen)、DeepSeek 及自建中转接口。一键用于课表截图识别与每日精力智能复盘。",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
-
-                // 1. 服务商切换胶囊网格
-                Text(
-                    text = "选择 AI 服务商 (Provider):",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    com.renly.rmf.domain.service.AiProvider.entries.forEach { provider ->
-                        val isSelected = currentAiProvider == provider
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "AI 接口与智能助理配置",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val isConfigured = com.renly.rmf.domain.service.AiPreferences.isConfigured(aiContext)
                         Surface(
-                            onClick = {
-                                currentAiProvider = provider
-                                com.renly.rmf.domain.service.AiPreferences.setProvider(aiContext, provider)
-                                currentAiBaseUrl = provider.defaultBaseUrl
-                                com.renly.rmf.domain.service.AiPreferences.setBaseUrl(aiContext, provider.defaultBaseUrl)
-                                currentAiModel = provider.defaultModel
-                                com.renly.rmf.domain.service.AiPreferences.setModel(aiContext, provider.defaultModel)
-                                testConnectionStatus = null
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) DopaminePurple.copy(alpha = 0.2f) else DarkSurface,
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isConfigured) DopamineGreen.copy(alpha = 0.15f) else DarkSurface,
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) DopaminePurple else DarkBorder
-                            ),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp)
-                            ) {
-                                Text(
-                                    text = when (provider) {
-                                        com.renly.rmf.domain.service.AiProvider.GEMINI -> "Gemini"
-                                        com.renly.rmf.domain.service.AiProvider.QWEN -> "千问 Qwen"
-                                        com.renly.rmf.domain.service.AiProvider.DEEPSEEK -> "DeepSeek"
-                                        com.renly.rmf.domain.service.AiProvider.CUSTOM -> "自定义"
-                                    },
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) DopaminePurple else TextSecondary,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Text(
-                    text = currentAiProvider.description,
-                    fontSize = 11.sp,
-                    color = DopamineCyan.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
-                )
-
-                // 2. API Key 输入框
-                OutlinedTextField(
-                    value = currentAiApiKey,
-                    onValueChange = {
-                        currentAiApiKey = it
-                        com.renly.rmf.domain.service.AiPreferences.setApiKey(aiContext, it)
-                    },
-                    label = { Text("${currentAiProvider.name} API Key") },
-                    placeholder = { Text("在此粘贴您的 API 密钥...") },
-                    singleLine = true,
-                    visualTransformation = if (isApiKeyVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
-                            Text(if (isApiKeyVisible) "🙈" else "👁️", fontSize = 14.sp)
-                        }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 3. Base URL 输入框 (可选/支持反代)
-                OutlinedTextField(
-                    value = currentAiBaseUrl,
-                    onValueChange = {
-                        currentAiBaseUrl = it
-                        com.renly.rmf.domain.service.AiPreferences.setBaseUrl(aiContext, it)
-                    },
-                    label = { Text("接口 Base URL (支持自定义中转)") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 4. 模型名称输入与推荐快捷标签
-                OutlinedTextField(
-                    value = currentAiModel,
-                    onValueChange = {
-                        currentAiModel = it
-                        com.renly.rmf.domain.service.AiPreferences.setModel(aiContext, it)
-                    },
-                    label = { Text("模型标识 (Model ID)") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // 推荐模型快捷胶囊
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("推荐: ", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.align(Alignment.CenterVertically))
-                    currentAiProvider.recommendedModels.take(3).forEach { modelId ->
-                        val isCurrent = currentAiModel == modelId
-                        Surface(
-                            onClick = {
-                                currentAiModel = modelId
-                                com.renly.rmf.domain.service.AiPreferences.setModel(aiContext, modelId)
-                            },
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isCurrent) DopamineBlue.copy(alpha = 0.2f) else DarkSurface,
-                            border = BorderStroke(1.dp, if (isCurrent) DopamineBlue else DarkBorder)
+                                if (isConfigured) DopamineGreen.copy(alpha = 0.5f) else DarkBorder
+                            )
                         ) {
                             Text(
-                                text = modelId,
-                                fontSize = 10.5.sp,
-                                color = if (isCurrent) DopamineBlue else TextSecondary,
+                                text = if (isConfigured) "已接入" else "未配置",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isConfigured) DopamineGreen else TextMuted,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
+                    Text(
+                        text = "自定义第三方大模型 (通义千问/DeepSeek/Gemini/自建中转) 与连通测试",
+                        fontSize = 11.5.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // 5. 操作按钮：测试连接 & 生成复盘
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            isTestingConnection = true
-                            testConnectionStatus = "正在向 ${currentAiModel} 发送握手信号..."
-                            coroutineScope.launch {
-                                when (val testRes = com.renly.rmf.domain.service.AiService.testConnection(aiContext)) {
-                                    is com.renly.rmf.domain.service.AiResult.Success -> {
-                                        testConnectionStatus = testRes.data
-                                    }
-                                    is com.renly.rmf.domain.service.AiResult.Error -> {
-                                        testConnectionStatus = "❌ 连接失败: ${testRes.errorMessage}"
-                                    }
-                                }
-                                isTestingConnection = false
-                            }
-                        },
-                        enabled = !isTestingConnection && currentAiApiKey.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
-                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = if (isTestingConnection) "握手中..." else "🔌 测试连接",
-                            color = DopamineCyan,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            isGeneratingAi = true
-                            onTriggerAiReview(currentAiApiKey) { result ->
-                                aiReviewText = result
-                                isGeneratingAi = false
-                            }
-                        },
-                        enabled = !isGeneratingAi && currentAiApiKey.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = if (isGeneratingAi) "思考中..." else "✨ 生成今日复盘",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                // 握手测试结果反馈横幅
-                if (testConnectionStatus != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (testConnectionStatus?.startsWith("✅") == true)
-                            DopamineGreen.copy(alpha = 0.12f)
-                        else
-                            DopamineOrange.copy(alpha = 0.12f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (testConnectionStatus?.startsWith("✅") == true)
-                                DopamineGreen.copy(alpha = 0.4f)
-                            else
-                                DopamineOrange.copy(alpha = 0.4f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = testConnectionStatus ?: "",
-                            fontSize = 11.5.sp,
-                            color = if (testConnectionStatus?.startsWith("✅") == true) DopamineGreen else DopamineOrange,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "进入配置",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
@@ -2319,6 +2094,28 @@ fun SettingsScreen(
                 color = TextSecondary,
                 modifier = Modifier.padding(top = 2.dp)
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 《用户服务协议》与《隐私政策》常驻入口 (工信部与各大应用商店合规规范)
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { showUserAgreementDialog = true },
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text("《用户服务协议》", fontSize = 11.5.sp, color = DopamineBlue)
+                }
+                Text("•", fontSize = 11.sp, color = TextMuted)
+                TextButton(
+                    onClick = { showPrivacyPolicyDialog = true },
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text("《隐私政策》", fontSize = 11.5.sp, color = DopamineBlue)
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -2365,12 +2162,27 @@ fun SettingsScreen(
         )
     }
 
+    // 🤖 独立的 AI 接口与模型服务配置弹窗 (BYOK 模式)
+    if (showAiConfigDialog) {
+        AiSettingsDialog(
+            onDismiss = { showAiConfigDialog = false },
+            onTriggerAiReview = { callback ->
+                onTriggerAiReview("") { result ->
+                    callback(result)
+                }
+            },
+            onAiReviewResult = { result ->
+                aiReviewText = result
+            }
+        )
+    }
+
     // AI 复盘展示弹窗
     aiReviewText?.let { review ->
         AlertDialog(
             onDismissRequest = { aiReviewText = null },
             containerColor = DarkSurface,
-            title = { Text("今日 Gemini AI 智能复盘", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("今日 AI 智能复盘", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(review, color = TextPrimary, fontSize = 13.sp, lineHeight = 20.sp)
@@ -2379,6 +2191,24 @@ fun SettingsScreen(
             confirmButton = {
                 Button(onClick = { aiReviewText = null }) { Text("完成") }
             }
+        )
+    }
+
+    // 🛡️ 隐私政策正文浏览弹窗
+    if (showPrivacyPolicyDialog) {
+        PrivacyDocumentViewerDialog(
+            title = "隐私政策",
+            content = com.renly.rmf.domain.service.PrivacyPreferences.PRIVACY_POLICY_FULL,
+            onDismiss = { showPrivacyPolicyDialog = false }
+        )
+    }
+
+    // 📜 用户服务协议正文浏览弹窗
+    if (showUserAgreementDialog) {
+        PrivacyDocumentViewerDialog(
+            title = "用户服务协议",
+            content = com.renly.rmf.domain.service.PrivacyPreferences.USER_AGREEMENT_FULL,
+            onDismiss = { showUserAgreementDialog = false }
         )
     }
 
