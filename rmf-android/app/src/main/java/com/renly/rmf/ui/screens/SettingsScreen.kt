@@ -71,9 +71,11 @@ fun SettingsScreen(
     var isGeneratingAi by remember { mutableStateOf(false) }
     var showTagModal by remember { mutableStateOf(false) }
     var showAiConfigDialog by remember { mutableStateOf(false) }
+    var showGoogleSettingsDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showUserAgreementDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Column(
         modifier = Modifier
@@ -91,7 +93,13 @@ fun SettingsScreen(
             color = TextPrimary
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        SettingsSectionHeader(
+            icon = "🎨",
+            title = "个性化与色彩外观",
+            subtitle = "主题模式、强调色、自定义背景底色与标签色彩管理"
+        )
 
         // 主题外观切换卡片
         Surface(
@@ -506,11 +514,51 @@ fun SettingsScreen(
                         title = "☀️ 日间背景 RGB 实时调色",
                         defaultExpanded = false
                     )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 🏷️ 日程分类标签库管理入口
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🏷️ 日程分类标签库与色彩",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "自定义时间块的业务标签与专属色彩，双端实时同步",
+                                fontSize = 11.5.sp,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        Button(
+                            onClick = { showTagModal = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("管理标签库", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        SettingsSectionHeader(
+            icon = "🧭",
+            title = "界面布局与导航偏好",
+            subtitle = "底部导航栏常驻开关、默认首选主页与快捷功能模块定制"
+        )
 
         // 📱 导航与主页展示自定义卡片 (Navigation & Home Customization)
         Surface(
@@ -838,7 +886,13 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        SettingsSectionHeader(
+            icon = "🚀",
+            title = "工作台功能直达",
+            subtitle = "目标金字塔、日常记账、每日健身、复盘统计与使用教程"
+        )
 
         // 核心子系统快捷入口
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -907,55 +961,16 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // ---------------------------------------------------------------------------------
+        // ⚡ 智能互联与云端服务 (AI、Google、系统日历、通知)
+        // ---------------------------------------------------------------------------------
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // 电脑版 1:1 标签分类库管理入口
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = { showTagModal = true },
-                colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("🏷️ 标签分类库与色彩管理 (Tag Management)", fontSize = 12.sp, color = DopaminePurple, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 节律健康审计卡片
-        Card(
-            colors = CardDefaults.cardColors(containerColor = DarkCard),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "🩺 日程节律健康审计",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "深度诊断时间硬冲突排期、连续4小时超载疲劳断崖与认知负荷均衡度。",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
-
-                Button(
-                    onClick = { auditReport = onTriggerAudit() },
-                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("立即执行节律诊断", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        SettingsSectionHeader(
+            icon = "⚡",
+            title = "智能互联与云端服务",
+            subtitle = "AI 智能助理接入、Google 账号与云端同步、系统日历与流体云通知"
+        )
 
         // 🤖 AI 接口与大模型配置 (独立入口项，符合应用商店审核合规规范)
         val aiContext = androidx.compose.ui.platform.LocalContext.current
@@ -1026,306 +1041,80 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Google Drive 官方 API 跨端同步卡片 (1:1 像素级对齐 PC 端)
-        val currentContext = androidx.compose.ui.platform.LocalContext.current
-        var googleClientId by remember { mutableStateOf(GoogleDrivePreferences.getClientId(currentContext)) }
-        var googleClientSecret by remember { mutableStateOf(GoogleDrivePreferences.getClientSecret(currentContext)) }
-        var driveStatusText by remember { mutableStateOf("") }
-        var lastSyncDisplay by remember { mutableStateOf(GoogleDrivePreferences.getLastSyncTime(currentContext)) }
-        var isDriveWorking by remember { mutableStateOf(false) }
-        var showAuthCodeDialog by remember { mutableStateOf(false) }
-        var authCodeInput by remember { mutableStateOf("") }
+        // 🌐 Google 服务与多端互通 (独立入口项，整合 Google Drive 云备份与 Google Calendar 日历互通)
+        val googleContext = androidx.compose.ui.platform.LocalContext.current
+        val isGoogleAuthorized = remember(showGoogleSettingsDialog) {
+            GoogleDrivePreferences.isAuthorized(googleContext)
+        }
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = DarkCard),
-            shape = RoundedCornerShape(12.dp),
+        Surface(
+            onClick = { showGoogleSettingsDialog = true },
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DopamineBlue.copy(alpha = 0.16f),
+                    modifier = Modifier.size(46.dp)
                 ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🌐", fontSize = 22.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("☁️", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
                         Text(
-                            text = "Google Drive 云端安全备份与同步",
+                            text = "Google 服务与多端互通",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isGoogleAuthorized) DopamineGreen.copy(alpha = 0.15f) else DarkSurface,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isGoogleAuthorized) DopamineGreen.copy(alpha = 0.5f) else DarkBorder
+                            )
+                        ) {
+                            Text(
+                                text = if (isGoogleAuthorized) "已授权" else "未连接",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isGoogleAuthorized) DopamineGreen else TextMuted,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
-                    val isLinked = GoogleDrivePreferences.isAuthorized(currentContext)
-                    Surface(
-                        color = if (isLinked) Color(0xFF064E3B) else Color(0xFF1E293B),
-                        shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(1.dp, if (isLinked) Color(0xFF059669) else DopamineBlue)
-                    ) {
-                        Text(
-                            text = if (isLinked) "已授权连接" else "未连接",
-                            color = if (isLinked) Color(0xFF6EE7B7) else DopamineBlue,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = "基于 Google Drive 官方 API，将整个 SQLite 数据库（含所有日程、课程表、每日成果、学习档案）完整安全备份至云端。与 Windows 电脑端 100% 互通，确保访问并读写同一个云端数据库文件 (rmf_cloud_backup.db)。",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
-
-                Text(
-                    text = "Google Cloud OAuth 2.0 凭据配置：",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DopamineBlue,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                OutlinedTextField(
-                    value = googleClientId,
-                    onValueChange = { googleClientId = it },
-                    label = { Text("Client ID (.apps.googleusercontent.com)", fontSize = 11.sp) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = DopamineBlue,
-                        unfocusedBorderColor = DarkBorder
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedTextField(
-                    value = googleClientSecret,
-                    onValueChange = { googleClientSecret = it },
-                    label = { Text("Client Secret", fontSize = 11.sp) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = DopamineBlue,
-                        unfocusedBorderColor = DarkBorder
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Text(
-                        text = "上次备份：$lastSyncDisplay",
+                        text = "Google Drive 数据库跨端云备份与 Google Calendar 日历双向互通",
                         fontSize = 11.5.sp,
-                        color = TextMuted,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Button(
-                        onClick = {
-                            GoogleDrivePreferences.setClientId(currentContext, googleClientId)
-                            GoogleDrivePreferences.setClientSecret(currentContext, googleClientSecret)
-                            driveStatusText = "✓ OAuth 凭据已保存到本地配置！"
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("保存凭据", fontSize = 12.sp, color = Color.White)
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            GoogleDrivePreferences.clearAuth(currentContext)
-                            driveStatusText = "已解除授权并清除本地 Token。"
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineRed),
-                        border = BorderStroke(1.dp, DopamineRed),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text("解除授权", fontSize = 12.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 云端操作按钮 (API 互通)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(
-                        onClick = {
-                            val cId = googleClientId.trim()
-                            val cSec = googleClientSecret.trim()
-                            if (cId.isBlank()) {
-                                driveStatusText = "✗ 请先填写 Client ID"
-                                return@Button
-                            }
-                            GoogleDrivePreferences.setClientId(currentContext, cId)
-                            GoogleDrivePreferences.setClientSecret(currentContext, cSec)
-
-                            if (!GoogleDrivePreferences.isAuthorized(currentContext)) {
-                                // 启动授权弹窗
-                                showAuthCodeDialog = true
-                            } else {
-                                isDriveWorking = true
-                                driveStatusText = "正在调用 Google Drive API 上传..."
-                                onTriggerUpload()
-                            }
-                        },
-                        enabled = !isDriveWorking,
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("⬆ 上传完整备份至云端", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            val cId = googleClientId.trim()
-                            val cSec = googleClientSecret.trim()
-                            if (cId.isBlank()) {
-                                driveStatusText = "✗ 请先填写 Client ID"
-                                return@OutlinedButton
-                            }
-                            GoogleDrivePreferences.setClientId(currentContext, cId)
-                            GoogleDrivePreferences.setClientSecret(currentContext, cSec)
-
-                            if (!GoogleDrivePreferences.isAuthorized(currentContext)) {
-                                showAuthCodeDialog = true
-                            } else {
-                                isDriveWorking = true
-                                driveStatusText = "正在从 Google Drive API 拉取..."
-                                onTriggerDownload()
-                            }
-                        },
-                        enabled = !isDriveWorking,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineGreen),
-                        border = BorderStroke(1.dp, DopamineGreen),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("⬇ 从云端拉取恢复本地", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-
-                if (driveStatusText.isNotBlank()) {
-                    Text(
-                        text = driveStatusText,
-                        fontSize = 11.5.sp,
-                        color = if (driveStatusText.startsWith("✓")) DopamineGreen else if (driveStatusText.startsWith("✗")) DopamineRed else DopamineCyan,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 3.dp)
                     )
                 }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "进入配置",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
-        // OAuth 2.0 快捷授权引导弹窗
-        if (showAuthCodeDialog) {
-            AlertDialog(
-                onDismissRequest = { showAuthCodeDialog = false },
-                containerColor = DarkSurface,
-                title = { Text("🔑 授权 Google Drive API", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "为了让安卓端与电脑端访问同一个云盘文件，需要完成一次 OAuth 2.0 授权：",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-
-                        Button(
-                            onClick = {
-                                val cId = GoogleDrivePreferences.getClientId(currentContext)
-                                val authUrl = GoogleDriveSyncService.buildAuthorizationUrl(cId)
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl))
-                                currentContext.startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("1. 打开浏览器登录并获取授权码", fontSize = 12.sp)
-                        }
-
-                        Text("2. 在下方粘贴授权码 (Authorization Code) 或直接输入 Access Token：", fontSize = 12.sp, color = TextSecondary)
-
-                        OutlinedTextField(
-                            value = authCodeInput,
-                            onValueChange = { authCodeInput = it },
-                            placeholder = { Text("粘贴 4/0A... 授权码或 ya29... Token", fontSize = 11.sp, color = TextMuted) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                focusedBorderColor = DopamineBlue,
-                                unfocusedBorderColor = DarkBorder
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val code = authCodeInput.trim()
-                            if (code.isNotBlank()) {
-                                if (code.startsWith("ya29.")) {
-                                    // 直接作为 Access Token 存入
-                                    GoogleDrivePreferences.setAccessToken(currentContext, code)
-                                    driveStatusText = "✓ Access Token 已保存生效！"
-                                    showAuthCodeDialog = false
-                                } else {
-                                    // 调用换取 Token
-                                    driveStatusText = "正在兑换 Token..."
-                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                        val res = GoogleDriveSyncService.exchangeAuthCode(
-                                            clientId = GoogleDrivePreferences.getClientId(currentContext),
-                                            clientSecret = GoogleDrivePreferences.getClientSecret(currentContext),
-                                            authCode = code
-                                        )
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            if (res.isSuccess) {
-                                                val (acc, ref) = res.getOrThrow()
-                                                GoogleDrivePreferences.setAccessToken(currentContext, acc)
-                                                if (ref != null) GoogleDrivePreferences.setRefreshToken(currentContext, ref)
-                                                driveStatusText = "✓ Google Drive 授权成功！"
-                                                showAuthCodeDialog = false
-                                            } else {
-                                                driveStatusText = "✗ 授权失败: ${res.exceptionOrNull()?.message}"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen)
-                    ) {
-                        Text("完成授权", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAuthCodeDialog = false }) {
-                        Text("取消", color = TextMuted)
-                    }
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // ---------------------------------------------------------------------------------
         // 🔔 通知与 ColorOS 流体云实验室 (Notification & Fluid Cloud Lab)
@@ -1667,13 +1456,16 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // 📅 Google Calendar & .ics 日历互通同步卡片 (对齐 Windows GoogleCalendarService)
-        var calSyncStatusText by remember { mutableStateOf("") }
-        var isCalWorking by remember { mutableStateOf(false) }
-        var icsUrlInput by remember { mutableStateOf(GoogleDrivePreferences.getCalendarIcsUrl(currentContext)) }
-        var lastCalSyncTime by remember { mutableStateOf(GoogleDrivePreferences.getCalendarLastSyncTime(currentContext)) }
+        // ---------------------------------------------------------------------------------
+        // 🩺 节律健康与数据审计 (Hard conflict, overload, rhythm audit)
+        // ---------------------------------------------------------------------------------
+        SettingsSectionHeader(
+            icon = "🩺",
+            title = "节律健康与数据审计",
+            subtitle = "深度诊断时间排期硬冲突、连续4小时超载疲劳断崖与认知负荷均衡度"
+        )
 
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkCard),
@@ -1681,221 +1473,40 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("📅", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
-                        Text(
-                            text = "Google Calendar 日历互通同步",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-                    val isLinked = GoogleDrivePreferences.isAuthorized(currentContext)
-                    Surface(
-                        color = if (isLinked) Color(0xFF064E3B) else Color(0xFF1E293B),
-                        shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(1.dp, if (isLinked) Color(0xFF059669) else DopamineBlue)
-                    ) {
-                        Text(
-                            text = if (isLinked) "API 已就绪" else "未授权 OAuth",
-                            color = if (isLinked) Color(0xFF6EE7B7) else DopamineBlue,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-
                 Text(
-                    text = "支持通过 Google Calendar API 直连推送日程与上课计划；同时支持标准 RFC 5545 .ics 文件导出或 URL 私密订阅，在手机系统日历/Google日历中实时查看。",
+                    text = "🩺 日程节律健康审计",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "深度诊断时间硬冲突排期、连续4小时超载疲劳断崖与认知负荷均衡度。",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
 
-                Text(
-                    text = "上次同步时间: $lastCalSyncTime",
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                // 按钮组 1: Google Calendar REST API 直连推送与拉取
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            if (!GoogleDrivePreferences.isAuthorized(currentContext)) {
-                                showAuthCodeDialog = true
-                                return@Button
-                            }
-                            isCalWorking = true
-                            calSyncStatusText = "正在推送日程至 Google Calendar..."
-                            coroutineScope.launch {
-                                val db = (currentContext.applicationContext as com.renly.rmf.RmfApplication).database
-                                val service = com.renly.rmf.domain.service.GoogleCalendarSyncService(currentContext, db)
-                                val res = service.pushSchedulesToGoogleCalendar()
-                                isCalWorking = false
-                                when (res) {
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Success -> {
-                                        calSyncStatusText = "✓ ${res.message}"
-                                        lastCalSyncTime = GoogleDrivePreferences.getCalendarLastSyncTime(currentContext)
-                                    }
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Error -> {
-                                        calSyncStatusText = "✗ ${res.error}"
-                                    }
-                                }
-                            }
-                        },
-                        enabled = !isCalWorking,
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("🚀 推送日程至 Google", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            if (!GoogleDrivePreferences.isAuthorized(currentContext)) {
-                                showAuthCodeDialog = true
-                                return@OutlinedButton
-                            }
-                            isCalWorking = true
-                            calSyncStatusText = "正在从 Google Calendar 拉取事件..."
-                            coroutineScope.launch {
-                                val db = (currentContext.applicationContext as com.renly.rmf.RmfApplication).database
-                                val service = com.renly.rmf.domain.service.GoogleCalendarSyncService(currentContext, db)
-                                val res = service.pullEventsFromGoogleCalendar(30)
-                                isCalWorking = false
-                                when (res) {
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Success -> {
-                                        calSyncStatusText = "✓ ${res.message}"
-                                        lastCalSyncTime = GoogleDrivePreferences.getCalendarLastSyncTime(currentContext)
-                                    }
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Error -> {
-                                        calSyncStatusText = "✗ ${res.error}"
-                                    }
-                                }
-                            }
-                        },
-                        enabled = !isCalWorking,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineGreen),
-                        border = BorderStroke(1.dp, DopamineGreen),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("⬇ 从 Google 拉取日程", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 按钮组 2: 导出 .ics 通用日历文件 (含课表与日程)
-                OutlinedButton(
-                    onClick = {
-                        isCalWorking = true
-                        calSyncStatusText = "正在生成 .ics 日历文件..."
-                        coroutineScope.launch {
-                            val db = (currentContext.applicationContext as com.renly.rmf.RmfApplication).database
-                            val service = com.renly.rmf.domain.service.GoogleCalendarSyncService(currentContext, db)
-                            val res = service.exportSchedulesToIcsFile(includeCourses = true)
-                            isCalWorking = false
-                            if (res.isSuccess) {
-                                val file = res.getOrThrow()
-                                calSyncStatusText = "✓ 已生成 .ics，调起日历分享..."
-                                service.shareIcsFile(file)
-                            } else {
-                                calSyncStatusText = "✗ 导出失败: ${res.exceptionOrNull()?.message}"
-                            }
-                        }
-                    },
-                    enabled = !isCalWorking,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("📁 导出 .ics 通用日历文件 (课表+日程，支持所有日历导入)", fontSize = 12.sp)
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 输入框与按钮组 3: Google Calendar iCal 订阅 URL (对齐 Windows 端)
-                Text(
-                    text = "或者输入 Google Calendar 私密 iCal 订阅地址 (.ics)：",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                OutlinedTextField(
-                    value = icsUrlInput,
-                    onValueChange = { icsUrlInput = it },
-                    placeholder = { Text("https://calendar.google.com/calendar/ical/.../basic.ics", fontSize = 11.sp, color = TextMuted) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = DopamineBlue,
-                        unfocusedBorderColor = DarkBorder
-                    ),
+                Button(
+                    onClick = { auditReport = onTriggerAudit() },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
+                    shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedButton(
-                    onClick = {
-                        val url = icsUrlInput.trim()
-                        if (url.isBlank()) {
-                            calSyncStatusText = "✗ 请输入有效的 .ics 订阅 URL"
-                            return@OutlinedButton
-                        }
-                        isCalWorking = true
-                        calSyncStatusText = "正在从日历订阅地址同步..."
-                        coroutineScope.launch {
-                            val db = (currentContext.applicationContext as com.renly.rmf.RmfApplication).database
-                            val service = com.renly.rmf.domain.service.GoogleCalendarSyncService(currentContext, db)
-                            val res = service.syncFromIcsUrl(url)
-                            isCalWorking = false
-                            when (res) {
-                                is com.renly.rmf.domain.service.CalendarSyncResult.Success -> {
-                                    calSyncStatusText = "✓ ${res.message}"
-                                    lastCalSyncTime = GoogleDrivePreferences.getCalendarLastSyncTime(currentContext)
-                                }
-                                is com.renly.rmf.domain.service.CalendarSyncResult.Error -> {
-                                    calSyncStatusText = "✗ ${res.error}"
-                                }
-                            }
-                        }
-                    },
-                    enabled = !isCalWorking,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
-                    border = BorderStroke(1.dp, DopamineCyan),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("🔄 从 iCal 订阅地址同步日程", fontSize = 12.sp)
-                }
-
-                if (calSyncStatusText.isNotBlank()) {
-                    Text(
-                        text = calSyncStatusText,
-                        fontSize = 11.5.sp,
-                        color = if (calSyncStatusText.startsWith("✓")) DopamineGreen else if (calSyncStatusText.startsWith("✗")) DopamineRed else DopamineCyan,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                    Text("立即执行节律诊断", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // ---------------------------------------------------------------------------------
+        // 🛡️ 数据安全与备份防护 (Lossless database protection, export, import)
+        // ---------------------------------------------------------------------------------
+        SettingsSectionHeader(
+            icon = "🛡️",
+            title = "数据安全与备份防护",
+            subtitle = "底层无损数据库架构保护、全量数据导出与数据还原"
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
         Card(
@@ -1941,7 +1552,7 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = com.renly.rmf.domain.service.LosslessUpgradeManager.getLastBackupTime(currentContext),
+                    text = com.renly.rmf.domain.service.LosslessUpgradeManager.getLastBackupTime(context),
                     fontSize = 11.sp,
                     color = TextMuted,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -2033,7 +1644,16 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // ---------------------------------------------------------------------------------
+        // ℹ️ 软件品牌与法律合规 (Brand, License, User Agreement, Privacy Policy)
+        // ---------------------------------------------------------------------------------
+        SettingsSectionHeader(
+            icon = "ℹ️",
+            title = "软件品牌与法律合规",
+            subtitle = "系统版本信息、开源版权声明、用户服务协议与隐私政策"
+        )
 
         // © 软件品牌、版权与版本声明 (对齐 Windows 客户端)
         Column(
@@ -2165,6 +1785,15 @@ fun SettingsScreen(
             onAiReviewResult = { result ->
                 aiReviewText = result
             }
+        )
+    }
+
+    // 🌐 独立的 Google 服务与多端互通设置弹窗 (Google Drive & Google Calendar)
+    if (showGoogleSettingsDialog) {
+        GoogleSettingsDialog(
+            onDismiss = { showGoogleSettingsDialog = false },
+            onTriggerUpload = onTriggerUpload,
+            onTriggerDownload = onTriggerDownload
         )
     }
 
@@ -2480,4 +2109,36 @@ fun TagManagementDialog(
         }
     )
 }
+
+@Composable
+private fun SettingsSectionHeader(
+    icon: String,
+    title: String,
+    subtitle: String? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp, bottom = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                fontSize = 11.5.sp,
+                color = TextSecondary,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
 
