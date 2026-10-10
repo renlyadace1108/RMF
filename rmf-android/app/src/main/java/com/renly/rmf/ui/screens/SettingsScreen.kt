@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Palette
@@ -37,6 +38,7 @@ import com.renly.rmf.domain.service.NavigationPreferences
 
 @Composable
 fun SettingsScreen(
+    onBack: () -> Unit = {},
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     currentAccentColorHex: String = com.renly.rmf.ui.theme.ThemePreferences.DEFAULT_ACCENT_COLOR,
@@ -52,22 +54,14 @@ fun SettingsScreen(
     defaultHomeRoute: String = NavigationPreferences.DEFAULT_HOME_ROUTE,
     onDefaultHomeRouteChange: (String) -> Unit = {},
     syncDao: com.renly.rmf.data.local.dao.SyncDao? = null,
-    onNavigateToGoals: () -> Unit,
-    onNavigateToExpenses: () -> Unit,
-    onNavigateToFitness: () -> Unit = {},
-    onNavigateToDailyReport: () -> Unit,
-    onNavigateToSummary: () -> Unit,
-    onNavigateToTutorial: () -> Unit,
-    onTriggerAudit: () -> AuditReport,
-    onTriggerAiReview: (String, (String) -> Unit) -> Unit,
-    onExportData: () -> Unit,
+    onTriggerAiReview: (String, (String) -> Unit) -> Unit = { _, _ -> },
+    onExportData: () -> Unit = {},
     onExportLosslessDb: () -> Unit = {},
     onImportLosslessDb: () -> Unit = {},
     onClearAllBusinessData: () -> Unit = {},
-    onTriggerUpload: () -> Unit,
-    onTriggerDownload: () -> Unit
+    onTriggerUpload: () -> Unit = {},
+    onTriggerDownload: () -> Unit = {}
 ) {
-    var auditReport by remember { mutableStateOf<AuditReport?>(null) }
     var aiReviewText by remember { mutableStateOf<String?>(null) }
     var isGeneratingAi by remember { mutableStateOf(false) }
     var showTagModal by remember { mutableStateOf(false) }
@@ -85,14 +79,31 @@ fun SettingsScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = "工作台与高级功能",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary
-        )
+        // 顶部导航栏：返回按钮与系统设置标题
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = TextPrimary
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "系统设置",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -887,80 +898,6 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        SettingsSectionHeader(
-            icon = "🚀",
-            title = "工作台功能直达",
-            subtitle = "目标金字塔、日常记账、每日健身、复盘统计与使用教程"
-        )
-
-        // 核心子系统快捷入口
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = onNavigateToGoals,
-                colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("🎯 目标金字塔", fontSize = 11.5.sp)
-            }
-
-            Button(
-                onClick = onNavigateToExpenses,
-                colors = ButtonDefaults.buttonColors(containerColor = DopamineAmber),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("💰 日常记账", fontSize = 11.5.sp)
-            }
-
-            Button(
-                onClick = onNavigateToFitness,
-                colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("🏋️ 每日健身", fontSize = 11.5.sp, color = Color.White)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = onNavigateToDailyReport,
-                colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("🏆 每日复盘", fontSize = 11.5.sp, color = DopamineGreen)
-            }
-
-            Button(
-                onClick = onNavigateToSummary,
-                colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("📊 效能统计", fontSize = 11.5.sp, color = DopamineBlue)
-            }
-
-            Button(
-                onClick = onNavigateToTutorial,
-                colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-            ) {
-                Text("📖 使用教程", fontSize = 11.5.sp, color = TextPrimary)
-            }
-        }
 
         // ---------------------------------------------------------------------------------
         // ⚡ 智能互联与云端服务 (AI、Google、系统日历、通知)
@@ -1710,46 +1647,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
 
-        // ---------------------------------------------------------------------------------
-        // 🩺 节律健康与数据审计 (Hard conflict, overload, rhythm audit)
-        // ---------------------------------------------------------------------------------
-        SettingsSectionHeader(
-            icon = "🩺",
-            title = "节律健康与数据审计",
-            subtitle = "深度诊断时间排期硬冲突、连续4小时超载疲劳断崖与认知负荷均衡度"
-        )
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = DarkCard),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "🩺 日程节律健康审计",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "深度诊断时间硬冲突排期、连续4小时超载疲劳断崖与认知负荷均衡度。",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                )
-
-                Button(
-                    onClick = { auditReport = onTriggerAudit() },
-                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("立即执行节律诊断", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                }
-            }
-        }
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -1986,46 +1884,6 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(24.dp))
     }
 
-    // 节律健康诊断弹窗
-    auditReport?.let { report ->
-        AlertDialog(
-            onDismissRequest = { auditReport = null },
-            containerColor = DarkSurface,
-            title = {
-                Text(
-                    text = "节律健康诊断评分: ${report.score} 分",
-                    color = if (report.score >= 80) DopamineGreen else DopamineAmber,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("深度工作: ${report.totalDeepWorkMinutes}分钟 | 缓冲休息: ${report.totalRestMinutes}分钟", fontSize = 12.sp, color = TextSecondary)
-                    HorizontalDivider(color = DarkBorder)
-                    report.findings.forEach { finding ->
-                        val color = when (finding.level) {
-                            "DANGER" -> DopamineRed
-                            "WARNING" -> DopamineAmber
-                            else -> DopamineGreen
-                        }
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.15f)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text(finding.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
-                                Text(finding.description, fontSize = 11.sp, color = TextPrimary)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { auditReport = null }) { Text("已知晓") }
-            }
-        )
-    }
 
     // 🤖 独立的 AI 接口与模型服务配置弹窗 (BYOK 模式)
     if (showAiConfigDialog) {

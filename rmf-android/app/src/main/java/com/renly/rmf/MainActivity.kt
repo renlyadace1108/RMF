@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -57,7 +58,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Timetable : Screen("timetable", "课表", Icons.Default.CalendarMonth)
     object Study : Screen("study", "学习", Icons.Default.MenuBook)
     object Focus : Screen("focus", "专注", Icons.Default.Timer)
-    object Settings : Screen("settings", "工作台", Icons.Default.Settings)
+    object Workbench : Screen("workbench", "工作台", Icons.Default.Dashboard)
+    object Settings : Screen("settings", "设置", Icons.Default.Settings)
     object Goals : Screen("goals", "目标", Icons.Default.Flag)
     object Expenses : Screen("expenses", "记账", Icons.Default.AccountBalanceWallet)
     object DailyReport : Screen("daily_report", "日报", Icons.Default.AutoAwesome)
@@ -74,6 +76,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
                 "timetable" -> Timetable
                 "study" -> Study
                 "focus" -> Focus
+                "workbench" -> Workbench
                 "fitness" -> Fitness
                 "habits" -> Habits
                 "countdowns" -> Countdowns
@@ -806,7 +809,45 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
+                            Screen.Workbench -> WorkbenchScreen(
+                                onNavigateToSettings = { currentScreen = Screen.Settings },
+                                onNavigateToGoals = { currentScreen = Screen.Goals },
+                                onNavigateToExpenses = { currentScreen = Screen.Expenses },
+                                onNavigateToFitness = { currentScreen = Screen.Fitness },
+                                onNavigateToDailyReport = { currentScreen = Screen.DailyReport },
+                                onNavigateToSummary = { currentScreen = Screen.Summary },
+                                onNavigateToHabits = { currentScreen = Screen.Habits },
+                                onNavigateToCountdowns = { currentScreen = Screen.Countdowns },
+                                onNavigateToTutorial = { currentScreen = Screen.Tutorial },
+                                onTriggerAudit = {
+                                    val currentList = runBlockingOrCachedSchedules()
+                                    SchedulerAuditEngine.audit(currentList)
+                                },
+                                onTriggerAiReview = { _, callback ->
+                                    lifecycleScope.launch {
+                                        val schedules = db.scheduleDao().getAllRawSchedules().filter { it.isDeleted == 0 }
+                                        val completed = schedules.count { it.status == "COMPLETED" }
+                                        val interruptions = db.interruptionDao().getAllRawInterruptions()
+                                        val topics = db.studyTopicDao().getAllRawTopics().filter { it.isDeleted == 0 }
+                                        val studySum = topics.joinToString { "${it.title}: ${it.progressPercent}%" }
+
+                                        when (val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
+                                            context = this@MainActivity,
+                                            completedCount = completed,
+                                            totalSchedules = schedules.size,
+                                            focusMinutes = completed * 30,
+                                            interruptionCount = interruptions.size,
+                                            studySummary = studySum.ifBlank { "无专项更新" }
+                                        )) {
+                                            is com.renly.rmf.domain.service.AiResult.Success -> callback(res.data)
+                                            is com.renly.rmf.domain.service.AiResult.Error -> callback("生成失败: ${res.errorMessage}")
+                                        }
+                                    }
+                                }
+                            )
+
                             Screen.Settings -> SettingsScreen(
+                                onBack = { currentScreen = Screen.Workbench },
                                 currentThemeMode = currentThemeMode,
                                 onThemeModeChange = { newMode ->
                                     currentThemeMode = newMode
@@ -844,16 +885,6 @@ class MainActivity : ComponentActivity() {
                                     Toast.makeText(this@MainActivity, "已设为冷启动默认主页", Toast.LENGTH_SHORT).show()
                                 },
                                 syncDao = db.syncDao(),
-                                onNavigateToGoals = { currentScreen = Screen.Goals },
-                                onNavigateToExpenses = { currentScreen = Screen.Expenses },
-                                onNavigateToFitness = { currentScreen = Screen.Fitness },
-                                onNavigateToDailyReport = { currentScreen = Screen.DailyReport },
-                                onNavigateToSummary = { currentScreen = Screen.Summary },
-                                onNavigateToTutorial = { currentScreen = Screen.Tutorial },
-                                onTriggerAudit = {
-                                    val currentList = runBlockingOrCachedSchedules()
-                                    SchedulerAuditEngine.audit(currentList)
-                                },
                                 onTriggerAiReview = { _, callback ->
                                     lifecycleScope.launch {
                                         val schedules = db.scheduleDao().getAllRawSchedules().filter { it.isDeleted == 0 }
@@ -1003,6 +1034,7 @@ class MainActivity : ComponentActivity() {
                                         Screen.Timetable,
                                         Screen.Study,
                                         Screen.Focus,
+                                        Screen.Workbench,
                                         Screen.Fitness,
                                         Screen.Goals,
                                         Screen.Expenses,

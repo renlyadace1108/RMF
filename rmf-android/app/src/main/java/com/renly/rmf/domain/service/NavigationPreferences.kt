@@ -29,10 +29,11 @@ object NavigationPreferences {
         NavItemConfig("expenses", "记账", "💰", false, "日常收支账目、分类与月度分析"),
         NavItemConfig("daily_report", "复盘", "🏆", false, "每日小结、成就复盘与心得反思"),
         NavItemConfig("summary", "统计", "📊", false, "全维度效能数据、图表与被打断分析"),
-        NavItemConfig("settings", "工作台", "⚙️", true, "全局设置、云同步、AI 引擎与备份")
+        NavItemConfig("workbench", "工作台", "🚀", true, "核心功能矩阵、节律审计、AI复盘与数据分析中枢"),
+        NavItemConfig("settings", "设置", "⚙️", false, "外观个性化、云同步、流体云实验室与安全备份")
     )
 
-    val DEFAULT_ENABLED_ROUTES = listOf("schedule", "timetable", "study", "focus", "settings")
+    val DEFAULT_ENABLED_ROUTES = listOf("schedule", "timetable", "study", "focus", "workbench")
     const val DEFAULT_HOME_ROUTE = "schedule"
 
     private fun getPrefs(context: Context): SharedPreferences {
@@ -53,7 +54,8 @@ object NavigationPreferences {
             return DEFAULT_ENABLED_ROUTES
         }
         val list = raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
-        return if (list.isEmpty()) DEFAULT_ENABLED_ROUTES else list
+        val migratedList = list.map { if (it == "settings") "workbench" else it }
+        return if (migratedList.isEmpty()) DEFAULT_ENABLED_ROUTES else migratedList
     }
 
     fun setEnabledRoutes(context: Context, routes: List<String>) {
@@ -63,7 +65,8 @@ object NavigationPreferences {
     }
 
     fun getDefaultHomeRoute(context: Context): String {
-        val route = getPrefs(context).getString(KEY_DEFAULT_HOME_ROUTE, DEFAULT_HOME_ROUTE) ?: DEFAULT_HOME_ROUTE
+        val rawRoute = getPrefs(context).getString(KEY_DEFAULT_HOME_ROUTE, DEFAULT_HOME_ROUTE) ?: DEFAULT_HOME_ROUTE
+        val route = if (rawRoute == "settings") "workbench" else rawRoute
         return if (ALL_AVAILABLE_NAV_ITEMS.any { it.route == route }) route else DEFAULT_HOME_ROUTE
     }
 
