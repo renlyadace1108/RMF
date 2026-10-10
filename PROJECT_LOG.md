@@ -1,4 +1,4 @@
-# RMF (Renly Manage Platform) 项目协同与变更日志 (Project Log)
+# RMF (Renly Management Platform) 项目协同与变更日志 (Project Log)
 
 > **💡 AI 协同与接力指引 (For AI Agents & Developers)**:
 > 1. 本文件位于项目根目录，作为**多 AI 协同、上下文持久化与开发接力**的唯一真相源（Single Source of Truth）。
@@ -9,7 +9,7 @@
 
 ## 📌 1. 项目全景速览 (Project Overview)
 
-* **项目名称**：RMF (Renly Manage Platform)
+* **项目名称**：RMF (Renly Management Platform)
 * **核心定位**：个人自用多端协同全功能智能管理中枢（日程规划、时间管理/专注监控、收支财务、Gemini AI 执行力监管）。
 * **多端与技术栈矩阵**：
   * **Windows 桌面端 (`rmf-windows/`)**：C# (.NET 10 + Modern Fluent UI)，高性能、极低常驻内存，挂载 Win32 钩子采集前台活动窗口用于 AI 监管。

@@ -41,7 +41,7 @@ object PrivacyPreferences {
      * 隐私政策核心摘要 (用于首次弹窗显要提示)
      */
     val PRIVACY_SUMMARY = """
-        感谢您信任并使用 RMF (Rhythm Matrix Flow)！
+        感谢您信任并使用 RMF (Renly Management Platform)！
         
         在您开始使用之前，请认真阅读《用户服务协议》与《隐私政策》。为了向您提供个人日程管理、时间块规划、专注计时与习惯打卡等核心效能服务，我们需要向您说明：
         
@@ -68,7 +68,7 @@ object PrivacyPreferences {
         更新与生效日期：2026年3月
         
         一、引言
-        RMF (Rhythm Matrix Flow，以下简称“本软件”) 极为重视您的隐私与个人信息安全。本隐私指引旨在向您清晰说明我们如何对待您的数据。
+        RMF (Renly Management Platform，以下简称“本软件”) 极为重视您的隐私与个人信息安全。本隐私指引旨在向您清晰说明我们如何对待您的数据。
         
         二、我们如何收集与使用信息
         1. 业务数据本地化：
@@ -101,7 +101,7 @@ object PrivacyPreferences {
         更新与生效日期：2026年3月
         
         一、协议范围
-        欢迎使用 RMF 个人管理软件。本协议是您与 RMF 开发者之间就使用本软件所订立的协议。
+        欢迎使用 RMF (Renly Management Platform) 个人管理平台。本协议是您与 RMF 开发者之间就使用本软件所订立的协议。
         
         二、软件使用规范
         1. 用户权利：您享有按照本软件设计功能在个人设备上安装、使用、管理个人日程的权利。

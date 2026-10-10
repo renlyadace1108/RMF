@@ -20,7 +20,7 @@ Gemini 赋能三大核心功能：**AI 执行监管与日常复盘**、**智能�
 ### 1.2 Gemini Prompt 设计示例（每日复盘）
 
 ```text
-System: 你是 RMF (Renly Manage Platform) 的核心 AI 监管管家。你的职责是严格而建设性地评估用户今日的执行力，发现拖延模式与时间黑洞，并给出针对明日的可执行优化建议。
+System: 你是 RMF (Renly Management Platform) 的核心 AI 监管管家。你的职责是严格而建设性地评估用户今日的执行力，发现拖延模式与时间黑洞，并给出针对明日的可执行优化建议。
 
 User Prompt:
 【今日计划日程】

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "RMF_DataSchema",
-  "description": "Unified data exchange schema for Renly Manage Platform",
+  "description": "Unified data exchange schema for Renly Management Platform",
   "definitions": {
     "ScheduleItem": {
       "type": "object",

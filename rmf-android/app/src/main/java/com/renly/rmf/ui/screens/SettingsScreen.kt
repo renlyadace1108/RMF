@@ -2062,8 +2062,8 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "RMF",
-                    fontSize = 13.sp,
+                    text = "RMF (Renly Management Platform)",
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextPrimary
                 )

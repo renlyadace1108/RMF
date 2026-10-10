@@ -121,7 +121,7 @@ fun PrivacyComplianceDialog(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "欢迎使用 RMF 个人管理软件",
+                                text = "欢迎使用 RMF (Renly Management Platform)",
                                 fontSize = 11.5.sp,
                                 color = TextSecondary
                             )

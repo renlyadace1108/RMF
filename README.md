@@ -1,4 +1,4 @@
-# RMF - Renly Manage Platform
+# RMF - Renly Management Platform
 
 > 个人多端协同全功能智能管理中枢（Windows / ColorOS 17 手机 / 小新 Pad Pro 12.7 ZUI 平板）
 

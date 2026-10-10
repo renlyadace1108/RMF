@@ -1,7 +1,7 @@
-# RMF (Renly Manage Platform) 架构设计规范
+# RMF (Renly Management Platform) 架构设计规范
 
 ## 1. 项目简介与定位
-RMF（Renly Manage Platform）是一款面向个人全方位效能与生活管理的多端协同中枢软件。涵盖：
+RMF（Renly Management Platform）是一款面向个人全方位效能与生活管理的多端协同中枢软件。涵盖：
 * **日程规划与排期**（日程表 / Timetable / 时间块）
 * **时间管理与专注记录**（番茄钟、设备活动捕获、专注度打分）
 * **收入支出管理**（多账户、分类预算、自然语言记账、报表统计）
