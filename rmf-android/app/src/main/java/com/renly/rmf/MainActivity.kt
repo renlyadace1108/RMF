@@ -1111,9 +1111,7 @@ fun AppSplashScreen(
             Image(
                 painter = painterResource(id = R.drawable.ic_logo),
                 contentDescription = "RMF Logo",
-                modifier = Modifier
-                    .size(92.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                modifier = Modifier.size(92.dp)
             )
             Spacer(modifier = Modifier.height(18.dp))
             Text(

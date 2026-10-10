@@ -2046,20 +2046,11 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(id = com.renly.rmf.R.drawable.ic_logo),
-                        contentDescription = "RMF",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(2.dp)
-                    )
-                }
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.renly.rmf.R.drawable.ic_logo),
+                    contentDescription = "RMF",
+                    modifier = Modifier.size(26.dp)
+                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "RMF (Renly Management Platform)",

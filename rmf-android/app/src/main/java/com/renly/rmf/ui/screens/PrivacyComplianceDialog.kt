@@ -110,20 +110,11 @@ fun PrivacyComplianceDialog(
                             .fillMaxWidth()
                             .padding(bottom = 6.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier.size(52.dp)
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_logo),
-                                contentDescription = "RMF Logo",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(6.dp)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_logo),
+                            contentDescription = "RMF Logo",
+                            modifier = Modifier.size(56.dp)
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = "用户协议与隐私保护提示",
@@ -233,20 +224,11 @@ fun PrivacyDocumentViewerDialog(
         containerColor = DarkCard,
         shape = RoundedCornerShape(20.dp),
         icon = {
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = DarkSurface,
-                border = BorderStroke(1.dp, DarkBorder),
-                modifier = Modifier.size(52.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_logo),
-                    contentDescription = "RMF Logo",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(6.dp)
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.ic_logo),
+                contentDescription = "RMF Logo",
+                modifier = Modifier.size(56.dp)
+            )
         },
         title = {
             Text(

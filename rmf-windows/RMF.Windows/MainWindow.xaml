@@ -284,9 +284,9 @@
 
                 <!-- Left: Logo, Today, Chevrons, Date Title -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Brand App Logo -->
-                    <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,10,0" ToolTip="Renly Management Platform">
-                        <Image Source="app_logo_256.png" Width="26" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <!-- Brand App Logo (透明背景透过) -->
+                    <Border Width="30" Height="30" Background="Transparent" BorderThickness="0" Margin="0,0,10,0" ToolTip="Renly Management Platform">
+                        <Image Source="app_logo_256.png" Width="28" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
                     <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="{DynamicResource TextPrimary}" Padding="10,4" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnCalTodayClicked" ToolTip="跳转到今天 (快捷键: T)" />
                     <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource TextPrimary}" Width="28" Height="28" Padding="0" FontSize="18" FontWeight="Bold" ToolTip="前一个时段 (快捷键: J 或 P)" Click="OnCalPrevClicked" Margin="0,0,2,0" />
@@ -2921,16 +2921,21 @@
                             <!-- ================= SETTINGS FOOTER (BRANDING & COPYRIGHT) ================= -->
                             <StackPanel HorizontalAlignment="Center" Margin="0,32,0,16">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
-                                    <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,8,0">
-                                        <Image Source="app_logo_256.png" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <Border Width="28" Height="28" Background="Transparent" BorderThickness="0" Margin="0,0,8,0">
+                                        <Image Source="app_logo_256.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Border>
-                                    <TextBlock Text="RMF" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
                                 <TextBlock Text="renly20061108@gmail.com" FontSize="10.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                                    <Button Content="《用户服务协议》" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource AccentBlue}" Padding="6,2" FontSize="11" Click="OnUserAgreementClicked" Cursor="Hand" ToolTip="查看 RMF 用户服务协议与免责声明" />
+                                    <TextBlock Text="•" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="4,0" />
+                                    <Button Content="《隐私政策》" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource AccentBlue}" Padding="6,2" FontSize="11" Click="OnPrivacyPolicyClicked" Cursor="Hand" ToolTip="查看 RMF 隐私保护指引" />
+                                </StackPanel>
                             </StackPanel>
 
                         </StackPanel>
@@ -3315,16 +3320,21 @@
                             <!-- Footer (Branding & Copyright) -->
                             <StackPanel HorizontalAlignment="Center" Margin="0,16,0,8">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                                    <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,8,0">
-                                        <Image Source="app_logo_256.png" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <Border Width="28" Height="28" Background="Transparent" BorderThickness="0" Margin="0,0,8,0">
+                                        <Image Source="app_logo_256.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Border>
-                                    <TextBlock Text="RMF" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                                    <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
                                 <TextBlock Text="renly20061108@gmail.com" FontSize="10.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                    <Button Content="《用户服务协议》" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource AccentBlue}" Padding="6,2" FontSize="11" Click="OnUserAgreementClicked" Cursor="Hand" ToolTip="查看 RMF 用户服务协议与免责声明" />
+                                    <TextBlock Text="•" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="4,0" />
+                                    <Button Content="《隐私政策》" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource AccentBlue}" Padding="6,2" FontSize="11" Click="OnPrivacyPolicyClicked" Cursor="Hand" ToolTip="查看 RMF 隐私保护指引" />
+                                </StackPanel>
                             </StackPanel>
 
                         </StackPanel>
@@ -4868,8 +4878,8 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Margin="0,0,10,0">
-                                <Image Source="app_logo_256.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                            <Border Width="34" Height="34" Background="Transparent" BorderThickness="0" Margin="0,0,10,0">
+                                <Image Source="app_logo_256.png" Width="28" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="🌟 欢迎使用 RMF · 新手导览" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" />
@@ -5375,6 +5385,50 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Content="取消" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="16,6" FontSize="12" Margin="0,0,10,0" Click="OnCloseRgbColorPickerClicked" />
                             <Button Content="应用此主题色" Style="{StaticResource GoogleActionBtnStyle}" Padding="20,6" FontSize="12" FontWeight="SemiBold" Click="OnApplyRgbColorPickerClicked" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= LEGAL DOCUMENT MODAL (USER AGREEMENT & PRIVACY POLICY) ================= -->
+        <Grid x:Name="LegalDocumentModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="1500">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Width="720" MaxHeight="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,20" Effect="{DynamicResource PopupShadow}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header with Centered Transparent Logo & Title -->
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center" Grid.Column="0">
+                            <!-- 纯透明背景 Logo，让底层卡片背景色完全透过 -->
+                            <Image Source="app_logo_256.png" Width="48" Height="48" HorizontalAlignment="Center" Margin="0,0,0,8" RenderOptions.BitmapScalingMode="HighQuality" />
+                            <TextBlock x:Name="LegalModalTitleText" Text="用户服务协议与法律声明" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
+                            <TextBlock Text="Renly Management Platform · 合规条款与权益保障" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <Button Style="{StaticResource GoogleModalCloseBtnStyle}" VerticalAlignment="Top" ToolTip="关闭 (Esc)" Click="OnCloseLegalModalClicked" Grid.Column="1" />
+                    </Grid>
+
+                    <!-- Body Content -->
+                    <Border Grid.Row="1" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16,14" MaxHeight="430">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <TextBlock x:Name="LegalModalContentText" Text="" FontSize="12" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" LineHeight="19" FontFamily="Microsoft YaHei, Segoe UI, sans-serif" />
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Footer -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="0,14,0,0" Margin="0,14,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="我已阅读并同意" Style="{StaticResource GoogleActionBtnStyle}" Padding="36,7" FontSize="13" FontWeight="SemiBold" Click="OnCloseLegalModalClicked" />
                         </StackPanel>
                     </Border>
                 </Grid>

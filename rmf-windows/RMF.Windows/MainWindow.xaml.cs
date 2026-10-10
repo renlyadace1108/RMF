@@ -5072,6 +5072,11 @@ public partial class MainWindow : Window
 
     private void CloseAllModals()
     {
+        if (LegalDocumentModal != null && LegalDocumentModal.Visibility == Visibility.Visible)
+        {
+            LegalDocumentModal.Visibility = Visibility.Collapsed;
+            return;
+        }
         if (RgbColorPickerModal != null && RgbColorPickerModal.Visibility == Visibility.Visible)
         {
             RgbColorPickerModal.Visibility = Visibility.Collapsed;
@@ -14328,6 +14333,34 @@ public partial class MainWindow : Window
 
             row.Child = grid;
             FocusInterruptionLogsPanel.Children.Add(row);
+        }
+    }
+
+    private void OnUserAgreementClicked(object sender, RoutedEventArgs e)
+    {
+        if (LegalDocumentModal != null)
+        {
+            LegalModalTitleText.Text = "《用户服务协议与法律声明》";
+            LegalModalContentText.Text = LegalTermsService.UserAgreement;
+            LegalDocumentModal.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnPrivacyPolicyClicked(object sender, RoutedEventArgs e)
+    {
+        if (LegalDocumentModal != null)
+        {
+            LegalModalTitleText.Text = "《隐私政策与数据保护指引》";
+            LegalModalContentText.Text = LegalTermsService.PrivacyPolicy;
+            LegalDocumentModal.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnCloseLegalModalClicked(object sender, RoutedEventArgs e)
+    {
+        if (LegalDocumentModal != null)
+        {
+            LegalDocumentModal.Visibility = Visibility.Collapsed;
         }
     }
 }
