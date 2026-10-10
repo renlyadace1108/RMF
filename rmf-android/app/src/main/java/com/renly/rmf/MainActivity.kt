@@ -339,12 +339,16 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember {
                     mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
                 }
+                var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
 
                 var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
 
                 LaunchedEffect(currentScreen) {
+                    if (currentScreen != Screen.Settings) {
+                        lastScreenBeforeSettings = currentScreen
+                    }
                     if (!visitedScreens.contains(currentScreen)) {
                         visitedScreens = visitedScreens + currentScreen
                     }
@@ -367,17 +371,39 @@ class MainActivity : ComponentActivity() {
                     containerColor = DarkBg,
                     bottomBar = {
                         if (!isInPipMode && isBottomBarVisible) {
+                            var bottomBarDragDelta by remember { mutableFloatStateOf(0f) }
+
                             Surface(
                                 color = DarkSurface,
                                 border = BorderStroke(1.dp, DarkBorder),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .draggable(
+                                        orientation = Orientation.Horizontal,
+                                        state = rememberDraggableState { delta ->
+                                            bottomBarDragDelta += delta
+                                        },
+                                        onDragStopped = { velocity ->
+                                            val dist = bottomBarDragDelta
+                                            bottomBarDragDelta = 0f
+                                            // 在底部栏左右滑进入设置界面退出设置界面
+                                            if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
+                                                if (currentScreen == Screen.Settings) {
+                                                    currentScreen = lastScreenBeforeSettings
+                                                } else {
+                                                    lastScreenBeforeSettings = currentScreen
+                                                    currentScreen = Screen.Settings
+                                                }
+                                            }
+                                        }
+                                    )
                             ) {
                                 NavigationBar(
                                     containerColor = DarkSurface,
                                     tonalElevation = 0.dp
                                 ) {
                                     val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
-                                    val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Settings) else navScreens
+                                    val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
                                     safeNavScreens.forEach { screen ->
                                         val isSelected = currentScreen == screen
                                         NavigationBarItem(
@@ -883,7 +909,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Settings -> SettingsScreen(
-                                onBack = { currentScreen = Screen.Workbench },
+                                onBack = { currentScreen = lastScreenBeforeSettings },
                                 currentThemeMode = currentThemeMode,
                                 onThemeModeChange = { newMode ->
                                     currentThemeMode = newMode
@@ -979,30 +1005,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                }
-
-                // 全局屏幕左边缘向右滑动直达设置手势探测区 (在非设置页面下生效)
-                if (currentScreen != Screen.Settings && !isInPipMode) {
-                    var edgeDragX by remember { mutableFloatStateOf(0f) }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(26.dp)
-                            .align(Alignment.CenterStart)
-                            .draggable(
-                                orientation = Orientation.Horizontal,
-                                state = rememberDraggableState { delta ->
-                                    edgeDragX += delta
-                                },
-                                onDragStopped = { velocity ->
-                                    // 屏幕左边缘从左往右滑动超过 45f 或向右初速度 > 200f
-                                    if (edgeDragX > 45f || velocity > 200f) {
-                                        currentScreen = Screen.Settings
-                                    }
-                                    edgeDragX = 0f
-                                }
-                            )
-                    )
                 }
             }
 
