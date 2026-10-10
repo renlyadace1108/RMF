@@ -1024,6 +1024,19 @@ fun AppSplashScreen(
                 letterSpacing = 1.sp
             )
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 28.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Text(
+                text = "©Renly 2026 保留所有权利",
+                fontSize = 11.sp,
+                color = TextMuted
+            )
+        }
     }
 }
 

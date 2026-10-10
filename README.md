@@ -38,3 +38,13 @@
 * [Google Drive 同步协议 (docs/SYNC_SPEC.md)](file:///d:/RMF/docs/SYNC_SPEC.md)
 * [Gemini AI 监管与智能化规范 (docs/GEMINI_SPEC.md)](file:///d:/RMF/docs/GEMINI_SPEC.md)
 * [数据校验 Schema (schemas/rmf_schema.json)](file:///d:/RMF/schemas/rmf_schema.json)
+
+---
+
+## 📄 知识产权与版权声明 (License & Copyright)
+
+本软件为开发者专属定制的个人管理平台，受著作权法与国际知识产权法规全面保护。
+
+**Copyright © 2026 Renly. All Rights Reserved. 保留所有权利。**
+
+未经作者明确事先书面授权，严禁任何形式的复制、修改、逆向工程、商业化利用或再分发。详细条款请参阅根目录下的 [LICENSE](file:///d:/RMF/LICENSE) 文件。

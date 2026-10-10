@@ -2308,15 +2308,15 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Made By Renly 2026",
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary
+                text = "©Renly 2026 保留所有权利",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
             )
             Text(
-                text = "renly20061108@gmail.com",
+                text = "All Rights Reserved • renly20061108@gmail.com",
                 fontSize = 10.5.sp,
-                color = TextMuted,
+                color = TextSecondary,
                 modifier = Modifier.padding(top = 2.dp)
             )
         }

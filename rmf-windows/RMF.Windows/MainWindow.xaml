@@ -2929,7 +2929,7 @@
                                         <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
-                                <TextBlock Text="Made By Renly 2026" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                                <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
                                 <TextBlock Text="renly20061108@gmail.com" FontSize="10.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
 
@@ -3323,7 +3323,7 @@
                                         <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
-                                <TextBlock Text="Made By Renly 2026" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                                <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
                                 <TextBlock Text="renly20061108@gmail.com" FontSize="10.5" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,2,0,0" />
                             </StackPanel>
 
