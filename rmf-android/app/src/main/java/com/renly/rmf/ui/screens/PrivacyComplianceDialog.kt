@@ -197,7 +197,7 @@ fun PrivacyComplianceDialog(
                                 .weight(1.3f)
                                 .height(44.dp)
                         ) {
-                            Text("同意并继续", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                            Text("我已阅读并同意", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                         }
                     }
                 }
@@ -250,7 +250,7 @@ fun PrivacyDocumentViewerDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("我已了解", fontWeight = FontWeight.Bold)
+                Text("我已阅读并同意", fontWeight = FontWeight.Bold)
             }
         }
     )
