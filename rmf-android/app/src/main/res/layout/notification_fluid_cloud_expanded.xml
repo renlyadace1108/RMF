@@ -88,21 +88,19 @@
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:gravity="center"
             android:text="⏸️ 暂停 / 继续"
             android:textColor="#00F0FF"
             android:textSize="13sp"
             android:background="#2C2E33" />
 
-        <View
-            android:layout_width="12dp"
-            android:layout_height="1dp" />
-
         <TextView
             android:id="@+id/fluid_btn_stop"
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
+            android:layout_marginStart="6dp"
             android:gravity="center"
             android:text="⏹️ 结束专注"
             android:textColor="#EF4444"

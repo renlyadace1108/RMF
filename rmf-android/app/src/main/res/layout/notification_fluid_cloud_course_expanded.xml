@@ -99,6 +99,7 @@
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
+            android:layout_marginEnd="6dp"
             android:gravity="center"
             android:text="🎯 一键开启听课专注"
             android:textColor="#00F0FF"
@@ -106,15 +107,12 @@
             android:textStyle="bold"
             android:background="#2C2E33" />
 
-        <View
-            android:layout_width="12dp"
-            android:layout_height="1dp" />
-
         <TextView
             android:id="@+id/fluid_course_btn_view"
             android:layout_width="0dp"
             android:layout_height="36dp"
             android:layout_weight="1"
+            android:layout_marginStart="6dp"
             android:gravity="center"
             android:text="📖 查看课表详情"
             android:textColor="#F1F5F9"
