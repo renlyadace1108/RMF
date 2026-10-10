@@ -72,6 +72,23 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                 val db = app.database
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
+                        // 0. 倒数日 / 里程碑
+                        val countdowns = db.countdownDao().getAllActiveCountdowns().first()
+                        val topCountdown = countdowns.firstOrNull { it.isPinned == 1 } ?: countdowns.firstOrNull()
+                        if (topCountdown != null) {
+                            val target = try {
+                                LocalDate.parse(topCountdown.targetDate.take(10))
+                            } catch (_: Exception) {
+                                today
+                            }
+                            val diff = java.time.temporal.ChronoUnit.DAYS.between(today, target)
+                            views.setTextViewText(R.id.widget_countdown_title, "⏳ " + topCountdown.title)
+                            views.setTextViewText(R.id.widget_countdown_days, if (diff >= 0) "还剩 $diff 天" else "已过 ${Math.abs(diff)} 天")
+                        } else {
+                            views.setTextViewText(R.id.widget_countdown_title, "⏳ 考研 / 期末 / 里程碑倒数日")
+                            views.setTextViewText(R.id.widget_countdown_days, "-")
+                        }
+
                         // 1. 北极星目标
                         val goals = db.goalDao().getAllActiveGoals().first()
                         val northStar = goals.firstOrNull { it.isNorthStar == 1 }

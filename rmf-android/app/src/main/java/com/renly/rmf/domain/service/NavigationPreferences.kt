@@ -23,6 +23,8 @@ object NavigationPreferences {
         NavItemConfig("study", "学习", "📖", true, "知识库专项主题与记忆间隔复习"),
         NavItemConfig("focus", "专注", "⏱️", true, "番茄时钟、流体云联动与画中画"),
         NavItemConfig("fitness", "健身", "🏋️", false, "日常训练记录、部位动作与计划投影"),
+        NavItemConfig("habits", "习惯", "🌱", false, "习惯连续打卡、Streak统计与365天热力图"),
+        NavItemConfig("countdowns", "倒数", "⏳", false, "重要考试、里程碑与纪念日倒数胶囊"),
         NavItemConfig("goals", "目标", "🎯", false, "北极星目标金字塔与进度追踪"),
         NavItemConfig("expenses", "记账", "💰", false, "日常收支账目、分类与月度分析"),
         NavItemConfig("daily_report", "复盘", "🏆", false, "每日小结、成就复盘与心得反思"),

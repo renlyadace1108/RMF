@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.entity.InterruptionEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
+import com.renly.rmf.domain.service.AmbientSoundType
+import com.renly.rmf.domain.service.FocusAmbientSoundPlayer
 import com.renly.rmf.domain.service.FocusLiveService
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
@@ -74,6 +76,7 @@ fun FocusScreen(
     }
 
     var customMinutes by remember { mutableIntStateOf(25) }
+    var selectedAmbientSound by remember { mutableStateOf(AmbientSoundType.NONE) }
     var showEventPickerModal by remember { mutableStateOf(false) }
     var showCustomDurationDialog by remember { mutableStateOf(false) }
     var showInterruptionDialog by remember { mutableStateOf(false) }
@@ -426,6 +429,7 @@ fun FocusScreen(
                         }
                     }
                     FocusLiveService.stop(context)
+                    FocusAmbientSoundPlayer.stopSound()
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = DarkCard),
                 modifier = Modifier.size(54.dp)
@@ -437,10 +441,14 @@ fun FocusScreen(
                 onClick = {
                     if (isRunning) {
                         FocusLiveService.pause(context)
+                        FocusAmbientSoundPlayer.stopSound()
                     } else {
                         val title = boundSchedule?.title ?: "深度心流专注"
                         val secs = if (liveSeconds > 0 && liveSeconds < customMinutes * 60) liveSeconds else customMinutes * 60
                         FocusLiveService.start(context, title, secs)
+                        if (selectedAmbientSound != AmbientSoundType.NONE) {
+                            FocusAmbientSoundPlayer.startSound(selectedAmbientSound)
+                        }
                     }
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -454,6 +462,75 @@ fun FocusScreen(
                     tint = DarkBg,
                     modifier = Modifier.size(36.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // 🎧 专注白噪音与沉浸声景卡片 (Ambient Soundscape)
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, if (selectedAmbientSound != AmbientSoundType.NONE) DopaminePurple.copy(alpha = 0.5f) else DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("🎧 专注白噪音与沉浸声景", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (selectedAmbientSound != AmbientSoundType.NONE) {
+                        Surface(
+                            color = DopaminePurple.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = if (FocusAmbientSoundPlayer.isPlaying()) "正在播放" else "就绪",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DopaminePurple,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(AmbientSoundType.values()) { sound ->
+                        val isSel = selectedAmbientSound == sound
+                        FilterChip(
+                            selected = isSel,
+                            onClick = {
+                                selectedAmbientSound = sound
+                                if (isRunning) {
+                                    FocusAmbientSoundPlayer.startSound(sound)
+                                }
+                            },
+                            leadingIcon = {
+                                Text(sound.icon, fontSize = 13.sp)
+                            },
+                            label = {
+                                Text(sound.title, fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal)
+                            }
+                        )
+                    }
+                }
+
+                if (selectedAmbientSound != AmbientSoundType.NONE) {
+                    Text(
+                        text = selectedAmbientSound.desc,
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
             }
         }
 

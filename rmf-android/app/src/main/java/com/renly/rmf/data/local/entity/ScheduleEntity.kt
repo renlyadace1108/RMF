@@ -105,6 +105,12 @@ data class ScheduleEntity(
     @ColumnInfo(name = "eisenhower_quadrant", defaultValue = "'Q2'")
     val eisenhowerQuadrant: String? = "Q2",
 
+    @ColumnInfo(name = "recurrence_rule", defaultValue = "''")
+    val recurrenceRule: String = "", // NONE, DAILY, WEEKDAYS, WEEKLY:MON,WED,FRI, MONTHLY:15
+
+    @ColumnInfo(name = "subtasks_json", defaultValue = "'[]'")
+    val subtasksJson: String = "[]", // JSON: [{"id":"...","title":"...","isDone":false}]
+
     @ColumnInfo(name = "reminder_minutes", defaultValue = "10")
     val reminderMinutes: Int = 10,
 

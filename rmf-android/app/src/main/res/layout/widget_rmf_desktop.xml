@@ -43,6 +43,39 @@
             android:textSize="12sp" />
     </LinearLayout>
 
+    <!-- 0. 倒数日 / 里程碑胶囊条 -->
+    <LinearLayout
+        android:id="@+id/widget_countdown_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#262015"
+        android:padding="6dp"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/widget_countdown_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="⏳ 倒数日载入中..."
+            android:textColor="#F59E0B"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_countdown_days"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="-- 天"
+            android:textColor="#FBBF24"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <!-- 1. 北极星战略目标卡片 -->
     <LinearLayout
         android:layout_width="match_parent"

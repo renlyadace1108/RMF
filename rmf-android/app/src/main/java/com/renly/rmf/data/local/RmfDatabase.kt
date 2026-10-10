@@ -22,9 +22,11 @@ import com.renly.rmf.data.local.entity.*
         SnapshotMetadataEntity::class,
         TimetableSettingEntity::class,
         FitnessPlanEntity::class,
-        FitnessRecordEntity::class
+        FitnessRecordEntity::class,
+        HabitEntity::class,
+        CountdownEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -38,6 +40,8 @@ abstract class RmfDatabase : RoomDatabase() {
     abstract fun dailyReportDao(): DailyReportDao
     abstract fun syncDao(): SyncDao
     abstract fun fitnessDao(): FitnessDao
+    abstract fun habitDao(): HabitDao
+    abstract fun countdownDao(): CountdownDao
 
     /**
      * 清空所有测试与业务数据，保留表结构与系统偏好，对齐 Windows 端 ClearAllData
@@ -96,6 +100,56 @@ abstract class RmfDatabase : RoomDatabase() {
                 } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
+        }
+
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE schedules ADD COLUMN recurrence_rule TEXT NOT NULL DEFAULT '';")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE schedules ADD COLUMN subtasks_json TEXT NOT NULL DEFAULT '[]';")
+                } catch (_: Exception) {}
+                createHabitsAndCountdownsTables(db)
+                ensureLosslessSchema(db)
+            }
+        }
+
+        private fun createHabitsAndCountdownsTables(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS habits (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        icon TEXT NOT NULL DEFAULT '✨',
+                        target_days_per_week INTEGER NOT NULL DEFAULT 7,
+                        color_hex TEXT NOT NULL DEFAULT '#38BDF8',
+                        current_streak INTEGER NOT NULL DEFAULT 0,
+                        best_streak INTEGER NOT NULL DEFAULT 0,
+                        history_dates_json TEXT NOT NULL DEFAULT '[]',
+                        reminder_time TEXT NOT NULL DEFAULT '',
+                        is_deleted INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_habits_deleted ON habits(is_deleted);")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS countdowns (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        target_date TEXT NOT NULL,
+                        category TEXT NOT NULL DEFAULT 'EXAM',
+                        color_hex TEXT NOT NULL DEFAULT '#F59E0B',
+                        is_pinned INTEGER NOT NULL DEFAULT 0,
+                        is_deleted INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_countdowns_pinned ON countdowns(is_pinned, is_deleted);")
+            } catch (_: Exception) {}
         }
 
         private fun createFitnessTables(db: SupportSQLiteDatabase) {
@@ -157,7 +211,7 @@ abstract class RmfDatabase : RoomDatabase() {
                     RmfDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
@@ -183,6 +237,7 @@ abstract class RmfDatabase : RoomDatabase() {
             try {
                 // 确保健身计划与记录表结构存在
                 createFitnessTables(db)
+                createHabitsAndCountdownsTables(db)
                 // 1. 检查 schedules 表字段完整性
                 ensureTableColumns(
                     db = db,
@@ -207,7 +262,9 @@ abstract class RmfDatabase : RoomDatabase() {
                         "depends_on_task_id" to "TEXT",
                         "postpone_count" to "INTEGER DEFAULT 0",
                         "eisenhower_quadrant" to "TEXT DEFAULT 'Q2'",
-                        "reminder_minutes" to "INTEGER NOT NULL DEFAULT 10"
+                        "reminder_minutes" to "INTEGER NOT NULL DEFAULT 10",
+                        "recurrence_rule" to "TEXT NOT NULL DEFAULT ''",
+                        "subtasks_json" to "TEXT NOT NULL DEFAULT '[]'"
                     )
                 )
 

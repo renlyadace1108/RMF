@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.renly.rmf.RmfApplication
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.ScheduleTagEntity
+import com.renly.rmf.domain.model.SubTaskItem
 import com.renly.rmf.domain.service.CalendarSyncResult
 import com.renly.rmf.domain.service.GoogleCalendarSyncService
 import com.renly.rmf.domain.service.GoogleDrivePreferences
@@ -64,7 +65,8 @@ import java.time.temporal.TemporalAdjusters
 enum class ScheduleViewMode(val title: String, val icon: String) {
     WEEK_GRID("周网格", "📅"),
     DAY_GRID("日网格", "⏱️"),
-    LIST("清单流", "📋")
+    LIST("清单流", "📋"),
+    EISENHOWER("四象限", "🎯")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -580,6 +582,24 @@ fun ScheduleScreen(
                         }
                     }
                 }
+            }
+
+            ScheduleViewMode.EISENHOWER -> {
+                EisenhowerMatrixView(
+                    schedules = calendarSchedules,
+                    backlogItems = backlogSchedules,
+                    availableTags = availableTags,
+                    tagColorMap = tagColorMap,
+                    onItemClick = { detailItem = it },
+                    onToggleStatus = onToggleStatus,
+                    onMoveQuadrant = { item, newQuadrant ->
+                        val updated = item.copy(
+                            eisenhowerQuadrant = newQuadrant,
+                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        )
+                        onUpdateSchedule(updated)
+                    }
+                )
             }
         }
     }
@@ -2784,6 +2804,10 @@ fun EditScheduleDialog(
     var minutes by remember { mutableIntStateOf(item.estimatedMinutes) }
     var dod by remember { mutableStateOf(item.dod) }
     var reminderMinutes by remember { mutableIntStateOf(item.reminderMinutes) }
+    var recurrenceRule by remember { mutableStateOf(item.recurrenceRule) }
+    var eisenhowerQuadrant by remember { mutableStateOf(item.eisenhowerQuadrant ?: "Q2") }
+    var subtasks by remember { mutableStateOf(SubTaskItem.parseList(item.subtasksJson)) }
+    var newSubtaskText by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2801,7 +2825,10 @@ fun EditScheduleDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -2815,6 +2842,43 @@ fun EditScheduleDialog(
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Text("🎯 艾森豪威尔四象限:", fontSize = 12.sp, color = TextSecondary)
+                val quadrantOptions = listOf(
+                    "Q1" to "🔥 Q1 重要紧急",
+                    "Q2" to "⭐ Q2 重要不紧急",
+                    "Q3" to "⚡ Q3 紧急不重要",
+                    "Q4" to "🍃 Q4 不重要不紧急"
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(quadrantOptions) { (qCode, qLabel) ->
+                        val isSel = eisenhowerQuadrant == qCode
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { eisenhowerQuadrant = qCode },
+                            label = { Text(qLabel, fontSize = 11.5.sp) }
+                        )
+                    }
+                }
+
+                Text("🔁 重复周期规则:", fontSize = 12.sp, color = TextSecondary)
+                val recurrenceOptions = listOf(
+                    "" to "不重复",
+                    "DAILY" to "每天",
+                    "WEEKDAYS" to "仅工作日",
+                    "WEEKLY" to "每周",
+                    "MONTHLY" to "每月"
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(recurrenceOptions) { (rCode, rLabel) ->
+                        val isSel = recurrenceRule == rCode
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { recurrenceRule = rCode },
+                            label = { Text(rLabel, fontSize = 11.5.sp) }
+                        )
+                    }
+                }
 
                 Text("工作类型:", fontSize = 12.sp, color = TextSecondary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2863,6 +2927,90 @@ fun EditScheduleDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // 📝 子任务/检查步骤清单 (Checklist)
+                Text("📝 子任务拆解清单 (${subtasks.count { it.isDone }}/${subtasks.size}):", fontSize = 12.sp, color = TextSecondary)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    subtasks.forEachIndexed { idx, st ->
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(0.5.dp, DarkBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        subtasks = subtasks.toMutableList().also {
+                                            it[idx] = st.copy(isDone = !st.isDone)
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (st.isDone) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+                                        contentDescription = "完成步骤",
+                                        tint = if (st.isDone) DopamineGreen else TextMuted,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Text(
+                                    text = st.title,
+                                    fontSize = 12.sp,
+                                    textDecoration = if (st.isDone) TextDecoration.LineThrough else null,
+                                    color = if (st.isDone) TextMuted else TextPrimary,
+                                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                                )
+                                IconButton(
+                                    onClick = {
+                                        subtasks = subtasks.toMutableList().also { it.removeAt(idx) }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除步骤", tint = TextMuted, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    // 添加子步骤输入框
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = newSubtaskText,
+                            onValueChange = { newSubtaskText = it },
+                            placeholder = { Text("+ 添加分解步骤...", fontSize = 11.5.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DopamineCyan,
+                                unfocusedBorderColor = DarkBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        )
+                        Button(
+                            onClick = {
+                                if (newSubtaskText.isNotBlank()) {
+                                    subtasks = subtasks + SubTaskItem(title = newSubtaskText.trim(), isDone = false)
+                                    newSubtaskText = ""
+                                }
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan.copy(alpha = 0.2f)),
+                            border = BorderStroke(1.dp, DopamineCyan),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Text("添加", color = DopamineCyan, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
                 Text("预估耗时: $minutes 分钟", fontSize = 12.sp, color = TextSecondary)
                 Slider(
                     value = minutes.toFloat(),
@@ -2904,6 +3052,9 @@ fun EditScheduleDialog(
                         estimatedMinutes = minutes,
                         dod = dod,
                         reminderMinutes = reminderMinutes,
+                        eisenhowerQuadrant = eisenhowerQuadrant,
+                        recurrenceRule = recurrenceRule,
+                        subtasksJson = SubTaskItem.listToJson(subtasks),
                         updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                     )
                     onSave(updated)
@@ -3171,9 +3322,84 @@ fun ScheduleItemCard(
                     )
                 }
 
+                // 子任务 Checklist 进度条
+                val subtasks = remember(item.subtasksJson) { SubTaskItem.parseList(item.subtasksJson) }
+                if (subtasks.isNotEmpty()) {
+                    val doneCount = subtasks.count { it.isDone }
+                    val progress = doneCount.toFloat() / subtasks.size
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            color = DopamineCyan,
+                            trackColor = DarkBorder
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "步骤 $doneCount/${subtasks.size}",
+                            fontSize = 10.sp,
+                            color = DopamineCyan,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 象限徽标
+                    val q = item.eisenhowerQuadrant ?: "Q2"
+                    val (qColor, qEmoji) = when (q) {
+                        "Q1" -> DopamineRed to "🔥"
+                        "Q2" -> DopamineBlue to "⭐"
+                        "Q3" -> DopamineAmber to "⚡"
+                        else -> DopamineGreen to "🍃"
+                    }
+                    Surface(
+                        color = qColor.copy(alpha = 0.15f),
+                        border = BorderStroke(0.5.dp, qColor.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "$qEmoji $q",
+                            color = qColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    // 重复规则徽标
+                    if (item.recurrenceRule.isNotBlank()) {
+                        val recLabel = when (item.recurrenceRule) {
+                            "DAILY" -> "每天"
+                            "WEEKDAYS" -> "工作日"
+                            "WEEKLY" -> "每周"
+                            "MONTHLY" -> "每月"
+                            else -> item.recurrenceRule
+                        }
+                        Surface(
+                            color = DopaminePurple.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, DopaminePurple.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "🔁 $recLabel",
+                                color = DopaminePurple,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
                     Surface(
                         color = accentColor.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp)

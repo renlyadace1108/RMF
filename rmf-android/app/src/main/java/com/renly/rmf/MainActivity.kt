@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -62,6 +64,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Summary : Screen("summary", "统计", Icons.Default.Insights)
     object Tutorial : Screen("tutorial", "教程", Icons.Default.MenuBook)
     object Fitness : Screen("fitness", "健身", Icons.Default.FitnessCenter)
+    object Habits : Screen("habits", "习惯", Icons.Default.SelfImprovement)
+    object Countdowns : Screen("countdowns", "倒数", Icons.Default.HourglassBottom)
 
     companion object {
         fun fromRoute(route: String): Screen {
@@ -71,6 +75,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
                 "study" -> Study
                 "focus" -> Focus
                 "fitness" -> Fitness
+                "habits" -> Habits
+                "countdowns" -> Countdowns
                 "goals" -> Goals
                 "expenses" -> Expenses
                 "daily_report" -> DailyReport
@@ -672,6 +678,83 @@ class MainActivity : ComponentActivity() {
                                             dateStr = plan.planDate
                                         )
                                         Toast.makeText(this@MainActivity, "🎉 已将训练「${plan.title}」同步至主页日程！", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+
+                            Screen.Habits -> HabitsScreen(
+                                habitsFlow = db.habitDao().getAllActiveHabits(),
+                                onAddHabit = { title, icon, targetDays, colorHex ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val entity = com.renly.rmf.data.local.entity.HabitEntity(
+                                            title = title,
+                                            icon = icon,
+                                            targetDaysPerWeek = targetDays,
+                                            colorHex = colorHex,
+                                            createdAt = nowStr,
+                                            updatedAt = nowStr
+                                        )
+                                        db.habitDao().insertOrUpdate(entity)
+                                        Toast.makeText(this@MainActivity, "✓ 习惯创建成功！", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onToggleCheckIn = { habit, date ->
+                                    lifecycleScope.launch {
+                                        val set = parseDatesList(habit.historyDatesJson).toMutableSet()
+                                        val dateStr = date.toString()
+                                        val wasChecked = set.contains(dateStr)
+                                        if (wasChecked) {
+                                            set.remove(dateStr)
+                                        } else {
+                                            set.add(dateStr)
+                                        }
+                                        val jsonStr = org.json.JSONArray(set.toList()).toString()
+                                        val newStreak = if (wasChecked) maxOf(0, habit.currentStreak - 1) else (habit.currentStreak + 1)
+                                        val newBest = maxOf(habit.bestStreak, newStreak)
+                                        val updated = habit.copy(
+                                            historyDatesJson = jsonStr,
+                                            currentStreak = newStreak,
+                                            bestStreak = newBest,
+                                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        )
+                                        db.habitDao().insertOrUpdate(updated)
+                                        Toast.makeText(this@MainActivity, if (wasChecked) "已取消今日打卡" else "🔥 连续打卡 $newStreak 天达成！", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onDeleteHabit = { id ->
+                                    lifecycleScope.launch {
+                                        db.habitDao().softDelete(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                    }
+                                }
+                            )
+
+                            Screen.Countdowns -> CountdownsScreen(
+                                countdownsFlow = db.countdownDao().getAllActiveCountdowns(),
+                                onAddCountdown = { title, targetDate, category, colorHex ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val entity = com.renly.rmf.data.local.entity.CountdownEntity(
+                                            title = title,
+                                            targetDate = targetDate,
+                                            category = category,
+                                            colorHex = colorHex,
+                                            createdAt = nowStr,
+                                            updatedAt = nowStr
+                                        )
+                                        db.countdownDao().insertOrUpdate(entity)
+                                        Toast.makeText(this@MainActivity, "✓ 倒数日已创建！", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onTogglePin = { item ->
+                                    lifecycleScope.launch {
+                                        val newPin = if (item.isPinned == 1) 0 else 1
+                                        db.countdownDao().togglePin(item.id, newPin, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                    }
+                                },
+                                onDeleteCountdown = { id ->
+                                    lifecycleScope.launch {
+                                        db.countdownDao().softDelete(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
                                     }
                                 }
                             )
