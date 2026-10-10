@@ -10,6 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -412,21 +415,54 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 visitedScreens.forEach { screen ->
                                     val isActive = (currentScreen == screen)
+                                    val isSettings = (screen == Screen.Settings)
+                                    val isSettingsActive = (currentScreen == Screen.Settings)
+
+                                    val settingsSlideX by androidx.compose.animation.core.animateFloatAsState(
+                                        targetValue = if (isSettingsActive) 0f else -600f,
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 260,
+                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                        ),
+                                        label = "settingsSlideX"
+                                    )
+                                    val settingsAlpha by androidx.compose.animation.core.animateFloatAsState(
+                                        targetValue = if (isSettingsActive) 1f else 0f,
+                                        animationSpec = androidx.compose.animation.core.tween(durationMillis = 240),
+                                        label = "settingsAlpha"
+                                    )
+
                                     key(screen.route) {
                                         saveableStateHolder.SaveableStateProvider(screen.route) {
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .then(
-                                                        if (isActive) {
-                                                            Modifier
-                                                        } else {
-                                                            Modifier
-                                                                .graphicsLayer {
-                                                                    alpha = 0f
-                                                                    translationX = 100000f
+                                                        if (isSettings) {
+                                                            if (isSettingsActive || settingsAlpha > 0.01f) {
+                                                                Modifier.graphicsLayer {
+                                                                    translationX = settingsSlideX
+                                                                    alpha = settingsAlpha
                                                                 }
-                                                                .clearAndSetSemantics { }
+                                                            } else {
+                                                                Modifier
+                                                                    .graphicsLayer {
+                                                                        alpha = 0f
+                                                                        translationX = 100000f
+                                                                    }
+                                                                    .clearAndSetSemantics { }
+                                                            }
+                                                        } else {
+                                                            if (isActive) {
+                                                                Modifier
+                                                            } else {
+                                                                Modifier
+                                                                    .graphicsLayer {
+                                                                        alpha = 0f
+                                                                        translationX = 100000f
+                                                                    }
+                                                                    .clearAndSetSemantics { }
+                                                            }
                                                         }
                                                     )
                                             ) {
@@ -939,12 +975,36 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                                }
+                            }
                         }
                     }
                 }
+
+                // 全局屏幕左边缘向右滑动直达设置手势探测区 (在非设置页面下生效)
+                if (currentScreen != Screen.Settings && !isInPipMode) {
+                    var edgeDragX by remember { mutableFloatStateOf(0f) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(26.dp)
+                            .align(Alignment.CenterStart)
+                            .draggable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberDraggableState { delta ->
+                                    edgeDragX += delta
+                                },
+                                onDragStopped = { velocity ->
+                                    // 屏幕左边缘从左往右滑动超过 45f 或向右初速度 > 200f
+                                    if (edgeDragX > 45f || velocity > 200f) {
+                                        currentScreen = Screen.Settings
+                                    }
+                                    edgeDragX = 0f
+                                }
+                            )
+                    )
+                }
             }
-        }
-    }
 
                         if (showQuickCaptureDialog) {
                             QuickCaptureDialog(

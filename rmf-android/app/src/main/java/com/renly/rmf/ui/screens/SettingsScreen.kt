@@ -2,6 +2,9 @@ package com.renly.rmf.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -69,41 +72,76 @@ fun SettingsScreen(
     var showGoogleSettingsDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showUserAgreementDialog by remember { mutableStateOf(false) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 顶部导航栏：返回按钮与系统设置标题
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = TextPrimary
-                )
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "系统设置",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { delta ->
+                    dragOffsetX += delta
+                },
+                onDragStopped = { velocity ->
+                    // 页面从右往左滑 (向左滑动 < -80f 或初速度 < -250f) 返回工作台
+                    if (dragOffsetX < -80f || velocity < -250f) {
+                        onBack()
+                    }
+                    dragOffsetX = 0f
+                }
             )
-        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 顶部导航栏：返回按钮与系统设置标题
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回工作台",
+                            tint = TextPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "系统设置",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+
+                Surface(
+                    onClick = onBack,
+                    shape = RoundedCornerShape(8.dp),
+                    color = DarkCard,
+                    border = BorderStroke(1.dp, DarkBorder)
+                ) {
+                    Text(
+                        text = "👈 向左滑动返回",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1883,6 +1921,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+}
 
 
     // 🤖 独立的 AI 接口与模型服务配置弹窗 (BYOK 模式)

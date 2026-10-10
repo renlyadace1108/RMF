@@ -3,6 +3,9 @@ package com.renly.rmf.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +31,7 @@ import com.renly.rmf.ui.theme.*
  * WorkbenchScreen (工作台)
  * 聚合核心业务子系统（目标、记账、健身、复盘、统计、习惯、倒数）、节律健康诊断与 AI 洞察助理。
  * 与系统设置（外观个性化、云同步、流体云实验室、数据备份）彻底解耦隔离。
+ * 支持页面从左往右滑动直接进入系统设置。
  */
 @Composable
 fun WorkbenchScreen(
@@ -46,69 +50,117 @@ fun WorkbenchScreen(
     var auditReport by remember { mutableStateOf<AuditReport?>(null) }
     var aiReviewText by remember { mutableStateOf<String?>(null) }
     var isGeneratingAi by remember { mutableStateOf(false) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { delta ->
+                    dragOffsetX += delta
+                },
+                onDragStopped = { velocity ->
+                    // 页面从左往右滑动：向右滑动超过 75f 或滑动初速度 > 250f 即可直达系统设置
+                    if (dragOffsetX > 75f || velocity > 250f) {
+                        onNavigateToSettings()
+                    }
+                    dragOffsetX = 0f
+                }
+            )
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ---------------------------------------------------------------------
-        // 顶部工作台标题栏与系统设置快速跳转入口
-        // ---------------------------------------------------------------------
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🚀", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ---------------------------------------------------------------------
+            // 顶部工作台标题栏与系统设置快速跳转入口
+            // ---------------------------------------------------------------------
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🚀", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
+                        Text(
+                            text = "工作台",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
                     Text(
-                        text = "工作台",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        text = "多维效率与全域管理中枢 · 目标、财务、习惯、统计与健康审计",
+                        fontSize = 11.5.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
-                Text(
-                    text = "多维效率与全域管理中枢 · 目标、财务、习惯、统计与健康审计",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+
+                // ⚙️ 进入系统设置按钮
+                Surface(
+                    onClick = onNavigateToSettings,
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkCard,
+                    border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "系统设置",
+                            tint = DopamineCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "系统设置",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DopamineCyan
+                        )
+                    }
+                }
             }
 
-            // ⚙️ 进入系统设置按钮
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 👈 从左往右滑快速进入设置提示横幅
             Surface(
-                onClick = onNavigateToSettings,
-                shape = RoundedCornerShape(12.dp),
-                color = DarkCard,
-                border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f))
+                shape = RoundedCornerShape(10.dp),
+                color = DopamineCyan.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToSettings() }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "系统设置",
-                        tint = DopamineCyan,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "系统设置",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = DopamineCyan
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("👉", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "页面从左往右滑动，即可快速进入系统设置",
+                            fontSize = 11.5.sp,
+                            color = DopamineCyan,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Text("向右滑入 ⚙️", fontSize = 11.sp, color = TextMuted)
                 }
             }
-        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -526,6 +578,7 @@ fun WorkbenchScreen(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
 }
 
 private data class FunctionalItem(
