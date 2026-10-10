@@ -6,16 +6,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.renly.rmf.R
 import com.renly.rmf.domain.service.PrivacyPreferences
 import com.renly.rmf.ui.theme.*
 
@@ -99,33 +103,42 @@ fun PrivacyComplianceDialog(
                     modifier = Modifier
                         .padding(20.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                    // 顶部居中放置软件 Logo 与标题
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = DopamineBlue.copy(alpha = 0.15f),
-                            modifier = Modifier.size(36.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier.size(52.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("🛡️", fontSize = 18.sp)
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "用户协议与隐私保护提示",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "欢迎使用 RMF (Renly Management Platform)",
-                                fontSize = 11.5.sp,
-                                color = TextSecondary
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_logo),
+                                contentDescription = "RMF Logo",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "用户协议与隐私保护提示",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "欢迎使用 RMF (Renly Management Platform)",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
 
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
@@ -218,13 +231,31 @@ fun PrivacyDocumentViewerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
+        icon = {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = DarkSurface,
+                border = BorderStroke(1.dp, DarkBorder),
+                modifier = Modifier.size(52.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_logo),
+                    contentDescription = "RMF Logo",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp)
+                )
+            }
+        },
         title = {
             Text(
                 text = title,
                 color = TextPrimary,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         text = {
