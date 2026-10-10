@@ -3,9 +3,15 @@ package com.renly.rmf.data.local.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 import java.util.UUID
 
-@Entity(tableName = "habits")
+@Entity(
+    tableName = "habits",
+    indices = [
+        Index(value = ["is_deleted"], name = "idx_habits_deleted")
+    ]
+)
 data class HabitEntity(
     @PrimaryKey
     @ColumnInfo(name = "id")

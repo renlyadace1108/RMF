@@ -3,9 +3,15 @@ package com.renly.rmf.data.local.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 import java.util.UUID
 
-@Entity(tableName = "countdowns")
+@Entity(
+    tableName = "countdowns",
+    indices = [
+        Index(value = ["is_pinned", "is_deleted"], name = "idx_countdowns_pinned")
+    ]
+)
 data class CountdownEntity(
     @PrimaryKey
     @ColumnInfo(name = "id")
