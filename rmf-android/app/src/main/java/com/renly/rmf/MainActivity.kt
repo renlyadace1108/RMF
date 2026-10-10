@@ -25,12 +25,15 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -279,6 +282,15 @@ class MainActivity : ComponentActivity() {
                 }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
 
+                var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
+                val saveableStateHolder = rememberSaveableStateHolder()
+
+                LaunchedEffect(currentScreen) {
+                    if (!visitedScreens.contains(currentScreen)) {
+                        visitedScreens = visitedScreens + currentScreen
+                    }
+                }
+
                 var showQuickCaptureDialog by remember { mutableStateOf(false) }
                 var dailyReportDate by remember { mutableStateOf(java.time.LocalDate.now()) }
 
@@ -341,7 +353,28 @@ class MainActivity : ComponentActivity() {
                                 .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
                             color = DarkBg
                         ) {
-                        when (currentScreen) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                visitedScreens.forEach { screen ->
+                                    val isActive = (currentScreen == screen)
+                                    key(screen.route) {
+                                        saveableStateHolder.SaveableStateProvider(screen.route) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .then(
+                                                        if (isActive) {
+                                                            Modifier
+                                                        } else {
+                                                            Modifier
+                                                                .graphicsLayer {
+                                                                    alpha = 0f
+                                                                    translationX = 100000f
+                                                                }
+                                                                .clearAndSetSemantics { }
+                                                        }
+                                                    )
+                                            ) {
+                                                when (screen) {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
                                 tagsFlow = db.syncDao().getAllTags(),
@@ -746,6 +779,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
 
                         if (showQuickCaptureDialog) {
                             QuickCaptureDialog(

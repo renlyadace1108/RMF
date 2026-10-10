@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -991,10 +992,14 @@ fun ScheduleWeekGridView(
     var movingOriginalTopDp by remember { mutableFloatStateOf(0f) }
     var weekDayColWidthPx by remember { mutableFloatStateOf(0f) }
 
+    var hasInitializedScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        val currentHour = LocalDateTime.now().hour
-        val targetHour = (currentHour - 2).coerceIn(0, 20)
-        verticalScrollState.scrollTo(targetHour * 105)
+        if (!hasInitializedScroll) {
+            hasInitializedScroll = true
+            val currentHour = LocalDateTime.now().hour
+            val targetHour = (currentHour - 2).coerceIn(0, 20)
+            verticalScrollState.scrollTo(targetHour * 105)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1646,9 +1651,13 @@ fun ScheduleDayGridView(
     var resizingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var resizeDeltaY by remember { mutableFloatStateOf(0f) }
 
+    var hasInitializedDayScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        val currentHour = LocalDateTime.now().hour
-        verticalScrollState.scrollTo((currentHour - 2).coerceAtLeast(0) * 115)
+        if (!hasInitializedDayScroll) {
+            hasInitializedDayScroll = true
+            val currentHour = LocalDateTime.now().hour
+            verticalScrollState.scrollTo((currentHour - 2).coerceAtLeast(0) * 115)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
