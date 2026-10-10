@@ -1175,8 +1175,86 @@ fun SettingsScreen(
                     text = "深度适配 ColorOS / HyperOS / OriginOS 状态栏动态胶囊、锁屏实时活动、常驻展开卡片以及精准高优先级系统闹钟到期提醒。",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                 )
+
+                // 权限诊断状态卡
+                val hasNotifPerm = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        notifContext,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } else true
+
+                val alarmManager = notifContext.getSystemService(android.content.Context.ALARM_SERVICE) as? android.app.AlarmManager
+                val canExactAlarm = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    alarmManager?.canScheduleExactAlarms() ?: true
+                } else true
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (hasNotifPerm) "✅" else "⚠️", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (hasNotifPerm) "通知权限已开启" else "通知权限未开启",
+                                fontSize = 11.sp,
+                                color = if (hasNotifPerm) DopamineGreen else DopamineAmber,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (canExactAlarm) "⚡" else "⏳", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (canExactAlarm) "精确闹钟已就绪" else "精确闹钟受限",
+                                fontSize = 11.sp,
+                                color = if (canExactAlarm) DopamineCyan else DopamineAmber,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // 快捷直达系统通知设置 (引导用户手动开启国产系统默认关闭的横幅通知与锁屏通知)
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, notifContext.packageName)
+                                }
+                            } else {
+                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = android.net.Uri.fromParts("package", notifContext.packageName, null)
+                                }
+                            }
+                            notifContext.startActivity(intent)
+                            notifFeedbackText = "💡 请在系统设置中勾选【允许横幅通知】与【锁屏通知】，确保强提醒弹窗展示"
+                        } catch (_: Exception) {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = android.net.Uri.fromParts("package", notifContext.packageName, null)
+                            }
+                            notifContext.startActivity(intent)
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DopaminePurple),
+                    border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("⚙️ 跳转系统设置开启【横幅悬浮窗与声音震动】", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
 
                 // 按钮 1: 测试标准日程到期通知
                 Button(
@@ -1192,7 +1270,7 @@ fun SettingsScreen(
                             }
                         }
                         ScheduleReminderManager.sendStandardTestNotification(notifContext)
-                        notifFeedbackText = "✓ 已发送高优先级标准日程提醒通知！请下拉通知中心查看"
+                        notifFeedbackText = "✓ 已发送高优先级标准日程提醒通知！横幅与声音震动已就绪"
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
                     modifier = Modifier.fillMaxWidth(),
@@ -1210,6 +1288,16 @@ fun SettingsScreen(
                             FocusLiveService.stop(notifContext)
                             notifFeedbackText = "✓ 已停止流体云前台实时胶囊服务"
                         } else {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    notifContext,
+                                    android.Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (!hasPermission) {
+                                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    return@OutlinedButton
+                                }
+                            }
                             FocusLiveService.start(notifContext, "流体云实时胶囊测试", 25 * 60)
                             notifFeedbackText = "✓ 已启动流体云实时胶囊！切至桌面或息屏锁屏，挖孔旁将呈现胶囊"
                         }
@@ -1237,6 +1325,16 @@ fun SettingsScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    notifContext,
+                                    android.Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (!hasPermission) {
+                                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    return@OutlinedButton
+                                }
+                            }
                             ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = true)
                             notifFeedbackText = "✓ 已触发课表专属流体云胶囊通知卡片！"
                         },
@@ -1245,11 +1343,21 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("🎓 模拟上课流体云通知", fontSize = 11.5.sp)
+                        Text("🎓 模拟上课流体云", fontSize = 11.5.sp)
                     }
 
                     OutlinedButton(
                         onClick = {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    notifContext,
+                                    android.Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (!hasPermission) {
+                                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    return@OutlinedButton
+                                }
+                            }
                             ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = false)
                             notifFeedbackText = "✓ 已触发日程专属流体云胶囊通知卡片！"
                         },
@@ -1258,7 +1366,7 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("📌 模拟日程流体云通知", fontSize = 11.5.sp)
+                        Text("📌 模拟日程流体云", fontSize = 11.5.sp)
                     }
                 }
 
@@ -1266,7 +1374,7 @@ fun SettingsScreen(
                     Text(
                         text = notifFeedbackText!!,
                         fontSize = 11.5.sp,
-                        color = if (notifFeedbackText!!.startsWith("✓")) DopamineGreen else DopamineOrange,
+                        color = if (notifFeedbackText!!.startsWith("✓")) DopamineGreen else if (notifFeedbackText!!.startsWith("💡")) DopaminePurple else DopamineOrange,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }

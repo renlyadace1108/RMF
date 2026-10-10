@@ -241,11 +241,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(this, "✓ 日程与流体云通知提醒权限已成功开启", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkAndRequestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // 异步后台自动检查并排期未来课程的 ColorOS 流体云上课提醒 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
         if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
+            checkAndRequestNotificationPermission()
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                     context = this@MainActivity,
@@ -284,6 +305,7 @@ class MainActivity : ComponentActivity() {
                         onAccept = {
                             com.renly.rmf.domain.service.PrivacyPreferences.setPrivacyAccepted(this@MainActivity, true)
                             showPrivacyDialog = false
+                            checkAndRequestNotificationPermission()
                             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                     context = this@MainActivity,

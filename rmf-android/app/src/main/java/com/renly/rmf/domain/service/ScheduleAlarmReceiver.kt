@@ -38,15 +38,19 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
 
         val channelId = if (isCourse) RmfApplication.CHANNEL_FLUID_CLOUD else RmfApplication.CHANNEL_SCHEDULE_REMINDER
 
+        val defaultSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(if (isCourse) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSound)
+            .setVibrate(longArrayOf(0, 350, 200, 350))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, false)
+            .setFullScreenIntent(pendingIntent, true)
             .setSubText(if (isCourse) "ColorOS 流体云 · 上课提醒" else "ColorOS 流体云提醒")
 
         if (isCourse) {

@@ -17,6 +17,7 @@ public class GlobalHotKeyService : IDisposable
     private const int VK_F = 0x46;
     private const int VK_L = 0x4C;
 
+    private const int HOTKEY_ID_QUICK_CAPTURE_ALT = 9000;
     private const int HOTKEY_ID_QUICK_CAPTURE = 9001;
     private const int HOTKEY_ID_FOCUS_HUD = 9002;
     private const int HOTKEY_ID_PASSTHROUGH = 9003;
@@ -50,6 +51,9 @@ public class GlobalHotKeyService : IDisposable
     {
         try
         {
+            // Alt + Space -> 类似 Raycast / Spotlight 极速呼出闪念胶囊 (若被占用则忽略)
+            RegisterHotKey(_hwnd, HOTKEY_ID_QUICK_CAPTURE_ALT, MOD_ALT | MOD_NOREPEAT, VK_SPACE);
+
             // Ctrl + Shift + Space -> 全局极速闪念捕获
             RegisterHotKey(_hwnd, HOTKEY_ID_QUICK_CAPTURE, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_SPACE);
 
@@ -69,7 +73,7 @@ public class GlobalHotKeyService : IDisposable
             try
             {
                 int id = wParam.ToInt32();
-                if (id == HOTKEY_ID_QUICK_CAPTURE)
+                if (id == HOTKEY_ID_QUICK_CAPTURE || id == HOTKEY_ID_QUICK_CAPTURE_ALT)
                 {
                     _onQuickCapture?.Invoke();
                     handled = true;
@@ -94,6 +98,7 @@ public class GlobalHotKeyService : IDisposable
     {
         try
         {
+            UnregisterHotKey(_hwnd, HOTKEY_ID_QUICK_CAPTURE_ALT);
             UnregisterHotKey(_hwnd, HOTKEY_ID_QUICK_CAPTURE);
             UnregisterHotKey(_hwnd, HOTKEY_ID_FOCUS_HUD);
             UnregisterHotKey(_hwnd, HOTKEY_ID_PASSTHROUGH);

@@ -193,16 +193,21 @@ object ScheduleReminderManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val defaultSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
         val builder = NotificationCompat.Builder(context, RmfApplication.CHANNEL_SCHEDULE_REMINDER)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
-            .setContentTitle("🔔 [测试] 日程到期提醒就绪")
+            .setContentTitle("🔔 [强提醒] 日程到期就绪")
             .setContentText("专注时间块即将开始！声音、震动与高优先级横幅已正常触发。")
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSound)
+            .setVibrate(longArrayOf(0, 350, 200, 350))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, true)
             .setSubText("RMF 日程提醒")
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
