@@ -176,14 +176,9 @@ class FocusLiveService : Service() {
                             stopFocusSession()
                         }
                         override fun onSeekTo(pos: Long) {
-                            val newElapsedSec = (pos / 1000L).coerceIn(0L, _initialTotalSeconds.value.toLong()).toInt()
-                            val newRemainingSec = (_initialTotalSeconds.value - newElapsedSec).coerceAtLeast(0)
-                            _remainingSeconds.value = newRemainingSec
-                            targetEndTimeRealtime = SystemClock.elapsedRealtime() + (newRemainingSec * 1000L)
+                            // 严格防篡改与防重置：专注倒计时是严肃的自律流程，严禁拖拽时间条重置或修改时间！
+                            // 立即重置为系统真实的已专注进度，阻止任何时间被重置或篡改
                             initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = _isRunning.value)
-                            val notification = buildFluidCloudNotification()
-                            val manager = getSystemService(NotificationManager::class.java)
-                            manager.notify(NOTIFICATION_ID, notification)
                         }
                     })
                 }
@@ -197,8 +192,7 @@ class FocusLiveService : Service() {
                     PlaybackStateCompat.ACTION_PLAY or
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                    PlaybackStateCompat.ACTION_STOP or
-                    PlaybackStateCompat.ACTION_SEEK_TO
+                    PlaybackStateCompat.ACTION_STOP
                 )
                 .setState(
                     if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
