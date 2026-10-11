@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">RMF</string>
-    <string name="widget_description">RMF 桌面智能看板小组件（今日日程、课程投影与北极星目标）</string>
+    <string name="widget_description">RMF 桌面全景看板小组件（今日日程、课表透视、倒数日与北极星目标）</string>
+    <string name="widget_schedule_description">RMF 今日日程清单小组件（日程任务列表、打卡完成度与一键新建）</string>
+    <string name="widget_capsule_description">RMF 专注与倒数胶囊小组件（置顶倒数日大字透视、快捷专注与闪念速记）</string>
 </resources>

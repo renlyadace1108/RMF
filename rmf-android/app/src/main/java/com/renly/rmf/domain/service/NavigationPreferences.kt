@@ -21,7 +21,7 @@ object NavigationPreferences {
         NavItemConfig("schedule", "日程", "📅", true, "核心时间块日程管理、待办与打卡"),
         NavItemConfig("timetable", "课表", "🎓", true, "周课表透视、调停课与一键投影"),
         NavItemConfig("study", "学习", "📖", true, "知识库专项主题与记忆间隔复习"),
-        NavItemConfig("focus", "专注", "⏱️", true, "番茄时钟、流体云联动与画中画"),
+        NavItemConfig("focus", "专注", "⏱️", true, "番茄时钟、胶囊通知联动与画中画"),
         NavItemConfig("fitness", "健身", "🏋️", false, "日常训练记录、部位动作与计划投影"),
         NavItemConfig("habits", "习惯", "🌱", false, "习惯连续打卡、Streak统计与365天热力图"),
         NavItemConfig("countdowns", "倒数", "⏳", false, "重要考试、里程碑与纪念日倒数胶囊"),
@@ -30,7 +30,7 @@ object NavigationPreferences {
         NavItemConfig("daily_report", "复盘", "🏆", false, "每日小结、成就复盘与心得反思"),
         NavItemConfig("summary", "统计", "📊", false, "全维度效能数据、图表与被打断分析"),
         NavItemConfig("workbench", "工作台", "🚀", true, "核心功能矩阵、节律审计、AI复盘与数据分析中枢"),
-        NavItemConfig("settings", "设置", "⚙️", false, "外观个性化、云同步、流体云实验室与安全备份")
+        NavItemConfig("settings", "设置", "⚙️", false, "外观个性化、云同步、胶囊通知实验室与安全备份")
     )
 
     val DEFAULT_ENABLED_ROUTES = listOf("schedule", "timetable", "study", "focus", "workbench")

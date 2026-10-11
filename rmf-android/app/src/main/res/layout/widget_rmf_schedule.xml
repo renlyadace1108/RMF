@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_schedule_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_widget_card"
+    android:padding="12dp">
+
+    <!-- 顶部标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📅 今日日程清单"
+            android:textColor="#38BDF8"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_schedule_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="10-11 周日"
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/widget_schedule_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0/0 项"
+            android:textColor="#34D399"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="6dp" />
+
+        <!-- ➕ 快捷新建 -->
+        <TextView
+            android:id="@+id/widget_schedule_add_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_widget_button"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="➕"
+            android:textColor="#38BDF8"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="5dp" />
+
+        <!-- 🔄 刷新 -->
+        <TextView
+            android:id="@+id/widget_schedule_refresh_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_widget_button"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="🔄"
+            android:textColor="#94A3B8"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 任务项容器 -->
+    <LinearLayout
+        android:id="@+id/widget_schedule_list_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- 任务 1 -->
+        <LinearLayout
+            android:id="@+id/widget_sched_row_1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_widget_subcard"
+            android:padding="6dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/widget_sched_icon_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⭕"
+                android:textSize="11sp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_time_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="09:00"
+                android:textColor="#38BDF8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_title_1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="暂无待办日程"
+                android:textColor="#F1F5F9"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+
+        <!-- 任务 2 -->
+        <LinearLayout
+            android:id="@+id/widget_sched_row_2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_widget_subcard"
+            android:padding="6dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/widget_sched_icon_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⭕"
+                android:textSize="11sp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_time_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#38BDF8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_title_2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text=""
+                android:textColor="#F1F5F9"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+
+        <!-- 任务 3 -->
+        <LinearLayout
+            android:id="@+id/widget_sched_row_3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_widget_subcard"
+            android:padding="6dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/widget_sched_icon_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⭕"
+                android:textSize="11sp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_time_3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#38BDF8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_title_3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text=""
+                android:textColor="#F1F5F9"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+
+        <!-- 任务 4 -->
+        <LinearLayout
+            android:id="@+id/widget_sched_row_4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_widget_subcard"
+            android:padding="6dp">
+
+            <TextView
+                android:id="@+id/widget_sched_icon_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⭕"
+                android:textSize="11sp"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_time_4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#38BDF8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/widget_sched_title_4"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text=""
+                android:textColor="#F1F5F9"
+                android:textSize="11.5sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_capsule_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_widget_card"
+    android:padding="10dp">
+
+    <!-- 0. 倒数日核心展示卡片 (点击直达倒数日) -->
+    <LinearLayout
+        android:id="@+id/widget_capsule_countdown_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_widget_subcard"
+        android:padding="6dp"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/widget_capsule_countdown_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⏳ 考研倒计时"
+            android:textColor="#F59E0B"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="2dp">
+
+            <TextView
+                android:id="@+id/widget_capsule_days_num"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--"
+                android:textColor="#FBBF24"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_capsule_days_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" 天"
+                android:textColor="#F59E0B"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginStart="2dp"
+                android:layout_marginBottom="4dp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_capsule_target_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="目标日: 2026-12-25"
+            android:textColor="#94A3B8"
+            android:textSize="9.5sp" />
+    </LinearLayout>
+
+    <!-- 1. 底部快速动作按钮行 (一键专注 + 闪念速记) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- ⏱️ 开始专注 -->
+        <LinearLayout
+            android:id="@+id/widget_capsule_focus_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/bg_widget_button"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
+            android:layout_marginEnd="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏱️ 专注"
+                android:textColor="#38BDF8"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ➕ 闪念速记 -->
+        <LinearLayout
+            android:id="@+id/widget_capsule_capture_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:background="@drawable/bg_widget_button"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="➕ 闪念"
+                android:textColor="#34D399"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

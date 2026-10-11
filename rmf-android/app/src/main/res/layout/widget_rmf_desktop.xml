@@ -4,10 +4,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#EE18191C"
-    android:padding="14dp">
+    android:background="@drawable/bg_widget_card"
+    android:padding="12dp">
 
-    <!-- 标题行与日期 -->
+    <!-- 顶部标题行、日期与快捷动作按钮 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -18,7 +18,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚡ RMF 简报"
+            android:text="⚡ RMF 全景看板"
             android:textColor="#38BDF8"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -33,26 +33,61 @@
             android:textColor="#94A3B8"
             android:textSize="11sp" />
 
+        <!-- 快捷发起专注 -->
+        <TextView
+            android:id="@+id/widget_quick_focus_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_widget_button"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="⏱️"
+            android:textSize="12sp"
+            android:layout_marginEnd="5dp" />
+
+        <!-- 快捷新建日程 -->
+        <TextView
+            android:id="@+id/widget_quick_add_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_widget_button"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="➕"
+            android:textColor="#38BDF8"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="5dp" />
+
+        <!-- 刷新按钮 -->
         <TextView
             android:id="@+id/widget_refresh_btn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="4dp"
+            android:background="@drawable/bg_widget_button"
+            android:paddingStart="7dp"
+            android:paddingEnd="7dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
             android:text="🔄"
             android:textColor="#94A3B8"
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- 0. 倒数日 / 里程碑胶囊条 -->
+    <!-- 0. 倒数日 / 里程碑胶囊条 (点击直达倒数日) -->
     <LinearLayout
         android:id="@+id/widget_countdown_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:background="#262015"
-        android:padding="6dp"
-        android:layout_marginBottom="8dp">
+        android:background="@drawable/bg_widget_subcard"
+        android:padding="7dp"
+        android:layout_marginBottom="6dp">
 
         <TextView
             android:id="@+id/widget_countdown_title"
@@ -63,7 +98,7 @@
             android:maxLines="1"
             android:text="⏳ 倒数日载入中..."
             android:textColor="#F59E0B"
-            android:textSize="11sp"
+            android:textSize="11.5sp"
             android:textStyle="bold" />
 
         <TextView
@@ -72,18 +107,19 @@
             android:layout_height="wrap_content"
             android:text="-- 天"
             android:textColor="#FBBF24"
-            android:textSize="11sp"
+            android:textSize="11.5sp"
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- 1. 北极星战略目标卡片 -->
+    <!-- 1. 北极星战略目标卡片 (点击直达目标) -->
     <LinearLayout
+        android:id="@+id/widget_north_star_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#202227"
+        android:background="@drawable/bg_widget_subcard"
         android:padding="8dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="6dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -96,7 +132,7 @@
                 android:layout_weight="1"
                 android:text="⭐ 北极星战略目标"
                 android:textColor="#F59E0B"
-                android:textSize="10sp"
+                android:textSize="10.5sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -105,14 +141,15 @@
                 android:layout_height="wrap_content"
                 android:text="0%"
                 android:textColor="#38BDF8"
-                android:textSize="10sp" />
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/widget_north_star_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="置顶目标加载中..."
@@ -121,28 +158,29 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- 2. 今日课程动态投影 -->
+    <!-- 2. 今日课程动态投影 (点击直达课表) -->
     <LinearLayout
+        android:id="@+id/widget_courses_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#1B2430"
+        android:background="@drawable/bg_widget_subcard"
         android:padding="8dp"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="6dp">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📚 今日课表动态投影"
+            android:text="📚 今日课表透视"
             android:textColor="#67E8F9"
-            android:textSize="10sp"
+            android:textSize="10.5sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/widget_courses_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="今日无课 / 自主攻坚日"
@@ -150,23 +188,39 @@
             android:textSize="11.5sp" />
     </LinearLayout>
 
-    <!-- 3. 今日重点日程 -->
+    <!-- 3. 今日重点日程 (点击直达日程) -->
     <LinearLayout
+        android:id="@+id/widget_tasks_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:background="#1A1C20"
+        android:background="@drawable/bg_widget_subcard"
         android:padding="8dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📋 今日重点日程"
-            android:textColor="#94A3B8"
-            android:textSize="10sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
+            android:orientation="horizontal"
+            android:layout_marginBottom="3dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="📋 今日重点日程"
+                android:textColor="#94A3B8"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_tasks_summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="待办"
+                android:textColor="#38BDF8"
+                android:textSize="10sp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/widget_task1"

@@ -46,10 +46,10 @@ class RmfApplication : Application() {
 
             val fluidChannel = NotificationChannel(
                 CHANNEL_FLUID_CLOUD,
-                "ColorOS 流体云实时胶囊与提醒",
+                "胶囊通知实时提醒",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "ColorOS 状态栏流体云胶囊、锁屏实时卡片与专注倒计时"
+                description = "状态栏胶囊通知、锁屏实时卡片与专注倒计时"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 250, 150, 250)
                 setSound(defaultSoundUri, audioAttributes)
@@ -61,14 +61,61 @@ class RmfApplication : Application() {
                 }
             }
 
+            val soundChannel = NotificationChannel(
+                CHANNEL_REMINDER_SOUND_ONLY,
+                "日程提醒 (仅闹钟铃声)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "日程时间块到期时仅播放闹钟响铃，不触发震动"
+                enableVibration(false)
+                vibrationPattern = longArrayOf(0)
+                setSound(defaultSoundUri, audioAttributes)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+                enableLights(true)
+            }
+
+            val vibrateChannel = NotificationChannel(
+                CHANNEL_REMINDER_VIBRATE_ONLY,
+                "日程提醒 (仅震动)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "日程时间块到期时仅触发震动，静音不响铃"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 350, 200, 350)
+                setSound(null, null)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+                enableLights(true)
+            }
+
+            val silentChannel = NotificationChannel(
+                CHANNEL_REMINDER_SILENT,
+                "日程提醒 (无提醒/静音)",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "静音显示通知胶囊或横幅，无闹钟响铃无震动"
+                enableVibration(false)
+                vibrationPattern = longArrayOf(0)
+                setSound(null, null)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+            }
+
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
             manager.createNotificationChannel(fluidChannel)
+            manager.createNotificationChannel(soundChannel)
+            manager.createNotificationChannel(vibrateChannel)
+            manager.createNotificationChannel(silentChannel)
         }
     }
 
     companion object {
         const val CHANNEL_SCHEDULE_REMINDER = "rmf_schedule_reminder_channel"
         const val CHANNEL_FLUID_CLOUD = "rmf_fluid_cloud_channel"
+        const val CHANNEL_REMINDER_SOUND_ONLY = "rmf_reminder_sound_channel"
+        const val CHANNEL_REMINDER_VIBRATE_ONLY = "rmf_reminder_vibrate_channel"
+        const val CHANNEL_REMINDER_SILENT = "rmf_reminder_silent_channel"
     }
 }

@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * FocusLiveService
- * 专注实时活动前台服务 (ColorOS 流体云 / Android 原生实时活动双借道引擎)
+ * 专注实时活动前台服务 (胶囊通知 / Android 原生实时活动双借道引擎)
  */
 class FocusLiveService : Service() {
 
@@ -209,7 +209,7 @@ class FocusLiveService : Service() {
 
             val metadata = MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "🎯 $title")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "⏱️ 剩余 $timeStr · 流体云心流空间")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "⏱️ 剩余 $timeStr · 胶囊通知心流空间")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "RMF 实时活动")
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMillis)
                 .build()
@@ -344,7 +344,7 @@ class FocusLiveService : Service() {
         if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
             val capsuleView = RemoteViews(packageName, R.layout.notification_fluid_cloud_capsule).apply {
                 setTextViewText(R.id.fluid_capsule_title, "🎯 $title")
-                setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "ColorOS 流体云专注中" else "已暂停")
+                setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "胶囊通知专注中" else "已暂停")
                 setTextViewText(R.id.fluid_capsule_action_btn, if (isRunning) "暂停" else "继续")
                 setOnClickPendingIntent(R.id.fluid_capsule_action_btn, togglePendingIntent)
 
@@ -398,7 +398,7 @@ class FocusLiveService : Service() {
                 .setSmallIcon(R.drawable.ic_logo)
                 .setContentTitle("🎯 深度专注中: $title")
                 .setContentText(if (isRunning) "剩余: $timeStr" else "已暂停 ($timeStr)")
-                .setSubText("ColorOS 流体云")
+                .setSubText("胶囊通知")
                 .setColor(0xFF00F0FF.toInt())
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -420,7 +420,7 @@ class FocusLiveService : Service() {
         }
 
         // 模式 0 (双借道融合)、模式 1 (媒体借道)、模式 2 (原生实时活动芯片)：
-        // 核心突破：严禁包含任何 setCustomContentView，确保 ColorOS Pantanal 与 Android Live Updates 引擎能直接解析原生芯片！
+        // 核心突破：严禁包含任何 setCustomContentView，确保系统与 Android Live Updates 引擎能直接解析原生芯片！
         val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
@@ -440,7 +440,7 @@ class FocusLiveService : Service() {
 
                 builder.setContentTitle("🎯 $title")
                     .setContentText(if (isRunning) "心流倒计时 · 状态栏胶囊运行中" else "已暂停 ($timeStr)")
-                    .setSubText("ColorOS 流体云")
+                    .setSubText("胶囊通知")
                     .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
                     .setStyle(mediaStyle)
 
@@ -453,14 +453,14 @@ class FocusLiveService : Service() {
                 }
             }
             FluidCloudPreferences.MODE_MEDIA_SESSION -> {
-                // 纯媒体会话借道：针对 ColorOS 14/15 挖孔胶囊与锁屏灵动大卡片
+                // 纯媒体会话借道：针对挖孔胶囊与锁屏灵动大卡片
                 val mediaStyle = MediaStyle()
                     .setShowActionsInCompactView(0, 1)
                 mediaSession?.let { mediaStyle.setMediaSession(it.sessionToken) }
 
                 builder.setContentTitle("🎯 $title")
                     .setContentText(if (isRunning) "剩余心流时间: $timeStr" else "已暂停 ($timeStr)")
-                    .setSubText("流体云胶囊")
+                    .setSubText("胶囊通知")
                     .setStyle(mediaStyle)
             }
             FluidCloudPreferences.MODE_NATIVE_LIVE_UPDATE -> {
@@ -496,7 +496,7 @@ class FocusLiveService : Service() {
             .setSmallIcon(R.drawable.ic_logo)
             .setContentTitle("🎉 专注已达成！")
             .setContentText("本次专注任务已顺利完成，请适当休息眼睛")
-            .setSubText("ColorOS 流体云")
+            .setSubText("胶囊通知")
             .setColor(0xFF10B981.toInt())
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)

@@ -24,7 +24,8 @@ object ScheduleReminderManager {
         scheduleId: String,
         title: String,
         startTimeStr: String,
-        advanceMinutes: Int = 10
+        advanceMinutes: Int = 10,
+        reminderType: ReminderType? = null
     ) {
         // 如果设置为不提醒 (-1)，取消旧闹钟并直接返回
         if (advanceMinutes < 0) {
@@ -54,12 +55,15 @@ object ScheduleReminderManager {
                 "$title 将在 ${start.format(DateTimeFormatter.ofPattern("HH:mm"))} 开始 ($advanceMinutes 分钟后)"
             }
 
+            val actualReminderType = reminderType ?: ReminderType.ALL
+
             val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
                 putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, title)
                 putExtra(ScheduleAlarmReceiver.EXTRA_MESSAGE, msg)
                 putExtra(ScheduleAlarmReceiver.EXTRA_ID, scheduleId.hashCode())
                 putExtra(ScheduleAlarmReceiver.EXTRA_IS_COURSE, false)
                 putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_START_MILLIS, startMillis)
+                putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_TYPE, actualReminderType.code)
             }
 
             val pendingIntent = PendingIntent.getBroadcast(
@@ -70,7 +74,7 @@ object ScheduleReminderManager {
             )
 
             try {
-                // 优先使用最高优先级系统闹钟 setAlarmClock，100% 豁免 OPPO ColorOS 深度休眠与后台冻结
+                // 优先使用最高优先级系统闹钟 setAlarmClock，豁免系统深度休眠与后台冻结
                 val clockInfo = AlarmManager.AlarmClockInfo(epochMillis, pendingIntent)
                 alarmManager.setAlarmClock(clockInfo, pendingIntent)
             } catch (e: Exception) {
@@ -92,7 +96,7 @@ object ScheduleReminderManager {
     }
 
     /**
-     * 课表专属流体云上课提醒 (ColorOS Fluid Cloud Capsule & Expanded View)
+     * 课表专属胶囊通知上课提醒 (Capsule & Expanded View)
      */
     fun scheduleCourseReminder(
         context: Context,
@@ -102,7 +106,8 @@ object ScheduleReminderManager {
         teacher: String,
         startTime: LocalDateTime,
         durationMinutes: Int,
-        advanceMinutes: Int = 15
+        advanceMinutes: Int = 15,
+        reminderType: ReminderType? = null
     ) {
         if (advanceMinutes < 0) {
             cancelReminder(context, reminderKey)
@@ -126,6 +131,8 @@ object ScheduleReminderManager {
                 "$advanceMinutes 分钟后上课$locInfo (${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))})"
             }
 
+            val actualReminderType = reminderType ?: ReminderType.ALL
+
             val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
                 putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, courseName)
                 putExtra(ScheduleAlarmReceiver.EXTRA_MESSAGE, msg)
@@ -135,6 +142,7 @@ object ScheduleReminderManager {
                 putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_TEACHER, teacher)
                 putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_START_MILLIS, startEpochMillis)
                 putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_DURATION_MINUTES, durationMinutes)
+                putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_TYPE, actualReminderType.code)
             }
 
             val pendingIntent = PendingIntent.getBroadcast(
@@ -180,9 +188,9 @@ object ScheduleReminderManager {
     }
 
     /**
-     * 发送即时测试通知 (标准高优先级横幅与通知中心声音振动)
+     * 发送即时测试通知 (根据当前全局设定的声音与震动规则进行精准触发)
      */
-    fun sendStandardTestNotification(context: Context) {
+    fun sendStandardTestNotification(context: Context, reminderType: ReminderType? = null) {
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -193,32 +201,62 @@ object ScheduleReminderManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val actualType = reminderType ?: ReminderType.ALL
+        val channelId = when (actualType) {
+            ReminderType.ALL -> RmfApplication.CHANNEL_SCHEDULE_REMINDER
+            ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
+            ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
+            ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
+        }
+
         val defaultSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
-        val builder = NotificationCompat.Builder(context, RmfApplication.CHANNEL_SCHEDULE_REMINDER)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
-            .setContentTitle("🔔 [强提醒] 日程到期就绪")
-            .setContentText("专注时间块即将开始！声音、震动与高优先级横幅已正常触发。")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setContentTitle("${actualType.emoji} [${actualType.title}] 日程到期就绪")
+            .setContentText("专注时间块即将开始！当前提醒模式: ${actualType.title} (${actualType.description})")
+            .setPriority(if (actualType == ReminderType.NONE) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setSound(defaultSound)
-            .setVibrate(longArrayOf(0, 350, 200, 350))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
-            .setSubText("RMF 日程提醒")
+            .setFullScreenIntent(pendingIntent, actualType != ReminderType.NONE)
+            .setSubText("RMF 日程提醒 · ${actualType.title}")
+
+        when (actualType) {
+            ReminderType.ALL -> {
+                builder.setSound(defaultSound)
+                builder.setVibrate(longArrayOf(0, 350, 200, 350))
+                builder.setDefaults(NotificationCompat.DEFAULT_ALL)
+            }
+            ReminderType.ALARM -> {
+                builder.setSound(defaultSound)
+                builder.setVibrate(longArrayOf(0))
+                builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
+            }
+            ReminderType.VIBRATE -> {
+                builder.setSound(null)
+                builder.setVibrate(longArrayOf(0, 350, 200, 350))
+                builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_LIGHTS)
+            }
+            ReminderType.NONE -> {
+                builder.setSound(null)
+                builder.setVibrate(longArrayOf(0))
+                builder.setDefaults(0)
+            }
+        }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(9001, builder.build())
     }
 
     /**
-     * 发送即时流体云胶囊提醒测试 (调用 ScheduleAlarmReceiver 广播立即呈现流体云胶囊)
+     * 发送即时胶囊通知提醒测试 (调用 ScheduleAlarmReceiver 广播立即呈现胶囊通知)
      */
-    fun sendFluidCloudTestReminder(context: Context, isCourse: Boolean = false) {
+    fun sendFluidCloudTestReminder(context: Context, isCourse: Boolean = false, reminderType: ReminderType? = null) {
+        val actualType = reminderType ?: ReminderType.ALL
         val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+            putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_TYPE, actualType.code)
             if (isCourse) {
                 putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, "高等数学(AI) 示范课")
                 putExtra(ScheduleAlarmReceiver.EXTRA_MESSAGE, "15 分钟后上课 [理科楼 A302]")
@@ -240,14 +278,14 @@ object ScheduleReminderManager {
     }
 
     /**
-     * 启动 ColorOS 流体云前台实时服务 (状态栏实时胶囊 + 锁屏通知 + 倒计时)
+     * 启动胶囊通知前台实时服务 (状态栏实时胶囊 + 锁屏通知 + 倒计时)
      */
-    fun startFluidCloudLiveSession(context: Context, title: String = "流体云实时胶囊测试", seconds: Int = 25 * 60) {
+    fun startFluidCloudLiveSession(context: Context, title: String = "胶囊通知实时测试", seconds: Int = 25 * 60) {
         FocusLiveService.start(context, title, seconds)
     }
 
     /**
-     * 停止 ColorOS 流体云实时服务
+     * 停止胶囊通知实时服务
      */
     fun stopFluidCloudLiveSession(context: Context) {
         FocusLiveService.stop(context)

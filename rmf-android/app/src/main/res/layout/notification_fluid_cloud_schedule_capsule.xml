@@ -31,7 +31,7 @@
             android:id="@+id/fluid_schedule_capsule_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="即将开始 | ColorOS 流体云"
+            android:text="即将开始 | 胶囊通知"
             android:textColor="@color/fluid_notif_sub"
             android:textSize="11.5sp"
             android:layout_marginTop="2dp"

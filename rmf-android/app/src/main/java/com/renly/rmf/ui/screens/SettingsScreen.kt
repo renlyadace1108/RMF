@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 
 import com.renly.rmf.domain.service.FluidCloudPreferences
 import com.renly.rmf.domain.service.NavigationPreferences
+import com.renly.rmf.domain.service.ReminderType
 
 @Composable
 fun SettingsScreen(
@@ -969,7 +970,7 @@ fun SettingsScreen(
         SettingsSectionHeader(
             icon = "⚡",
             title = "智能互联与云端服务",
-            subtitle = "AI 智能助理接入、Google 账号与云端同步、系统日历与流体云通知"
+            subtitle = "AI 智能助理接入、Google 账号与云端同步、系统日历与胶囊通知"
         )
 
         // 🤖 AI 智能功能全局总设置 (Master Switch)
@@ -1190,7 +1191,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // ---------------------------------------------------------------------------------
-        // 🔔 通知与 ColorOS 流体云实验室 (Notification & Fluid Cloud Lab)
+        // 🔔 通知与胶囊通知实验室 (Notification & Capsule Lab)
         // ---------------------------------------------------------------------------------
         val notifContext = androidx.compose.ui.platform.LocalContext.current
         val isFluidRunning by FocusLiveService.isRunning.collectAsState()
@@ -1204,7 +1205,7 @@ fun SettingsScreen(
             contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
         ) { isGranted ->
             if (isGranted) {
-                ScheduleReminderManager.sendStandardTestNotification(notifContext)
+                ScheduleReminderManager.sendStandardTestNotification(notifContext, ReminderType.ALL)
                 notifFeedbackText = "✓ 通知权限已就绪，已向通知栏发送测试横幅！"
             } else {
                 notifFeedbackText = "⚠️ 未授予通知权限，请在系统设置中允许本应用通知"
@@ -1225,7 +1226,7 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("🔔", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
                         Text(
-                            text = "通知与流体云实验室",
+                            text = "通知与胶囊通知实验室",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -1237,7 +1238,7 @@ fun SettingsScreen(
                         border = BorderStroke(1.dp, if (isFluidRunning) DopamineGreen else DarkBorder)
                     ) {
                         Text(
-                            text = if (isFluidRunning) "流体云实时运行中" else "胶囊已待命",
+                            text = if (isFluidRunning) "胶囊通知实时运行中" else "胶囊通知已待命",
                             color = if (isFluidRunning) DopamineGreen else TextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
@@ -1247,13 +1248,13 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    text = "深度适配 ColorOS / HyperOS / OriginOS 状态栏动态胶囊、锁屏实时活动、常驻展开卡片以及精准高优先级系统闹钟到期提醒。",
+                    text = "深度适配状态栏动态胶囊、锁屏实时活动、常驻展开卡片以及精准高优先级系统闹钟到期提醒。",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                 )
 
-                // 权限诊断状态卡
+                // 权限与后台驻留诊断状态卡 (通知、电池白名单、精确闹钟)
                 val hasNotifPerm = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     androidx.core.content.ContextCompat.checkSelfPermission(
                         notifContext,
@@ -1266,73 +1267,111 @@ fun SettingsScreen(
                     alarmManager?.canScheduleExactAlarms() ?: true
                 } else true
 
+                var isBatteryIgnored by remember {
+                    mutableStateOf(com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext))
+                }
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = DarkSurface,
                     border = BorderStroke(1.dp, DarkBorder),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (hasNotifPerm) "✅" else "⚠️", fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (hasNotifPerm) "通知权限已开启" else "通知权限未开启",
-                                fontSize = 11.sp,
-                                color = if (hasNotifPerm) DopamineGreen else DopamineAmber,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (hasNotifPerm) "✅" else "⚠️", fontSize = 11.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (hasNotifPerm) "通知已开启" else "通知未开启",
+                                    fontSize = 10.5.sp,
+                                    color = if (hasNotifPerm) DopamineGreen else DopamineAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (canExactAlarm) "⚡" else "⏳", fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (canExactAlarm) "精确闹钟已就绪" else "精确闹钟受限",
-                                fontSize = 11.sp,
-                                color = if (canExactAlarm) DopamineCyan else DopamineAmber,
-                                fontWeight = FontWeight.Medium
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (canExactAlarm) "⚡" else "⏳", fontSize = 11.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (canExactAlarm) "精确闹钟就绪" else "精确闹钟受限",
+                                    fontSize = 10.5.sp,
+                                    color = if (canExactAlarm) DopamineCyan else DopamineAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (isBatteryIgnored) "🛡️" else "🔋", fontSize = 11.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (isBatteryIgnored) "白名单已豁免" else "待豁免优化",
+                                    fontSize = 10.5.sp,
+                                    color = if (isBatteryIgnored) DopamineGreen else DopamineAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
 
-                // 快捷直达系统通知设置 (引导用户手动开启国产系统默认关闭的横幅通知与锁屏通知)
+                // 按钮排：申请忽略电池优化 & 跳转自启动设置
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val ok = com.renly.rmf.domain.service.BackgroundResidencyHelper.requestIgnoreBatteryOptimizations(notifContext)
+                            if (ok) {
+                                isBatteryIgnored = com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext)
+                                notifFeedbackText = "✓ 已发起电池优化白名单申请，若弹出系统确认框请选择【允许】"
+                            } else {
+                                notifFeedbackText = "⚠️ 无法自动唤起，请手动前往系统设置开启无限制后台"
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = if (isBatteryIgnored) DopamineGreen else DopamineAmber),
+                        border = BorderStroke(1.dp, if (isBatteryIgnored) DopamineGreen.copy(alpha = 0.5f) else DopamineAmber.copy(alpha = 0.6f)),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isBatteryIgnored) "🛡️ 电池优化已豁免" else "🔋 申请【忽略电池优化】", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            com.renly.rmf.domain.service.BackgroundResidencyHelper.openAppDetailsSettings(notifContext)
+                            notifFeedbackText = "💡 请在系统应用详情中开启【允许后台活动】与【自启动】"
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
+                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("⚙️ 应用权限与自启动", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                // 快捷直达系统通知设置 (引导用户手动开启默认关闭的横幅通知与锁屏通知)
                 OutlinedButton(
                     onClick = {
-                        try {
-                            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, notifContext.packageName)
-                                }
-                            } else {
-                                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = android.net.Uri.fromParts("package", notifContext.packageName, null)
-                                }
-                            }
-                            notifContext.startActivity(intent)
-                            notifFeedbackText = "💡 请在系统设置中勾选【允许横幅通知】与【锁屏通知】，确保强提醒弹窗展示"
-                        } catch (_: Exception) {
-                            val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                data = android.net.Uri.fromParts("package", notifContext.packageName, null)
-                            }
-                            notifContext.startActivity(intent)
-                        }
+                        com.renly.rmf.domain.service.BackgroundResidencyHelper.openAppNotificationSettings(notifContext)
+                        notifFeedbackText = "💡 请在系统设置中勾选【允许横幅通知】与【锁屏通知】，确保强提醒弹窗展示"
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = DopaminePurple),
                     border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.6f)),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("⚙️ 跳转系统设置开启【横幅悬浮窗与声音震动】", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("🔔 跳转系统设置开启【横幅悬浮窗与声音震动】", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 // -------------------------------------------------------------
-                // 🌊 流体云借道核心引擎设置 (Fluid Cloud Bridge Engine Selector)
+                // 🌊 胶囊通知借道核心引擎设置 (Capsule Bridge Engine Selector)
                 // -------------------------------------------------------------
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -1350,7 +1389,7 @@ fun SettingsScreen(
                                 Text("⚡", fontSize = 14.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "流体云借道引擎",
+                                    text = "胶囊通知借道引擎",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
@@ -1377,15 +1416,15 @@ fun SettingsScreen(
                         }
 
                         Text(
-                            text = "普通自定义通知无法触发 ColorOS 挖孔胶囊。借道引擎将专注活动映射为系统级实时通道，实现 100% 登上顶栏流体云与锁屏灵动大卡片。",
+                            text = "普通自定义通知无法触发挖孔胶囊。借道引擎将专注活动映射为系统级实时通道，实现稳定登上顶栏胶囊通知与锁屏灵动大卡片。",
                             fontSize = 11.sp,
                             color = TextSecondary,
                             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                         )
 
                         val bridgeModes = listOf(
-                            Triple(FluidCloudPreferences.MODE_HYBRID, "🌟 双借道融合引擎 (默认推荐)", "媒体通道 + 原生实时活动双保险，全面适配 ColorOS 14/15/16 及各版本系统"),
-                            Triple(FluidCloudPreferences.MODE_MEDIA_SESSION, "🎵 媒体会话借道 (MediaSession)", "专注倒计时映射为系统媒体胶囊，100% 触发挖孔流体云与锁屏控制台"),
+                            Triple(FluidCloudPreferences.MODE_HYBRID, "🌟 双借道融合引擎 (默认推荐)", "媒体通道 + 原生实时活动双保险，全面适配各版本系统"),
+                            Triple(FluidCloudPreferences.MODE_MEDIA_SESSION, "🎵 媒体会话借道 (MediaSession)", "专注倒计时映射为系统媒体胶囊，触发挖孔胶囊通知与锁屏控制台"),
                             Triple(FluidCloudPreferences.MODE_NATIVE_LIVE_UPDATE, "⏱️ 原生实时活动 (Android Live Updates)", "纯净系统 Ongoing Chronometer 芯片规范，无自定义视图干预"),
                             Triple(FluidCloudPreferences.MODE_CUSTOM_DRAWER, "📋 经典通知抽屉卡片", "在下拉通知栏展示霓虹双色自定义展开大卡片")
                         )
@@ -1454,7 +1493,7 @@ fun SettingsScreen(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "后台注入零分贝静音流，稳固 ColorOS 媒体胶囊识别，不抢占焦点、不影响听歌",
+                                    text = "后台注入零分贝静音流，稳固系统媒体胶囊识别，不抢占焦点、不影响听歌",
                                     fontSize = 10.5.sp,
                                     color = TextMuted
                                 )
@@ -1474,6 +1513,7 @@ fun SettingsScreen(
                     }
                 }
 
+
                 // 按钮 1: 测试标准日程到期通知
                 Button(
                     onClick = {
@@ -1487,24 +1527,24 @@ fun SettingsScreen(
                                 return@Button
                             }
                         }
-                        ScheduleReminderManager.sendStandardTestNotification(notifContext)
-                        notifFeedbackText = "✓ 已发送高优先级标准日程提醒通知！横幅与声音震动已就绪"
+                        ScheduleReminderManager.sendStandardTestNotification(notifContext, ReminderType.ALL)
+                        notifFeedbackText = "✓ 已发送日程提醒测试通知！"
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("🔔 测试标准日程提醒通知 (高优先级横幅+声音震动)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("🔔 测试日程提醒通知", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 按钮 2: 流体云实时胶囊前台服务启动/停止切换
+                // 按钮 2: 胶囊通知实时服务启动/停止切换
                 OutlinedButton(
                     onClick = {
                         if (isFluidRunning) {
                             FocusLiveService.stop(notifContext)
-                            notifFeedbackText = "✓ 已停止流体云前台实时胶囊服务"
+                            notifFeedbackText = "✓ 已停止胶囊通知前台实时服务"
                         } else {
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                                 val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -1516,8 +1556,8 @@ fun SettingsScreen(
                                     return@OutlinedButton
                                 }
                             }
-                            FocusLiveService.start(notifContext, "流体云实时胶囊测试", 25 * 60)
-                            notifFeedbackText = "✓ 已启动流体云实时胶囊！切至桌面或息屏锁屏，挖孔旁将呈现胶囊"
+                            FocusLiveService.start(notifContext, "胶囊通知实时测试", 25 * 60)
+                            notifFeedbackText = "✓ 已启动胶囊通知！切至桌面或息屏锁屏，状态栏将呈现胶囊"
                         }
                     },
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -1528,7 +1568,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = if (isFluidRunning) "⏹️ 停止流体云实时胶囊服务 (剩余: ${fluidRemaining / 60}m${fluidRemaining % 60}s)" else "🌊 启动流体云实时胶囊测试 (25分钟心流前台服务)",
+                        text = if (isFluidRunning) "⏹️ 停止胶囊通知实时服务 (剩余: ${fluidRemaining / 60}m${fluidRemaining % 60}s)" else "🌊 启动胶囊通知实时测试 (25分钟心流前台服务)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1536,7 +1576,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 按钮 3 & 4: 流体云通知卡片效果测试
+                // 按钮 3 & 4: 胶囊通知卡片效果测试
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1554,14 +1594,14 @@ fun SettingsScreen(
                                 }
                             }
                             ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = true)
-                            notifFeedbackText = "✓ 已触发课表专属流体云胶囊通知卡片！"
+                            notifFeedbackText = "✓ 已触发课表专属胶囊通知卡片！"
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
                         border = BorderStroke(1.dp, DarkBorder),
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("🎓 模拟上课流体云", fontSize = 11.5.sp)
+                        Text("🎓 模拟上课胶囊通知", fontSize = 11.5.sp)
                     }
 
                     OutlinedButton(
@@ -1577,14 +1617,14 @@ fun SettingsScreen(
                                 }
                             }
                             ScheduleReminderManager.sendFluidCloudTestReminder(notifContext, isCourse = false)
-                            notifFeedbackText = "✓ 已触发日程专属流体云胶囊通知卡片！"
+                            notifFeedbackText = "✓ 已触发日程专属胶囊通知卡片！"
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
                         border = BorderStroke(1.dp, DarkBorder),
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("📌 模拟日程流体云", fontSize = 11.5.sp)
+                        Text("📌 模拟日程胶囊通知", fontSize = 11.5.sp)
                     }
                 }
 
@@ -1593,6 +1633,136 @@ fun SettingsScreen(
                         text = notifFeedbackText!!,
                         fontSize = 11.5.sp,
                         color = if (notifFeedbackText!!.startsWith("✓")) DopamineGreen else if (notifFeedbackText!!.startsWith("💡")) DopaminePurple else DopamineOrange,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ---------------------------------------------------------------------------------
+        // 📱 桌面小组件中心 (Desktop Widgets Management)
+        // ---------------------------------------------------------------------------------
+        val widgetContext = androidx.compose.ui.platform.LocalContext.current
+        var widgetFeedbackText by remember { mutableStateOf<String?>(null) }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkCard),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📱", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
+                        Text(
+                            text = "桌面小组件中心",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                    Surface(
+                        color = DopamineCyan.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, DopamineCyan)
+                    ) {
+                        Text(
+                            text = "3 款规格已就绪",
+                            color = DopamineCyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "在手机桌面长按空白处选择【添加微件 / 桌面小组件】，找到 RMF 即可添加到主屏幕。无需启动应用即可实时查看日程、课表、倒数日并一键直达。",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                )
+
+                // 3 款小组件卡片列表
+                val widgetList = listOf(
+                    Triple(
+                        "⚡ 全景看板 (4x3 / 4x4)",
+                        "聚合今日课程动态、倒数日里程碑、北极星战略目标及今日重点日程完成率，支持模块深度直达与快捷专注/新建。",
+                        DopamineBlue
+                    ),
+                    Triple(
+                        "📅 今日日程清单 (4x2)",
+                        "专注时间块与待办任务列表，清晰呈现开始时间、完成状态与勾选进度，支持快捷添加新日程。",
+                        DopamineGreen
+                    ),
+                    Triple(
+                        "⏳ 专注与倒数胶囊 (2x2)",
+                        "大字直观透视置顶考试/重要日子倒数天数，集成 25 分钟番茄专注一键开启与闪念速记快捷入口。",
+                        DopamineAmber
+                    )
+                )
+
+                widgetList.forEach { (name, desc, color) ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(3.dp),
+                                    color = color,
+                                    modifier = Modifier.size(6.dp)
+                                ) {}
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
+                            Text(
+                                text = desc,
+                                fontSize = 10.5.sp,
+                                color = TextMuted,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 一键强制刷新全部小组件按钮
+                OutlinedButton(
+                    onClick = {
+                        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(widgetContext)
+                        widgetFeedbackText = "✓ 桌面 3 款规格小组件数据已成功刷新！"
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
+                    border = BorderStroke(1.dp, DopamineCyan),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🔄 立即强制刷新全部桌面小组件数据", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                if (widgetFeedbackText != null) {
+                    Text(
+                        text = widgetFeedbackText!!,
+                        fontSize = 11.5.sp,
+                        color = DopamineGreen,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
@@ -1664,7 +1834,7 @@ fun SettingsScreen(
                         border = BorderStroke(1.dp, Color(0xFF059669))
                     ) {
                         Text(
-                            text = "小米/OPPO/vivo/华为等",
+                            text = "主流手机系统日历",
                             color = Color(0xFF6EE7B7),
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium,

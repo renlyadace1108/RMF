@@ -36,22 +36,64 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val channelId = if (isCourse) RmfApplication.CHANNEL_FLUID_CLOUD else RmfApplication.CHANNEL_SCHEDULE_REMINDER
+        val reminderTypeCode = intent.getStringExtra(EXTRA_REMINDER_TYPE)
+        val reminderType = if (!reminderTypeCode.isNullOrBlank()) {
+            ReminderType.fromCode(reminderTypeCode)
+        } else {
+            ReminderType.ALL
+        }
+
+        val channelId = if (isCourse) {
+            when (reminderType) {
+                ReminderType.ALL -> RmfApplication.CHANNEL_FLUID_CLOUD
+                ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
+                ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
+                ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
+            }
+        } else {
+            when (reminderType) {
+                ReminderType.ALL -> RmfApplication.CHANNEL_SCHEDULE_REMINDER
+                ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
+                ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
+                ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
+            }
+        }
 
         val defaultSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
-            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setPriority(if (reminderType == ReminderType.NONE) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MAX)
             .setCategory(if (isCourse) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setSound(defaultSound)
-            .setVibrate(longArrayOf(0, 350, 200, 350))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
-            .setSubText(if (isCourse) "ColorOS 流体云 · 上课提醒" else "ColorOS 流体云提醒")
+            .setFullScreenIntent(pendingIntent, reminderType != ReminderType.NONE)
+            .setSubText(if (isCourse) "胶囊通知 · 上课提醒" else "胶囊通知提醒")
+
+        // 精确配置声音与震动规则
+        when (reminderType) {
+            ReminderType.ALL -> {
+                builder.setSound(defaultSound)
+                builder.setVibrate(longArrayOf(0, 350, 200, 350))
+                builder.setDefaults(NotificationCompat.DEFAULT_ALL)
+            }
+            ReminderType.ALARM -> {
+                builder.setSound(defaultSound)
+                builder.setVibrate(longArrayOf(0)) // 明确禁用震动
+                builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
+            }
+            ReminderType.VIBRATE -> {
+                builder.setSound(null) // 明确静音
+                builder.setVibrate(longArrayOf(0, 350, 200, 350))
+                builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_LIGHTS)
+            }
+            ReminderType.NONE -> {
+                builder.setSound(null)
+                builder.setVibrate(longArrayOf(0))
+                builder.setDefaults(0)
+            }
+        }
 
         if (isCourse) {
             // 2. 快捷一键进入听课专注 (FocusLiveService)
@@ -87,7 +129,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             val capsuleView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_capsule).apply {
                 setTextViewText(R.id.fluid_course_capsule_title, "🎓 $title")
                 val locText = if (courseLocation.isNotBlank()) "📍 $courseLocation" else "即将开课"
-                setTextViewText(R.id.fluid_course_capsule_location, "$locText | 点击进入流体云")
+                setTextViewText(R.id.fluid_course_capsule_location, "$locText | 点击进入专注")
                 setOnClickPendingIntent(R.id.fluid_course_capsule_btn, focusPendingIntent)
 
                 if (remainingMillis > 0) {
@@ -156,7 +198,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
             }
         } else {
-            // 通用日程也以 ColorOS 流体云实时胶囊与卡片呈现！
+            // 通用日程也以胶囊通知实时卡片呈现！
             val startMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
             val remMillis = if (startMillis > System.currentTimeMillis()) startMillis - System.currentTimeMillis() else 0L
 
@@ -258,5 +300,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_COURSE_TEACHER = "extra_course_teacher"
         const val EXTRA_COURSE_START_MILLIS = "extra_course_start_millis"
         const val EXTRA_COURSE_DURATION_MINUTES = "extra_course_duration_minutes"
+        const val EXTRA_REMINDER_TYPE = "extra_reminder_type"
     }
 }

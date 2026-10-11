@@ -130,7 +130,7 @@ fun FocusScreen(
                     color = TextPrimary
                 )
                 Text(
-                    text = "流体云实时胶囊 · 自定义时长 · 日程绑定",
+                    text = "胶囊通知 · 自定义时长 · 日程绑定",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)
@@ -459,7 +459,7 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 6. ColorOS 流体云实时状态指示卡片 (动态呈现流体云胶囊状态)
+        // 6. 胶囊通知实时状态指示卡片 (动态呈现胶囊通知状态)
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = if (isRunning) DopamineCyan.copy(alpha = 0.12f) else DarkCard,
@@ -476,7 +476,7 @@ fun FocusScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isRunning) "🫧 ColorOS 流体云实时胶囊运行中" else "🫧 ColorOS 流体云待命就绪",
+                        text = if (isRunning) "🫧 胶囊通知实时运行中" else "🫧 胶囊通知待命就绪",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isRunning) DopamineCyan else TextPrimary
@@ -500,9 +500,9 @@ fun FocusScreen(
 
                 Text(
                     text = if (isRunning) {
-                        "当前状态栏左上角挖孔旁已浮现实时动态胶囊！切换至手机桌面或息屏锁屏，胶囊与大卡片将常驻展示【${if (boundSchedule != null) boundSchedule.title else liveTitle}】倒计时与快捷暂停按钮。"
+                        "当前状态栏已浮现实时动态胶囊通知！切换至手机桌面或锁屏，胶囊与大卡片将常驻展示【${if (boundSchedule != null) boundSchedule.title else liveTitle}】倒计时与快捷暂停按钮。"
                     } else {
-                        "点击上方开始专注后，系统将自动通过高优先级前台服务在状态栏与锁屏激活流体云实时胶囊（深度适配 OPPO ColorOS / 小米 HyperOS / vivo OriginOS）。"
+                        "点击上方开始专注后，系统将自动通过高优先级前台服务在状态栏与锁屏激活胶囊通知。"
                     },
                     fontSize = 11.5.sp,
                     color = TextSecondary,

@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".RmfApplication"
@@ -26,6 +27,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:supportsPictureInPicture="true"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:windowSoftInputMode="adjustResize"
@@ -40,27 +42,28 @@
             android:name=".domain.service.ScheduleAlarmReceiver"
             android:exported="false" />
 
-        <!-- 开机自动重新注册日程闹钟 (适配 OPPO ColorOS 强杀与重启) -->
+        <!-- 开机自动重新注册日程闹钟 (适配系统强杀与重启) -->
         <receiver
             android:name=".domain.service.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
-        <!-- ColorOS 流体云实时服务 (前台状态栏胶囊与锁屏实时活动，支持原生实时活动 + 媒体会话双借道) -->
+        <!-- 胶囊通知实时服务 (前台状态栏胶囊与锁屏实时活动，支持原生实时活动 + 媒体会话双借道) -->
         <service
             android:name=".domain.service.FocusLiveService"
             android:exported="false"
             android:foregroundServiceType="specialUse|mediaPlayback">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Focus countdown timer and ColorOS fluid cloud status bar live capsule" />
+                android:value="Focus countdown timer and status bar live capsule" />
         </service>
 
-        <!-- 桌面智能小组件 (Desktop Widget) -->
+        <!-- 桌面智能小组件 1: 全景看板 (4x3 / 4x4) -->
         <receiver
             android:name=".ui.widget.RmfAppWidgetProvider"
             android:exported="true">
@@ -71,6 +74,32 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/rmf_widget_info" />
+        </receiver>
+
+        <!-- 桌面智能小组件 2: 今日日程清单 (4x2) -->
+        <receiver
+            android:name=".ui.widget.RmfScheduleWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.renly.rmf.ACTION_REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rmf_schedule_widget_info" />
+        </receiver>
+
+        <!-- 桌面智能小组件 3: 专注与倒数胶囊 (2x2) -->
+        <receiver
+            android:name=".ui.widget.RmfFocusCapsuleWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.renly.rmf.ACTION_REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rmf_focus_capsule_widget_info" />
         </receiver>
 
         <!-- FileProvider 支持将数据库与导出文件安全共享至 Google Drive 及本地文件系统 -->

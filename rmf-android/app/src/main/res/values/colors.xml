@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 流体云通知浅色模式色彩规范 (Day / Light Mode) -->
+    <!-- 胶囊通知浅色模式色彩规范 (Day / Light Mode) -->
     <color name="fluid_notif_title">#0F172A</color>
     <color name="fluid_notif_sub">#475569</color>
     <color name="fluid_notif_muted">#64748B</color>

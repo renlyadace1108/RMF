@@ -11,13 +11,14 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * 手机开机自启或 ColorOS 系统唤醒广播：
+ * 手机开机自启或系统唤醒广播：
  * 重新加载未来 24 小时内的未完成日程并注册精准系统闹钟，确保重启后提醒永不丢失
  */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
+            intent.action == Intent.ACTION_MY_PACKAGE_REPLACED ||
             intent.action == "android.intent.action.QUICKBOOT_POWERON" ||
             intent.action == "com.htc.intent.action.QUICKBOOT_POWERON"
         ) {
@@ -45,12 +46,15 @@ class BootReceiver : BroadcastReceiver() {
                         } catch (_: Exception) {}
                     }
 
-                    // 重新排期并注册未来有效课程的流体云上课提醒
+                    // 重新排期并注册未来有效课程的胶囊通知上课提醒
                     CourseReminderScheduler.scheduleUpcomingCourseReminders(
                         context = context,
                         courseDao = db.courseDao(),
                         daysAhead = 3
                     )
+
+                    // 重新装配并刷新桌面全部小组件
+                    com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
                 } catch (_: Exception) {}
             }
         }

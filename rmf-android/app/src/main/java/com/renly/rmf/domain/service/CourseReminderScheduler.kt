@@ -7,7 +7,7 @@ import java.time.LocalDate
 object CourseReminderScheduler {
 
     /**
-     * 为今日或接下来几天（默认未来 7 天）的所有有效课程自动排期注册 ColorOS 流体云系统闹钟
+     * 为今日或接下来几天（默认未来 7 天）的所有有效课程自动排期注册胶囊通知系统闹钟
      */
     suspend fun scheduleUpcomingCourseReminders(
         context: Context,

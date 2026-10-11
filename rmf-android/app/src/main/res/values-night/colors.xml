@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 流体云通知深色模式色彩规范 (Night / Dark Mode) -->
+    <!-- 胶囊通知深色模式色彩规范 (Night / Dark Mode) -->
     <color name="fluid_notif_title">#F8FAFC</color>
     <color name="fluid_notif_sub">#94A3B8</color>
     <color name="fluid_notif_muted">#64748B</color>

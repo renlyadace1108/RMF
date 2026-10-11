@@ -16,7 +16,7 @@ import java.util.TimeZone
  * 手机系统原生日历同步引擎 (System Calendar Sync Engine)
  *
  * 支持将 RMF 中的全部日程与时间块双向/单向导出同步到 Android 系统级日历
- * （深度适配小米 HyperOS 日历、OPPO ColorOS 日历、vivo OriginOS 日历、华为 HarmonyOS 日历与三星 OneUI 日历）。
+ * （深度适配主流手机品牌原生日历）。
  * 支持写入日程标题、开始结束时间、验收标准(DoD)、以及专属闹钟提醒 (CalendarContract.Reminders)。
  */
 object SystemCalendarSyncService {

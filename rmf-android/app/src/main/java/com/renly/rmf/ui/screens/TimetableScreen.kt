@@ -1125,16 +1125,15 @@ fun TimetableSettingsDialog(
 
                 HorizontalDivider(color = DarkBorder, thickness = 1.dp)
 
-                // ColorOS 流体云上课提醒配置
-
+                // 胶囊通知上课提醒配置
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("☁️ ColorOS 流体云上课提醒", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("上课前在状态栏胶囊、锁屏及横幅弹出流体云实时倒计时提醒", fontSize = 11.sp, color = TextSecondary)
+                        Text("☁️ 胶囊通知上课提醒", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("上课前在状态栏胶囊、锁屏及横幅弹出胶囊通知实时倒计时提醒", fontSize = 11.sp, color = TextSecondary)
                     }
                     Switch(
                         checked = reminderEnabled,

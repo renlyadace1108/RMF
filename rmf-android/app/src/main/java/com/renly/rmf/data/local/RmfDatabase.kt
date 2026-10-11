@@ -26,7 +26,7 @@ import com.renly.rmf.data.local.entity.*
         HabitEntity::class,
         CountdownEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -111,6 +111,15 @@ abstract class RmfDatabase : RoomDatabase() {
                     db.execSQL("ALTER TABLE schedules ADD COLUMN subtasks_json TEXT NOT NULL DEFAULT '[]';")
                 } catch (_: Exception) {}
                 createHabitsAndCountdownsTables(db)
+                ensureLosslessSchema(db)
+            }
+        }
+
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE schedules ADD COLUMN reminder_type TEXT NOT NULL DEFAULT 'ALL';")
+                } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
         }
@@ -211,16 +220,19 @@ abstract class RmfDatabase : RoomDatabase() {
                     RmfDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
-                            // 启用与 Windows 端完全对齐的高性能 WAL 模式与外键约束
+                            // 启用与 Windows 端完全对齐的高性能 WAL 模式、内存缓存与外键约束
                             try {
                                 db.query("PRAGMA journal_mode = WAL;").close()
                                 db.query("PRAGMA synchronous = NORMAL;").close()
                                 db.query("PRAGMA foreign_keys = ON;").close()
                                 db.query("PRAGMA busy_timeout = 5000;").close()
+                                db.query("PRAGMA temp_store = MEMORY;").close()
+                                db.query("PRAGMA cache_size = -8000;").close()
 
                                 // 无损动态列检查与补齐（对齐 Windows 端 SQLite 数据库热升级防护）
                                 ensureLosslessSchema(db)
@@ -238,6 +250,10 @@ abstract class RmfDatabase : RoomDatabase() {
                 // 确保健身计划与记录表结构存在
                 createFitnessTables(db)
                 createHabitsAndCountdownsTables(db)
+
+                // 核心查询覆盖索引优化 (避免多余全表扫描与磁盘临时排序)
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_schedules_active_time ON schedules(is_deleted, start_time);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_courses_active_day ON courses(is_deleted, day_of_week, start_section);")
                 // 1. 检查 schedules 表字段完整性
                 ensureTableColumns(
                     db = db,
@@ -263,6 +279,7 @@ abstract class RmfDatabase : RoomDatabase() {
                         "postpone_count" to "INTEGER DEFAULT 0",
                         "eisenhower_quadrant" to "TEXT DEFAULT 'Q2'",
                         "reminder_minutes" to "INTEGER NOT NULL DEFAULT 10",
+                        "reminder_type" to "TEXT NOT NULL DEFAULT 'ALL'",
                         "recurrence_rule" to "TEXT NOT NULL DEFAULT ''",
                         "subtasks_json" to "TEXT NOT NULL DEFAULT '[]'"
                     )

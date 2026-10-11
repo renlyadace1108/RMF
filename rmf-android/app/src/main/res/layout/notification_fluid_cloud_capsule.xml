@@ -31,7 +31,7 @@
             android:id="@+id/fluid_capsule_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="ColorOS 流体云实时监控"
+            android:text="胶囊通知实时监控"
             android:textColor="@color/fluid_notif_sub"
             android:textSize="11.5sp"
             android:layout_marginTop="2dp"

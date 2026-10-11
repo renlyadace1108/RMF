@@ -114,6 +114,9 @@ data class ScheduleEntity(
     @ColumnInfo(name = "reminder_minutes", defaultValue = "10")
     val reminderMinutes: Int = 10,
 
+    @ColumnInfo(name = "reminder_type", defaultValue = "'ALL'")
+    val reminderType: String = "ALL", // ALL, ALARM, VIBRATE, NONE
+
     @ColumnInfo(name = "created_at")
     val createdAt: String,
 

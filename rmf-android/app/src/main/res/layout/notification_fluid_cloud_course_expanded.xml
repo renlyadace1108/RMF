@@ -24,7 +24,7 @@
             android:paddingEnd="8dp"
             android:paddingTop="3dp"
             android:paddingBottom="3dp"
-            android:text="ColorOS 流体云 · 上课提醒"
+            android:text="胶囊通知 · 上课提醒"
             android:textColor="@color/fluid_notif_tag_text"
             android:textSize="11sp"
             android:textStyle="bold"

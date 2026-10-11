@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity() {
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            Toast.makeText(this, "✓ 日程与流体云通知提醒权限已成功开启", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✓ 日程与胶囊通知提醒权限已成功开启", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -267,10 +267,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var pendingTargetRoute by mutableStateOf<String?>(null)
+    private var pendingTargetAction by mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleWidgetIntent(intent)
+    }
+
+    private fun handleWidgetIntent(intent: Intent?) {
+        val route = intent?.getStringExtra(com.renly.rmf.ui.widget.RmfWidgetManager.EXTRA_TARGET_ROUTE)
+        val action = intent?.getStringExtra(com.renly.rmf.ui.widget.RmfWidgetManager.EXTRA_TARGET_ACTION)
+        if (!route.isNullOrBlank()) {
+            pendingTargetRoute = route
+        }
+        if (!action.isNullOrBlank()) {
+            pendingTargetAction = action
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 用户离开 App 切到桌面或锁屏时，自动刷新所有桌面小组件，确保桌面数据永远实时更新
+        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleWidgetIntent(intent)
 
-        // 异步后台自动检查并排期未来课程的 ColorOS 流体云上课提醒 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
+        // 异步后台自动检查并排期未来课程的胶囊通知上课提醒 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
         if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
             checkAndRequestNotificationPermission()
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -360,6 +387,24 @@ class MainActivity : ComponentActivity() {
 
                 var showQuickCaptureDialog by remember { mutableStateOf(false) }
                 var dailyReportDate by remember { mutableStateOf(java.time.LocalDate.now()) }
+
+                LaunchedEffect(pendingTargetRoute) {
+                    pendingTargetRoute?.let { route ->
+                        currentScreen = Screen.fromRoute(route)
+                        showSplashScreen = false
+                        pendingTargetRoute = null
+                    }
+                }
+
+                LaunchedEffect(pendingTargetAction) {
+                    pendingTargetAction?.let { act ->
+                        if (act == "quick_capture") {
+                            showQuickCaptureDialog = true
+                            showSplashScreen = false
+                        }
+                        pendingTargetAction = null
+                    }
+                }
 
                 Crossfade(
                     targetState = showSplashScreen,
@@ -510,19 +555,22 @@ class MainActivity : ComponentActivity() {
                                         if (newStatus == "COMPLETED") {
                                             com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, schedule.id)
                                         } else if (schedule.reminderMinutes >= 0 && schedule.startTime.isNotBlank()) {
+                                            val rType = com.renly.rmf.domain.service.ReminderType.fromCode(schedule.reminderType)
                                             com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
                                                 context = this@MainActivity,
                                                 scheduleId = schedule.id,
                                                 title = schedule.title,
                                                 startTimeStr = schedule.startTime,
-                                                advanceMinutes = schedule.reminderMinutes
+                                                advanceMinutes = schedule.reminderMinutes,
+                                                reminderType = rType
                                             )
                                         }
                                     }
                                 },
-                                onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes ->
+                                onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val actualType = com.renly.rmf.domain.service.ReminderType.fromCode(reminderType)
                                         val entity = ScheduleEntity(
                                             title = title,
                                             workType = workType,
@@ -531,6 +579,7 @@ class MainActivity : ComponentActivity() {
                                             startTime = startStr,
                                             endTime = endStr,
                                             reminderMinutes = reminderMinutes,
+                                            reminderType = actualType.code,
                                             createdAt = nowStr,
                                             updatedAt = nowStr
                                         )
@@ -541,7 +590,8 @@ class MainActivity : ComponentActivity() {
                                                 scheduleId = entity.id,
                                                 title = entity.title,
                                                 startTimeStr = entity.startTime,
-                                                advanceMinutes = reminderMinutes
+                                                advanceMinutes = reminderMinutes,
+                                                reminderType = actualType
                                             )
                                         }
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
@@ -554,12 +604,14 @@ class MainActivity : ComponentActivity() {
                                         db.scheduleDao().insertOrUpdate(schedule)
                                         if (schedule.startTime.isNotBlank()) {
                                             if (schedule.reminderMinutes >= 0 && schedule.status != "COMPLETED" && schedule.status != "ABANDONED") {
+                                                val rType = com.renly.rmf.domain.service.ReminderType.fromCode(schedule.reminderType)
                                                 com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
                                                     context = this@MainActivity,
                                                     scheduleId = schedule.id,
                                                     title = schedule.title,
                                                     startTimeStr = schedule.startTime,
-                                                    advanceMinutes = schedule.reminderMinutes
+                                                    advanceMinutes = schedule.reminderMinutes,
+                                                    reminderType = rType
                                                 )
                                             } else {
                                                 com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(
@@ -599,7 +651,7 @@ class MainActivity : ComponentActivity() {
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "课程已保存，流体云上课提醒已就绪！", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "课程已保存，胶囊通知上课提醒已就绪！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onDeleteCourse = { id ->
@@ -620,7 +672,7 @@ class MainActivity : ComponentActivity() {
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "已保存调停课，流体云提醒已同步更新！", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "已保存调停课，胶囊通知提醒已同步更新！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onDeleteAdjustment = { id ->

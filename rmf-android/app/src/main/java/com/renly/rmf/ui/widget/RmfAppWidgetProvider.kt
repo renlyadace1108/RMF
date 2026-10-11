@@ -1,17 +1,16 @@
 package com.renly.rmf.ui.widget
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
-import com.renly.rmf.MainActivity
 import com.renly.rmf.R
 import com.renly.rmf.RmfApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -20,57 +19,93 @@ import java.time.format.DateTimeFormatter
 class RmfAppWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+        if (appWidgetIds.isNotEmpty()) {
+            updateAppWidgets(context, appWidgetManager, appWidgetIds)
         }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH_WIDGET) {
+        if (intent.action == RmfWidgetManager.ACTION_REFRESH_WIDGET || intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val thisWidget = ComponentName(context, RmfAppWidgetProvider::class.java)
             val allWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
-            for (appWidgetId in allWidgetIds) {
-                updateAppWidget(context, appWidgetManager, appWidgetId)
+            if (allWidgetIds != null && allWidgetIds.isNotEmpty()) {
+                updateAppWidgets(context, appWidgetManager, allWidgetIds)
             }
         }
     }
 
     companion object {
-        const val ACTION_REFRESH_WIDGET = "com.renly.rmf.ACTION_REFRESH_WIDGET"
+        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+            updateAppWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+        }
+
+        fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+            if (appWidgetIds.isEmpty()) return
+
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_desktop)
 
-            // 点击整个小组件打开主界面
-            val openAppIntent = Intent(context, MainActivity::class.java)
-            val openAppPendingIntent = PendingIntent.getActivity(
-                context, 0, openAppIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            // 根视图点击 -> 打开日程主界面
+            views.setOnClickPendingIntent(
+                R.id.widget_root,
+                RmfWidgetManager.createNavPendingIntent(context, "schedule", 100)
             )
-            views.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent)
 
-            // 点击刷新按钮
-            val refreshIntent = Intent(context, RmfAppWidgetProvider::class.java).apply {
-                action = ACTION_REFRESH_WIDGET
-            }
-            val refreshPendingIntent = PendingIntent.getBroadcast(
-                context, 1, refreshIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            // 快捷刷新按钮
+            views.setOnClickPendingIntent(
+                R.id.widget_refresh_btn,
+                RmfWidgetManager.createRefreshPendingIntent(context, RmfAppWidgetProvider::class.java, 101)
             )
-            views.setOnClickPendingIntent(R.id.widget_refresh_btn, refreshPendingIntent)
+
+            // 快捷发起专注
+            views.setOnClickPendingIntent(
+                R.id.widget_quick_focus_btn,
+                RmfWidgetManager.createNavPendingIntent(context, "focus", 102)
+            )
+
+            // 快捷新建日程 (快速捕获)
+            views.setOnClickPendingIntent(
+                R.id.widget_quick_add_btn,
+                RmfWidgetManager.createActionPendingIntent(context, "quick_capture", 103)
+            )
+
+            // 倒数日容器点击 -> 深度跳转倒数日
+            views.setOnClickPendingIntent(
+                R.id.widget_countdown_container,
+                RmfWidgetManager.createNavPendingIntent(context, "countdowns", 104)
+            )
+
+            // 北极星目标容器点击 -> 深度跳转目标
+            views.setOnClickPendingIntent(
+                R.id.widget_north_star_container,
+                RmfWidgetManager.createNavPendingIntent(context, "goals", 105)
+            )
+
+            // 课表容器点击 -> 深度跳转课表
+            views.setOnClickPendingIntent(
+                R.id.widget_courses_container,
+                RmfWidgetManager.createNavPendingIntent(context, "timetable", 106)
+            )
+
+            // 日程容器点击 -> 深度跳转日程
+            views.setOnClickPendingIntent(
+                R.id.widget_tasks_container,
+                RmfWidgetManager.createNavPendingIntent(context, "schedule", 107)
+            )
 
             // 当前日期文本
             val today = LocalDate.now()
             val dateStr = today.format(DateTimeFormatter.ofPattern("MM-dd EEE"))
             views.setTextViewText(R.id.widget_date_text, dateStr)
 
-            // 异步查询数据库装配数据
+            // 异步查询数据库批量装配数据 (单次读取，批量推送至全部桌面组件实例)
             val app = context.applicationContext as? RmfApplication
             if (app != null) {
                 val db = app.database
-                CoroutineScope(Dispatchers.IO).launch {
+                widgetScope.launch {
                     try {
                         // 0. 倒数日 / 里程碑
                         val countdowns = db.countdownDao().getAllActiveCountdowns().first()
@@ -118,6 +153,14 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                         val endOfDay = today.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                         val schedules = db.scheduleDao().getSchedulesByDateRange(startOfDay, endOfDay).first()
                         val pendingSchedules = schedules.filter { it.status != "COMPLETED" }
+                        val completedCount = schedules.size - pendingSchedules.size
+
+                        val summaryText = if (schedules.isNotEmpty()) {
+                            "已完成 $completedCount/${schedules.size} 项 (${(completedCount * 100 / schedules.size)}%)"
+                        } else {
+                            "暂无日程"
+                        }
+                        views.setTextViewText(R.id.widget_tasks_summary, summaryText)
 
                         if (pendingSchedules.isNotEmpty()) {
                             views.setTextViewText(R.id.widget_task1, "1. " + pendingSchedules[0].title)
@@ -132,18 +175,18 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                                 views.setTextViewText(R.id.widget_task3, "")
                             }
                         } else {
-                            views.setTextViewText(R.id.widget_task1, "今日重点日程均已顺利完成！🎉")
+                            views.setTextViewText(R.id.widget_task1, if (schedules.isNotEmpty()) "今日重点日程均已顺利完成！🎉" else "今日暂无待排期日程，点击新建")
                             views.setTextViewText(R.id.widget_task2, "")
                             views.setTextViewText(R.id.widget_task3, "")
                         }
 
-                        appWidgetManager.updateAppWidget(appWidgetId, views)
+                        appWidgetManager.updateAppWidget(appWidgetIds, views)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
             } else {
-                appWidgetManager.updateAppWidget(appWidgetId, views)
+                appWidgetManager.updateAppWidget(appWidgetIds, views)
             }
         }
     }

@@ -11,6 +11,7 @@ obj/
 *.log
 startup_error.txt
 crash.log
+*.png
 
 # Publish & installers
 publish/
