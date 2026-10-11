@@ -302,6 +302,8 @@ class MainActivity : ComponentActivity() {
                 darkBgColorHex = currentCustomDarkBgHex,
                 lightBgColorHex = currentCustomLightBgHex
             ) {
+                var showSplashScreen by remember { mutableStateOf(true) }
+                var showSettingsGestureTutorial by remember { mutableStateOf(false) }
                 var showPrivacyDialog by remember {
                     mutableStateOf(!com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this@MainActivity))
                 }
@@ -311,6 +313,9 @@ class MainActivity : ComponentActivity() {
                         onAccept = {
                             com.renly.rmf.domain.service.PrivacyPreferences.setPrivacyAccepted(this@MainActivity, true)
                             showPrivacyDialog = false
+                            // 首次启动流程：先展示协议，用户同意后再展示设置手势教学
+                            showSettingsGestureTutorial = true
+                            showSplashScreen = false
                             checkAndRequestNotificationPermission()
                             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
@@ -326,7 +331,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                var showSplashScreen by remember { mutableStateOf(true) }
                 var isBottomBarVisible by remember {
                     mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.isBottomBarVisible(this@MainActivity))
                 }
@@ -341,15 +345,6 @@ class MainActivity : ComponentActivity() {
                 }
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
-                var showSettingsGestureTutorial by remember { mutableStateOf(false) }
-
-                LaunchedEffect(showSplashScreen, showPrivacyDialog) {
-                    if (!showSplashScreen && !showPrivacyDialog) {
-                        if (!com.renly.rmf.domain.service.SettingsTutorialPreferences.isSettingsGestureTutorialCompleted(this@MainActivity)) {
-                            showSettingsGestureTutorial = true
-                        }
-                    }
-                }
 
                 var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
