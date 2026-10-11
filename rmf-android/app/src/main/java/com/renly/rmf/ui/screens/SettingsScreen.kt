@@ -85,28 +85,31 @@ fun SettingsScreen(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 顶部导航栏：返回按钮与系统设置标题
+        // 顶部导航栏：系统设置标题（纯手势操作退出，移除返回按钮）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = TextPrimary
-                )
-            }
-            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "系统设置",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = DopamineBlue.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f))
+            ) {
+                Text(
+                    text = "底栏滑动退出 ⇆",
+                    fontSize = 11.5.sp,
+                    color = DopamineBlue,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

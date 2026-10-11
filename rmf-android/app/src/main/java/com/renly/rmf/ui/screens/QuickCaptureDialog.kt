@@ -2,6 +2,7 @@ package com.renly.rmf.ui.screens
 
 import android.app.PendingIntent
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -66,7 +67,7 @@ fun QuickCaptureDialog(
                 Column(
                     modifier = Modifier.padding(20.dp)
                 ) {
-                    // 头部
+                    // 头部标题
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -75,28 +76,61 @@ fun QuickCaptureDialog(
                             imageVector = Icons.Default.FlashOn,
                             contentDescription = "闪念捕获",
                             tint = DopamineBlue,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "全局闪念极速捕获",
-                            fontSize = 17.sp,
+                            fontSize = 16.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
-                        Spacer(modifier = Modifier.weight(1f))
-                        // 切换模式: 日程 / 记账
-                        FilterChip(
-                            selected = captureMode == "SCHEDULE",
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 切换模式: 日程 / 记账 (独立通栏双按钮，杜绝截断挤压)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
                             onClick = { captureMode = "SCHEDULE" },
-                            label = { Text("日程", fontSize = 11.sp) }
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        FilterChip(
-                            selected = captureMode == "EXPENSE",
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (captureMode == "SCHEDULE") DopamineBlue.copy(alpha = 0.18f) else DarkSurface,
+                            border = BorderStroke(1.dp, if (captureMode == "SCHEDULE") DopamineBlue else DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "📅 日程安排",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (captureMode == "SCHEDULE") DopamineBlue else TextSecondary
+                                )
+                            }
+                        }
+
+                        Surface(
                             onClick = { captureMode = "EXPENSE" },
-                            label = { Text("记账", fontSize = 11.sp) }
-                        )
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (captureMode == "EXPENSE") DopamineGreen.copy(alpha = 0.18f) else DarkSurface,
+                            border = BorderStroke(1.dp, if (captureMode == "EXPENSE") DopamineGreen else DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "💰 随手记账",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (captureMode == "EXPENSE") DopamineGreen else TextSecondary
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))

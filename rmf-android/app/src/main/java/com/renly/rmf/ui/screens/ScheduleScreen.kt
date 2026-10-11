@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -30,12 +31,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +47,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.renly.rmf.RmfApplication
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.ScheduleTagEntity
@@ -439,58 +444,103 @@ fun ScheduleScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 自然语言输入条
+                    // 明确清晰的创建清单任务输入卡片 (消除歧义输入框)
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = DarkCard,
-                        border = BorderStroke(1.dp, DarkBorder),
+                        border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 2.dp)
-                        ) {
-                            TextField(
-                                value = quickInputText,
-                                onValueChange = { quickInputText = it },
-                                placeholder = { Text("例: 下午3点攻坚架构 45m #技术", fontSize = 12.5.sp, color = TextMuted) },
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary
-                                ),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            IconButton(
-                                onClick = {
-                                    if (quickInputText.isNotBlank()) {
-                                        val parsed = NaturalLanguageScheduleParser.parse(quickInputText)
-                                        onAddSchedule(
-                                            parsed.title,
-                                            "DEEP_WORK",
-                                            parsed.category,
-                                            parsed.durationMinutes,
-                                            parsed.startTime.format(DateTimeFormatter.ISO_DATE_TIME),
-                                            parsed.endTime.format(DateTimeFormatter.ISO_DATE_TIME),
-                                            10
-                                        )
-                                        quickInputText = ""
-                                    }
-                                }
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = "解析添加",
+                                    imageVector = Icons.Default.AddCircle,
+                                    contentDescription = null,
                                     tint = DopamineBlue,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "新建清单任务",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "⚡ 支持自然语言识别",
+                                    fontSize = 11.sp,
+                                    color = TextMuted
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = quickInputText,
+                                    onValueChange = { quickInputText = it },
+                                    placeholder = {
+                                        Text(
+                                            "输入待办内容，如：下午3点攻坚架构 45m #技术",
+                                            fontSize = 12.sp,
+                                            color = TextMuted
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 46.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = DopamineBlue,
+                                        unfocusedBorderColor = DarkBorder,
+                                        focusedContainerColor = DarkSurface,
+                                        unfocusedContainerColor = DarkSurface,
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
+                                    ),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (quickInputText.isNotBlank()) {
+                                            val parsed = NaturalLanguageScheduleParser.parse(quickInputText)
+                                            onAddSchedule(
+                                                parsed.title,
+                                                "DEEP_WORK",
+                                                parsed.category,
+                                                parsed.durationMinutes,
+                                                parsed.startTime.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                parsed.endTime.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                10
+                                            )
+                                            quickInputText = ""
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = DopamineBlue,
+                                        disabledContainerColor = DopamineBlue.copy(alpha = 0.35f)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
+                                    enabled = quickInputText.isNotBlank()
+                                ) {
+                                    Text(
+                                        text = "添加",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -990,6 +1040,10 @@ fun ScheduleWeekGridView(
     val verticalScrollState = rememberScrollState()
     val density = LocalDensity.current
 
+    val hapticFeedback = LocalHapticFeedback.current
+    var weekViewRootOffset by remember { mutableStateOf(Offset.Zero) }
+    var backlogDragTouchInRoot by remember { mutableStateOf(Offset.Zero) }
+
     // 待办拖拽与框选排期状态
     var draggingBacklogItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var backlogDragOffsetY by remember { mutableFloatStateOf(0f) }
@@ -1022,7 +1076,12 @@ fun ScheduleWeekGridView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { weekViewRootOffset = it.positionInRoot() }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // 周次切换控制器
         Row(
             modifier = Modifier
@@ -1133,28 +1192,35 @@ fun ScheduleWeekGridView(
                                     else -> DopaminePurple
                                 }
 
+                                var chipPosInRoot by remember { mutableStateOf(Offset.Zero) }
+                                val isBeingDragged = draggingBacklogItem?.id == item.id
+
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = chipColor.copy(alpha = 0.16f),
-                                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.7f)),
+                                    color = chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.16f),
+                                    border = BorderStroke(1.dp, chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.7f)),
                                     modifier = Modifier
+                                        .onGloballyPositioned { coords -> chipPosInRoot = coords.positionInRoot() }
                                         .pointerInput(item.id) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = { offset ->
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     draggingBacklogItem = item
-                                                    backlogDragOffsetY = offset.y
-                                                    backlogDragOffsetX = offset.x
+                                                    backlogDragTouchInRoot = chipPosInRoot + offset
+                                                    backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
+                                                    backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
                                                 },
                                                 onDrag = { change, dragAmount ->
                                                     change.consume()
+                                                    backlogDragTouchInRoot += dragAmount
                                                     backlogDragOffsetY += dragAmount.y
                                                     backlogDragOffsetX += dragAmount.x
                                                 },
                                                 onDragEnd = {
                                                     if (draggingBacklogItem != null) {
                                                         val currentScroll = verticalScrollState.value
-                                                        val dropGlobalY = backlogChipRootY + backlogDragOffsetY
-                                                        val dropGlobalX = backlogChipRootX + backlogDragOffsetX
+                                                        val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
+                                                        val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
                                                         val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
                                                         val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
 
@@ -1168,12 +1234,14 @@ fun ScheduleWeekGridView(
 
                                                         onScheduleBacklog(draggingBacklogItem!!, targetDt)
                                                         draggingBacklogItem = null
+                                                        backlogDragTouchInRoot = Offset.Zero
                                                         backlogDragOffsetY = 0f
                                                         backlogDragOffsetX = 0f
                                                     }
                                                 },
                                                 onDragCancel = {
                                                     draggingBacklogItem = null
+                                                    backlogDragTouchInRoot = Offset.Zero
                                                     backlogDragOffsetY = 0f
                                                     backlogDragOffsetX = 0f
                                                 }
@@ -1426,8 +1494,8 @@ fun ScheduleWeekGridView(
                                 // 待办拖拽至周历的实时预览虚影 (Hover Preview Ghost on Week Column)
                                 if (draggingBacklogItem != null) {
                                     val currentScroll = verticalScrollState.value
-                                    val dropGlobalY = backlogChipRootY + backlogDragOffsetY
-                                    val dropGlobalX = backlogChipRootX + backlogDragOffsetX
+                                    val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
+                                    val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
                                     val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
                                     val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
 
@@ -1592,6 +1660,68 @@ fun ScheduleWeekGridView(
         }
     }
 
+    // 🎯 待排期任务拖动时：跟随手指移动的跟手任务卡片 (实时反馈拖动是否成功)
+    if (draggingBacklogItem != null && backlogDragTouchInRoot != Offset.Zero) {
+        val draggedColor = tagColorMap[draggingBacklogItem!!.category] ?: when (draggingBacklogItem!!.workType) {
+            "DEEP_WORK" -> DopamineBlue
+            "SHALLOW_WORK" -> DopamineAmber
+            "REST_BUFFER" -> DopamineGreen
+            else -> DopaminePurple
+        }
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = draggedColor.copy(alpha = 0.95f),
+            shadowElevation = 12.dp,
+            border = BorderStroke(1.5.dp, Color.White),
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        x = (backlogDragTouchInRoot.x - weekViewRootOffset.x - 45.dp.toPx()).roundToInt(),
+                        y = (backlogDragTouchInRoot.y - weekViewRootOffset.y - 56.dp.toPx()).roundToInt()
+                    )
+                }
+                .graphicsLayer {
+                    rotationZ = -3f
+                    scaleX = 1.05f
+                    scaleY = 1.05f
+                }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text("✊", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = draggingBacklogItem!!.title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color.Black.copy(alpha = 0.35f)
+                ) {
+                    Text(
+                        text = "${draggingBacklogItem!!.estimatedMinutes}m",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "拖动中",
+                    fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+            }
+        }
+    }
+}
+
     // 周历框选排期弹窗 (DragRangeScheduleDialog)
     if (dragSelectedRange != null) {
         DragRangeScheduleDialog(
@@ -1647,6 +1777,10 @@ fun ScheduleDayGridView(
         dt?.toLocalDate() == selectedDate
     }
 
+    val hapticFeedback = LocalHapticFeedback.current
+    var dayViewRootOffset by remember { mutableStateOf(Offset.Zero) }
+    var dayDragTouchInRoot by remember { mutableStateOf(Offset.Zero) }
+
     // 待办拖拽与排期状态
     var draggingItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
@@ -1680,7 +1814,12 @@ fun ScheduleDayGridView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { dayViewRootOffset = it.positionInRoot() }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // 1. 周日期横向选择器
         Row(
             modifier = Modifier
@@ -1792,25 +1931,32 @@ fun ScheduleDayGridView(
                                     else -> DopaminePurple
                                 }
 
+                                var dayChipPosInRoot by remember { mutableStateOf(Offset.Zero) }
+                                val isBeingDragged = draggingItem?.id == item.id
+
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = chipColor.copy(alpha = 0.16f),
-                                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.7f)),
+                                    color = chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.16f),
+                                    border = BorderStroke(1.dp, chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.7f)),
                                     modifier = Modifier
+                                        .onGloballyPositioned { coords -> dayChipPosInRoot = coords.positionInRoot() }
                                         .pointerInput(item.id) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = { offset ->
+                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     draggingItem = item
-                                                    dragOffsetY = offset.y
+                                                    dayDragTouchInRoot = dayChipPosInRoot + offset
+                                                    dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
                                                 },
                                                 onDrag = { change, dragAmount ->
                                                     change.consume()
+                                                    dayDragTouchInRoot += dragAmount
                                                     dragOffsetY += dragAmount.y
                                                 },
                                                 onDragEnd = {
                                                     if (draggingItem != null) {
                                                         val currentScroll = verticalScrollState.value
-                                                        val dropGlobalY = chipYInRoot + dragOffsetY
+                                                        val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
                                                         val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
                                                         val relDp = relativeY / density.density
                                                         val dropHour = (relDp / 50f).toInt().coerceIn(0, 23)
@@ -1818,11 +1964,13 @@ fun ScheduleDayGridView(
                                                         val targetDt = selectedDate.atTime(dropHour, dropMinute)
                                                         onScheduleBacklog(draggingItem!!, targetDt)
                                                         draggingItem = null
+                                                        dayDragTouchInRoot = Offset.Zero
                                                         dragOffsetY = 0f
                                                     }
                                                 },
                                                 onDragCancel = {
                                                     draggingItem = null
+                                                    dayDragTouchInRoot = Offset.Zero
                                                     dragOffsetY = 0f
                                                 }
                                             )
@@ -2012,7 +2160,7 @@ fun ScheduleDayGridView(
                         // 动态待办拖拽预览色块 (Hover Preview Ghost)
                         if (draggingItem != null) {
                             val currentScroll = verticalScrollState.value
-                            val dropGlobalY = chipYInRoot + dragOffsetY
+                            val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
                             val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
                             val relDp = relativeY / density.density
                             val previewHour = (relDp / 50f).toInt().coerceIn(0, 23)
@@ -2459,6 +2607,68 @@ fun ScheduleDayGridView(
             )
         }
     }
+
+    // 🎯 单日视图下待排期任务拖动时的跟手任务卡片 (实时反馈拖动是否成功)
+    if (draggingItem != null && dayDragTouchInRoot != Offset.Zero) {
+        val draggedColor = tagColorMap[draggingItem!!.category] ?: when (draggingItem!!.workType) {
+            "DEEP_WORK" -> DopamineBlue
+            "SHALLOW_WORK" -> DopamineAmber
+            "REST_BUFFER" -> DopamineGreen
+            else -> DopaminePurple
+        }
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = draggedColor.copy(alpha = 0.95f),
+            shadowElevation = 12.dp,
+            border = BorderStroke(1.5.dp, Color.White),
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        x = (dayDragTouchInRoot.x - dayViewRootOffset.x - 45.dp.toPx()).roundToInt(),
+                        y = (dayDragTouchInRoot.y - dayViewRootOffset.y - 56.dp.toPx()).roundToInt()
+                    )
+                }
+                .graphicsLayer {
+                    rotationZ = -3f
+                    scaleX = 1.05f
+                    scaleY = 1.05f
+                }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text("✊", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = draggingItem!!.title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color.Black.copy(alpha = 0.35f)
+                ) {
+                    Text(
+                        text = "${draggingItem!!.estimatedMinutes}m",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "拖动中",
+                    fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+            }
+        }
+    }
+}
 }
 
 // -----------------------------------------------------------------------------------------
