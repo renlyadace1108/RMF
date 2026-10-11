@@ -13,7 +13,9 @@ import androidx.compose.ui.unit.sp
 import com.renly.rmf.ui.theme.*
 
 @Composable
-fun TutorialScreen() {
+fun TutorialScreen(
+    onShowGestureTutorial: () -> Unit = {}
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -120,7 +122,7 @@ fun TutorialScreen() {
             Card(
                 colors = CardDefaults.cardColors(containerColor = DarkCard),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("5. ☁️ 跨端数据同步与备份", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DopamineBlue)
@@ -132,6 +134,37 @@ fun TutorialScreen() {
                         color = TextSecondary,
                         lineHeight = 20.sp
                     )
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("6. ⚙️ 极简手势：底部栏滑动直达设置与退出", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "工作台与系统设置已完全独立分立，无需寻找深层菜单：\n" +
+                        "• 在屏幕下方的底部导航栏上向左或向右任意轻滑，即可瞬间进入系统设置。\n" +
+                        "• 在设置界面再次轻滑底栏或点击顶栏 ⬅️，即可立即原路返回之前的页面。\n" +
+                        "• 另外在「工作台」右上角也常驻了「⚙️ 系统设置」按钮。",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onShowGestureTutorial,
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan.copy(alpha = 0.2f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DopamineCyan),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("🎬 查看底部栏手势动画教学", fontSize = 12.5.sp, color = DopamineCyan, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

@@ -63,7 +63,8 @@ fun SettingsScreen(
     onImportLosslessDb: () -> Unit = {},
     onClearAllBusinessData: () -> Unit = {},
     onTriggerUpload: () -> Unit = {},
-    onTriggerDownload: () -> Unit = {}
+    onTriggerDownload: () -> Unit = {},
+    onShowGestureTutorial: () -> Unit = {}
 ) {
     var aiReviewText by remember { mutableStateOf<String?>(null) }
     var isGeneratingAi by remember { mutableStateOf(false) }
@@ -661,7 +662,7 @@ fun SettingsScreen(
                     ) {
                         Surface(
                             onClick = {
-                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "settings"))
+                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "workbench"))
                             },
                             shape = RoundedCornerShape(8.dp),
                             color = DarkSurface,
@@ -677,7 +678,7 @@ fun SettingsScreen(
 
                         Surface(
                             onClick = {
-                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "focus", "fitness", "settings"))
+                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "focus", "fitness", "workbench"))
                             },
                             shape = RoundedCornerShape(8.dp),
                             color = DopamineCyan.copy(alpha = 0.15f),
@@ -901,6 +902,61 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 💡 底部栏手势教学指引卡片
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("💡", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "底栏滑动手势教学",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "向左或向右轻滑底栏可随时直达或退出系统设置",
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onShowGestureTutorial,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DopamineCyan.copy(alpha = 0.18f)
+                        ),
+                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.75f)),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "观看指引 🎬",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DopamineCyan
+                        )
+                    }
+                }
+            }
+        }
 
         // ---------------------------------------------------------------------------------
         // ⚡ 智能互联与云端服务 (AI、Google、系统日历、通知)

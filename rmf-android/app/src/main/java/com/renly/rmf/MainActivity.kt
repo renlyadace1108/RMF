@@ -341,6 +341,15 @@ class MainActivity : ComponentActivity() {
                 }
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
+                var showSettingsGestureTutorial by remember { mutableStateOf(false) }
+
+                LaunchedEffect(showSplashScreen, showPrivacyDialog) {
+                    if (!showSplashScreen && !showPrivacyDialog) {
+                        if (!com.renly.rmf.domain.service.SettingsTutorialPreferences.isSettingsGestureTutorialCompleted(this@MainActivity)) {
+                            showSettingsGestureTutorial = true
+                        }
+                    }
+                }
 
                 var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
@@ -388,6 +397,8 @@ class MainActivity : ComponentActivity() {
                                             bottomBarDragDelta = 0f
                                             // 在底部栏左右滑进入设置界面退出设置界面
                                             if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
+                                                com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
+                                                showSettingsGestureTutorial = false
                                                 if (currentScreen == Screen.Settings) {
                                                     currentScreen = lastScreenBeforeSettings
                                                 } else {
@@ -775,7 +786,9 @@ class MainActivity : ComponentActivity() {
                                 onBack = { currentScreen = Screen.Schedule }
                             )
 
-                            Screen.Tutorial -> TutorialScreen()
+                            Screen.Tutorial -> TutorialScreen(
+                                onShowGestureTutorial = { showSettingsGestureTutorial = true }
+                            )
 
                             Screen.Fitness -> FitnessScreen(
                                 fitnessDao = db.fitnessDao(),
@@ -999,6 +1012,9 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         importBackupLauncher.launch(arrayOf("*/*"))
                                     }
+                                },
+                                onShowGestureTutorial = {
+                                    showSettingsGestureTutorial = true
                                 }
                             )
                                 }
@@ -1179,6 +1195,22 @@ class MainActivity : ComponentActivity() {
                                 TextButton(onClick = { showFloatingNavMenu = false }) {
                                     Text("关闭", color = TextSecondary)
                                 }
+                            }
+                        )
+                    }
+
+                    if (showSettingsGestureTutorial) {
+                        com.renly.rmf.ui.screens.SettingsGestureTutorialDialog(
+                            onDismiss = {
+                                com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
+                                showSettingsGestureTutorial = false
+                            },
+                            onTryNow = {
+                                com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
+                                showSettingsGestureTutorial = false
+                                lastScreenBeforeSettings = currentScreen
+                                currentScreen = Screen.Settings
+                                Toast.makeText(this@MainActivity, "✨ 已进入系统设置！在底部栏左右轻滑即可退回", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
