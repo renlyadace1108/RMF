@@ -62,14 +62,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
 enum class ScheduleViewMode(val title: String, val icon: String) {
-    WEEK_GRID("周网格", "📅"),
     DAY_GRID("日网格", "⏱️"),
+    WEEK_GRID("周网格", "📅"),
     LIST("清单流", "📋"),
     EISENHOWER("四象限", "🎯")
 }
@@ -159,32 +161,30 @@ fun ScheduleScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState())
                     ) {
-                        // 📥 待办箱 (Backlog 任务池弹窗入口)
+                        // ⚡ 闪念胶囊速记入口
                         Surface(
-                            onClick = { showBacklogDialog = true },
+                            onClick = onOpenQuickCapture,
                             shape = RoundedCornerShape(16.dp),
                             color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
                             modifier = Modifier.height(30.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             ) {
-                                Text("📥", fontSize = 10.5.sp)
+                                Text("⚡", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = if (backlogSchedules.isNotEmpty()) "待办 ${backlogSchedules.size}" else "待办",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = DopamineAmber
-                                )
+                                Text("闪念", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
                             }
                         }
 
@@ -206,24 +206,6 @@ fun ScheduleScreen(
                             }
                         }
 
-                        // ⚡ 闪念胶囊速记入口
-                        Surface(
-                            onClick = onOpenQuickCapture,
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
-                            modifier = Modifier.height(30.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            ) {
-                                Text("⚡", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("闪念", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
-                            }
-                        }
-
                         // 📅 Google 日历同步与导出入口
                         Surface(
                             onClick = { showCalendarSyncDialog = true },
@@ -239,6 +221,29 @@ fun ScheduleScreen(
                                 Text("📅", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text("日历", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineGreen)
+                            }
+                        }
+
+                        // 📥 待办箱 (Backlog 任务池弹窗入口)
+                        Surface(
+                            onClick = { showBacklogDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("📥", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (backlogSchedules.isNotEmpty()) "待办 ${backlogSchedules.size}" else "待办",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = DopamineAmber
+                                )
                             }
                         }
 
@@ -1041,6 +1046,7 @@ fun ScheduleWeekGridView(
     val density = LocalDensity.current
 
     val hapticFeedback = LocalHapticFeedback.current
+    val context = LocalContext.current
     var weekViewRootOffset by remember { mutableStateOf(Offset.Zero) }
     var backlogDragTouchInRoot by remember { mutableStateOf(Offset.Zero) }
 
@@ -1052,7 +1058,44 @@ fun ScheduleWeekGridView(
     var backlogChipRootX by remember { mutableFloatStateOf(0f) }
     var weekGridRootY by remember { mutableFloatStateOf(0f) }
     var weekGridRootX by remember { mutableFloatStateOf(0f) }
+    var weekDayColWidthPx by remember { mutableFloatStateOf(0f) }
     var isBacklogExpanded by remember { mutableStateOf(false) }
+
+    val executeDropWeek: (ScheduleEntity) -> Unit = { item ->
+        val currentScroll = verticalScrollState.value
+        val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
+        val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
+        if (dropGlobalY >= (weekGridRootY - 15f)) {
+            val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
+            val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
+            val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
+            val targetDay = weekDates[colW]
+
+            val relDp = relativeY / density.density
+            val totalMinutes = ((relDp / 46f) * 60f).roundToInt()
+            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+            val dropHour = snappedMinutes / 60
+            val dropMinute = snappedMinutes % 60
+            val targetDt = targetDay.atTime(dropHour, dropMinute)
+
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            onScheduleBacklog(item, targetDt)
+            val weekdayName = when (targetDay.dayOfWeek) {
+                DayOfWeek.MONDAY -> "周一"
+                DayOfWeek.TUESDAY -> "周二"
+                DayOfWeek.WEDNESDAY -> "周三"
+                DayOfWeek.THURSDAY -> "周四"
+                DayOfWeek.FRIDAY -> "周五"
+                DayOfWeek.SATURDAY -> "周六"
+                DayOfWeek.SUNDAY -> "周日"
+            }
+            Toast.makeText(context, "已排期: ${item.title} 至 $weekdayName %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+        }
+        draggingBacklogItem = null
+        backlogDragTouchInRoot = Offset.Zero
+        backlogDragOffsetY = 0f
+        backlogDragOffsetX = 0f
+    }
 
     // 空白网格拖拽框选排期状态
     var isDragSelecting by remember { mutableStateOf(false) }
@@ -1064,7 +1107,6 @@ fun ScheduleWeekGridView(
     var movingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var movingDragDeltaY by remember { mutableFloatStateOf(0f) }
     var movingOriginalTopDp by remember { mutableFloatStateOf(0f) }
-    var weekDayColWidthPx by remember { mutableFloatStateOf(0f) }
 
     var hasInitializedScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -1180,11 +1222,14 @@ fun ScheduleWeekGridView(
 
                     if (isBacklogExpanded) {
                         Spacer(modifier = Modifier.height(3.dp))
-                        LazyRow(
+                        val weekBacklogScrollState = rememberScrollState()
+                        Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(weekBacklogScrollState, enabled = draggingBacklogItem == null)
                         ) {
-                            items(backlogItems, key = { it.id }) { item ->
+                            backlogItems.forEach { item ->
                                 val chipColor = tagColorMap[item.category] ?: when (item.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
@@ -1217,27 +1262,7 @@ fun ScheduleWeekGridView(
                                                     backlogDragOffsetX += dragAmount.x
                                                 },
                                                 onDragEnd = {
-                                                    if (draggingBacklogItem != null) {
-                                                        val currentScroll = verticalScrollState.value
-                                                        val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
-                                                        val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
-                                                        val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
-                                                        val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
-
-                                                        val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
-                                                        val targetDay = weekDates[colW]
-
-                                                        val relDp = relativeY / density.density
-                                                        val dropHour = (relDp / 46f).toInt().coerceIn(0, 23)
-                                                        val dropMinute = if ((relDp % 46f) >= 23f) 30 else 0
-                                                        val targetDt = targetDay.atTime(dropHour, dropMinute)
-
-                                                        onScheduleBacklog(draggingBacklogItem!!, targetDt)
-                                                        draggingBacklogItem = null
-                                                        backlogDragTouchInRoot = Offset.Zero
-                                                        backlogDragOffsetY = 0f
-                                                        backlogDragOffsetX = 0f
-                                                    }
+                                                    executeDropWeek(item)
                                                 },
                                                 onDragCancel = {
                                                     draggingBacklogItem = null
@@ -1252,21 +1277,61 @@ fun ScheduleWeekGridView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
                                     ) {
-                                        Text("⋮⋮", fontSize = 9.5.sp, color = chipColor, fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(
-                                            text = item.title,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = TextPrimary
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "${item.estimatedMinutes}m",
-                                            fontSize = 9.sp,
-                                            color = chipColor,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        // 专属拖拽把手：一触即拖（零延迟拖动，跟手卡片即刻显现）
+                                        Box(
+                                            modifier = Modifier
+                                                .pointerInput(item.id) {
+                                                    detectDragGestures(
+                                                        onDragStart = { offset ->
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            draggingBacklogItem = item
+                                                            backlogDragTouchInRoot = chipPosInRoot + offset
+                                                            backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
+                                                            backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
+                                                        },
+                                                        onDrag = { change, dragAmount ->
+                                                            change.consume()
+                                                            backlogDragTouchInRoot += dragAmount
+                                                            backlogDragOffsetY += dragAmount.y
+                                                            backlogDragOffsetX += dragAmount.x
+                                                        },
+                                                        onDragEnd = {
+                                                            executeDropWeek(item)
+                                                        },
+                                                        onDragCancel = {
+                                                            draggingBacklogItem = null
+                                                            backlogDragTouchInRoot = Offset.Zero
+                                                            backlogDragOffsetY = 0f
+                                                            backlogDragOffsetX = 0f
+                                                        }
+                                                    )
+                                                }
+                                                .padding(end = 4.dp)
+                                        ) {
+                                            Text("⋮⋮", fontSize = 11.sp, color = chipColor, fontWeight = FontWeight.ExtraBold)
+                                        }
+
+                                        // 点击标题与时长：快捷打开排期设定或详情
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable {
+                                                onItemClick(item)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = item.title,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextPrimary
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "${item.estimatedMinutes}m",
+                                                fontSize = 9.sp,
+                                                color = chipColor,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1496,32 +1561,36 @@ fun ScheduleWeekGridView(
                                     val currentScroll = verticalScrollState.value
                                     val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
                                     val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
-                                    val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
-                                    val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
+                                    if (dropGlobalY >= (weekGridRootY - 15f)) {
+                                        val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
+                                        val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
 
-                                    val colW = (relativeX / dayColWidthPx).toInt().coerceIn(0, 6)
-                                    val relDp = relativeY / density.density
-                                    val previewHour = (relDp / 46f).toInt().coerceIn(0, 23)
-                                    val previewMinute = if ((relDp % 46f) >= 23f) 30 else 0
-                                    val previewTopY = previewHour * 46f + previewMinute * 46f / 60f
-                                    val previewBlockH = (draggingBacklogItem!!.estimatedMinutes.toFloat() / 60f * 46f).coerceAtLeast(20f)
+                                        val colW = (relativeX / dayColWidthPx).toInt().coerceIn(0, 6)
+                                        val relDp = relativeY / density.density
+                                        val totalMinutes = ((relDp / 46f) * 60f).roundToInt()
+                                        val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+                                        val previewHour = snappedMinutes / 60
+                                        val previewMinute = snappedMinutes % 60
+                                        val previewTopY = previewHour * 46f + previewMinute * 46f / 60f
+                                        val previewBlockH = (draggingBacklogItem!!.estimatedMinutes.toFloat() / 60f * 46f).coerceAtLeast(20f)
 
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = DopamineBlue.copy(alpha = 0.45f),
-                                        border = BorderStroke(1.5.dp, DopamineBlue),
-                                        modifier = Modifier
-                                            .offset(x = dayColWidth * colW + 1.dp, y = previewTopY.dp)
-                                            .width(dayColWidth - 2.dp)
-                                            .height(previewBlockH.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
-                                            Text(
-                                                text = "🎯 %02d:%02d".format(previewHour, previewMinute),
-                                                fontSize = 7.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = DopamineBlue.copy(alpha = 0.45f),
+                                            border = BorderStroke(1.5.dp, DopamineBlue),
+                                            modifier = Modifier
+                                                .offset(x = dayColWidth * colW + 1.dp, y = previewTopY.dp)
+                                                .width(dayColWidth - 2.dp)
+                                                .height(previewBlockH.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
+                                                Text(
+                                                    text = "🎯 %02d:%02d".format(previewHour, previewMinute),
+                                                    fontSize = 7.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1778,6 +1847,7 @@ fun ScheduleDayGridView(
     }
 
     val hapticFeedback = LocalHapticFeedback.current
+    val context = LocalContext.current
     var dayViewRootOffset by remember { mutableStateOf(Offset.Zero) }
     var dayDragTouchInRoot by remember { mutableStateOf(Offset.Zero) }
 
@@ -1789,6 +1859,27 @@ fun ScheduleDayGridView(
     var isBacklogBarExpanded by remember { mutableStateOf(true) }
     var quickScheduleTargetItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var clickedHourForBacklog by remember { mutableIntStateOf(-1) }
+
+    val executeDropDay: (ScheduleEntity) -> Unit = { item ->
+        val currentScroll = verticalScrollState.value
+        val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
+        if (dropGlobalY >= (timelineYInRoot - 15f)) {
+            val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
+            val relDp = relativeY / density.density
+            val totalMinutes = ((relDp / 50f) * 60f).roundToInt()
+            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+            val dropHour = snappedMinutes / 60
+            val dropMinute = snappedMinutes % 60
+            val targetDt = selectedDate.atTime(dropHour, dropMinute)
+
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            onScheduleBacklog(item, targetDt)
+            Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+        }
+        draggingItem = null
+        dayDragTouchInRoot = Offset.Zero
+        dragOffsetY = 0f
+    }
 
     // 空白网格拖拽框选排期状态 (Drag-to-select range)
     var isDragSelecting by remember { mutableStateOf(false) }
@@ -1919,11 +2010,14 @@ fun ScheduleDayGridView(
 
                     if (isBacklogBarExpanded) {
                         Spacer(modifier = Modifier.height(3.dp))
-                        LazyRow(
+                        val backlogScrollState = rememberScrollState()
+                        Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(backlogScrollState, enabled = draggingItem == null)
                         ) {
-                            items(backlogItems, key = { it.id }) { item ->
+                            backlogItems.forEach { item ->
                                 val chipColor = tagColorMap[item.category] ?: when (item.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
@@ -1954,19 +2048,7 @@ fun ScheduleDayGridView(
                                                     dragOffsetY += dragAmount.y
                                                 },
                                                 onDragEnd = {
-                                                    if (draggingItem != null) {
-                                                        val currentScroll = verticalScrollState.value
-                                                        val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
-                                                        val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
-                                                        val relDp = relativeY / density.density
-                                                        val dropHour = (relDp / 50f).toInt().coerceIn(0, 23)
-                                                        val dropMinute = if ((relDp % 50f) >= 25f) 30 else 0
-                                                        val targetDt = selectedDate.atTime(dropHour, dropMinute)
-                                                        onScheduleBacklog(draggingItem!!, targetDt)
-                                                        draggingItem = null
-                                                        dayDragTouchInRoot = Offset.Zero
-                                                        dragOffsetY = 0f
-                                                    }
+                                                    executeDropDay(item)
                                                 },
                                                 onDragCancel = {
                                                     draggingItem = null
@@ -1975,29 +2057,63 @@ fun ScheduleDayGridView(
                                                 }
                                             )
                                         }
-                                        .clickable {
-                                            quickScheduleTargetItem = item
-                                        }
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
                                     ) {
-                                        Text("⋮⋮", fontSize = 9.5.sp, color = chipColor, fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(
-                                            text = item.title,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = TextPrimary
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "${item.estimatedMinutes}m",
-                                            fontSize = 9.sp,
-                                            color = chipColor,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        // 专属拖拽把手：一触即拖（零延迟拖动，跟手卡片即刻显现）
+                                        Box(
+                                            modifier = Modifier
+                                                .pointerInput(item.id) {
+                                                    detectDragGestures(
+                                                        onDragStart = { offset ->
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            draggingItem = item
+                                                            dayDragTouchInRoot = dayChipPosInRoot + offset
+                                                            dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
+                                                        },
+                                                        onDrag = { change, dragAmount ->
+                                                            change.consume()
+                                                            dayDragTouchInRoot += dragAmount
+                                                            dragOffsetY += dragAmount.y
+                                                        },
+                                                        onDragEnd = {
+                                                            executeDropDay(item)
+                                                        },
+                                                        onDragCancel = {
+                                                            draggingItem = null
+                                                            dayDragTouchInRoot = Offset.Zero
+                                                            dragOffsetY = 0f
+                                                        }
+                                                    )
+                                                }
+                                                .padding(end = 4.dp)
+                                        ) {
+                                            Text("⋮⋮", fontSize = 11.sp, color = chipColor, fontWeight = FontWeight.ExtraBold)
+                                        }
+
+                                        // 点击标题与时长：快捷打开排期设定弹窗
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable {
+                                                quickScheduleTargetItem = item
+                                            }
+                                        ) {
+                                            Text(
+                                                text = item.title,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextPrimary
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "${item.estimatedMinutes}m",
+                                                fontSize = 9.sp,
+                                                color = chipColor,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2161,35 +2277,39 @@ fun ScheduleDayGridView(
                         if (draggingItem != null) {
                             val currentScroll = verticalScrollState.value
                             val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
-                            val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
-                            val relDp = relativeY / density.density
-                            val previewHour = (relDp / 50f).toInt().coerceIn(0, 23)
-                            val previewMinute = if ((relDp % 50f) >= 25f) 30 else 0
-                            val previewTopY = previewHour * 50f + previewMinute * 50f / 60f
-                            val previewBlockH = (draggingItem!!.estimatedMinutes.toFloat() / 60f * 50f).coerceAtLeast(24f)
+                            if (dropGlobalY >= (timelineYInRoot - 15f)) {
+                                val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
+                                val relDp = relativeY / density.density
+                                val totalMinutes = ((relDp / 50f) * 60f).roundToInt()
+                                val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+                                val previewHour = snappedMinutes / 60
+                                val previewMinute = snappedMinutes % 60
+                                val previewTopY = previewHour * 50f + previewMinute * 50f / 60f
+                                val previewBlockH = (draggingItem!!.estimatedMinutes.toFloat() / 60f * 50f).coerceAtLeast(24f)
 
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = DopamineBlue.copy(alpha = 0.35f),
-                                border = BorderStroke(1.5.dp, DopamineBlue),
-                                modifier = Modifier
-                                    .offset(y = previewTopY.dp)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp)
-                                    .height(previewBlockH.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = DopamineBlue.copy(alpha = 0.35f),
+                                    border = BorderStroke(1.5.dp, DopamineBlue),
+                                    modifier = Modifier
+                                        .offset(y = previewTopY.dp)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp)
+                                        .height(previewBlockH.dp)
                                 ) {
-                                    Text("🎯", fontSize = 11.sp)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "放置到 %02d:%02d · %s (%dm)".format(previewHour, previewMinute, draggingItem!!.title, draggingItem!!.estimatedMinutes),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    ) {
+                                        Text("📍", fontSize = 11.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "放置到 %02d:%02d · %s (%dm)".format(previewHour, previewMinute, draggingItem!!.title, draggingItem!!.estimatedMinutes),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
