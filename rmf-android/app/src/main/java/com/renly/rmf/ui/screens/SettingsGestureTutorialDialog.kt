@@ -268,9 +268,9 @@ fun SettingsGestureTutorialDialog(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     TutorialPointItem(
-                        icon = "🚀",
-                        title = "工作台备用入口",
-                        desc = "「工作台」页面右上角也常驻有「⚙️ 系统设置」按钮，随时可点击进入。"
+                        icon = "📱",
+                        title = "全局随时可用",
+                        desc = "无论身处日程、课表、学习还是工作台，在屏幕底栏左右滑动即可随时呼出设置。"
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))

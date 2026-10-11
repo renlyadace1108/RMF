@@ -58,6 +58,7 @@ enum class AiProvider(
 
 object AiPreferences {
     private const val PREFS_NAME = "rmf_ai_preferences"
+    private const val KEY_AI_ENABLED = "ai_feature_enabled"
     private const val KEY_PROVIDER = "ai_provider"
     private const val KEY_API_KEY = "ai_api_key"
     private const val KEY_BASE_URL = "ai_base_url"
@@ -65,6 +66,18 @@ object AiPreferences {
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * AI 智能功能全局总开关状态
+     * 默认开启；关闭后停用所有大模型联网、智能复盘与图像提取功能
+     */
+    fun isAiEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AI_ENABLED, true)
+    }
+
+    fun setAiEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_AI_ENABLED, enabled).apply()
     }
 
     fun getProvider(context: Context): AiProvider {

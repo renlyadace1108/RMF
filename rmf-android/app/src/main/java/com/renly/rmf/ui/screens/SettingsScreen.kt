@@ -969,72 +969,145 @@ fun SettingsScreen(
             subtitle = "AI 智能助理接入、Google 账号与云端同步、系统日历与流体云通知"
         )
 
-        // 🤖 AI 接口与大模型配置 (独立入口项，符合应用商店审核合规规范)
+        // 🤖 AI 智能功能全局总设置 (Master Switch)
         val aiContext = androidx.compose.ui.platform.LocalContext.current
+        var isAiEnabledState by remember {
+            mutableStateOf(com.renly.rmf.domain.service.AiPreferences.isAiEnabled(aiContext))
+        }
 
         Surface(
-            onClick = { showAiConfigDialog = true },
             shape = RoundedCornerShape(16.dp),
             color = DarkCard,
-            border = BorderStroke(1.dp, DarkBorder),
+            border = BorderStroke(1.dp, if (isAiEnabledState) DopaminePurple.copy(alpha = 0.5f) else DarkBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = DopaminePurple.copy(alpha = 0.16f),
-                    modifier = Modifier.size(46.dp)
+            Column(modifier = Modifier.padding(16.dp)) {
+                // 总开关行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("🤖", fontSize = 22.sp)
-                    }
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "AI 接口与智能助理配置",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val isConfigured = com.renly.rmf.domain.service.AiPreferences.isConfigured(aiContext)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isConfigured) DopamineGreen.copy(alpha = 0.15f) else DarkSurface,
-                            border = BorderStroke(
-                                1.dp,
-                                if (isConfigured) DopamineGreen.copy(alpha = 0.5f) else DarkBorder
-                            )
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isAiEnabledState) DopaminePurple.copy(alpha = 0.2f) else DarkSurface,
+                            modifier = Modifier.size(46.dp)
                         ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("🤖", fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "启用 AI 智能功能",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isAiEnabledState) DopamineGreen.copy(alpha = 0.15f) else DarkSurface,
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isAiEnabledState) DopamineGreen.copy(alpha = 0.5f) else DarkBorder
+                                    )
+                                ) {
+                                    Text(
+                                        text = if (isAiEnabledState) "已启用" else "已停用",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isAiEnabledState) DopamineGreen else TextMuted,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
-                                text = if (isConfigured) "已接入" else "未配置",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isConfigured) DopamineGreen else TextMuted,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                text = if (isAiEnabledState) "已开启大模型每日复盘、课表截图多模态识别与深度效能洞察" else "已全面禁用所有大模型联网与计算，应用处于纯本地离线模式",
+                                fontSize = 11.5.sp,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(top = 3.dp)
                             )
                         }
                     }
-                    Text(
-                        text = "自定义第三方大模型 (通义千问/DeepSeek/Gemini/自建中转) 与连通测试",
-                        fontSize = 11.5.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(top = 3.dp)
+
+                    Switch(
+                        checked = isAiEnabledState,
+                        onCheckedChange = { checked ->
+                            isAiEnabledState = checked
+                            com.renly.rmf.domain.service.AiPreferences.setAiEnabled(aiContext, checked)
+                            android.widget.Toast.makeText(
+                                aiContext,
+                                if (checked) "✓ 已开启 AI 智能功能" else "✓ 已停用 AI 智能功能（纯本地离线模式）",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = DopaminePurple,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkSurface
+                        )
                     )
                 }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "进入配置",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
+
+                // 当启用时，显示下属详细配置项
+                if (isAiEnabledState) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = DarkBorder, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val isConfigured = com.renly.rmf.domain.service.AiPreferences.isConfigured(aiContext)
+                    val currentProvider = com.renly.rmf.domain.service.AiPreferences.getProvider(aiContext)
+
+                    Surface(
+                        onClick = { showAiConfigDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "🔧 AI 接口与模型详细配置",
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "(${currentProvider.displayName})",
+                                        fontSize = 11.sp,
+                                        color = DopaminePurple
+                                    )
+                                }
+                                Text(
+                                    text = if (isConfigured) "密钥已配置 · 点击修改 Provider、Base URL 与 Model" else "⚠️ 尚未填写 API Key，点击配置",
+                                    fontSize = 11.sp,
+                                    color = if (isConfigured) TextSecondary else DopamineAmber,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "进入配置",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 

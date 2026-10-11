@@ -201,10 +201,16 @@ fun TimetableScreen(
                     // 📷 截图导入 (AI 视觉多模态智能提取)
                     Surface(
                         onClick = {
-                            if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
+                            if (!com.renly.rmf.domain.service.AiPreferences.isAiEnabled(context)) {
                                 android.widget.Toast.makeText(
                                     context,
-                                    "请先在「工作台 -> AI 接口与大模型配置」中填写 API 密钥！",
+                                    "AI 智能功能已在系统设置中停用，请先前往设置开启！",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "请先在「系统设置 -> 智能互联 -> AI 接口与模型配置」中填写 API 密钥！",
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
                             } else {

@@ -64,10 +64,9 @@ fun WorkbenchScreen(
         // ---------------------------------------------------------------------
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("🚀", fontSize = 22.sp, modifier = Modifier.padding(end = 8.dp))
                     Text(
@@ -83,33 +82,6 @@ fun WorkbenchScreen(
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)
                 )
-            }
-
-            // ⚙️ 进入系统设置按钮
-            Surface(
-                onClick = onNavigateToSettings,
-                shape = RoundedCornerShape(12.dp),
-                color = DarkCard,
-                border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "系统设置",
-                        tint = DopamineCyan,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "系统设置",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = DopamineCyan
-                    )
-                }
             }
         }
 
@@ -399,20 +371,40 @@ fun WorkbenchScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val isAiEnabled = remember { com.renly.rmf.domain.service.AiPreferences.isAiEnabled(context) }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "AI 智能每日复盘总结",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            if (!isAiEnabled) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = DarkBorder,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "已停用",
+                                        fontSize = 10.sp,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         Text(
-                            text = "AI 智能每日复盘总结",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "聚合任务、被打断、专注时长与知识积累",
+                            text = if (isAiEnabled) "聚合任务、被打断、专注时长与知识积累" else "AI 功能已在系统设置中关闭",
                             fontSize = 11.5.sp,
                             color = TextSecondary
                         )
@@ -420,6 +412,10 @@ fun WorkbenchScreen(
 
                     Button(
                         onClick = {
+                            if (!isAiEnabled) {
+                                android.widget.Toast.makeText(context, "AI 智能功能已在系统设置中停用，请前往设置开启", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
                             isGeneratingAi = true
                             aiReviewText = null
                             onTriggerAiReview("请根据我今日的完成情况进行高效复盘并提出优化建议") { result ->
@@ -427,17 +423,30 @@ fun WorkbenchScreen(
                                 aiReviewText = result
                             }
                         },
-                        enabled = !isGeneratingAi,
-                        colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
+                        enabled = !isGeneratingAi && isAiEnabled,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isAiEnabled) DopaminePurple else DarkBorder,
+                            disabledContainerColor = DarkBorder
+                        ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            if (isGeneratingAi) "正在生成..." else "生成 AI 复盘",
-                            color = Color.White,
+                            if (!isAiEnabled) "已停用" else if (isGeneratingAi) "正在生成..." else "生成 AI 复盘",
+                            color = if (isAiEnabled) Color.White else TextMuted,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
                     }
+                }
+
+                if (!isAiEnabled) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "💡 提示：当前已在系统设置中关闭 AI 功能总开关。开启后可在此生成具有指导意义的心得洞察。",
+                        fontSize = 11.5.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp
+                    )
                 }
 
                 if (aiReviewText != null) {
@@ -465,65 +474,6 @@ fun WorkbenchScreen(
                         }
                     }
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // ---------------------------------------------------------------------
-        // 模块 4: ⚙️ 系统设置与服务直达卡片 (Quick System Setting Entry)
-        // ---------------------------------------------------------------------
-        Surface(
-            onClick = onNavigateToSettings,
-            shape = RoundedCornerShape(14.dp),
-            color = DopamineCyan.copy(alpha = 0.08f),
-            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.35f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Surface(
-                        shape = CircleShape,
-                        color = DopamineCyan.copy(alpha = 0.2f),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "系统设置",
-                                tint = DopamineCyan,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "系统设置与服务配置",
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "个性化外观、云端互联、流体云实验室、数据备份与合规协议",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "进入系统设置",
-                    tint = DopamineCyan,
-                    modifier = Modifier.size(18.dp)
-                )
             }
         }
 

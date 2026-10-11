@@ -44,6 +44,9 @@ object AiService {
      * 测试当前配置的 AI 模型连通性与响应速度
      */
     suspend fun testConnection(context: Context): AiResult<String> = withContext(Dispatchers.IO) {
+        if (!AiPreferences.isAiEnabled(context)) {
+            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用，请先在系统设置中开启 AI 总开关。")
+        }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
             return@withContext AiResult.Error("请先填写对应服务商的 API Key")
@@ -84,6 +87,9 @@ object AiService {
         studySummary: String,
         customNote: String = ""
     ): AiResult<String> = withContext(Dispatchers.IO) {
+        if (!AiPreferences.isAiEnabled(context)) {
+            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用。如需使用，请前往「系统设置」开启 AI 功能总开关。")
+        }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
             return@withContext AiResult.Error("请先在设置中填写有效的 AI API Key。")
@@ -121,14 +127,17 @@ object AiService {
         context: Context,
         imageBytes: ByteArray
     ): AiResult<List<CourseEntity>> = withContext(Dispatchers.IO) {
+        if (!AiPreferences.isAiEnabled(context)) {
+            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用。如需使用，请前往「系统设置」开启 AI 功能总开关。")
+        }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("未配置 API Key！请前往「工作台」->「AI 模型服务配置」中填写。")
+            return@withContext AiResult.Error("未配置 API Key！请前往「系统设置」->「智能互联」中配置。")
         }
 
         val provider = AiPreferences.getProvider(context)
         if (provider == AiProvider.DEEPSEEK) {
-            return@withContext AiResult.Error("DeepSeek 官方当前仅提供纯文本模型，不支持图像视觉识别！请在工作台设置中切换为 Google Gemini (gemini-1.5-flash) 或 通义千问 (qwen-vl-plus) 视觉模型。")
+            return@withContext AiResult.Error("DeepSeek 官方当前仅提供纯文本模型，不支持图像视觉识别！请在系统设置中切换为 Google Gemini 或 通义千问 (qwen-vl-plus) 视觉模型。")
         }
 
         val baseUrl = AiPreferences.getBaseUrl(context)
