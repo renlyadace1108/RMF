@@ -175,6 +175,16 @@ class FocusLiveService : Service() {
                         override fun onStop() {
                             stopFocusSession()
                         }
+                        override fun onSeekTo(pos: Long) {
+                            val newElapsedSec = (pos / 1000L).coerceIn(0L, _initialTotalSeconds.value.toLong()).toInt()
+                            val newRemainingSec = (_initialTotalSeconds.value - newElapsedSec).coerceAtLeast(0)
+                            _remainingSeconds.value = newRemainingSec
+                            targetEndTimeRealtime = SystemClock.elapsedRealtime() + (newRemainingSec * 1000L)
+                            initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = _isRunning.value)
+                            val notification = buildFluidCloudNotification()
+                            val manager = getSystemService(NotificationManager::class.java)
+                            manager.notify(NOTIFICATION_ID, notification)
+                        }
                     })
                 }
             }
@@ -187,7 +197,8 @@ class FocusLiveService : Service() {
                     PlaybackStateCompat.ACTION_PLAY or
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                    PlaybackStateCompat.ACTION_STOP
+                    PlaybackStateCompat.ACTION_STOP or
+                    PlaybackStateCompat.ACTION_SEEK_TO
                 )
                 .setState(
                     if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
@@ -197,9 +208,14 @@ class FocusLiveService : Service() {
                 )
                 .build()
 
+            val remSec = _remainingSeconds.value
+            val min = remSec / 60
+            val sec = remSec % 60
+            val timeStr = "%02d:%02d".format(min, sec)
+
             val metadata = MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "🎯 $title")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "ColorOS 流体云 · 心流倒计时")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "⏱️ 剩余 $timeStr · 流体云心流空间")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "RMF 实时活动")
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMillis)
                 .build()
@@ -257,13 +273,19 @@ class FocusLiveService : Service() {
     private fun launchTimerSyncLoop() {
         timerJob?.cancel()
         timerJob = serviceScope.launch {
+            var tick = 0
             while (_isRunning.value) {
                 delay(1000)
+                tick++
                 val remaining = maxOf(0, ((targetEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000).toInt())
                 _remainingSeconds.value = remaining
                 if (remaining <= 0) {
                     onFocusCompleted()
                     break
+                }
+                // 每 15 秒同步一次副标题剩余倒计时，保持系统媒体卡片文字与时间条双重实时对齐
+                if (tick % 15 == 0) {
+                    initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = true)
                 }
             }
         }
