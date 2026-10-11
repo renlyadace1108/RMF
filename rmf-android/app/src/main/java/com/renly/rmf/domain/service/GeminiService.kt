@@ -55,14 +55,15 @@ object GeminiService {
         model: String = DEFAULT_MODEL
     ): GeminiResult = withContext(Dispatchers.IO) {
         try {
-            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+            val cleanKey = apiKey.trim()
+            val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
             val url = URL(endpoint)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
-                connectTimeout = 15000
-                readTimeout = 25000
+                connectTimeout = 30000
+                readTimeout = 60000
             }
 
             // 构建符合 Gemini 官方 API 规范的 JSON
@@ -89,9 +90,29 @@ object GeminiService {
                 if (candidates != null && candidates.size() > 0) {
                     val firstCandidate = candidates[0].asJsonObject
                     val contentObj = firstCandidate.getAsJsonObject("content")
-                    val parts = contentObj.getAsJsonArray("parts")
-                    val text = parts[0].asJsonObject.get("text").asString
-                    return@withContext GeminiResult.Success(text)
+                    if (contentObj != null) {
+                        val parts = contentObj.getAsJsonArray("parts")
+                        if (parts != null && parts.size() > 0) {
+                            val textBuilder = StringBuilder()
+                            for (partElem in parts) {
+                                val partObj = partElem.asJsonObject
+                                if (partObj.has("text")) {
+                                    textBuilder.append(partObj.get("text").asString)
+                                }
+                            }
+                            val text = textBuilder.toString()
+                            if (text.isNotBlank()) {
+                                return@withContext GeminiResult.Success(text)
+                            }
+                        }
+                    }
+                    val finishReason = firstCandidate.get("finishReason")?.asString ?: "EMPTY"
+                    return@withContext GeminiResult.Error("Gemini 未返回有效文本 (结束原因: $finishReason)")
+                }
+                val promptFeedback = root.getAsJsonObject("promptFeedback")
+                val blockReason = promptFeedback?.get("blockReason")?.asString
+                if (blockReason != null) {
+                    return@withContext GeminiResult.Error("提示词被 Gemini 安全拦截: $blockReason")
                 }
                 return@withContext GeminiResult.Error("API 返回内容为空")
             } else {

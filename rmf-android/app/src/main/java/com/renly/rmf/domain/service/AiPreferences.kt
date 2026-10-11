@@ -44,7 +44,7 @@ enum class AiProvider(
         displayName = "Google Gemini (海外原生直连)",
         defaultBaseUrl = "https://generativelanguage.googleapis.com",
         defaultModel = "gemini-1.5-flash",
-        recommendedModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"),
+        recommendedModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"),
         isVisionSupported = true,
         description = "Google 官方原生多模态视觉模型，需特定国际网络环境支持"
     );

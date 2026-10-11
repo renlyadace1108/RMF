@@ -236,11 +236,18 @@ object AiService {
         imageBytes: ByteArray?
     ): AiResult<String> {
         return try {
-            val cleanBaseUrl = baseUrl.trimEnd('/')
-            val endpoint = if (cleanBaseUrl.contains("generativelanguage.googleapis.com")) {
-                "$cleanBaseUrl/v1beta/models/$model:generateContent?key=$apiKey"
-            } else {
-                "$cleanBaseUrl/v1beta/models/$model:generateContent?key=$apiKey"
+            val rawBase = if (baseUrl.isBlank()) "https://generativelanguage.googleapis.com" else baseUrl.trim().trimEnd('/')
+            val cleanKey = apiKey.trim()
+            val endpoint = when {
+                rawBase.contains(":generateContent") -> {
+                    if (rawBase.contains("key=")) rawBase else "$rawBase?key=$cleanKey"
+                }
+                rawBase.endsWith("/v1beta") || rawBase.endsWith("/v1") -> {
+                    "$rawBase/models/$model:generateContent?key=$cleanKey"
+                }
+                else -> {
+                    "$rawBase/v1beta/models/$model:generateContent?key=$cleanKey"
+                }
             }
 
             val url = URL(endpoint)
@@ -286,9 +293,29 @@ object AiService {
                 if (candidates != null && candidates.size() > 0) {
                     val firstCandidate = candidates[0].asJsonObject
                     val contentObj = firstCandidate.getAsJsonObject("content")
-                    val parts = contentObj.getAsJsonArray("parts")
-                    val text = parts[0].asJsonObject.get("text").asString
-                    return AiResult.Success(text)
+                    if (contentObj != null) {
+                        val parts = contentObj.getAsJsonArray("parts")
+                        if (parts != null && parts.size() > 0) {
+                            val textBuilder = StringBuilder()
+                            for (partElem in parts) {
+                                val partObj = partElem.asJsonObject
+                                if (partObj.has("text")) {
+                                    textBuilder.append(partObj.get("text").asString)
+                                }
+                            }
+                            val text = textBuilder.toString()
+                            if (text.isNotBlank()) {
+                                return AiResult.Success(text)
+                            }
+                        }
+                    }
+                    val finishReason = firstCandidate.get("finishReason")?.asString ?: "EMPTY"
+                    return AiResult.Error("Gemini 未返回有效文本 (结束原因: $finishReason)")
+                }
+                val promptFeedback = root.getAsJsonObject("promptFeedback")
+                val blockReason = promptFeedback?.get("blockReason")?.asString
+                if (blockReason != null) {
+                    return AiResult.Error("提示词被 Gemini 安全机制拦截 (原因: $blockReason)")
                 }
                 return AiResult.Error("Gemini API 返回内容为空")
             } else {
