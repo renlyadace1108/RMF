@@ -5,19 +5,24 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import org.json.JSONObject
 
 /**
- * ColorOS 17 (Android 16) 流体云实时活动 (Live Updates / Promoted Ongoing) 核心协同引擎
+ * 跨品牌流体云 / 灵动岛 / 实时活动核心协同引擎
  *
  * 核心架构决策背景：
- * 从 ColorOS 16/17 起，OPPO 官方流体云全面借道原生 Android 16 的 "Live Updates" (Promoted Ongoing) API 标准。
- * Android 16 系统在 `Notification.hasPromotableCharacteristics()` 内部有严格的硬性校验：
- * 1. 必须在 Manifest 中声明 `android.permission.POST_PROMOTED_NOTIFICATIONS` 权限；
- * 2. 必须设置 `android.requestPromotedOngoing = true` (或调用 setRequestPromotedOngoing)；
- * 3. 严禁绑定自定义 RemoteViews (`contentView` 与 `bigContentView` 必须为空)；
- * 4. 必须使用系统认证的 Promotable 样式 (如 `BigTextStyle`)；
- * 5. 必须为持续进行态 (`setOngoing(true)`) 且拥有有效标题。
- * 若违反上述任一条款，系统将判定为不可提升 (Non-Promotable)，导致无法在 OPPO Find X9 等设备上正常触发流体云胶囊。
+ * 1. 【OPPO ColorOS 16/17 (如 Find X9)】：
+ *    官方全面借道原生 Android 16 的 "Live Updates" (Promoted Ongoing) API 标准。
+ *    Android 16 系统在 `Notification.hasPromotableCharacteristics()` 内部执行硬性校验：
+ *    - 必须声明 `POST_PROMOTED_NOTIFICATIONS` 权限；
+ *    - 必须设置 `android.requestPromotedOngoing = true`；
+ *    - 严禁绑定自定义 RemoteViews（`contentView` 与 `bigContentView` 必须为空）；
+ *    - 必须使用 BigTextStyle 等原生样式。
+ *
+ * 2. 【小米 Xiaomi HyperOS (澎湃OS 超级岛 / 焦点通知)】：
+ *    小米端拥有独立的系统级“超级岛 / 焦点通知”接口协议：
+ *    - 通过在 Notification Extras 注入 `miui.focus.param` (V2/V3 JSON 结构模板) 与 `miui.focus.notification = true` 接入超级岛；
+ *    - 若系统未开放超级岛白名单权限，则回退呈现深度美化重构的原生卡片（带有磨砂药丸倒计时仪表盘与圆角交互按钮），彻底告别原版简陋视图。
  */
 object FluidCloudHelper {
 
@@ -27,8 +32,14 @@ object FluidCloudHelper {
 
     /**
      * 判断当前系统是否支持并应启用 Android 16 / ColorOS 17 原生 Live Updates 借道标准
+     * （注意：小米 HyperOS 拥有自己的 miui.focus.param 超级岛接口与专属卡片渲染流，不应被强制剥离 RemoteViews）
      */
     fun isPromotedLiveUpdateSupported(context: Context? = null): Boolean {
+        // 小米 HyperOS 不走 Android 16 Promoted 剥离视图逻辑，而是采用美化卡片 + 注入超级岛参数
+        if (isXiaomiOrHyperOs()) {
+            return false
+        }
+
         // 1. Android 16 (API 36+) 或 Android 16 Baklava 预览阶段
         if (Build.VERSION.SDK_INT >= 36) return true
         if (Build.VERSION.SDK_INT >= 34 && Build.VERSION.CODENAME.equals("Baklava", ignoreCase = true)) return true
@@ -45,6 +56,27 @@ object FluidCloudHelper {
             return true
         }
 
+        return false
+    }
+
+    /**
+     * 检测是否为小米 HyperOS (澎湃OS) 或 MIUI
+     */
+    fun isXiaomiOrHyperOs(): Boolean {
+        try {
+            val brand = Build.BRAND.orEmpty()
+            val manufacturer = Build.MANUFACTURER.orEmpty()
+            val isMi = brand.contains("Xiaomi", ignoreCase = true) ||
+                    brand.contains("Redmi", ignoreCase = true) ||
+                    brand.contains("POCO", ignoreCase = true) ||
+                    manufacturer.contains("Xiaomi", ignoreCase = true)
+
+            if (isMi) return true
+
+            val miuiVersion = getSystemProperty("ro.miui.ui.version.name")
+            val hyperOsVersion = getSystemProperty("ro.mi.os.version.name")
+            return miuiVersion.isNotBlank() || hyperOsVersion.isNotBlank()
+        } catch (_: Throwable) {}
         return false
     }
 
@@ -77,6 +109,83 @@ object FluidCloudHelper {
     }
 
     /**
+     * 获取当前系统对应的流体云 / 超级岛动态品牌标签文本
+     */
+    fun getSystemBrandLabel(): String {
+        return when {
+            isXiaomiOrHyperOs() -> "HyperOS 焦点"
+            isColorOs16OrHigher() -> "ColorOS 流体云"
+            else -> "RMF 心流"
+        }
+    }
+
+    /**
+     * 为小米 HyperOS 注入超级岛 (Super Island) / 焦点通知 (Focus Notification) 原生协议参数
+     */
+    fun applyXiaomiSuperIslandParams(
+        builder: NotificationCompat.Builder,
+        title: String,
+        remainingSeconds: Int,
+        isRunning: Boolean
+    ) {
+        if (!isXiaomiOrHyperOs()) return
+
+        val min = remainingSeconds / 60
+        val sec = remainingSeconds % 60
+        val timeStr = "%02d:%02d".format(min, sec)
+
+        try {
+            // 构建小米 HyperOS 官方 V2/V3 规范焦点通知与超级岛 JSON 结构
+            val focusJson = JSONObject().apply {
+                val paramV2 = JSONObject().apply {
+                    put("business", "focus_timer")
+                    put("updatable", true)
+                    put("orderId", "rmf_focus_live")
+
+                    // 超级岛配置 (param_island)
+                    val paramIsland = JSONObject().apply {
+                        put("islandProperty", 2) // 2: 交互与倒计时操作岛
+                        put("islandOrder", 1)
+
+                        // 摘要态：小岛 (双侧胶囊展示)
+                        val smallIsland = JSONObject().apply {
+                            val left = JSONObject().apply {
+                                put("type", 1)
+                                put("text", "🎯")
+                            }
+                            val right = JSONObject().apply {
+                                put("type", 1)
+                                put("text", timeStr)
+                            }
+                            put("left", left)
+                            put("right", right)
+                        }
+                        put("smallIslandArea", smallIsland)
+
+                        // 展开态：大岛 (下拉扩展信息卡)
+                        val bigIsland = JSONObject().apply {
+                            put("title", "🎯 $title")
+                            put("content", if (isRunning) "心流专注进行中 · 剩余 $timeStr" else "专注已暂停 ($timeStr)")
+                            put("subContent", "HyperOS 超级岛 · 实时专注")
+                        }
+                        put("bigIslandArea", bigIsland)
+                    }
+                    put("param_island", paramIsland)
+                }
+                put("param_v2", paramV2)
+            }
+
+            // 注入小米系统级焦点通知与超级岛 Intent Extras
+            builder.extras.putString("miui.focus.param", focusJson.toString())
+            builder.extras.putBoolean("miui.focus.notification", true)
+            builder.extras.putBoolean("miui.enableFloat", true)
+            builder.extras.putBoolean("miui.showAction", true)
+            builder.extras.putString("miui.subSystem", "focus")
+            builder.extras.putInt("miui.targetSystem", 1)
+        } catch (_: Throwable) {}
+    }
+
+    /**
      * 查询系统属性
      */
     fun getSystemProperty(key: String): String {
@@ -90,7 +199,7 @@ object FluidCloudHelper {
     }
 
     /**
-     * 为 NotificationCompat.Builder 注入实时活动提升请求与 ColorOS 胶囊标记
+     * 为 NotificationCompat.Builder 注入实时活动提升请求与品牌胶囊标记
      */
     fun applyPromotedOngoing(builder: NotificationCompat.Builder) {
         builder.extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
@@ -103,7 +212,6 @@ object FluidCloudHelper {
 
     /**
      * 通知实例最终收口校验
-     * 若当前处于 Live Updates 原生模式，强制确保 RemoteViews 为空，保障 100% 通过 hasPromotableCharacteristics() 校验
      */
     fun finalizeNotification(notification: Notification, isLiveUpdateMode: Boolean) {
         notification.extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)

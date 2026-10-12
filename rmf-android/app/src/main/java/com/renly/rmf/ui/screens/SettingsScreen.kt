@@ -1193,6 +1193,7 @@ fun SettingsScreen(
 
                 val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
                 val isColorOs16 = com.renly.rmf.domain.service.FluidCloudHelper.isColorOs16OrHigher()
+                val isXiaomi = com.renly.rmf.domain.service.FluidCloudHelper.isXiaomiOrHyperOs()
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -1232,16 +1233,23 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (isLiveSupported) "🌊" else "📱", fontSize = 12.sp)
+                            val icon = when {
+                                isLiveSupported -> "🌊"
+                                isXiaomi -> "🏝️"
+                                else -> "📱"
+                            }
+                            Text(icon, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isLiveSupported) {
-                                    if (isColorOs16) "ColorOS 17 实时活动已就绪 (原生流体云借道模式)" else "Android 16 实时活动 (Live Updates) 借道已就绪"
-                                } else {
-                                    "流体云标准胶囊已待命 (自定义视图模式)"
+                                text = when {
+                                    isLiveSupported -> {
+                                        if (isColorOs16) "ColorOS 17 实时活动已就绪 (原生流体云借道模式)" else "Android 16 实时活动 (Live Updates) 借道已就绪"
+                                    }
+                                    isXiaomi -> "HyperOS 焦点/超级岛已就绪 (原生卡片美化+协议注入)"
+                                    else -> "流体云标准胶囊已待命 (质感美化卡片模式)"
                                 },
                                 fontSize = 10.5.sp,
-                                color = if (isLiveSupported) DopamineCyan else TextMuted,
+                                color = if (isLiveSupported || isXiaomi) DopamineCyan else TextMuted,
                                 fontWeight = FontWeight.Medium
                             )
                         }

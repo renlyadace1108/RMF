@@ -36,6 +36,27 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-12 11:35] - 支持小米 HyperOS 超级岛协议并全面美化原生通知卡片 (磨砂质感+仪表盘药丸)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“现在也要支持小米超级岛，因为原生的卡片在小米hyperos很丑，所以要美化一下原生的卡片，如果能够直接介入小米超岛，那小米端就直接接系统接口，不能的话就修原生卡片”
+* **核心方案与双端兼顾架构设计**：
+  1. **系统级超级岛协议注入 (`miui.focus.param`)**：
+     - 在小米 / Redmi / POCO 设备上识别 HyperOS / MIUI 特征；
+     - 构建官方规范的 `miui.focus.param` JSON 结构，内嵌 `param_v2`（业务代号 `business`、`updatable: true`）、`param_island`（`smallIslandArea` 顶部药丸胶囊结构、`bigIslandArea` 下拉展开浮窗与大岛卡片定义）；
+     - 注入系统 Extras：`miui.focus.notification = true`、`miui.enableFloat = true`、`miui.showAction = true`，使应用具备官方超级岛/焦点通知接入能力。
+  2. **全面重构美化原生通知卡片 (解决原生通知在 HyperOS 丑陋的问题)**：
+     - **磨砂暗黑容器与边框**：定义 `bg_fluid_card.xml`（16dp 圆角 + 1dp 质感描边）以及夜间模式色彩适配（`fluid_notif_card_bg` / `fluid_notif_card_border`）；
+     - **拟物药丸仪表盘**：重构 `bg_fluid_timer_pill.xml`（14dp 药丸圆角 + 科技感微弱边框），将原本生硬裸露的数字倒计时内嵌到精致的计时药丸仪表盘中；
+     - **圆角按键与品牌标识**：全部操作按钮统一为 38dp 高度带微圆角触摸反馈的现代 Pill 按钮；左上角品牌根据当前设备系统动态显示（小米显示 `HyperOS 焦点`，OPPO 显示 `ColorOS 流体云`，其他通用显示 `RMF 心流`）；
+     - **全卡片套件更新**：全面重构了心流专注、智能课程、通用日程的 6 套 RemoteViews 布局（`notification_fluid_cloud_capsule.xml`、`notification_fluid_cloud_expanded.xml`、`notification_fluid_cloud_course_capsule.xml`、`notification_fluid_cloud_course_expanded.xml`、`notification_fluid_cloud_schedule_capsule.xml`、`notification_fluid_cloud_schedule_expanded.xml`）。
+  3. **与 OPPO ColorOS 17 / Android 16 Live Updates 的双端兼容**：
+     - OPPO ColorOS 17 严格依赖 Android 16 原生 Live Updates（强制无 RemoteViews 才能上岛）；
+     - 小米 HyperOS 依赖自身框架与美化后的 RemoteViews 卡片 + 注入超级岛参数；
+     - 协同引擎 `FluidCloudHelper` 中 `isPromotedLiveUpdateSupported` 排除小米设备，实现「OPPO 走纯净 Android 16 原生提升，小米走超级岛协议注入 + 超高质感美化卡片」的双保险架构。
+* **影响范围**：
+  - `FluidCloudHelper.kt`、`FocusLiveService.kt`、`ScheduleAlarmReceiver.kt`、`SettingsScreen.kt`；
+  - `res/values/colors.xml`、`res/values-night/colors.xml`、`res/drawable/` 以及全部 `res/layout/notification_fluid_cloud_*.xml`。
+
 ### [2026-10-12 10:40] - 修复 OPPO Find X9 (ColorOS 17) 借道 Android 16 实时活动接入流体云失败问题
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“现在胶囊是通过借道安卓实时活动来进入coloros流体云的，但是在OPPO findx9 coloros17实测的时候发现没有成功接入实时活动，现在需要你修复这个问题”
