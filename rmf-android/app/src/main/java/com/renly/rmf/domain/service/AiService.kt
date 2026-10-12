@@ -15,12 +15,24 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 sealed class AiResult<out T> {
     data class Success<T>(val data: T, val rawResponse: String = "") : AiResult<T>()
     data class Error(val errorMessage: String) : AiResult<Nothing>()
 }
+
+data class AiScheduleParseResult(
+    val hasTime: Boolean,
+    val title: String,
+    val startDateTime: LocalDateTime? = null,
+    val endDateTime: LocalDateTime? = null,
+    val durationMinutes: Int = 60,
+    val priority: String = "MEDIUM",
+    val category: String = "WORK"
+)
 
 object AiService {
 
@@ -112,6 +124,147 @@ object AiService {
         """.trimIndent()
 
         return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
+    }
+
+    /**
+     * 智能识别用户输入的闪念文本，提取明确的时间安排与任务信息
+     * 如果包含明确时间，返回 hasTime = true 及开始结束时间，用于询问用户是否自动排期；
+     * 如果不包含明确时间，返回 hasTime = false，用于直接存入待排期池由用户手动排期。
+     */
+    suspend fun parseScheduleWithAi(
+        context: Context,
+        rawText: String
+    ): AiScheduleParseResult = withContext(Dispatchers.IO) {
+        val cleanInput = rawText.trim()
+        if (cleanInput.isBlank()) {
+            return@withContext AiScheduleParseResult(
+                hasTime = false,
+                title = "新时间块"
+            )
+        }
+
+        if (!AiPreferences.isAiEnabled(context) || !AiPreferences.isConfigured(context)) {
+            // 未开启 AI 或未配置时，走本地规则兜底
+            val local = NaturalLanguageScheduleParser.parse(cleanInput)
+            return@withContext AiScheduleParseResult(
+                hasTime = local.hasExplicitTime,
+                title = local.title,
+                startDateTime = if (local.hasExplicitTime) local.startTime else null,
+                endDateTime = if (local.hasExplicitTime) local.endTime else null,
+                durationMinutes = local.durationMinutes,
+                priority = local.priority,
+                category = local.category
+            )
+        }
+
+        val baseUrl = AiPreferences.getBaseUrl(context)
+        val apiKey = AiPreferences.getApiKey(context)
+        val model = AiPreferences.getModel(context)
+
+        val now = LocalDateTime.now()
+        val baseTimeStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm EEEE"))
+
+        val prompt = """
+            当前系统基准时间为: $baseTimeStr
+            请分析用户的日程待办文本: "$cleanInput"
+
+            任务要求：
+            1. 判断文本中是否包含具体明确的计划时间（如 "明天下午3点"、"周五19:00"、"后天上午9点半"、"15:00-16:30" 等）：
+               - 若包含具体时间：hasTime 必须为 true，并推算出对应的开始时间与结束时间。
+               - 若仅为纯待办事项（如 "买牛奶"、"背单词"、"做数学作业"）或时间模糊未指明具体几点几分：hasTime 必须为 false。
+            2. 字段规范：
+               - hasTime: true 或 false
+               - title: 清洗后的纯任务标题（去掉时间修饰词）
+               - startTime: 格式严格为 "yyyy-MM-dd'T'HH:mm:ss"（若 hasTime 为 false 则为空字符串 ""）
+               - endTime: 格式严格为 "yyyy-MM-dd'T'HH:mm:ss"（若未指定持续时长默认60分钟，若 hasTime 为 false 则为空字符串 ""）
+               - durationMinutes: 持续时长整数(分钟，默认 60)
+               - priority: "HIGH" / "MEDIUM" / "LOW" (根据紧急程度推断，默认 "MEDIUM")
+               - category: "WORK" / "STUDY" / "LIFE" / "HEALTH" (根据分类推断，默认 "WORK")
+
+            【输出要求】仅回复纯 JSON 格式对象，严禁包含任何前缀、闲聊或 markdown 格式：
+            {
+              "hasTime": true,
+              "title": "项目评审会议",
+              "startTime": "2026-10-13T15:00:00",
+              "endTime": "2026-10-13T16:00:00",
+              "durationMinutes": 60,
+              "priority": "HIGH",
+              "category": "WORK"
+            }
+        """.trimIndent()
+
+        val apiRes = callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
+        if (apiRes is AiResult.Success) {
+            try {
+                var jsonStr = apiRes.data.trim()
+                if (jsonStr.contains("```json")) {
+                    jsonStr = jsonStr.substringAfter("```json").substringBefore("```").trim()
+                } else if (jsonStr.contains("```")) {
+                    jsonStr = jsonStr.substringAfter("```").substringBefore("```").trim()
+                }
+                val startIdx = jsonStr.indexOf('{')
+                val endIdx = jsonStr.lastIndexOf('}')
+                if (startIdx != -1 && endIdx != -1 && endIdx > startIdx) {
+                    jsonStr = jsonStr.substring(startIdx, endIdx + 1)
+                }
+
+                val obj = gson.fromJson(jsonStr, JsonObject::class.java)
+                val hasTime = obj.get("hasTime")?.asBoolean ?: false
+                val title = obj.get("title")?.asString?.trim()?.ifBlank { cleanInput } ?: cleanInput
+                val durationMinutes = obj.get("durationMinutes")?.asInt ?: 60
+                val priority = obj.get("priority")?.asString?.uppercase() ?: "MEDIUM"
+                val category = obj.get("category")?.asString?.uppercase() ?: "WORK"
+
+                var startLdt: LocalDateTime? = null
+                var endLdt: LocalDateTime? = null
+
+                if (hasTime) {
+                    val sStr = obj.get("startTime")?.asString ?: ""
+                    val eStr = obj.get("endTime")?.asString ?: ""
+                    if (sStr.isNotBlank()) {
+                        startLdt = try {
+                            LocalDateTime.parse(sStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        } catch (_: Exception) {
+                            try { LocalDateTime.parse(sStr, DateTimeFormatter.ISO_DATE_TIME) } catch (_: Exception) { null }
+                        }
+                    }
+                    if (eStr.isNotBlank()) {
+                        endLdt = try {
+                            LocalDateTime.parse(eStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        } catch (_: Exception) {
+                            try { LocalDateTime.parse(eStr, DateTimeFormatter.ISO_DATE_TIME) } catch (_: Exception) { null }
+                        }
+                    }
+                    if (startLdt != null && endLdt == null) {
+                        endLdt = startLdt.plusMinutes(durationMinutes.toLong())
+                    }
+                }
+
+                return@withContext AiScheduleParseResult(
+                    hasTime = hasTime && startLdt != null,
+                    title = title,
+                    startDateTime = startLdt,
+                    endDateTime = endLdt,
+                    durationMinutes = durationMinutes,
+                    priority = priority,
+                    category = category
+                )
+            } catch (e: Exception) {
+                // JSON 解析异常，走本地降级
+            }
+        }
+
+        // 异常或网络失败时走本地规则降级
+        val local = NaturalLanguageScheduleParser.parse(cleanInput)
+        return@withContext AiScheduleParseResult(
+            hasTime = local.hasExplicitTime,
+            title = local.title,
+            startDateTime = if (local.hasExplicitTime) local.startTime else null,
+            endDateTime = if (local.hasExplicitTime) local.endTime else null,
+            durationMinutes = local.durationMinutes,
+            priority = local.priority,
+            category = local.category
+        )
     }
 
     /**

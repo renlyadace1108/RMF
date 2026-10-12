@@ -14,7 +14,8 @@ data class ParsedScheduleResult(
     val priority: String = "MEDIUM",
     val category: String = "WORK",
     val tag: String? = null,
-    val previewSummary: String = ""
+    val previewSummary: String = "",
+    val hasExplicitTime: Boolean = false
 )
 
 object NaturalLanguageScheduleParser {
@@ -144,7 +145,8 @@ object NaturalLanguageScheduleParser {
             priority = priority,
             category = category,
             tag = tag,
-            previewSummary = summary
+            previewSummary = summary,
+            hasExplicitTime = hasExplicitTime
         )
     }
 }
