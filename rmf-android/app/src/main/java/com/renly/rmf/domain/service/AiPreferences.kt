@@ -14,44 +14,44 @@ enum class AiProvider(
 ) {
     BALANCED(
         id = "BALANCED",
-        displayName = "方案 A · 标准分析引擎 (7B)",
-        shortName = "方案 A (标准分析)",
+        displayName = "引擎方案 A",
+        shortName = "方案 A",
         defaultBaseUrl = "https://api.siliconflow.cn/v1",
         defaultModel = "Qwen/Qwen2.5-7B-Instruct",
-        description = "响应迅速，逻辑严谨，适合日常日程审查与时间块规划",
+        description = "标准计算模式，响应迅速，适合日常日程分析与排期规划",
         isVisionSupported = false
     ),
     REASONING(
         id = "REASONING",
-        displayName = "方案 B · 深度推理引擎 (7B-R)",
-        shortName = "方案 B (深度推理)",
+        displayName = "引擎方案 B",
+        shortName = "方案 B",
         defaultBaseUrl = "https://api.siliconflow.cn/v1",
         defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-        description = "具备思维链深度推演能力，适合复杂排程与负荷诊断",
+        description = "深度推演模式，具备逻辑链运算能力，适合复杂效能诊断",
         isVisionSupported = false
     ),
     SUMMARY(
         id = "SUMMARY",
-        displayName = "方案 C · 语言总结引擎 (9B)",
-        shortName = "方案 C (语言总结)",
+        displayName = "引擎方案 C",
+        shortName = "方案 C",
         defaultBaseUrl = "https://api.siliconflow.cn/v1",
         defaultModel = "THUDM/glm-4-9b-chat",
-        description = "语言表达自然丰富，适合每日效率复盘与心得提炼",
+        description = "语言优化模式，表达自然丰富，适合复盘报告与心得提炼",
         isVisionSupported = false
     ),
     FLAGSHIP(
         id = "FLAGSHIP",
-        displayName = "方案 D · 全能运算引擎 (旗舰)",
-        shortName = "方案 D (全能运算)",
+        displayName = "引擎方案 D",
+        shortName = "方案 D",
         defaultBaseUrl = "https://api.siliconflow.cn/v1",
         defaultModel = "deepseek-ai/DeepSeek-V3",
-        description = "超大规模参数综合运算，具备极高精度的多维度数据评估",
+        description = "高阶全能模式，超大规模参数综合运算，提供高精度评估",
         isVisionSupported = false
     ),
     CUSTOM(
         id = "CUSTOM",
-        displayName = "方案 E · 自定义接口",
-        shortName = "方案 E (自定义)",
+        displayName = "自定义方案 (E)",
+        shortName = "自定义",
         defaultBaseUrl = "",
         defaultModel = "",
         description = "支持自主配置标准兼容接口地址与模型标识",
