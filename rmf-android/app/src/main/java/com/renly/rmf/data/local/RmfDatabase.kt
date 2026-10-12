@@ -24,9 +24,10 @@ import com.renly.rmf.data.local.entity.*
         FitnessPlanEntity::class,
         FitnessRecordEntity::class,
         HabitEntity::class,
-        CountdownEntity::class
+        CountdownEntity::class,
+        FocusRecordEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -42,6 +43,7 @@ abstract class RmfDatabase : RoomDatabase() {
     abstract fun fitnessDao(): FitnessDao
     abstract fun habitDao(): HabitDao
     abstract fun countdownDao(): CountdownDao
+    abstract fun focusDao(): FocusDao
 
     /**
      * 清空所有测试与业务数据，保留表结构与系统偏好，对齐 Windows 端 ClearAllData
@@ -122,6 +124,34 @@ abstract class RmfDatabase : RoomDatabase() {
                 } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
+        }
+
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                createFocusRecordsTable(db)
+                ensureLosslessSchema(db)
+            }
+        }
+
+        private fun createFocusRecordsTable(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS focus_records (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        schedule_id TEXT,
+                        task_title TEXT NOT NULL DEFAULT '深度专注',
+                        category TEXT NOT NULL DEFAULT 'WORK',
+                        duration_minutes INTEGER NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'COMPLETED',
+                        interruption_count INTEGER NOT NULL DEFAULT 0,
+                        note TEXT NOT NULL DEFAULT ''
+                    );
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_focus_records_sched ON focus_records(schedule_id);")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_focus_records_start ON focus_records(start_time);")
+            } catch (_: Exception) {}
         }
 
         private fun createHabitsAndCountdownsTables(db: SupportSQLiteDatabase) {
@@ -221,7 +251,7 @@ abstract class RmfDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
@@ -247,9 +277,10 @@ abstract class RmfDatabase : RoomDatabase() {
 
         private fun ensureLosslessSchema(db: SupportSQLiteDatabase) {
             try {
-                // 确保健身计划与记录表结构存在
+                // 确保健身计划、习惯、倒数日与专注记录表结构存在
                 createFitnessTables(db)
                 createHabitsAndCountdownsTables(db)
+                createFocusRecordsTable(db)
 
                 // 核心查询覆盖索引优化 (避免多余全表扫描与磁盘临时排序)
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_schedules_active_time ON schedules(is_deleted, start_time);")

@@ -126,6 +126,58 @@ object AiService {
         return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
     }
 
+    /**
+     * 生成专注周期分析 (日分析、周分析、月分析、年分析)
+     */
+    suspend fun generateFocusAnalysis(
+        context: Context,
+        timeframe: String, // "日", "周", "月", "年"
+        periodLabel: String,
+        totalSessions: Int,
+        totalMinutes: Int,
+        avgMinutesPerSession: Int,
+        interruptionCount: Int,
+        categoryBreakdown: String,
+        topTasks: List<String>
+    ): AiResult<String> = withContext(Dispatchers.IO) {
+        if (!AiPreferences.isAiEnabled(context)) {
+            return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
+        }
+        val baseUrl = AiPreferences.getBaseUrl(context)
+        val apiKey = AiPreferences.getApiKey(context)
+        val model = AiPreferences.getModel(context)
+        if (baseUrl.isBlank() || apiKey.isBlank() || model.isBlank()) {
+            return@withContext AiResult.Error("请先在设置中完整配置接口地址、密钥与模型。")
+        }
+
+        val topTasksStr = if (topTasks.isNotEmpty()) topTasks.joinToString("\n") { "- $it" } else "- 自由专注"
+
+        val prompt = """
+            你是一名顶尖的心流认知科学家与效能管理教练。请根据用户在【$periodLabel】的专注历史统计数据，生成一份极具洞察力与执行指导意义的「$timeframe 专注心流分析与认知节奏报告」：
+
+            【专注核心指标】
+            - 统计周期: $periodLabel ($timeframe 分析)
+            - 专注总次数: $totalSessions 次
+            - 专注总时长: $totalMinutes 分钟 (${"%.1f".format(totalMinutes / 60.0)} 小时)
+            - 单次平均专注时长: $avgMinutesPerSession 分钟
+            - 累计心流打断次数: $interruptionCount 次
+            - 分类专注分布: $categoryBreakdown
+            - 核心专注任务:
+            $topTasksStr
+
+            【输出规范要求】
+            请按以下规范输出排版紧凑、重点突出、语气积极鼓励且专业客观的 Markdown 结构：
+            ### ⏱️ 心流深度与认知耐力评估
+            (分析专注总时长与单次耐力时长，评估是否处于良性心流区间，诊断心流打断影响)
+            ### 🎯 重点领域与精力分配透视
+            (分析各分类占比与核心攻坚事项的时间投资有效性)
+            ### 🚀 下一阶段节律精进建议
+            (针对${timeframe}度提出2-3条具体可落地的节律优化动作，例如合理设定番茄周期、规避打断、保护深度工作块等)
+        """.trimIndent()
+
+        return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
+    }
+
     data class AiDailyReportDraft(
         val summary: String,
         val plan: String,

@@ -40,7 +40,9 @@ class FocusLiveService : Service() {
             ACTION_START -> {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "深度心流"
                 val seconds = intent.getIntExtra(EXTRA_SECONDS, 25 * 60)
-                startFocusSession(title, seconds)
+                val schedId = intent.getStringExtra(EXTRA_SCHEDULE_ID)
+                val cat = intent.getStringExtra(EXTRA_CATEGORY) ?: "WORK"
+                startFocusSession(title, seconds, schedId, cat)
             }
             ACTION_TOGGLE -> {
                 if (_isRunning.value) {
@@ -58,12 +60,18 @@ class FocusLiveService : Service() {
     }
 
     private var targetEndTimeRealtime: Long = 0L
+    private var sessionStartTimeIso: String = ""
+    private var sessionScheduleId: String? = null
+    private var sessionCategory: String = "WORK"
 
-    private fun startFocusSession(title: String, seconds: Int) {
+    private fun startFocusSession(title: String, seconds: Int, scheduleId: String? = null, category: String = "WORK") {
         _currentTaskTitle.value = title
         _initialTotalSeconds.value = seconds
         _remainingSeconds.value = seconds
         _isRunning.value = true
+        sessionStartTimeIso = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
+        sessionScheduleId = scheduleId
+        sessionCategory = category
         targetEndTimeRealtime = SystemClock.elapsedRealtime() + (seconds * 1000L)
 
         scheduleFinishAlarm(seconds)
@@ -109,6 +117,10 @@ class FocusLiveService : Service() {
 
     private fun stopFocusSession() {
         cancelFinishAlarm()
+        val elapsedSeconds = maxOf(0, _initialTotalSeconds.value - _remainingSeconds.value)
+        if (elapsedSeconds >= 60) {
+            saveRecordToDb(elapsedSeconds / 60, "INTERRUPTED")
+        }
         _isRunning.value = false
         _remainingSeconds.value = _initialTotalSeconds.value
         timerJob?.cancel()
@@ -119,6 +131,10 @@ class FocusLiveService : Service() {
 
     private fun onFocusCompleted() {
         cancelFinishAlarm()
+        val elapsedSeconds = _initialTotalSeconds.value
+        if (elapsedSeconds >= 60) {
+            saveRecordToDb(elapsedSeconds / 60, "COMPLETED")
+        }
         _isRunning.value = false
         _remainingSeconds.value = 0
         timerJob?.cancel()
@@ -126,6 +142,25 @@ class FocusLiveService : Service() {
         showCompletedNotification()
         stopForeground(STOP_FOREGROUND_DETACH)
         stopSelf()
+    }
+
+    private fun saveRecordToDb(durMins: Int, status: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val db = com.renly.rmf.data.local.RmfDatabase.getInstance(applicationContext)
+                val endTimeIso = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
+                val record = com.renly.rmf.data.local.entity.FocusRecordEntity(
+                    scheduleId = sessionScheduleId,
+                    taskTitle = _currentTaskTitle.value,
+                    category = sessionCategory,
+                    durationMinutes = durMins,
+                    startTime = sessionStartTimeIso.ifBlank { endTimeIso },
+                    endTime = endTimeIso,
+                    status = status
+                )
+                db.focusDao().insert(record)
+            } catch (_: Exception) {}
+        }
     }
 
 
@@ -382,6 +417,8 @@ class FocusLiveService : Service() {
 
         const val EXTRA_TITLE = "extra_focus_title"
         const val EXTRA_SECONDS = "extra_focus_seconds"
+        const val EXTRA_SCHEDULE_ID = "extra_focus_schedule_id"
+        const val EXTRA_CATEGORY = "extra_focus_category"
 
         private val _isRunning = MutableStateFlow(false)
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
@@ -395,11 +432,19 @@ class FocusLiveService : Service() {
         private val _currentTaskTitle = MutableStateFlow("深度心流")
         val currentTaskTitle: StateFlow<String> = _currentTaskTitle.asStateFlow()
 
-        fun start(context: Context, title: String = "深度心流", seconds: Int = 25 * 60) {
+        fun start(
+            context: Context,
+            title: String = "深度心流",
+            seconds: Int = 25 * 60,
+            scheduleId: String? = null,
+            category: String = "WORK"
+        ) {
             val intent = Intent(context, FocusLiveService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_TITLE, title)
                 putExtra(EXTRA_SECONDS, seconds)
+                putExtra(EXTRA_SCHEDULE_ID, scheduleId)
+                putExtra(EXTRA_CATEGORY, category)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)

@@ -1,8 +1,7 @@
 package com.renly.rmf.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,13 +22,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,29 +37,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.renly.rmf.data.local.entity.FocusRecordEntity
 import com.renly.rmf.data.local.entity.InterruptionEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
+import com.renly.rmf.domain.service.AiPreferences
+import com.renly.rmf.domain.service.AiResult
+import com.renly.rmf.domain.service.AiService
 import com.renly.rmf.domain.service.FocusLiveService
+import com.renly.rmf.domain.service.FocusPreferences
+import com.renly.rmf.domain.service.FocusPreset
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FocusScreen(
     isInPip: Boolean = false,
     schedulesFlow: Flow<List<ScheduleEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
+    focusRecordsFlow: Flow<List<FocusRecordEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onUpdateSchedule: (ScheduleEntity) -> Unit = {},
     onRecordInterruption: (InterruptionEntity) -> Unit,
     onEnterPiP: () -> Unit = {}
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     val liveRunning by FocusLiveService.isRunning.collectAsState()
     val liveSeconds by FocusLiveService.remainingSeconds.collectAsState()
     val initialSeconds by FocusLiveService.initialTotalSeconds.collectAsState()
@@ -70,14 +85,20 @@ fun FocusScreen(
         allSchedules.filter { it.isDeleted == 0 && it.status != "COMPLETED" && it.status != "ABANDONED" }
     }
 
+    val focusRecords by focusRecordsFlow.collectAsState(initial = emptyList())
+
     var boundScheduleId by remember { mutableStateOf<String?>(null) }
     val boundSchedule = remember(boundScheduleId, allSchedules) {
         allSchedules.find { it.id == boundScheduleId }
     }
 
     var customMinutes by remember { mutableIntStateOf(25) }
+    var presets by remember { mutableStateOf(FocusPreferences.getPresets(context)) }
+
+    var showAddPresetDialog by remember { mutableStateOf(false) }
     var showEventPickerModal by remember { mutableStateOf(false) }
     var showInterruptionDialog by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
 
     val isRunning = liveRunning
     val currentRemainingSeconds = if (isRunning) liveSeconds else (customMinutes * 60)
@@ -88,7 +109,9 @@ fun FocusScreen(
     val timeFormatted = "%02d:%02d".format(minutes, seconds)
     val progress = ((maxSeconds - currentRemainingSeconds).toFloat() / maxSeconds.toFloat()).coerceIn(0f, 1f)
 
-    // 画中画 (PiP) 模式视图
+    // ==========================================
+    // 🪟 超紧凑超精简画中画 (PiP) 模式视图
+    // ==========================================
     if (isInPip) {
         FocusPipCapsule(
             timeFormatted = timeFormatted,
@@ -99,7 +122,13 @@ fun FocusScreen(
                     FocusLiveService.pause(context)
                 } else {
                     val title = boundSchedule?.title ?: "深度专注"
-                    FocusLiveService.start(context, title, currentRemainingSeconds)
+                    FocusLiveService.start(
+                        context = context,
+                        title = title,
+                        seconds = currentRemainingSeconds,
+                        scheduleId = boundSchedule?.id,
+                        category = boundSchedule?.category ?: "WORK"
+                    )
                 }
             },
             onReset = {
@@ -109,6 +138,9 @@ fun FocusScreen(
         return
     }
 
+    // ==========================================
+    // 主界面视图
+    // ==========================================
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -139,6 +171,34 @@ fun FocusScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 专注历史记录与分析
+                Surface(
+                    onClick = { showHistoryDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkCard,
+                    border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                    modifier = Modifier.height(38.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "历史分析",
+                            tint = DopaminePurple,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "历史分析",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DopaminePurple
+                        )
+                    }
+                }
+
                 // 绑定日程快捷入口
                 Surface(
                     onClick = { showEventPickerModal = true },
@@ -159,7 +219,7 @@ fun FocusScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (boundSchedule != null) "已绑定日程" else "绑定日程",
+                            text = if (boundSchedule != null) "已绑定" else "绑定日程",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (boundSchedule != null) DopamineBlue else TextSecondary
@@ -286,7 +346,7 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 3. 巨幅拟物环形双层发光倒计时表盘
+        // 3. 拟物环形双层发光倒计时表盘
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(220.dp)
@@ -329,17 +389,74 @@ fun FocusScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. 时间滑动滚轮选择器 (Scroll Wheel Duration Picker - 1分钟精度)
+        // 4. 🎛️ 专注预设选择与管理区 (预设 + 自定义预设)
         if (!isRunning) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⏱️ 专注时长预设",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    TextButton(
+                        onClick = { showAddPresetDialog = true },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = DopamineCyan, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("自定义预设", fontSize = 11.sp, color = DopamineCyan)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(presets) { preset ->
+                        val isSelected = customMinutes == preset.minutes
+                        Surface(
+                            onClick = { customMinutes = preset.minutes },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkCard,
+                            border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            ) {
+                                Text(preset.icon, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "${preset.name} (${preset.minutes}m)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) DopamineCyan else TextPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 时间滑动滚轮选择器 (Scroll Wheel Duration Picker - 1分钟精度)
             val minutesList = remember { (1..180).toList() }
             val itemHeight = 40.dp
             val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
             val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
             val flingBehavior = rememberSnapFlingBehavior(lazyListState = wheelListState)
 
-            // 监听滚轮滚动并同步 customMinutes
             LaunchedEffect(wheelListState.firstVisibleItemIndex) {
                 val selectedIdx = wheelListState.firstVisibleItemIndex.coerceIn(0, minutesList.lastIndex)
                 if (minutesList[selectedIdx] != customMinutes) {
@@ -347,7 +464,6 @@ fun FocusScreen(
                 }
             }
 
-            // 当从外部改变 customMinutes 时同步滚轮位置
             LaunchedEffect(customMinutes) {
                 val targetIdx = minutesList.indexOf(customMinutes)
                 if (targetIdx >= 0 && targetIdx != wheelListState.firstVisibleItemIndex) {
@@ -360,35 +476,31 @@ fun FocusScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "设定专注时长",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextSecondary
+                    text = "微调滑轮 (1分钟精细刻度)",
+                    fontSize = 11.sp,
+                    color = TextMuted
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // 拟物滚轮容器 (带上下羽化渐变遮罩与中间高亮选框)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.7f)
+                        .fillMaxWidth(0.65f)
                         .height(itemHeight * 3)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(DarkCard)
-                        .border(1.dp, DarkBorder, RoundedCornerShape(16.dp)),
+                        .border(1.dp, DarkBorder, RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    // 中间高亮标尺线 / 背景槽
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(0.85f)
                             .height(itemHeight)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(DopamineCyan.copy(alpha = 0.12f))
-                            .border(1.dp, DopamineCyan.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            .border(1.dp, DopamineCyan.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
                     )
 
-                    // 纵向滚轮滚动列表
                     LazyColumn(
                         state = wheelListState,
                         flingBehavior = flingBehavior,
@@ -402,9 +514,7 @@ fun FocusScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(itemHeight)
-                                    .clickable {
-                                        customMinutes = mins
-                                    },
+                                    .clickable { customMinutes = mins },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
@@ -413,14 +523,14 @@ fun FocusScreen(
                                 ) {
                                     Text(
                                         text = "$mins",
-                                        fontSize = if (isCurrentSelected) 22.sp else 16.sp,
+                                        fontSize = if (isCurrentSelected) 20.sp else 15.sp,
                                         fontWeight = if (isCurrentSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isCurrentSelected) DopamineCyan else TextMuted
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "分钟",
-                                        fontSize = if (isCurrentSelected) 12.sp else 10.sp,
+                                        fontSize = if (isCurrentSelected) 11.sp else 10.sp,
                                         color = if (isCurrentSelected) TextPrimary else TextMuted
                                     )
                                 }
@@ -428,28 +538,19 @@ fun FocusScreen(
                         }
                     }
 
-                    // 上下羽化渐变遮罩 (打造 iOS / ColorOS 真实滚轮深度感)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(itemHeight)
                             .align(Alignment.TopCenter)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(DarkCard, Color.Transparent)
-                                )
-                            )
+                            .background(Brush.verticalGradient(listOf(DarkCard, Color.Transparent)))
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(itemHeight)
                             .align(Alignment.BottomCenter)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, DarkCard)
-                                )
-                            )
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, DarkCard)))
                     )
                 }
             }
@@ -490,7 +591,13 @@ fun FocusScreen(
                     } else {
                         val title = boundSchedule?.title ?: "深度专注"
                         val secs = if (liveSeconds > 0 && liveSeconds < customMinutes * 60) liveSeconds else customMinutes * 60
-                        FocusLiveService.start(context, title, secs)
+                        FocusLiveService.start(
+                            context = context,
+                            title = title,
+                            seconds = secs,
+                            scheduleId = boundSchedule?.id,
+                            category = boundSchedule?.category ?: "WORK"
+                        )
                     }
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -523,7 +630,9 @@ fun FocusScreen(
         Spacer(modifier = Modifier.height(16.dp))
     }
 
+    // ==========================================
     // 弹窗 1: 选择绑定日程事件 (EventPickerModal)
+    // ==========================================
     if (showEventPickerModal) {
         AlertDialog(
             onDismissRequest = { showEventPickerModal = false },
@@ -627,7 +736,79 @@ fun FocusScreen(
         )
     }
 
-    // 弹窗 2: 记录打断弹窗
+    // ==========================================
+    // 弹窗 2: 自定义专注预设弹窗
+    // ==========================================
+    if (showAddPresetDialog) {
+        var presetName by remember { mutableStateOf("") }
+        var presetMinsText by remember { mutableStateOf("30") }
+        var presetIcon by remember { mutableStateOf("⚡") }
+        val icons = listOf("⚡", "🍅", "🎯", "🧠", "🚀", "📖", "💻", "☕")
+
+        AlertDialog(
+            onDismissRequest = { showAddPresetDialog = false },
+            containerColor = DarkCard,
+            title = { Text("新增自定义专注预设", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = presetName,
+                        onValueChange = { presetName = it },
+                        label = { Text("预设名称 (如: 英语速读、代码攻坚)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = presetMinsText,
+                        onValueChange = { presetMinsText = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("专注时长 (分钟: 1-360)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("预设图标:", fontSize = 12.sp, color = TextSecondary)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        icons.forEach { icon ->
+                            Surface(
+                                onClick = { presetIcon = icon },
+                                shape = CircleShape,
+                                color = if (presetIcon == icon) DopamineCyan.copy(alpha = 0.25f) else DarkSurface,
+                                border = BorderStroke(1.dp, if (presetIcon == icon) DopamineCyan else DarkBorder),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(icon, fontSize = 16.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val m = presetMinsText.toIntOrNull() ?: 25
+                        val n = presetName.trim().ifBlank { "${m}分钟专注" }
+                        FocusPreferences.addPreset(context, n, m, presetIcon)
+                        presets = FocusPreferences.getPresets(context)
+                        customMinutes = m
+                        showAddPresetDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan)
+                ) {
+                    Text("保存预设", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddPresetDialog = false }) { Text("取消", color = TextSecondary) }
+            }
+        )
+    }
+
+    // ==========================================
+    // 弹窗 3: 记录打断弹窗
+    // ==========================================
     if (showInterruptionDialog) {
         RecordInterruptionDialog(
             onDismiss = { showInterruptionDialog = false },
@@ -635,7 +816,7 @@ fun FocusScreen(
                 val entity = InterruptionEntity(
                     type = type,
                     durationSeconds = 60,
-                    timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME),
+                    timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
                     note = note
                 )
                 onRecordInterruption(entity)
@@ -643,8 +824,21 @@ fun FocusScreen(
             }
         )
     }
+
+    // ==========================================
+    // 弹窗 4: 专注历史记录与日/周/月/年分析弹窗
+    // ==========================================
+    if (showHistoryDialog) {
+        FocusHistoryAndAnalysisDialog(
+            records = focusRecords,
+            onDismiss = { showHistoryDialog = false }
+        )
+    }
 }
 
+// ==========================================
+// 🪟 极致小巧简洁的画中画胶囊 (PiP View)
+// ==========================================
 @Composable
 fun FocusPipCapsule(
     timeFormatted: String,
@@ -660,61 +854,54 @@ fun FocusPipCapsule(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             color = DarkCard,
-            border = BorderStroke(1.dp, if (isRunning) DopamineBlue.copy(alpha = 0.6f) else DarkBorder),
+            border = BorderStroke(1.dp, if (isRunning) DopamineBlue.copy(alpha = 0.5f) else DarkBorder),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(6.dp)
+                .padding(4.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(verticalArrangement = Arrangement.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .background(if (isRunning) DopamineGreen else DopamineAmber, CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isRunning) taskTitle else "准备就绪",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isRunning) DopamineGreen else TextMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
+                // 左侧：状态圆点 + 紧凑倒计时
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(if (isRunning) DopamineGreen else DopamineAmber, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = timeFormatted,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary,
-                        letterSpacing = (-1).sp
+                        letterSpacing = (-0.5).sp
                     )
                 }
 
+                // 右侧：超精炼重置与播放按钮
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    FilledIconButton(
+                    IconButton(
                         onClick = onReset,
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = DarkSurface),
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             Icons.Default.Refresh,
                             contentDescription = "重置",
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
+                            tint = TextMuted,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
@@ -723,13 +910,13 @@ fun FocusPipCapsule(
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = if (isRunning) DopamineAmber else DopamineBlue
                         ),
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isRunning) "暂停" else "开始",
                             tint = DarkBg,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -738,6 +925,350 @@ fun FocusPipCapsule(
     }
 }
 
+// ==========================================
+// 📊 专注历史记录与日/周/月/年分析弹窗
+// ==========================================
+@Composable
+fun FocusHistoryAndAnalysisDialog(
+    records: List<FocusRecordEntity>,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: 历史流水, 1: 周期智能分析
+    var selectedTimeframe by remember { mutableStateOf("日") } // "日", "周", "月", "年"
+    var isAnalyzing by remember { mutableStateOf(false) }
+    var analysisResultText by remember { mutableStateOf<String?>(null) }
+
+    val isAiEnabled = remember { AiPreferences.isAiEnabled(context) }
+    val isAiConfigured = remember { AiPreferences.isConfigured(context) }
+
+    val now = LocalDateTime.now()
+
+    // 根据选定的周期筛选记录
+    val filteredRecords = remember(records, selectedTimeframe) {
+        val today = LocalDate.now()
+        when (selectedTimeframe) {
+            "日" -> {
+                records.filter {
+                    try {
+                        val dt = LocalDateTime.parse(it.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                        dt.toLocalDate() == today
+                    } catch (_: Exception) { false }
+                }
+            }
+            "周" -> {
+                val weekFields = WeekFields.of(Locale.getDefault())
+                val currentWeek = today.get(weekFields.weekOfYear())
+                val currentYear = today.year
+                records.filter {
+                    try {
+                        val dt = LocalDateTime.parse(it.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                        dt.year == currentYear && dt.toLocalDate().get(weekFields.weekOfYear()) == currentWeek
+                    } catch (_: Exception) { false }
+                }
+            }
+            "月" -> {
+                val currentMonth = today.monthValue
+                val currentYear = today.year
+                records.filter {
+                    try {
+                        val dt = LocalDateTime.parse(it.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                        dt.year == currentYear && dt.monthValue == currentMonth
+                    } catch (_: Exception) { false }
+                }
+            }
+            "年" -> {
+                val currentYear = today.year
+                records.filter {
+                    try {
+                        val dt = LocalDateTime.parse(it.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                        dt.year == currentYear
+                    } catch (_: Exception) { false }
+                }
+            }
+            else -> records
+        }
+    }
+
+    val totalMinutes = filteredRecords.sumOf { it.durationMinutes }
+    val totalSessions = filteredRecords.size
+    val avgMinutes = if (totalSessions > 0) totalMinutes / totalSessions else 0
+    val totalInterruptions = filteredRecords.sumOf { it.interruptionCount }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkCard,
+        modifier = Modifier.fillMaxWidth(0.96f).heightIn(max = 680.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📈 专注历史与多维分析", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = TextMuted)
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Tab 切换：历史记录 VS 周期分析
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = DarkSurface,
+                    contentColor = DopamineCyan,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("专注记录 (${records.size})", fontSize = 12.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("周期智能分析", fontSize = 12.sp) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (selectedTab == 0) {
+                    // 1. 历史记录明细流
+                    if (records.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(260.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("📭 暂无专注记录，点击开始专注沉浸心流吧！", fontSize = 12.sp, color = TextMuted)
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(360.dp)
+                        ) {
+                            items(records) { item ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = DarkSurface,
+                                    border = BorderStroke(1.dp, DarkBorder),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = item.taskTitle,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextPrimary
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    color = if (item.status == "COMPLETED") DopamineGreen.copy(alpha = 0.2f) else DopamineAmber.copy(alpha = 0.2f),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = if (item.status == "COMPLETED") "达成" else "中断",
+                                                        fontSize = 9.sp,
+                                                        color = if (item.status == "COMPLETED") DopamineGreen else DopamineAmber,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = item.startTime.take(16).replace("T", " "),
+                                                fontSize = 10.5.sp,
+                                                color = TextMuted,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "${item.durationMinutes} 分钟",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = DopamineCyan
+                                            )
+                                            Text(
+                                                text = item.category,
+                                                fontSize = 10.sp,
+                                                color = TextSecondary,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // 2. 周期智能分析 (日/周/月/年)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 440.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // 周期选择器
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf("日", "周", "月", "年").forEach { tf ->
+                                val isSelected = selectedTimeframe == tf
+                                Surface(
+                                    onClick = {
+                                        selectedTimeframe = tf
+                                        analysisResultText = null
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkSurface,
+                                    border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
+                                    modifier = Modifier.weight(1f).height(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${tf}分析",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) DopamineCyan else TextSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 核心数据指标矩阵
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                modifier = Modifier.weight(1f).padding(vertical = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("总时长", fontSize = 10.sp, color = TextMuted)
+                                    Text("${totalMinutes}m", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                modifier = Modifier.weight(1f).padding(vertical = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("专注次数", fontSize = 10.sp, color = TextMuted)
+                                    Text("${totalSessions}次", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                modifier = Modifier.weight(1f).padding(vertical = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("平均单次", fontSize = 10.sp, color = TextMuted)
+                                    Text("${avgMinutes}m", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DopamineGreen)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // 触发 AI 分析按钮
+                        Button(
+                            onClick = {
+                                if (!isAiEnabled || !isAiConfigured) {
+                                    Toast.makeText(context, "请先在「系统设置」中开启并配置自定义数据分析接口", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                coroutineScope.launch {
+                                    isAnalyzing = true
+                                    analysisResultText = null
+                                    val catSummary = filteredRecords.groupBy { it.category }
+                                        .map { "${it.key}: ${it.value.sumOf { r -> r.durationMinutes }}m (${it.value.size}次)" }
+                                        .joinToString()
+                                    val topTasks = filteredRecords.map { it.taskTitle }.distinct().take(5)
+
+                                    val res = AiService.generateFocusAnalysis(
+                                        context = context,
+                                        timeframe = selectedTimeframe,
+                                        periodLabel = "${now.format(DateTimeFormatter.ISO_LOCAL_DATE)} 当前${selectedTimeframe}周期",
+                                        totalSessions = totalSessions,
+                                        totalMinutes = totalMinutes,
+                                        avgMinutesPerSession = avgMinutes,
+                                        interruptionCount = totalInterruptions,
+                                        categoryBreakdown = catSummary.ifBlank { "单项深度工作" },
+                                        topTasks = topTasks
+                                    )
+                                    isAnalyzing = false
+                                    when (res) {
+                                        is AiResult.Success -> analysisResultText = res.data
+                                        is AiResult.Error -> analysisResultText = "分析生成失败: ${res.errorMessage}"
+                                    }
+                                }
+                            },
+                            enabled = !isAnalyzing,
+                            colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(38.dp)
+                        ) {
+                            if (isAnalyzing) {
+                                CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("正在生成${selectedTimeframe}心流报告...", fontSize = 11.sp, color = Color.White)
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("智能${selectedTimeframe}分析与节律诊断", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (analysisResultText != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.4f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = analysisResultText!!,
+                                    fontSize = 11.5.sp,
+                                    color = TextPrimary,
+                                    lineHeight = 17.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = TextSecondary)
+            }
+        }
+    )
+}
+
+// ==========================================
+// 打断弹窗
+// ==========================================
 @Composable
 fun RecordInterruptionDialog(
     onDismiss: () -> Unit,
@@ -797,4 +1328,3 @@ fun RecordInterruptionDialog(
         }
     )
 }
-

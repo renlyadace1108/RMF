@@ -758,6 +758,7 @@ class MainActivity : ComponentActivity() {
                             Screen.Focus -> FocusScreen(
                                 isInPip = isInPipMode,
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
+                                focusRecordsFlow = db.focusDao().getAllFocusRecords(),
                                 onUpdateSchedule = { schedule ->
                                     lifecycleScope.launch {
                                         db.scheduleDao().insertOrUpdate(schedule)
@@ -776,7 +777,8 @@ class MainActivity : ComponentActivity() {
                                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                                         enterPictureInPictureMode(
                                             android.app.PictureInPictureParams.Builder()
-                                                .setAspectRatio(android.util.Rational(16, 9))
+                                                // 极致小巧胶囊比例 (2.39:1 接近 Android PiP 极限最大宽高比 2.39)
+                                                .setAspectRatio(android.util.Rational(239, 100))
                                                 .build()
                                         )
                                     } else {
