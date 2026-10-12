@@ -44,8 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.entity.InterruptionEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
-import com.renly.rmf.domain.service.AmbientSoundType
-import com.renly.rmf.domain.service.FocusAmbientSoundPlayer
 import com.renly.rmf.domain.service.FocusLiveService
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
@@ -78,7 +76,6 @@ fun FocusScreen(
     }
 
     var customMinutes by remember { mutableIntStateOf(25) }
-    var selectedAmbientSound by remember { mutableStateOf(AmbientSoundType.NONE) }
     var showEventPickerModal by remember { mutableStateOf(false) }
     var showInterruptionDialog by remember { mutableStateOf(false) }
 
@@ -100,18 +97,13 @@ fun FocusScreen(
             onTogglePlay = {
                 if (isRunning) {
                     FocusLiveService.pause(context)
-                    FocusAmbientSoundPlayer.stopSound()
                 } else {
-                    val title = boundSchedule?.title ?: "深度心流专注"
+                    val title = boundSchedule?.title ?: "深度专注"
                     FocusLiveService.start(context, title, currentRemainingSeconds)
-                    if (selectedAmbientSound != AmbientSoundType.NONE) {
-                        FocusAmbientSoundPlayer.startSound(selectedAmbientSound)
-                    }
                 }
             },
             onReset = {
                 FocusLiveService.stop(context)
-                FocusAmbientSoundPlayer.stopSound()
             }
         )
         return
@@ -484,7 +476,6 @@ fun FocusScreen(
                         }
                     }
                     FocusLiveService.stop(context)
-                    FocusAmbientSoundPlayer.stopSound()
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(containerColor = DarkCard),
                 modifier = Modifier.size(54.dp)
@@ -496,14 +487,10 @@ fun FocusScreen(
                 onClick = {
                     if (isRunning) {
                         FocusLiveService.pause(context)
-                        FocusAmbientSoundPlayer.stopSound()
                     } else {
-                        val title = boundSchedule?.title ?: "深度心流专注"
+                        val title = boundSchedule?.title ?: "深度专注"
                         val secs = if (liveSeconds > 0 && liveSeconds < customMinutes * 60) liveSeconds else customMinutes * 60
                         FocusLiveService.start(context, title, secs)
-                        if (selectedAmbientSound != AmbientSoundType.NONE) {
-                            FocusAmbientSoundPlayer.startSound(selectedAmbientSound)
-                        }
                     }
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -520,132 +507,9 @@ fun FocusScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // 🎧 专注白噪音与沉浸声景卡片 (Ambient Soundscape)
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = DarkCard,
-            border = BorderStroke(1.dp, if (selectedAmbientSound != AmbientSoundType.NONE) DopaminePurple.copy(alpha = 0.5f) else DarkBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("🎧 专注白噪音与沉浸声景", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(modifier = Modifier.weight(1f))
-                    if (selectedAmbientSound != AmbientSoundType.NONE) {
-                        Surface(
-                            color = DopaminePurple.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = if (FocusAmbientSoundPlayer.isPlaying()) "正在播放" else "就绪",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DopaminePurple,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(AmbientSoundType.values()) { sound ->
-                        val isSel = selectedAmbientSound == sound
-                        FilterChip(
-                            selected = isSel,
-                            onClick = {
-                                selectedAmbientSound = sound
-                                if (isRunning) {
-                                    FocusAmbientSoundPlayer.startSound(sound)
-                                }
-                            },
-                            leadingIcon = {
-                                Text(sound.icon, fontSize = 13.sp)
-                            },
-                            label = {
-                                Text(sound.title, fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal)
-                            }
-                        )
-                    }
-                }
-
-                if (selectedAmbientSound != AmbientSoundType.NONE) {
-                    Text(
-                        text = selectedAmbientSound.desc,
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 6. 胶囊通知实时状态指示卡片 (动态呈现胶囊通知状态)
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = if (isRunning) DopamineCyan.copy(alpha = 0.12f) else DarkCard,
-            border = BorderStroke(1.dp, if (isRunning) DopamineCyan.copy(alpha = 0.45f) else DarkBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (isRunning) DopamineGreen else DopamineCyan)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isRunning) "🫧 胶囊通知实时运行中" else "🫧 胶囊通知待命就绪",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isRunning) DopamineCyan else TextPrimary
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Surface(
-                        color = (if (isRunning) DopamineCyan else TextMuted).copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = if (isRunning) "实时投递中" else "待机",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isRunning) DopamineCyan else TextMuted,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = if (isRunning) {
-                        "当前状态栏已浮现实时动态胶囊通知！切换至手机桌面或锁屏，胶囊与大卡片将常驻展示【${if (boundSchedule != null) boundSchedule.title else liveTitle}】倒计时与快捷暂停按钮。"
-                    } else {
-                        "点击上方开始专注后，系统将自动通过高优先级前台服务在状态栏与锁屏激活胶囊通知。"
-                    },
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    lineHeight = 16.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // 7. 记录心流打断按钮
+        // 6. 记录心流打断按钮
         OutlinedButton(
             onClick = { showInterruptionDialog = true },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineRed),
