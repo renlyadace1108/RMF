@@ -223,7 +223,12 @@ object AiService {
             val cleanBase = baseUrl.trimEnd('/')
             val endpoint = when {
                 cleanBase.endsWith("/chat/completions") -> cleanBase
-                cleanBase.endsWith("/v1") -> "$cleanBase/chat/completions"
+                cleanBase.contains("generativelanguage.googleapis.com") -> {
+                    if (cleanBase.endsWith("/openai")) "$cleanBase/chat/completions"
+                    else if (cleanBase.endsWith("/v1beta")) "$cleanBase/openai/chat/completions"
+                    else "$cleanBase/v1beta/openai/chat/completions"
+                }
+                cleanBase.endsWith("/v1") || cleanBase.endsWith("/v4") -> "$cleanBase/chat/completions"
                 else -> "$cleanBase/v1/chat/completions"
             }
 

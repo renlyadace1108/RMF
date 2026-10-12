@@ -47,7 +47,11 @@
      - **接口服务地址 (Base URL)**：支持任意标准兼容接口地址（如用户可自行在官网指引填入 `https://api.siliconflow.cn/v1` 或自建反代）。
      - **接口密钥 (API Key)**：用户自主粘贴 API Key，密码隐藏/明文自由切换。
      - **模型名称 (Model ID)**：用户自由填入目标模型标识（如 `Qwen/Qwen2.5-7B-Instruct` 等）。
-  3. **极致合规与审核安全性**：
+  3. **全生态主流 API 自动自适应兼容**：
+     - **OpenAI 官方及代理**：支持 `https://api.openai.com/v1` 及任何基于 OpenAI 协议的第三方中转。
+     - **Google Gemini 官方**：底层自动适配 Google 官方 OpenAI 兼容通道 (`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`)，填入 Google API Key 即可直连官方 `gemini-1.5-flash`、`gemini-2.0-flash` 等。
+     - **国内主流大模型**：智谱 GLM (`/v4`)、月之暗面 Kimi、DeepSeek、硅基流动等自动规整 `/chat/completions`。
+  4. **极致合规与审核安全性**：
      - 应用端代码库内 0 预置第三方地址，0 预置模型名称，0 预置商业平台。
      - 在应用商店（OPPO/vivo/小米/华为）审核中具备完美的中立工具属性，彻底消除任何触发大模型资质审核的风险点。
 
