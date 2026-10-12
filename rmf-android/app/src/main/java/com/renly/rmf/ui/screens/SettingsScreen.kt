@@ -1191,35 +1191,57 @@ fun SettingsScreen(
                     alarmManager?.canScheduleExactAlarms() ?: true
                 } else true
 
+                val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
+                val isColorOs16 = com.renly.rmf.domain.service.FluidCloudHelper.isColorOs16OrHigher()
+
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = DarkSurface,
                     border = BorderStroke(1.dp, DarkBorder),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (hasNotifPerm) "✅" else "⚠️", fontSize = 12.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (hasNotifPerm) "通知权限已开启" else "通知权限未开启",
-                                fontSize = 11.sp,
-                                color = if (hasNotifPerm) DopamineGreen else DopamineAmber,
-                                fontWeight = FontWeight.Medium
-                            )
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (hasNotifPerm) "✅" else "⚠️", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (hasNotifPerm) "通知权限已开启" else "通知权限未开启",
+                                    fontSize = 11.sp,
+                                    color = if (hasNotifPerm) DopamineGreen else DopamineAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (canExactAlarm) "⚡" else "⏳", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (canExactAlarm) "精确闹钟已就绪" else "精确闹钟受限",
+                                    fontSize = 11.sp,
+                                    color = if (canExactAlarm) DopamineCyan else DopamineAmber,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
 
+                        Spacer(modifier = Modifier.height(6.dp))
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (canExactAlarm) "⚡" else "⏳", fontSize = 12.sp)
+                            Text(if (isLiveSupported) "🌊" else "📱", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (canExactAlarm) "精确闹钟已就绪" else "精确闹钟受限",
-                                fontSize = 11.sp,
-                                color = if (canExactAlarm) DopamineCyan else DopamineAmber,
+                                text = if (isLiveSupported) {
+                                    if (isColorOs16) "ColorOS 17 实时活动已就绪 (原生流体云借道模式)" else "Android 16 实时活动 (Live Updates) 借道已就绪"
+                                } else {
+                                    "流体云标准胶囊已待命 (自定义视图模式)"
+                                },
+                                fontSize = 10.5.sp,
+                                color = if (isLiveSupported) DopamineCyan else TextMuted,
                                 fontWeight = FontWeight.Medium
                             )
                         }

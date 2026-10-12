@@ -36,6 +36,19 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-12 10:40] - 修复 OPPO Find X9 (ColorOS 17) 借道 Android 16 实时活动接入流体云失败问题
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“现在胶囊是通过借道安卓实时活动来进入coloros流体云的，但是在OPPO findx9 coloros17实测的时候发现没有成功接入实时活动，现在需要你修复这个问题”
+* **核心排查定位**：
+  1. **缺少系统级必要权限**：Android 16 规范明确规定 Live Updates 必须声明 `android.permission.POST_PROMOTED_NOTIFICATIONS` 权限，此前工程缺失该声明，系统底层直接拒绝提升；
+  2. **缺失提升请求标记**：未注入 `android.requestPromotedOngoing = true` 与 `setRequestPromotedOngoing(true)` 标记；
+  3. **自定义 RemoteViews 阻断上岛（核心致命点）**：Android 16 底层 `Notification.hasPromotableCharacteristics()` 强制要求 `!containsCustomViews()` 与合规样式（`BigTextStyle` 等）。此前代码绑定了 `setCustomContentView` 与 `setCustomBigContentView`，导致被系统直接判定为不合规而无法上岛为流体云胶囊。
+* **核心落地成果**：
+  1. **声明核心权限**：在 `AndroidManifest.xml` 中加入 `android.permission.POST_PROMOTED_NOTIFICATIONS`。
+  2. **创建 `FluidCloudHelper`**：提供 `isPromotedLiveUpdateSupported()`、`isColorOs16OrHigher()`、`applyPromotedOngoing()` 与 `finalizeNotification()`，精准识别 ColorOS 17 / Android 16 环境。
+  3. **重构通知构建链路**：在 `FocusLiveService` 与 `ScheduleAlarmReceiver` 中全面对齐 Android 16 原生 Live Updates 标准（原生 BigTextStyle、原生 Chronometer 倒计时、原生交互 Action、彻底移除阻断提升的 RemoteViews），同时保留旧系统的 RemoteViews 平滑回退。
+  4. **实验室面板升级**：在 `SettingsScreen` 的通知实验室中加入 ColorOS 17 实时活动诊断指示器。
+
 ### [2026-10-09 17:25] - 双端同步成功与本地开发环境全自动初始化
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“双端同步成功，然后上传到github，我将在另一端检查”
