@@ -220,6 +220,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     .setCustomBigContentView(expandedView)
                     .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             }
+        } else {
             // 通用日程
             val startMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
             val remMillis = if (startMillis > System.currentTimeMillis()) startMillis - System.currentTimeMillis() else 0L
