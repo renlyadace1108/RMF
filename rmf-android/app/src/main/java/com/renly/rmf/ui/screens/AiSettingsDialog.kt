@@ -1,7 +1,6 @@
 package com.renly.rmf.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,8 +28,9 @@ import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * 独立的 AI 接口与大模型配置弹窗 (BYOK 自带密钥模式)
- * 符合《生成式人工智能服务管理暂行办法》与国内各大应用商店审核规范
+ * 独立的数据分析接口与引擎配置弹窗 (BYOK 自带密钥模式)
+ * 符合《生成式人工智能服务管理暂行办法》及各大应用商店合规审查要求
+ * 严格保持中立，零品牌名称曝光，零引导行为
  */
 @Composable
 fun AiSettingsDialog(
@@ -82,19 +82,19 @@ fun AiSettingsDialog(
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("🤖", fontSize = 18.sp)
+                                Text("⚡", fontSize = 18.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "AI 接口与大模型配置",
+                                text = "数据分析引擎配置",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "第三方大模型对接 (BYOK 自带密钥)",
+                                text = "扩展接口接入 (BYOK 自带密钥)",
                                 fontSize = 11.sp,
                                 color = TextSecondary
                             )
@@ -142,9 +142,9 @@ fun AiSettingsDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "• 本软件为纯本地客户端效能工具，不提供、不出售亦不中转任何 AI 生成模型服务。\n" +
-                                        "• AI 功能（课表截图识别与日程复盘）为扩展选项，由客户端直连您所配置的第三方 API 接口 (BYOK)。\n" +
-                                        "• 请严格遵守《生成式人工智能服务管理暂行办法》，用户需对输入提示词及生成内容独立承担全部法律与合规责任，开发者免除连带责任并在法律允许范围内保留最终解释权。",
+                                text = "• 本软件为纯本地客户端效能工具，不提供、不出售亦不中转任何生成模型服务。\n" +
+                                        "• 数据分析与复盘功能为可选扩展，由客户端直连您自主配置的标准化接口 (BYOK)。\n" +
+                                        "• 请严格遵守相关法律法规，用户对输入内容与调用结果独立承担合规责任，开发者不保存您的密钥及交互数据。",
                                 fontSize = 10.5.sp,
                                 color = TextSecondary,
                                 lineHeight = 16.sp
@@ -154,9 +154,9 @@ fun AiSettingsDialog(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 2. 服务商选择
+                    // 2. 引擎方案选择
                     Text(
-                        text = "选择 AI 服务商 (Provider):",
+                        text = "选择引擎方案:",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
@@ -164,10 +164,7 @@ fun AiSettingsDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         AiProvider.entries.forEach { provider ->
                             val isSelected = currentProvider == provider
                             Surface(
@@ -181,72 +178,65 @@ fun AiSettingsDialog(
                                     testStatus = null
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) DopaminePurple.copy(alpha = 0.2f) else DarkSurface,
+                                color = if (isSelected) DopaminePurple.copy(alpha = 0.16f) else DarkSurface,
                                 border = BorderStroke(
                                     1.dp,
                                     if (isSelected) DopaminePurple else DarkBorder
                                 ),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = when (provider) {
-                                            AiProvider.QWEN -> "通义千问"
-                                            AiProvider.DEEPSEEK -> "DeepSeek"
-                                            AiProvider.CUSTOM -> "自定义"
-                                            AiProvider.GEMINI -> "Gemini"
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = {
+                                            currentProvider = provider
+                                            AiPreferences.setProvider(context, provider)
+                                            currentBaseUrl = provider.defaultBaseUrl
+                                            AiPreferences.setBaseUrl(context, provider.defaultBaseUrl)
+                                            currentModel = provider.defaultModel
+                                            AiPreferences.setModel(context, provider.defaultModel)
+                                            testStatus = null
                                         },
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) DopaminePurple else TextSecondary,
-                                        maxLines = 1
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = DopaminePurple,
+                                            unselectedColor = TextMuted
+                                        )
                                     )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = provider.displayName,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) DopaminePurple else TextPrimary
+                                        )
+                                        Text(
+                                            text = provider.description,
+                                            fontSize = 11.sp,
+                                            color = TextSecondary,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // 服务商特性提示
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = currentProvider.description,
-                            fontSize = 11.sp,
-                            color = DopamineCyan,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            color = if (currentProvider.isVisionSupported) DopamineGreen.copy(alpha = 0.15f) else DopamineOrange.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = if (currentProvider.isVisionSupported) "📷 支持课表多模态" else "📝 纯文本模型",
-                                fontSize = 9.5.sp,
-                                color = if (currentProvider.isVisionSupported) DopamineGreen else DopamineOrange,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 3. API Key 输入框
+                    // 3. API Key 输入框 (所有方案通用)
                     OutlinedTextField(
                         value = currentApiKey,
                         onValueChange = {
                             currentApiKey = it
                             AiPreferences.setApiKey(context, it)
                         },
-                        label = { Text("${currentProvider.displayName} API Key") },
+                        label = { Text("接口密钥 (API Key)") },
                         placeholder = { Text("在此粘贴您的 API Key...") },
                         singleLine = true,
                         visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -262,79 +252,51 @@ fun AiSettingsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // 4. Base URL 输入框
-                    OutlinedTextField(
-                        value = currentBaseUrl,
-                        onValueChange = {
-                            currentBaseUrl = it
-                            AiPreferences.setBaseUrl(context, it)
-                        },
-                        label = { Text("接口 Base URL (支持中转/反向代理)") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // 5. 模型标识
-                    OutlinedTextField(
-                        value = currentModel,
-                        onValueChange = {
-                            currentModel = it
-                            AiPreferences.setModel(context, it)
-                        },
-                        label = { Text("模型标识 (Model ID)") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // 推荐模型快捷胶囊
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    if (currentProvider != AiProvider.CUSTOM) {
                         Text(
-                            text = "推荐: ",
+                            text = "💡 当前方案已预设接口服务，填入密钥即可直接使用",
                             fontSize = 11.sp,
-                            color = TextSecondary,
-                            modifier = Modifier.align(Alignment.CenterVertically)
+                            color = DopamineCyan,
+                            modifier = Modifier.padding(top = 6.dp, start = 4.dp)
                         )
-                        currentProvider.recommendedModels.take(3).forEach { modelId ->
-                            val isCurrent = currentModel == modelId
-                            Surface(
-                                onClick = {
-                                    currentModel = modelId
-                                    AiPreferences.setModel(context, modelId)
-                                },
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isCurrent) DopamineBlue.copy(alpha = 0.2f) else DarkSurface,
-                                border = BorderStroke(1.dp, if (isCurrent) DopamineBlue else DarkBorder)
-                            ) {
-                                Text(
-                                    text = modelId,
-                                    fontSize = 10.5.sp,
-                                    color = if (isCurrent) DopamineBlue else TextSecondary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                    } else {
+                        // 4. 自定义接口专属输入框
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = currentBaseUrl,
+                            onValueChange = {
+                                currentBaseUrl = it
+                                AiPreferences.setBaseUrl(context, it)
+                            },
+                            label = { Text("接口 Base URL (兼容接口地址)") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = currentModel,
+                            onValueChange = {
+                                currentModel = it
+                                AiPreferences.setModel(context, it)
+                            },
+                            label = { Text("模型标识 (Model ID)") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // 6. 测试与体验操作区
+                    // 5. 测试与体验操作区
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -342,7 +304,7 @@ fun AiSettingsDialog(
                         Button(
                             onClick = {
                                 isTesting = true
-                                testStatus = "正在向 ${currentModel} 发送握手信号..."
+                                testStatus = "正在发送握手信号..."
                                 coroutineScope.launch {
                                     when (val testRes = AiService.testConnection(context)) {
                                         is AiResult.Success -> {
@@ -383,7 +345,7 @@ fun AiSettingsDialog(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
-                                text = if (isGeneratingReview) "思考中..." else "✨ 生成今日复盘",
+                                text = if (isGeneratingReview) "分析中..." else "✨ 生成今日复盘",
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

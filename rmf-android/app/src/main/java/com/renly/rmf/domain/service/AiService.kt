@@ -41,15 +41,15 @@ object AiService {
     )
 
     /**
-     * 测试当前配置的 AI 模型连通性与响应速度
+     * 测试当前配置的模型连通性与响应速度
      */
     suspend fun testConnection(context: Context): AiResult<String> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
-            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用，请先在系统设置中开启 AI 总开关。")
+            return@withContext AiResult.Error("数据分析功能已在设置中停用，请先开启总开关。")
         }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("请先填写对应服务商的 API Key")
+            return@withContext AiResult.Error("请先填写有效的 API Key")
         }
 
         val provider = AiPreferences.getProvider(context)
@@ -57,26 +57,22 @@ object AiService {
         val model = AiPreferences.getModel(context)
 
         val startTime = System.currentTimeMillis()
-        val testPrompt = "请仅回复五个字：AI连接正常。"
+        val testPrompt = "请仅回复五个字：服务已就绪。"
 
-        val result = if (provider == AiProvider.GEMINI) {
-            callGeminiApi(apiKey, baseUrl, model, testPrompt, null)
-        } else {
-            callOpenAiCompatibleApi(apiKey, baseUrl, model, testPrompt, null)
-        }
+        val result = callOpenAiCompatibleApi(apiKey, baseUrl, model, testPrompt, null)
 
         val elapsed = System.currentTimeMillis() - startTime
 
         return@withContext when (result) {
             is AiResult.Success -> {
-                AiResult.Success("✅ 连接成功！耗时: ${elapsed}ms\n模型 [${model}] 回复: ${result.data.trim()}")
+                AiResult.Success("✅ 连接成功！响应耗时: ${elapsed}ms\n${provider.shortName} 已就绪。")
             }
             is AiResult.Error -> result
         }
     }
 
     /**
-     * 生成每日复盘报告 (支持 Gemini, DeepSeek, Qwen 等所有配置的模型)
+     * 生成每日复盘报告
      */
     suspend fun generateDailyReview(
         context: Context,
@@ -88,19 +84,18 @@ object AiService {
         customNote: String = ""
     ): AiResult<String> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
-            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用。如需使用，请前往「系统设置」开启 AI 功能总开关。")
+            return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
         }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("请先在设置中填写有效的 AI API Key。")
+            return@withContext AiResult.Error("请先在设置中填写有效的 API Key。")
         }
 
-        val provider = AiPreferences.getProvider(context)
         val baseUrl = AiPreferences.getBaseUrl(context)
         val model = AiPreferences.getModel(context)
 
         val prompt = """
-            你是一名专业的精力管理与效率规划专家。请基于用户今天的实际执行数据，生成一份结构清晰、有洞察力的高质量复盘报告：
+            你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据，生成一份结构清晰、有洞察力的高质量复盘报告：
             - 今日日程完成率: $completedCount / $totalSchedules
             - 专注总时长: $focusMinutes 分钟
             - 打断发生次数: $interruptionCount 次
@@ -113,11 +108,7 @@ object AiService {
             ### 🎯 明日重心与节奏优化建议
         """.trimIndent()
 
-        return@withContext if (provider == AiProvider.GEMINI) {
-            callGeminiApi(apiKey, baseUrl, model, prompt, null)
-        } else {
-            callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
-        }
+        return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
     }
 
     /**
@@ -128,23 +119,23 @@ object AiService {
         imageBytes: ByteArray
     ): AiResult<List<CourseEntity>> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
-            return@withContext AiResult.Error("AI 智能功能已在系统设置中停用。如需使用，请前往「系统设置」开启 AI 功能总开关。")
+            return@withContext AiResult.Error("数据分析功能已在设置中停用。")
         }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("未配置 API Key！请前往「系统设置」->「智能互联」中配置。")
+            return@withContext AiResult.Error("未配置 API Key！请前往「系统设置」中配置。")
         }
 
         val provider = AiPreferences.getProvider(context)
-        if (provider == AiProvider.DEEPSEEK) {
-            return@withContext AiResult.Error("DeepSeek 官方当前仅提供纯文本模型，不支持图像视觉识别！请在系统设置中切换为 Google Gemini 或 通义千问 (qwen-vl-plus) 视觉模型。")
+        if (provider != AiProvider.CUSTOM) {
+            return@withContext AiResult.Error("当前预设的文本分析引擎不支持图像视觉识别。如需解析截图课表，请使用自定义兼容接口并指定视觉模型。")
         }
 
         val baseUrl = AiPreferences.getBaseUrl(context)
         val model = AiPreferences.getModel(context)
 
         val prompt = """
-            你是一名专业的高校教务课表识别提取助手。请仔细观察这张课程表截图，识别横轴（星期几）和纵轴（节次时间）以及所有的课程单元格。
+            你是一名专业的教务课表识别提取助手。请仔细观察这张课程表截图，识别横轴（星期几）和纵轴（节次时间）以及所有的课程单元格。
             
             提取规则：
             1. name: 课程名称 (例如: "操作系统", "大学物理")。
@@ -175,11 +166,7 @@ object AiService {
             ]
         """.trimIndent()
 
-        val textResult = if (provider == AiProvider.GEMINI) {
-            callGeminiApi(apiKey, baseUrl, model, prompt, imageBytes)
-        } else {
-            callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, imageBytes)
-        }
+        val textResult = callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, imageBytes)
 
         when (textResult) {
             is AiResult.Error -> return@withContext AiResult.Error(textResult.errorMessage)
@@ -188,18 +175,18 @@ object AiService {
                     val rawText = textResult.data
                     val courses = parseCoursesFromJson(rawText)
                     if (courses.isEmpty()) {
-                        return@withContext AiResult.Error("未能从截图中解析出有效课程数据，请确保课表截图清晰完整。AI返回: $rawText")
+                        return@withContext AiResult.Error("未能从截图中解析出有效课程数据，请确保课表截图清晰完整。接口返回: $rawText")
                     }
                     return@withContext AiResult.Success(courses, rawText)
                 } catch (e: Exception) {
-                    return@withContext AiResult.Error("解析课程 JSON 失败: ${e.localizedMessage}\nAI回复原内容: ${textResult.data}")
+                    return@withContext AiResult.Error("解析课程 JSON 失败: ${e.localizedMessage}\n接口原内容: ${textResult.data}")
                 }
             }
         }
     }
 
     /**
-     * 将用户选择的图片压缩为适合视觉大模型上传的 JPEG 字节数组 (控制在 1920px 以内，保证又快又省)
+     * 将用户选择的图片压缩为适合视觉模型上传的 JPEG 字节数组 (控制在 1920px 以内，保证又快又省)
      */
     fun compressImageFromUri(context: Context, uri: Uri): ByteArray? {
         return try {
@@ -226,109 +213,7 @@ object AiService {
     }
 
     // ==========================================
-    // 内部实现：Gemini 官方原生协议调用
-    // ==========================================
-    private fun callGeminiApi(
-        apiKey: String,
-        baseUrl: String,
-        model: String,
-        prompt: String,
-        imageBytes: ByteArray?
-    ): AiResult<String> {
-        return try {
-            val rawBase = if (baseUrl.isBlank()) "https://generativelanguage.googleapis.com" else baseUrl.trim().trimEnd('/')
-            val cleanKey = apiKey.trim()
-            val endpoint = when {
-                rawBase.contains(":generateContent") -> {
-                    if (rawBase.contains("key=")) rawBase else "$rawBase?key=$cleanKey"
-                }
-                rawBase.endsWith("/v1beta") || rawBase.endsWith("/v1") -> {
-                    "$rawBase/models/$model:generateContent?key=$cleanKey"
-                }
-                else -> {
-                    "$rawBase/v1beta/models/$model:generateContent?key=$cleanKey"
-                }
-            }
-
-            val url = URL(endpoint)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 60000
-            }
-
-            val partsList = mutableListOf<Map<String, Any>>()
-            partsList.add(mapOf("text" to prompt))
-
-            if (imageBytes != null && imageBytes.isNotEmpty()) {
-                val base64Data = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
-                partsList.add(
-                    mapOf(
-                        "inlineData" to mapOf(
-                            "mimeType" to "image/jpeg",
-                            "data" to base64Data
-                        )
-                    )
-                )
-            }
-
-            val requestBody = mapOf(
-                "contents" to listOf(
-                    mapOf("parts" to partsList)
-                )
-            )
-
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(gson.toJson(requestBody))
-                writer.flush()
-            }
-
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
-                val root = gson.fromJson(responseJson, JsonObject::class.java)
-                val candidates = root.getAsJsonArray("candidates")
-                if (candidates != null && candidates.size() > 0) {
-                    val firstCandidate = candidates[0].asJsonObject
-                    val contentObj = firstCandidate.getAsJsonObject("content")
-                    if (contentObj != null) {
-                        val parts = contentObj.getAsJsonArray("parts")
-                        if (parts != null && parts.size() > 0) {
-                            val textBuilder = StringBuilder()
-                            for (partElem in parts) {
-                                val partObj = partElem.asJsonObject
-                                if (partObj.has("text")) {
-                                    textBuilder.append(partObj.get("text").asString)
-                                }
-                            }
-                            val text = textBuilder.toString()
-                            if (text.isNotBlank()) {
-                                return AiResult.Success(text)
-                            }
-                        }
-                    }
-                    val finishReason = firstCandidate.get("finishReason")?.asString ?: "EMPTY"
-                    return AiResult.Error("Gemini 未返回有效文本 (结束原因: $finishReason)")
-                }
-                val promptFeedback = root.getAsJsonObject("promptFeedback")
-                val blockReason = promptFeedback?.get("blockReason")?.asString
-                if (blockReason != null) {
-                    return AiResult.Error("提示词被 Gemini 安全机制拦截 (原因: $blockReason)")
-                }
-                return AiResult.Error("Gemini API 返回内容为空")
-            } else {
-                val errorJson = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
-                return AiResult.Error("Gemini 请求失败 [HTTP $responseCode]: $errorJson")
-            }
-        } catch (e: Exception) {
-            AiResult.Error("连接 Gemini 异常: ${e.localizedMessage}")
-        }
-    }
-
-    // ==========================================
-    // 内部实现：OpenAI 兼容协议调用 (通义千问 / DeepSeek / 自定义代理)
+    // 内部实现：标准兼容协议调用
     // ==========================================
     private fun callOpenAiCompatibleApi(
         apiKey: String,
@@ -339,12 +224,10 @@ object AiService {
     ): AiResult<String> {
         return try {
             val cleanBase = baseUrl.trimEnd('/')
-            val endpoint = if (cleanBase.endsWith("/chat/completions")) {
-                cleanBase
-            } else if (cleanBase.endsWith("/v1")) {
-                "$cleanBase/chat/completions"
-            } else {
-                "$cleanBase/chat/completions"
+            val endpoint = when {
+                cleanBase.endsWith("/chat/completions") -> cleanBase
+                cleanBase.endsWith("/v1") -> "$cleanBase/chat/completions"
+                else -> "$cleanBase/v1/chat/completions"
             }
 
             val url = URL(endpoint)
@@ -393,13 +276,13 @@ object AiService {
                     val content = message.get("content").asString
                     return AiResult.Success(content)
                 }
-                return AiResult.Error("API 返回 choices 为空")
+                return AiResult.Error("接口返回 choices 为空")
             } else {
                 val errorJson = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
                 return AiResult.Error("请求失败 [HTTP $responseCode]: $errorJson")
             }
         } catch (e: Exception) {
-            AiResult.Error("连接 AI 接口异常: ${e.localizedMessage}")
+            AiResult.Error("连接接口异常: ${e.localizedMessage}")
         }
     }
 

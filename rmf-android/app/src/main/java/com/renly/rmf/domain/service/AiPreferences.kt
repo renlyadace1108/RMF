@@ -6,52 +6,68 @@ import android.content.SharedPreferences
 enum class AiProvider(
     val id: String,
     val displayName: String,
+    val shortName: String,
     val defaultBaseUrl: String,
     val defaultModel: String,
-    val recommendedModels: List<String>,
-    val isVisionSupported: Boolean,
-    val description: String
+    val description: String,
+    val isVisionSupported: Boolean = false
 ) {
-    QWEN(
-        id = "QWEN",
-        displayName = "通义千问 (Qwen / 阿里百炼)",
-        defaultBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        defaultModel = "qwen-vl-plus",
-        recommendedModels = listOf("qwen-vl-plus", "qwen-vl-max", "qwen2.5-vl-72b-instruct", "qwen-plus", "qwen-turbo"),
-        isVisionSupported = true,
-        description = "已通过国家网信办大模型备案，qwen-vl 系列视觉模型对中文表格与课表识别效果极佳"
+    BALANCED(
+        id = "BALANCED",
+        displayName = "方案 A · 标准分析引擎 (7B)",
+        shortName = "方案 A (标准分析)",
+        defaultBaseUrl = "https://api.siliconflow.cn/v1",
+        defaultModel = "Qwen/Qwen2.5-7B-Instruct",
+        description = "响应迅速，逻辑严谨，适合日常日程审查与时间块规划",
+        isVisionSupported = false
     ),
-    DEEPSEEK(
-        id = "DEEPSEEK",
-        displayName = "DeepSeek (深度求索 / 文本)",
-        defaultBaseUrl = "https://api.deepseek.com/v1",
-        defaultModel = "deepseek-chat",
-        recommendedModels = listOf("deepseek-chat", "deepseek-reasoner"),
-        isVisionSupported = false,
-        description = "高性价比推理与总结，适合每日复盘与精力规划 (注: 官方接口为纯文本模型)"
+    REASONING(
+        id = "REASONING",
+        displayName = "方案 B · 深度推理引擎 (7B-R)",
+        shortName = "方案 B (深度推理)",
+        defaultBaseUrl = "https://api.siliconflow.cn/v1",
+        defaultModel = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+        description = "具备思维链深度推演能力，适合复杂排程与负荷诊断",
+        isVisionSupported = false
+    ),
+    SUMMARY(
+        id = "SUMMARY",
+        displayName = "方案 C · 语言总结引擎 (9B)",
+        shortName = "方案 C (语言总结)",
+        defaultBaseUrl = "https://api.siliconflow.cn/v1",
+        defaultModel = "THUDM/glm-4-9b-chat",
+        description = "语言表达自然丰富，适合每日效率复盘与心得提炼",
+        isVisionSupported = false
+    ),
+    FLAGSHIP(
+        id = "FLAGSHIP",
+        displayName = "方案 D · 全能运算引擎 (旗舰)",
+        shortName = "方案 D (全能运算)",
+        defaultBaseUrl = "https://api.siliconflow.cn/v1",
+        defaultModel = "deepseek-ai/DeepSeek-V3",
+        description = "超大规模参数综合运算，具备极高精度的多维度数据评估",
+        isVisionSupported = false
     ),
     CUSTOM(
         id = "CUSTOM",
-        displayName = "自定义 (OpenAI 兼容接口)",
+        displayName = "方案 E · 自定义接口",
+        shortName = "方案 E (自定义)",
         defaultBaseUrl = "",
-        defaultModel = "gpt-4o-mini",
-        recommendedModels = listOf("gpt-4o-mini", "gpt-4o", "claude-3-5-sonnet"),
-        isVisionSupported = true,
-        description = "支持自建中转、OneAPI、反代或任意遵循 OpenAI 规范的 API 接口"
-    ),
-    GEMINI(
-        id = "GEMINI",
-        displayName = "Google Gemini (海外原生直连)",
-        defaultBaseUrl = "https://generativelanguage.googleapis.com",
-        defaultModel = "gemini-1.5-flash",
-        recommendedModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"),
-        isVisionSupported = true,
-        description = "Google 官方原生多模态视觉模型，需特定国际网络环境支持"
+        defaultModel = "",
+        description = "支持自主配置标准兼容接口地址与模型标识",
+        isVisionSupported = true
     );
 
     companion object {
         fun fromId(id: String): AiProvider {
-            return entries.find { it.id.equals(id, ignoreCase = true) } ?: QWEN
+            return when (id.uppercase()) {
+                "BALANCED", "ENGINE_A", "QWEN" -> BALANCED
+                "REASONING", "ENGINE_B", "DEEPSEEK" -> REASONING
+                "SUMMARY", "ENGINE_C" -> SUMMARY
+                "FLAGSHIP", "ENGINE_D" -> FLAGSHIP
+                "CUSTOM", "GEMINI" -> CUSTOM
+                else -> entries.find { it.id.equals(id, ignoreCase = true) } ?: BALANCED
+            }
         }
     }
 }
@@ -69,8 +85,8 @@ object AiPreferences {
     }
 
     /**
-     * AI 智能功能全局总开关状态
-     * 默认开启；关闭后停用所有大模型联网、智能复盘与图像提取功能
+     * 数据分析功能全局总开关状态
+     * 默认开启；关闭后停用所有网络分析与复盘计算
      */
     fun isAiEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_AI_ENABLED, true)
@@ -81,7 +97,7 @@ object AiPreferences {
     }
 
     fun getProvider(context: Context): AiProvider {
-        val id = getPrefs(context).getString(KEY_PROVIDER, AiProvider.QWEN.id) ?: AiProvider.QWEN.id
+        val id = getPrefs(context).getString(KEY_PROVIDER, AiProvider.BALANCED.id) ?: AiProvider.BALANCED.id
         return AiProvider.fromId(id)
     }
 
@@ -98,9 +114,13 @@ object AiPreferences {
     }
 
     fun getBaseUrl(context: Context): String {
+        val provider = getProvider(context)
+        if (provider != AiProvider.CUSTOM) {
+            return provider.defaultBaseUrl
+        }
         val saved = getPrefs(context).getString(KEY_BASE_URL, "") ?: ""
         if (saved.isNotBlank()) return saved
-        return getProvider(context).defaultBaseUrl
+        return provider.defaultBaseUrl
     }
 
     fun setBaseUrl(context: Context, baseUrl: String) {
@@ -108,9 +128,13 @@ object AiPreferences {
     }
 
     fun getModel(context: Context): String {
+        val provider = getProvider(context)
+        if (provider != AiProvider.CUSTOM) {
+            return provider.defaultModel
+        }
         val saved = getPrefs(context).getString(KEY_MODEL, "") ?: ""
         if (saved.isNotBlank()) return saved
-        return getProvider(context).defaultModel
+        return AiProvider.BALANCED.defaultModel
     }
 
     fun setModel(context: Context, model: String) {

@@ -46,8 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.DataExportService
-import com.renly.rmf.domain.service.GeminiResult
-import com.renly.rmf.domain.service.GeminiService
 import com.renly.rmf.domain.service.SchedulerAuditEngine
 import com.renly.rmf.ui.screens.*
 import com.renly.rmf.ui.theme.*

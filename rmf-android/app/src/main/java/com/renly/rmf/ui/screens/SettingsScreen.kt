@@ -969,11 +969,11 @@ fun SettingsScreen(
 
         SettingsSectionHeader(
             icon = "⚡",
-            title = "智能互联与云端服务",
-            subtitle = "AI 智能助理接入、Google 账号与云端同步、系统日历与胶囊通知"
+            title = "数据分析与云端服务",
+            subtitle = "数据分析引擎接入、云端同步、系统日历与胶囊通知"
         )
 
-        // 🤖 AI 智能功能全局总设置 (Master Switch)
+        // ⚡ 数据分析功能全局总设置 (Master Switch)
         val aiContext = androidx.compose.ui.platform.LocalContext.current
         var isAiEnabledState by remember {
             mutableStateOf(com.renly.rmf.domain.service.AiPreferences.isAiEnabled(aiContext))
@@ -999,14 +999,14 @@ fun SettingsScreen(
                             modifier = Modifier.size(46.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("🤖", fontSize = 22.sp)
+                                Text("⚡", fontSize = 22.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "启用 AI 智能功能",
+                                    text = "启用智能数据分析",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
@@ -1030,7 +1030,7 @@ fun SettingsScreen(
                                 }
                             }
                             Text(
-                                text = if (isAiEnabledState) "已开启大模型每日复盘、课表截图多模态识别与深度效能洞察" else "已全面禁用所有大模型联网与计算，应用处于纯本地离线模式",
+                                text = if (isAiEnabledState) "已开启每日复盘、效能洞察与日程分析支持" else "已停用外部分析接口，应用处于纯本地离线模式",
                                 fontSize = 11.5.sp,
                                 color = TextSecondary,
                                 modifier = Modifier.padding(top = 3.dp)
@@ -1045,7 +1045,7 @@ fun SettingsScreen(
                             com.renly.rmf.domain.service.AiPreferences.setAiEnabled(aiContext, checked)
                             android.widget.Toast.makeText(
                                 aiContext,
-                                if (checked) "✓ 已开启 AI 智能功能" else "✓ 已停用 AI 智能功能（纯本地离线模式）",
+                                if (checked) "✓ 已开启智能数据分析功能" else "✓ 已停用数据分析功能（纯本地离线模式）",
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         },
@@ -1084,20 +1084,20 @@ fun SettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "🔧 AI 接口与模型详细配置",
+                                        text = "🔧 数据分析接口与方案配置",
                                         fontSize = 13.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextPrimary
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "(${currentProvider.displayName})",
+                                        text = "(${currentProvider.shortName})",
                                         fontSize = 11.sp,
                                         color = DopaminePurple
                                     )
                                 }
                                 Text(
-                                    text = if (isConfigured) "密钥已配置 · 点击修改 Provider、Base URL 与 Model" else "⚠️ 尚未填写 API Key，点击配置",
+                                    text = if (isConfigured) "密钥已配置 · 点击切换方案或修改密钥" else "⚠️ 尚未填写接口密钥，点击配置",
                                     fontSize = 11.sp,
                                     color = if (isConfigured) TextSecondary else DopamineAmber,
                                     modifier = Modifier.padding(top = 2.dp)
