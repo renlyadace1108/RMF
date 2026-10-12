@@ -31,15 +31,10 @@ object FluidCloudHelper {
     const val PERMISSION_POST_PROMOTED_NOTIFICATIONS = "android.permission.POST_PROMOTED_NOTIFICATIONS"
 
     /**
-     * 判断当前系统是否支持并应启用 Android 16 / ColorOS 17 原生 Live Updates 借道标准
-     * （注意：小米 HyperOS 拥有自己的 miui.focus.param 超级岛接口与专属卡片渲染流，不应被强制剥离 RemoteViews）
+     * 判断当前系统是否支持并应启用 Android 16 / ColorOS 17 / HyperOS 原生 Live Updates 借道标准
+     * （所有支持 Live Updates 的设备统一走系统级实时活动通道）
      */
     fun isPromotedLiveUpdateSupported(context: Context? = null): Boolean {
-        // 小米 HyperOS 不走 Android 16 Promoted 剥离视图逻辑，而是采用美化卡片 + 注入超级岛参数
-        if (isXiaomiOrHyperOs()) {
-            return false
-        }
-
         // 1. Android 16 (API 36+) 或 Android 16 Baklava 预览阶段
         if (Build.VERSION.SDK_INT >= 36) return true
         if (Build.VERSION.SDK_INT >= 34 && Build.VERSION.CODENAME.equals("Baklava", ignoreCase = true)) return true
@@ -53,6 +48,11 @@ object FluidCloudHelper {
 
         // 3. 检测 OPPO / OnePlus / Realme 系列设备的 ColorOS 15/16/17 系统版本
         if (isColorOs16OrHigher()) {
+            return true
+        }
+
+        // 4. 小米 HyperOS (基于 Android 15/16 且具备实时活动特性)
+        if (isXiaomiOrHyperOs() && Build.VERSION.SDK_INT >= 35) {
             return true
         }
 
@@ -109,76 +109,10 @@ object FluidCloudHelper {
     }
 
     /**
-     * 获取当前系统对应的流体云 / 超级岛动态品牌标签文本
+     * 获取当前系统对应的流体云 / 实时活动动态品牌标签文本
      */
     fun getSystemBrandLabel(): String {
         return "胶囊通知"
-    }
-
-    /**
-     * 为小米 HyperOS 注入超级岛 (Super Island) / 焦点通知 (Focus Notification) 原生协议参数
-     */
-    fun applyXiaomiSuperIslandParams(
-        builder: NotificationCompat.Builder,
-        title: String,
-        remainingSeconds: Int,
-        isRunning: Boolean
-    ) {
-        if (!isXiaomiOrHyperOs()) return
-
-        val min = remainingSeconds / 60
-        val sec = remainingSeconds % 60
-        val timeStr = "%02d:%02d".format(min, sec)
-
-        try {
-            // 构建小米 HyperOS 官方 V2/V3 规范焦点通知与超级岛 JSON 结构
-            val focusJson = JSONObject().apply {
-                val paramV2 = JSONObject().apply {
-                    put("business", "focus_timer")
-                    put("updatable", true)
-                    put("orderId", "rmf_focus_live")
-
-                    // 超级岛配置 (param_island)
-                    val paramIsland = JSONObject().apply {
-                        put("islandProperty", 2) // 2: 交互与倒计时操作岛
-                        put("islandOrder", 1)
-
-                        // 摘要态：小岛 (双侧胶囊展示)
-                        val smallIsland = JSONObject().apply {
-                            val left = JSONObject().apply {
-                                put("type", 1)
-                                put("text", "🎯")
-                            }
-                            val right = JSONObject().apply {
-                                put("type", 1)
-                                put("text", timeStr)
-                            }
-                            put("left", left)
-                            put("right", right)
-                        }
-                        put("smallIslandArea", smallIsland)
-
-                        // 展开态：大岛 (下拉扩展信息卡)
-                        val bigIsland = JSONObject().apply {
-                            put("title", "🎯 $title")
-                            put("content", if (isRunning) "心流专注进行中 · 剩余 $timeStr" else "专注已暂停 ($timeStr)")
-                            put("subContent", "HyperOS 超级岛 · 实时专注")
-                        }
-                        put("bigIslandArea", bigIsland)
-                    }
-                    put("param_island", paramIsland)
-                }
-                put("param_v2", paramV2)
-            }
-
-            // 注入小米系统级焦点通知与超级岛 Intent Extras
-            builder.extras.putString("miui.focus.param", focusJson.toString())
-            builder.extras.putBoolean("miui.focus.notification", true)
-            builder.extras.putBoolean("miui.enableFloat", true)
-            builder.extras.putBoolean("miui.showAction", true)
-            builder.extras.putString("miui.subSystem", "focus")
-            builder.extras.putInt("miui.targetSystem", 1)
-        } catch (_: Throwable) {}
     }
 
     /**

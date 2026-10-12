@@ -19,9 +19,9 @@
     <color name="fluid_notif_btn_danger_bg">#3B181E</color>
     <color name="fluid_notif_btn_danger_text">#F87171</color>
 
-    <!-- 卡片容器与倒计时仪表盘 (HyperOS / ColorOS 极暗黑客质感) -->
-    <color name="fluid_notif_card_bg">#131722</color>
-    <color name="fluid_notif_card_border">#1E293B</color>
-    <color name="fluid_notif_timer_pill_bg">#181E2C</color>
-    <color name="fluid_notif_timer_pill_border">#273549</color>
+    <!-- 卡片容器与倒计时仪表盘 (ColorOS 17 / HyperOS 高级磨砂亚克力半透质感) -->
+    <color name="fluid_notif_card_bg">#D9151A24</color>
+    <color name="fluid_notif_card_border">#3338BDF8</color>
+    <color name="fluid_notif_timer_pill_bg">#4D1E293B</color>
+    <color name="fluid_notif_timer_pill_border">#2E475569</color>
 </resources>
