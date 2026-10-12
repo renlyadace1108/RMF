@@ -36,6 +36,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -1345,91 +1348,70 @@ fun ScheduleWeekGridView(
                                     modifier = Modifier
                                         .onGloballyPositioned { coords -> chipPosInRoot = coords.positionInRoot() }
                                         .pointerInput(item.id) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = { offset ->
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    draggingBacklogItem = item
-                                                    backlogDragTouchInRoot = chipPosInRoot + offset
-                                                    backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
-                                                    backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    backlogDragTouchInRoot += dragAmount
-                                                    backlogDragOffsetY += dragAmount.y
-                                                    backlogDragOffsetX += dragAmount.x
-                                                },
-                                                onDragEnd = {
-                                                    executeDropWeek(item)
-                                                },
-                                                onDragCancel = {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                var isDragging = false
+                                                val touchSlop = viewConfiguration.touchSlop
+
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                                                    if (change.changedToUp()) {
+                                                        if (isDragging) {
+                                                            change.consume()
+                                                            executeDropWeek(item)
+                                                        } else {
+                                                            onItemClick(item)
+                                                        }
+                                                        break
+                                                    }
+
+                                                    if (!isDragging) {
+                                                        val dragDistance = (change.position - down.position).getDistance()
+                                                        if (dragDistance > touchSlop) {
+                                                            isDragging = true
+                                                            change.consume()
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            draggingBacklogItem = item
+                                                            backlogDragTouchInRoot = chipPosInRoot + change.position
+                                                            backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
+                                                            backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
+                                                        }
+                                                    } else {
+                                                        change.consume()
+                                                        backlogDragTouchInRoot = chipPosInRoot + change.position
+                                                        backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
+                                                        backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
+                                                    }
+                                                }
+
+                                                if (isDragging && draggingBacklogItem != null) {
                                                     draggingBacklogItem = null
                                                     backlogDragTouchInRoot = Offset.Zero
                                                     backlogDragOffsetY = 0f
                                                     backlogDragOffsetX = 0f
                                                 }
-                                            )
+                                            }
                                         }
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
-                                        // 专属拖拽把手：一触即拖（零延迟拖动，跟手卡片即刻显现）
-                                        Box(
-                                            modifier = Modifier
-                                                .pointerInput(item.id) {
-                                                    detectDragGestures(
-                                                        onDragStart = { offset ->
-                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                            draggingBacklogItem = item
-                                                            backlogDragTouchInRoot = chipPosInRoot + offset
-                                                            backlogDragOffsetY = backlogDragTouchInRoot.y - backlogChipRootY
-                                                            backlogDragOffsetX = backlogDragTouchInRoot.x - backlogChipRootX
-                                                        },
-                                                        onDrag = { change, dragAmount ->
-                                                            change.consume()
-                                                            backlogDragTouchInRoot += dragAmount
-                                                            backlogDragOffsetY += dragAmount.y
-                                                            backlogDragOffsetX += dragAmount.x
-                                                        },
-                                                        onDragEnd = {
-                                                            executeDropWeek(item)
-                                                        },
-                                                        onDragCancel = {
-                                                            draggingBacklogItem = null
-                                                            backlogDragTouchInRoot = Offset.Zero
-                                                            backlogDragOffsetY = 0f
-                                                            backlogDragOffsetX = 0f
-                                                        }
-                                                    )
-                                                }
-                                                .padding(end = 4.dp)
-                                        ) {
-                                            Text("⋮⋮", fontSize = 11.sp, color = chipColor, fontWeight = FontWeight.ExtraBold)
-                                        }
-
-                                        // 点击标题与时长：快捷打开排期设定或详情
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.clickable {
-                                                onItemClick(item)
-                                            }
-                                        ) {
-                                            Text(
-                                                text = item.title,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = TextPrimary
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "${item.estimatedMinutes}m",
-                                                fontSize = 9.sp,
-                                                color = chipColor,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${item.estimatedMinutes}m",
+                                            fontSize = 9.sp,
+                                            color = chipColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
@@ -1455,12 +1437,7 @@ fun ScheduleWeekGridView(
                 shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
                 color = DarkSurface,
                 border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onGloballyPositioned { coords ->
-                        weekGridRootY = coords.positionInRoot().y
-                        weekGridRootX = coords.positionInRoot().x
-                    }
+                modifier = Modifier.fillMaxSize()
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // 顶部固定星期标题行 (自适应充满宽度，周一至周日全展示)
@@ -1522,6 +1499,10 @@ fun ScheduleWeekGridView(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(verticalScrollState)
+                            .onGloballyPositioned { coords ->
+                                weekGridRootY = coords.positionInRoot().y
+                                weekGridRootX = coords.positionInRoot().x
+                            }
                     ) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             // 时间刻度列
@@ -1843,14 +1824,13 @@ fun ScheduleWeekGridView(
             modifier = Modifier
                 .offset {
                     IntOffset(
-                        x = (backlogDragTouchInRoot.x - weekViewRootOffset.x - 45.dp.toPx()).roundToInt(),
-                        y = (backlogDragTouchInRoot.y - weekViewRootOffset.y - 56.dp.toPx()).roundToInt()
+                        x = (backlogDragTouchInRoot.x - weekViewRootOffset.x - 70.dp.toPx()).roundToInt(),
+                        y = (backlogDragTouchInRoot.y - weekViewRootOffset.y - 18.dp.toPx()).roundToInt()
                     )
                 }
                 .graphicsLayer {
-                    rotationZ = -3f
-                    scaleX = 1.05f
-                    scaleY = 1.05f
+                    scaleX = 1.02f
+                    scaleY = 1.02f
                 }
         ) {
             Row(
@@ -2136,85 +2116,67 @@ fun ScheduleDayGridView(
                                     modifier = Modifier
                                         .onGloballyPositioned { coords -> dayChipPosInRoot = coords.positionInRoot() }
                                         .pointerInput(item.id) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = { offset ->
-                                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    draggingItem = item
-                                                    dayDragTouchInRoot = dayChipPosInRoot + offset
-                                                    dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    dayDragTouchInRoot += dragAmount
-                                                    dragOffsetY += dragAmount.y
-                                                },
-                                                onDragEnd = {
-                                                    executeDropDay(item)
-                                                },
-                                                onDragCancel = {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                var isDragging = false
+                                                val touchSlop = viewConfiguration.touchSlop
+
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                                                    if (change.changedToUp()) {
+                                                        if (isDragging) {
+                                                            change.consume()
+                                                            executeDropDay(item)
+                                                        } else {
+                                                            quickScheduleTargetItem = item
+                                                        }
+                                                        break
+                                                    }
+
+                                                    if (!isDragging) {
+                                                        val dragDistance = (change.position - down.position).getDistance()
+                                                        if (dragDistance > touchSlop) {
+                                                            isDragging = true
+                                                            change.consume()
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            draggingItem = item
+                                                            dayDragTouchInRoot = dayChipPosInRoot + change.position
+                                                            dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
+                                                        }
+                                                    } else {
+                                                        change.consume()
+                                                        dayDragTouchInRoot = dayChipPosInRoot + change.position
+                                                        dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
+                                                    }
+                                                }
+
+                                                if (isDragging && draggingItem != null) {
                                                     draggingItem = null
                                                     dayDragTouchInRoot = Offset.Zero
                                                     dragOffsetY = 0f
                                                 }
-                                            )
+                                            }
                                         }
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
-                                        // 专属拖拽把手：一触即拖（零延迟拖动，跟手卡片即刻显现）
-                                        Box(
-                                            modifier = Modifier
-                                                .pointerInput(item.id) {
-                                                    detectDragGestures(
-                                                        onDragStart = { offset ->
-                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                            draggingItem = item
-                                                            dayDragTouchInRoot = dayChipPosInRoot + offset
-                                                            dragOffsetY = dayDragTouchInRoot.y - chipYInRoot
-                                                        },
-                                                        onDrag = { change, dragAmount ->
-                                                            change.consume()
-                                                            dayDragTouchInRoot += dragAmount
-                                                            dragOffsetY += dragAmount.y
-                                                        },
-                                                        onDragEnd = {
-                                                            executeDropDay(item)
-                                                        },
-                                                        onDragCancel = {
-                                                            draggingItem = null
-                                                            dayDragTouchInRoot = Offset.Zero
-                                                            dragOffsetY = 0f
-                                                        }
-                                                    )
-                                                }
-                                                .padding(end = 4.dp)
-                                        ) {
-                                            Text("⋮⋮", fontSize = 11.sp, color = chipColor, fontWeight = FontWeight.ExtraBold)
-                                        }
-
-                                        // 点击标题与时长：快捷打开排期设定弹窗
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.clickable {
-                                                quickScheduleTargetItem = item
-                                            }
-                                        ) {
-                                            Text(
-                                                text = item.title,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = TextPrimary
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "${item.estimatedMinutes}m",
-                                                fontSize = 9.sp,
-                                                color = chipColor,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${item.estimatedMinutes}m",
+                                            fontSize = 9.sp,
+                                            color = chipColor,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
@@ -2888,14 +2850,13 @@ fun ScheduleDayGridView(
             modifier = Modifier
                 .offset {
                     IntOffset(
-                        x = (dayDragTouchInRoot.x - dayViewRootOffset.x - 45.dp.toPx()).roundToInt(),
-                        y = (dayDragTouchInRoot.y - dayViewRootOffset.y - 56.dp.toPx()).roundToInt()
+                        x = (dayDragTouchInRoot.x - dayViewRootOffset.x - 70.dp.toPx()).roundToInt(),
+                        y = (dayDragTouchInRoot.y - dayViewRootOffset.y - 18.dp.toPx()).roundToInt()
                     )
                 }
                 .graphicsLayer {
-                    rotationZ = -3f
-                    scaleX = 1.05f
-                    scaleY = 1.05f
+                    scaleX = 1.02f
+                    scaleY = 1.02f
                 }
         ) {
             Row(
