@@ -4,11 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@android:color/transparent"
-    android:paddingTop="6dp"
-    android:paddingBottom="6dp"
-    android:paddingStart="4dp"
-    android:paddingEnd="4dp">
+    android:background="@drawable/bg_fluid_card"
+    android:padding="14dp">
 
     <!-- 顶部状态栏 -->
     <LinearLayout
@@ -18,15 +15,16 @@
         android:gravity="center_vertical">
 
         <TextView
+            android:id="@+id/fluid_course_expanded_header"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="3dp"
-            android:paddingBottom="3dp"
-            android:text="胶囊通知 · 上课提醒"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text="🎓 大学课程表 · 上课提醒"
             android:textColor="@color/fluid_notif_tag_text"
-            android:textSize="11sp"
+            android:textSize="11.5sp"
             android:textStyle="bold"
             android:background="@drawable/bg_fluid_tag" />
 
@@ -49,10 +47,10 @@
         android:id="@+id/fluid_course_expanded_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:text="🎓 高等数学(AI) 示范课"
         android:textColor="@color/fluid_notif_title"
-        android:textSize="17sp"
+        android:textSize="16.5sp"
         android:textStyle="bold"
         android:maxLines="2"
         android:ellipsize="end" />
@@ -86,25 +84,35 @@
             android:textSize="11.5sp" />
     </LinearLayout>
 
-    <!-- 动态 Chronometer 倒计时展示 -->
-    <Chronometer
-        android:id="@+id/fluid_course_expanded_chronometer"
+    <!-- 动态 Chronometer 倒计时仪表盘 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
         android:gravity="center"
-        android:textColor="@color/fluid_notif_chronometer"
-        android:textSize="30sp"
-        android:textStyle="bold" />
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:background="@drawable/bg_fluid_timer_pill">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:gravity="center"
-        android:text="即将开课，点击一键进入听课专注心流"
-        android:textColor="@color/fluid_notif_muted"
-        android:textSize="11.5sp" />
+        <Chronometer
+            android:id="@+id/fluid_course_expanded_chronometer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/fluid_notif_chronometer"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:text="即将开课 · 点击一键进入听课专注心流"
+            android:textColor="@color/fluid_notif_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
 
     <!-- 底部双快捷交互按钮 -->
     <LinearLayout
@@ -117,7 +125,7 @@
         <TextView
             android:id="@+id/fluid_course_btn_focus"
             android:layout_width="0dp"
-            android:layout_height="36dp"
+            android:layout_height="38dp"
             android:layout_weight="1"
             android:layout_marginEnd="6dp"
             android:gravity="center"
@@ -130,7 +138,7 @@
         <TextView
             android:id="@+id/fluid_course_btn_view"
             android:layout_width="0dp"
-            android:layout_height="36dp"
+            android:layout_height="38dp"
             android:layout_weight="1"
             android:layout_marginStart="6dp"
             android:gravity="center"

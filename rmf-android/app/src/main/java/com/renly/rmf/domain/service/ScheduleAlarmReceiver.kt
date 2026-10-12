@@ -68,8 +68,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, reminderType != ReminderType.NONE)
-            .setSubText(if (isCourse) "胶囊通知 · 上课提醒" else "胶囊通知提醒")
+        val brandLabel = FluidCloudHelper.getSystemBrandLabel()
+        builder.setFullScreenIntent(pendingIntent, reminderType != ReminderType.NONE)
+        builder.setSubText(if (isCourse) "$brandLabel · 上课提醒" else "$brandLabel · 日程提醒")
 
         // 精确配置声音与震动规则
         when (reminderType) {
@@ -99,6 +100,12 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         FluidCloudHelper.applyPromotedOngoing(builder)
 
         if (isCourse) {
+            FluidCloudHelper.applyXiaomiSuperIslandParams(
+                builder = builder,
+                title = "🎓 $title",
+                content = if (courseLocation.isNotBlank()) "📍 $courseLocation" else message,
+                ticker = "上课提醒: $title"
+            )
             // 2. 快捷一键进入听课专注 (FocusLiveService)
             val focusIntent = Intent(context, FocusLiveService::class.java).apply {
                 action = FocusLiveService.ACTION_START
@@ -164,15 +171,15 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 builder.setStyle(
                     NotificationCompat.BigTextStyle()
                         .setBigContentTitle("🎓 $title")
-                        .setSummaryText("胶囊通知 · 上课提醒")
+                        .setSummaryText("$brandLabel · 上课提醒")
                         .bigText(detailStr.toString())
                 )
             } else {
-                // 旧版本系统自定义 RemoteViews
+                // 自定义 RemoteViews（针对原生通知美化及非 Live Update 设备）
                 val capsuleView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_capsule).apply {
                     setTextViewText(R.id.fluid_course_capsule_title, "🎓 $title")
                     val locText = if (courseLocation.isNotBlank()) "📍 $courseLocation" else "即将开课"
-                    setTextViewText(R.id.fluid_course_capsule_location, "$locText | 点击进入专注")
+                    setTextViewText(R.id.fluid_course_capsule_location, locText)
                     setOnClickPendingIntent(R.id.fluid_course_capsule_btn, focusPendingIntent)
 
                     if (remainingMillis > 0) {
@@ -191,6 +198,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
 
                 val expandedView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_expanded).apply {
+                    setTextViewText(R.id.fluid_course_expanded_header, "$brandLabel · 智能课程提醒")
                     setTextViewText(R.id.fluid_course_expanded_title, "🎓 $title")
                     val detailStr = StringBuilder()
                     if (courseLocation.isNotBlank()) detailStr.append("📍 地点: $courseLocation  ")
@@ -222,6 +230,14 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             }
         } else {
             // 通用日程
+            // 注入小米澎湃OS超级岛/焦点通知参数
+            FluidCloudHelper.applyXiaomiSuperIslandParams(
+                builder = builder,
+                title = "📌 $title",
+                content = message,
+                ticker = "日程提醒: $title"
+            )
+
             val startMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
             val remMillis = if (startMillis > System.currentTimeMillis()) startMillis - System.currentTimeMillis() else 0L
 
@@ -276,8 +292,8 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 builder.setStyle(
                     NotificationCompat.BigTextStyle()
                         .setBigContentTitle("📌 $title")
-                        .setSummaryText("胶囊通知 · 日程提醒")
-                        .bigText("$message\n已自动接入原生胶囊通知服务")
+                        .setSummaryText("$brandLabel · 日程提醒")
+                        .bigText("$message\n已自动接入 $brandLabel 原生胶囊服务")
                 )
             } else {
                 val schedCapsule = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_capsule).apply {
@@ -301,6 +317,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
 
                 val schedExpanded = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_expanded).apply {
+                    setTextViewText(R.id.fluid_schedule_expanded_header, "$brandLabel · 智能日程提醒")
                     setTextViewText(R.id.fluid_schedule_expanded_title, "📌 $title")
                     setTextViewText(R.id.fluid_schedule_expanded_desc, message)
                     setOnClickPendingIntent(R.id.fluid_schedule_btn_focus, focusPendingIntent)

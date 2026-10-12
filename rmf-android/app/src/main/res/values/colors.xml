@@ -18,4 +18,10 @@
 
     <color name="fluid_notif_btn_danger_bg">#FEE2E2</color>
     <color name="fluid_notif_btn_danger_text">#DC2626</color>
+
+    <!-- 卡片容器与倒计时仪表盘 (HyperOS / ColorOS 现代质感美化) -->
+    <color name="fluid_notif_card_bg">#F8FAFC</color>
+    <color name="fluid_notif_card_border">#E2E8F0</color>
+    <color name="fluid_notif_timer_pill_bg">#F1F5F9</color>
+    <color name="fluid_notif_timer_pill_border">#CBD5E1</color>
 </resources>

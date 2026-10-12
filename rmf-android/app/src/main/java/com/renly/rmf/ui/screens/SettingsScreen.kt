@@ -1271,6 +1271,8 @@ fun SettingsScreen(
                     mutableStateOf(com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext))
                 }
                 val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
+                val isColorOs16 = com.renly.rmf.domain.service.FluidCloudHelper.isColorOs16OrHigher()
+                val isXiaomi = com.renly.rmf.domain.service.FluidCloudHelper.isXiaomiOrHyperOs()
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -1321,12 +1323,21 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(if (isLiveSupported) "🌊" else "📱", fontSize = 12.sp)
+                            val icon = when {
+                                isLiveSupported -> "🌊"
+                                isXiaomi -> "🏝️"
+                                else -> "📱"
+                            }
+                            Text(icon, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isLiveSupported) "原生胶囊通知 (Live Updates 借道) 已就绪" else "胶囊通知标准模式已就绪",
+                                text = when {
+                                    isLiveSupported -> "原生胶囊通知 (Live Updates 借道) 已就绪"
+                                    isXiaomi -> "胶囊通知超级岛协议已就绪 (原生卡片美化+协议注入)"
+                                    else -> "胶囊通知标准模式已就绪 (质感美化卡片模式)"
+                                },
                                 fontSize = 10.5.sp,
-                                color = if (isLiveSupported) DopamineCyan else TextMuted,
+                                color = if (isLiveSupported || isXiaomi) DopamineCyan else TextMuted,
                                 fontWeight = FontWeight.Medium
                             )
                         }
