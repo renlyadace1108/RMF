@@ -235,8 +235,9 @@ object AiService {
             val url = URL(endpoint)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Authorization", "Bearer ${apiKey.trim()}")
+                instanceFollowRedirects = true
                 doOutput = true
                 connectTimeout = 30000
                 readTimeout = 60000
@@ -262,29 +263,38 @@ object AiService {
                 "messages" to messages
             )
 
-            OutputStreamWriter(connection.outputStream).use { writer ->
+            OutputStreamWriter(connection.outputStream, java.nio.charset.StandardCharsets.UTF_8).use { writer ->
                 writer.write(gson.toJson(requestBody))
                 writer.flush()
             }
 
             val responseCode = connection.responseCode
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
+                val responseJson = connection.inputStream.bufferedReader(java.nio.charset.StandardCharsets.UTF_8).use { it.readText() }
                 val root = gson.fromJson(responseJson, JsonObject::class.java)
                 val choices = root.getAsJsonArray("choices")
                 if (choices != null && choices.size() > 0) {
                     val firstChoice = choices[0].asJsonObject
                     val message = firstChoice.getAsJsonObject("message")
-                    val content = message.get("content").asString
-                    return AiResult.Success(content)
+                    if (message != null) {
+                        val contentElem = message.get("content")
+                        val content = if (contentElem != null && !contentElem.isJsonNull) contentElem.asString else ""
+                        val reasoningElem = message.get("reasoning_content")
+                        val reasoning = if (reasoningElem != null && !reasoningElem.isJsonNull) reasoningElem.asString else ""
+                        val finalText = if (content.isNotBlank()) content else reasoning
+                        if (finalText.isNotBlank()) {
+                            return AiResult.Success(finalText)
+                        }
+                    }
                 }
-                return AiResult.Error("接口返回 choices 为空")
+                return AiResult.Error("接口返回 choices 为空或内容未就绪")
             } else {
-                val errorJson = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
+                val errorJson = connection.errorStream?.bufferedReader(java.nio.charset.StandardCharsets.UTF_8)?.use { it.readText() } ?: "HTTP $responseCode"
                 return AiResult.Error("请求失败 [HTTP $responseCode]: $errorJson")
             }
         } catch (e: Exception) {
-            AiResult.Error("连接接口异常: ${e.localizedMessage}")
+            val hint = if (baseUrl.startsWith("http://")) " (建议优先使用 https:// 安全协议)" else ""
+            AiResult.Error("连接接口异常: ${e.localizedMessage ?: e.message}$hint")
         }
     }
 
