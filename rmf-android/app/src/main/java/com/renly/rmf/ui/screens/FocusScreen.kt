@@ -331,9 +331,9 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 4. 时间滑动滚轮选择器 (Scroll Wheel Duration Picker)
+        // 4. 时间滑动滚轮选择器 (Scroll Wheel Duration Picker - 1分钟精度)
         if (!isRunning) {
-            val minutesList = remember { (5..180 step 5).toList() }
+            val minutesList = remember { (1..180).toList() }
             val itemHeight = 40.dp
             val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
             val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)

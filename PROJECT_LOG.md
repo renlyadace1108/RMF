@@ -36,6 +36,26 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-12 19:30] - 闪念直投入库(手动排期)、日周视图缩放、1分钟滚轮精度与【永久废除媒体借道/全强制原生实时活动】
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“不要自动排期，直接入库，然后需要用户手动排期。日视图周视图要支持放大。这个滚动的精度是1分钟。这个设置直接删掉，全部强制都用安卓实时活动来实现上岛，不要用媒体播放的方式。（写日志里面去，不要再加上了）”
+* **核心落地成果**：
+  1. **闪念极速捕获直接入库（不自动排期，由用户手动排期）**：
+     - 修改 `QuickCaptureDialog.kt`：捕获日程时不再预推算当前/今天时段直接占位时间轴，而是以 `status = "BACKLOG"`（空 `startTime` 与空 `endTime`）直接保存进待排期任务池。
+     - 用户在日网格或周网格的「待排期任务托盘」中手动长按拖拽至目标日期与小时完成精准排期。
+  2. **日视图与周视图全量支持缩放放大与缩小**：
+     - 在 `ScheduleScreen.kt` 的 `ScheduleWeekGridView` 与 `ScheduleDayGridView` 分别引入 `weekZoomFactor` / `dayZoomFactor` 动态缩放比率（0.6x ~ 2.5x，默认 100%）。
+     - 小时行高由固定 dp 变为 `(46 * weekZoomFactor).dp` 与 `(50 * dayZoomFactor).dp`，并在视图操作条提供 `－`、`100%`、`＋` 便捷调节按钮。
+     - 周/日网格的所有坐标系统（包括拖拽框选排期、已排期日程展示、长按拖拽移时、底部手柄拉伸时长、当前时间红线、托盘放置实时虚影）全部同步适配动态缩放高度。
+  3. **专注时长滚轮选择器精度调整为 1 分钟**：
+     - 修改 `FocusScreen.kt`：时间滑动滚轮选择器的数据源由 `5..180 step 5` 全面优化升级为 `1..180`（步长 1 分钟），实现 1 分钟颗粒度的高精度滑动选择。
+  4. **彻底删除媒体借道引擎设置，全局强制使用安卓原生实时活动（永久红线）**：
+     - 从 `SettingsScreen.kt` 中彻底移除「⚡ 胶囊通知借道引擎」设置卡片（包含双借道/MediaSession/原生实时活动/经典抽屉单选框及静音伴奏保活开关）。
+     - 彻底清理 `FocusLiveService.kt` 中的 `MediaSessionCompat`、`PlaybackStateCompat`、`MediaMetadataCompat` 以及静音音频流保活，前台服务类型移除 `mediaPlayback`。
+     - 从 `AndroidManifest.xml` 中移除 `FOREGROUND_SERVICE_MEDIA_PLAYBACK` 权限。
+     - `FluidCloudPreferences.kt` 永久锁定为 `MODE_NATIVE_LIVE_UPDATE`。
+     - 架构铁律永久锁定（写入 `PROJECT_LOG.md` 与 `docs/PROJECT_HISTORY.md`）：**全局强制使用安卓原生实时活动 (Android Live Updates / Promoted Ongoing) 借道上岛，严禁再使用媒体播放/MediaSession 借道方式！任何后续 Agent 严禁重新添加！**
+
 ### [2026-10-12 13:45] - 彻底删除白噪音与沉浸声景模块，并确立永久架构红线【严禁添加白噪音】
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“把白噪音删了，然后在文件里注明不要添加白噪音！!”

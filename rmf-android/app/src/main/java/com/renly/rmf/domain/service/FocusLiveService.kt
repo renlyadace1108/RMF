@@ -10,12 +10,8 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
-import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
-import androidx.media.app.NotificationCompat.MediaStyle
 import com.renly.rmf.MainActivity
 import com.renly.rmf.R
 import com.renly.rmf.RmfApplication
@@ -26,20 +22,17 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * FocusLiveService
- * 专注实时活动前台服务 (胶囊通知 / Android 原生实时活动双借道引擎)
+ * 专注实时活动前台服务 (全局强制使用安卓原生实时活动 Android Live Updates 借道引擎)
  */
 class FocusLiveService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var timerJob: Job? = null
-    private var mediaSession: MediaSessionCompat? = null
-    private var silentAudioPlayer: SilentAudioPlayer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        silentAudioPlayer = SilentAudioPlayer()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -74,19 +67,13 @@ class FocusLiveService : Service() {
         targetEndTimeRealtime = SystemClock.elapsedRealtime() + (seconds * 1000L)
 
         scheduleFinishAlarm(seconds)
-        initOrUpdateMediaSession(title, isPlaying = true)
-
-        if (FluidCloudPreferences.isSilentAudioEnabled(this)) {
-            silentAudioPlayer?.start()
-        }
 
         val notification = buildFluidCloudNotification()
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -102,9 +89,6 @@ class FocusLiveService : Service() {
         _isRunning.value = false
         timerJob?.cancel()
 
-        silentAudioPlayer?.stop()
-        initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = false)
-
         val notification = buildFluidCloudNotification()
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
@@ -115,11 +99,6 @@ class FocusLiveService : Service() {
             _isRunning.value = true
             targetEndTimeRealtime = SystemClock.elapsedRealtime() + (_remainingSeconds.value * 1000L)
             scheduleFinishAlarm(_remainingSeconds.value)
-
-            initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = true)
-            if (FluidCloudPreferences.isSilentAudioEnabled(this)) {
-                silentAudioPlayer?.start()
-            }
 
             val notification = buildFluidCloudNotification()
             val manager = getSystemService(NotificationManager::class.java)
@@ -134,9 +113,6 @@ class FocusLiveService : Service() {
         _remainingSeconds.value = _initialTotalSeconds.value
         timerJob?.cancel()
 
-        silentAudioPlayer?.stop()
-        releaseMediaSession()
-
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -147,88 +123,11 @@ class FocusLiveService : Service() {
         _remainingSeconds.value = 0
         timerJob?.cancel()
 
-        silentAudioPlayer?.stop()
-        releaseMediaSession()
-
         showCompletedNotification()
         stopForeground(STOP_FOREGROUND_DETACH)
         stopSelf()
     }
 
-    private fun initOrUpdateMediaSession(title: String, isPlaying: Boolean) {
-        val bridgeMode = FluidCloudPreferences.getBridgeMode(this)
-        // 模式包含媒体会话借道 (HYBRID 或 MEDIA_SESSION)
-        if (bridgeMode == FluidCloudPreferences.MODE_HYBRID || bridgeMode == FluidCloudPreferences.MODE_MEDIA_SESSION) {
-            if (mediaSession == null) {
-                mediaSession = MediaSessionCompat(this, "RmfFluidCloudBridge").apply {
-                    setFlags(
-                        MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
-                        MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
-                    )
-                    setCallback(object : MediaSessionCompat.Callback() {
-                        override fun onPlay() {
-                            resumeFocusSession()
-                        }
-                        override fun onPause() {
-                            pauseFocusSession()
-                        }
-                        override fun onStop() {
-                            stopFocusSession()
-                        }
-                        override fun onSeekTo(pos: Long) {
-                            // 严格防篡改与防重置：专注倒计时是严肃的自律流程，严禁拖拽时间条重置或修改时间！
-                            // 立即重置为系统真实的已专注进度，阻止任何时间被重置或篡改
-                            initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = _isRunning.value)
-                        }
-                    })
-                }
-            }
-
-            val elapsedMillis = ((_initialTotalSeconds.value - _remainingSeconds.value) * 1000L)
-            val durationMillis = (_initialTotalSeconds.value * 1000L)
-
-            val state = PlaybackStateCompat.Builder()
-                .setActions(
-                    PlaybackStateCompat.ACTION_PLAY or
-                    PlaybackStateCompat.ACTION_PAUSE or
-                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                    PlaybackStateCompat.ACTION_STOP
-                )
-                .setState(
-                    if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
-                    elapsedMillis,
-                    if (isPlaying) 1.0f else 0.0f,
-                    SystemClock.elapsedRealtime()
-                )
-                .build()
-
-            val remSec = _remainingSeconds.value
-            val min = remSec / 60
-            val sec = remSec % 60
-            val timeStr = "%02d:%02d".format(min, sec)
-
-            val metadata = MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "🎯 $title")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "⏱️ 剩余 $timeStr · 胶囊通知心流空间")
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "RMF 实时活动")
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMillis)
-                .build()
-
-            mediaSession?.setPlaybackState(state)
-            mediaSession?.setMetadata(metadata)
-            mediaSession?.isActive = true
-        } else {
-            releaseMediaSession()
-        }
-    }
-
-    private fun releaseMediaSession() {
-        try {
-            mediaSession?.isActive = false
-            mediaSession?.release()
-        } catch (_: Exception) {}
-        mediaSession = null
-    }
 
     private fun scheduleFinishAlarm(seconds: Int) {
         try {
@@ -267,19 +166,13 @@ class FocusLiveService : Service() {
     private fun launchTimerSyncLoop() {
         timerJob?.cancel()
         timerJob = serviceScope.launch {
-            var tick = 0
             while (_isRunning.value) {
                 delay(1000)
-                tick++
                 val remaining = maxOf(0, ((targetEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000).toInt())
                 _remainingSeconds.value = remaining
                 if (remaining <= 0) {
                     onFocusCompleted()
                     break
-                }
-                // 每 15 秒同步一次副标题剩余倒计时，保持系统媒体卡片文字与时间条双重实时对齐
-                if (tick % 15 == 0) {
-                    initOrUpdateMediaSession(_currentTaskTitle.value, isPlaying = true)
                 }
             }
         }
@@ -475,8 +368,6 @@ class FocusLiveService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         cancelFinishAlarm()
-        silentAudioPlayer?.stop()
-        releaseMediaSession()
         serviceScope.cancel()
     }
 

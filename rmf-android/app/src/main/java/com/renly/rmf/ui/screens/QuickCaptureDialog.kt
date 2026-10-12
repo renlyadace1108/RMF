@@ -176,14 +176,16 @@ fun QuickCaptureDialog(
                                     if (captureMode == "SCHEDULE") {
                                         val parsed = NaturalLanguageScheduleParser.parse(rawText)
                                         val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                        // 需求：不要自动排期，直接入库进入待排期任务池，由用户在日/周视图手动拖拽排期
                                         val newSchedule = ScheduleEntity(
                                             id = UUID.randomUUID().toString(),
                                             title = parsed.title,
-                                            startTime = parsed.startTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                                            endTime = parsed.endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                                            startTime = "",
+                                            endTime = "",
+                                            estimatedMinutes = parsed.estimatedMinutes,
                                             priority = parsed.priority,
                                             category = parsed.category,
-                                            status = "PENDING",
+                                            status = "BACKLOG",
                                             createdAt = now,
                                             updatedAt = now
                                         )

@@ -126,3 +126,4 @@ d:\RMF\
 3. **保持无损数据升级**：数据库字段有增改时，编写增量平滑迁移（`ALTER TABLE`），严禁破坏用户的已存数据。
 4. **Git 先拉后推**：每次开始编码前先执行 `git pull origin main`，完成后提交清晰语义的 Commit 并 push。
 5. **严禁添加白噪音/环境音（CRITICAL REQUIREMENT）**：用户明确要求专注模块保持纯粹，**严禁添加任何白噪音（White Noise）、环境音景（Ambient Sound）或类似音频合成播放功能**！任何协同 Agent 均不得擅自重新引入此类功能。
+6. **全局强制使用安卓原生实时活动，严禁使用媒体播放借道方式（CRITICAL REQUIREMENT）**：通知栏顶栏胶囊与锁屏灵动卡片**全部统一强制使用安卓官方实时活动 (Android Live Updates / Promoted Ongoing) 借道上岛**！彻底废除并严禁再引入 MediaSession 媒体通知伪装、静音伴奏保活或类似媒体通道方式。此规则为永久红线！

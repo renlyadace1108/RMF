@@ -10,7 +10,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
@@ -55,11 +54,11 @@
             </intent-filter>
         </receiver>
 
-        <!-- 胶囊通知实时服务 (前台状态栏胶囊与锁屏实时活动，支持原生实时活动 + 媒体会话双借道) -->
+        <!-- 胶囊通知实时服务 (前台状态栏胶囊与锁屏实时活动，全局强制使用原生实时活动借道，严禁媒体借道) -->
         <service
             android:name=".domain.service.FocusLiveService"
             android:exported="false"
-            android:foregroundServiceType="specialUse|mediaPlayback">
+            android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Focus countdown timer and status bar live capsule" />
