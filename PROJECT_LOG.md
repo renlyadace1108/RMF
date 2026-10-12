@@ -36,6 +36,15 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-12 19:45] - 修复 QuickCaptureDialog 闪念直投入库编译错误
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **问题排查**：
+  - Android 端编译报错：`Unresolved reference 'estimatedMinutes'` at `QuickCaptureDialog.kt:185:71`。
+  - 原因：`NaturalLanguageScheduleParser.kt` 中 `ParsedScheduleResult` 的时长属性名为 `durationMinutes`（默认 60 分钟），而 `QuickCaptureDialog.kt` 误引用了 `parsed.estimatedMinutes`。
+* **核心修复**：
+  - 将 `QuickCaptureDialog.kt` 中的 `estimatedMinutes = parsed.estimatedMinutes` 修正为 `estimatedMinutes = parsed.durationMinutes`。
+  - 代码恢复编译通过状态，即刻同步推送至 GitHub `origin/main`。
+
 ### [2026-10-12 19:30] - 闪念直投入库(手动排期)、日周视图缩放、1分钟滚轮精度与【永久废除媒体借道/全强制原生实时活动】
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“不要自动排期，直接入库，然后需要用户手动排期。日视图周视图要支持放大。这个滚动的精度是1分钟。这个设置直接删掉，全部强制都用安卓实时活动来实现上岛，不要用媒体播放的方式。（写日志里面去，不要再加上了）”

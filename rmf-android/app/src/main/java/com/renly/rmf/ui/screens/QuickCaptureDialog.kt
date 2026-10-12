@@ -182,7 +182,7 @@ fun QuickCaptureDialog(
                                             title = parsed.title,
                                             startTime = "",
                                             endTime = "",
-                                            estimatedMinutes = parsed.estimatedMinutes,
+                                            estimatedMinutes = parsed.durationMinutes,
                                             priority = parsed.priority,
                                             category = parsed.category,
                                             status = "BACKLOG",
