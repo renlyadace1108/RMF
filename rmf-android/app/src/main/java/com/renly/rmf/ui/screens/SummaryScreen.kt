@@ -39,6 +39,7 @@ import com.renly.rmf.domain.service.TimetablePreferences
 import com.renly.rmf.ui.theme.LocalAppColors
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
