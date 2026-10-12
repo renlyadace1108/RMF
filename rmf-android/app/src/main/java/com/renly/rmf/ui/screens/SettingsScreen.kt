@@ -1065,7 +1065,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     val isConfigured = com.renly.rmf.domain.service.AiPreferences.isConfigured(aiContext)
-                    val currentProvider = com.renly.rmf.domain.service.AiPreferences.getProvider(aiContext)
+                    val configuredModel = com.renly.rmf.domain.service.AiPreferences.getModel(aiContext)
 
                     Surface(
                         onClick = { showAiConfigDialog = true },
@@ -1084,20 +1084,23 @@ fun SettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "🔧 数据分析接口与方案配置",
+                                        text = "🔧 自定义数据分析接口配置",
                                         fontSize = 13.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextPrimary
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "(${currentProvider.shortName})",
-                                        fontSize = 11.sp,
-                                        color = DopaminePurple
-                                    )
+                                    if (isConfigured && configuredModel.isNotBlank()) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "($configuredModel)",
+                                            fontSize = 11.sp,
+                                            color = DopaminePurple,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                                 Text(
-                                    text = if (isConfigured) "密钥已配置 · 点击切换方案或修改密钥" else "⚠️ 尚未填写接口密钥，点击配置",
+                                    text = if (isConfigured) "接口与模型已就绪 · 点击修改参数" else "⚠️ 尚未完成接口参数配置，点击填写",
                                     fontSize = 11.sp,
                                     color = if (isConfigured) TextSecondary else DopamineAmber,
                                     modifier = Modifier.padding(top = 2.dp)

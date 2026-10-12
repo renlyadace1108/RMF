@@ -21,16 +21,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.renly.rmf.domain.service.AiPreferences
-import com.renly.rmf.domain.service.AiProvider
 import com.renly.rmf.domain.service.AiResult
 import com.renly.rmf.domain.service.AiService
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.launch
 
 /**
- * 独立的数据分析接口与引擎配置弹窗 (BYOK 自带密钥模式)
- * 符合《生成式人工智能服务管理暂行办法》及各大应用商店合规审查要求
- * 严格保持中立，零品牌名称曝光，零引导行为
+ * 纯自定义数据分析接口配置弹窗 (BYOK 自带密钥模式)
+ * 无任何预置服务商与模型推荐，完全由用户自主配置标准兼容接口
+ * 严格保持技术中立，零品牌名称曝光，完全符合各大应用商店审核规范
  */
 @Composable
 fun AiSettingsDialog(
@@ -41,9 +40,8 @@ fun AiSettingsDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var currentProvider by remember { mutableStateOf(AiPreferences.getProvider(context)) }
-    var currentApiKey by remember { mutableStateOf(AiPreferences.getApiKey(context)) }
     var currentBaseUrl by remember { mutableStateOf(AiPreferences.getBaseUrl(context)) }
+    var currentApiKey by remember { mutableStateOf(AiPreferences.getApiKey(context)) }
     var currentModel by remember { mutableStateOf(AiPreferences.getModel(context)) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
@@ -61,7 +59,7 @@ fun AiSettingsDialog(
             border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.88f)
                 .padding(vertical = 16.dp)
         ) {
             Column(
@@ -88,13 +86,13 @@ fun AiSettingsDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "数据分析引擎配置",
+                                text = "自定义数据分析接口",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "扩展接口接入 (BYOK 自带密钥)",
+                                text = "兼容接口接入 (BYOK 自带密钥)",
                                 fontSize = 11.sp,
                                 color = TextSecondary
                             )
@@ -142,9 +140,9 @@ fun AiSettingsDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "• 本软件为纯本地客户端效能工具，不提供、不出售亦不中转任何生成模型服务。\n" +
-                                        "• 数据分析与复盘功能为可选扩展，由客户端直连您自主配置的标准化接口 (BYOK)。\n" +
-                                        "• 请严格遵守相关法律法规，用户对输入内容与调用结果独立承担合规责任，开发者不保存您的密钥及交互数据。",
+                                text = "• 本软件为纯本地客户端效能工具，不内置、不出售亦不中转任何网络模型服务。\n" +
+                                        "• 数据分析与复盘功能由客户端直连您自主配置的标准化接口 (BYOK)。\n" +
+                                        "• 请严格遵守相关法律法规，合规使用第三方接口，开发者不存储您的密钥及交互数据。",
                                 fontSize = 10.5.sp,
                                 color = TextSecondary,
                                 lineHeight = 16.sp
@@ -152,92 +150,48 @@ fun AiSettingsDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // 2. 引擎方案选择
+                    // 2. 接口地址输入框
                     Text(
-                        text = "选择引擎方案:",
+                        text = "接口服务地址 (Base URL)",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AiProvider.entries.forEach { provider ->
-                            val isSelected = currentProvider == provider
-                            Surface(
-                                onClick = {
-                                    currentProvider = provider
-                                    AiPreferences.setProvider(context, provider)
-                                    currentBaseUrl = provider.defaultBaseUrl
-                                    AiPreferences.setBaseUrl(context, provider.defaultBaseUrl)
-                                    currentModel = provider.defaultModel
-                                    AiPreferences.setModel(context, provider.defaultModel)
-                                    testStatus = null
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) DopaminePurple.copy(alpha = 0.16f) else DarkSurface,
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isSelected) DopaminePurple else DarkBorder
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = isSelected,
-                                        onClick = {
-                                            currentProvider = provider
-                                            AiPreferences.setProvider(context, provider)
-                                            currentBaseUrl = provider.defaultBaseUrl
-                                            AiPreferences.setBaseUrl(context, provider.defaultBaseUrl)
-                                            currentModel = provider.defaultModel
-                                            AiPreferences.setModel(context, provider.defaultModel)
-                                            testStatus = null
-                                        },
-                                        colors = RadioButtonDefaults.colors(
-                                            selectedColor = DopaminePurple,
-                                            unselectedColor = TextMuted
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = provider.displayName,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) DopaminePurple else TextPrimary
-                                        )
-                                        Text(
-                                            text = provider.description,
-                                            fontSize = 11.sp,
-                                            color = TextSecondary,
-                                            modifier = Modifier.padding(top = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = currentBaseUrl,
+                        onValueChange = {
+                            currentBaseUrl = it
+                            AiPreferences.setBaseUrl(context, it)
+                        },
+                        placeholder = { Text("例如: https://api.example.com/v1", fontSize = 12.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 3. API Key 输入框 (所有方案通用)
+                    // 3. 接口密钥输入框
+                    Text(
+                        text = "接口密钥 (API Key)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = currentApiKey,
                         onValueChange = {
                             currentApiKey = it
                             AiPreferences.setApiKey(context, it)
                         },
-                        label = { Text("接口密钥 (API Key)") },
-                        placeholder = { Text("在此粘贴您的 API Key...") },
+                        placeholder = { Text("在此粘贴您的 API Key...", fontSize = 12.sp) },
                         singleLine = true,
                         visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -252,51 +206,34 @@ fun AiSettingsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (currentProvider != AiProvider.CUSTOM) {
-                        Text(
-                            text = "💡 当前方案已预设接口服务，填入密钥即可直接使用",
-                            fontSize = 11.sp,
-                            color = DopamineCyan,
-                            modifier = Modifier.padding(top = 6.dp, start = 4.dp)
-                        )
-                    } else {
-                        // 4. 自定义接口专属输入框
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = currentBaseUrl,
-                            onValueChange = {
-                                currentBaseUrl = it
-                                AiPreferences.setBaseUrl(context, it)
-                            },
-                            label = { Text("接口 Base URL (兼容接口地址)") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = currentModel,
-                            onValueChange = {
-                                currentModel = it
-                                AiPreferences.setModel(context, it)
-                            },
-                            label = { Text("模型标识 (Model ID)") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+                    // 4. 模型标识输入框
+                    Text(
+                        text = "模型名称 (Model ID)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = currentModel,
+                        onValueChange = {
+                            currentModel = it
+                            AiPreferences.setModel(context, it)
+                        },
+                        placeholder = { Text("例如: model-name-instruct", fontSize = 12.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                    // 5. 测试与体验操作区
+                    // 5. 操作区：测试连接与复盘体验
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -317,7 +254,7 @@ fun AiSettingsDialog(
                                     isTesting = false
                                 }
                             },
-                            enabled = !isTesting && currentApiKey.isNotBlank(),
+                            enabled = !isTesting && currentApiKey.isNotBlank() && currentBaseUrl.isNotBlank() && currentModel.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
                             border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
                             shape = RoundedCornerShape(10.dp),
@@ -339,7 +276,7 @@ fun AiSettingsDialog(
                                     isGeneratingReview = false
                                 }
                             },
-                            enabled = !isGeneratingReview && currentApiKey.isNotBlank(),
+                            enabled = !isGeneratingReview && currentApiKey.isNotBlank() && currentBaseUrl.isNotBlank() && currentModel.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(containerColor = DopaminePurple),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)

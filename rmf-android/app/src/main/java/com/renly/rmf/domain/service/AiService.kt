@@ -41,20 +41,24 @@ object AiService {
     )
 
     /**
-     * 测试当前配置的模型连通性与响应速度
+     * 测试当前配置的自定义接口连通性与响应速度
      */
     suspend fun testConnection(context: Context): AiResult<String> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在设置中停用，请先开启总开关。")
         }
+        val baseUrl = AiPreferences.getBaseUrl(context)
+        if (baseUrl.isBlank()) {
+            return@withContext AiResult.Error("请先填写接口服务地址 (Base URL)")
+        }
         val apiKey = AiPreferences.getApiKey(context)
         if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("请先填写有效的 API Key")
+            return@withContext AiResult.Error("请先填写接口密钥 (API Key)")
         }
-
-        val provider = AiPreferences.getProvider(context)
-        val baseUrl = AiPreferences.getBaseUrl(context)
         val model = AiPreferences.getModel(context)
+        if (model.isBlank()) {
+            return@withContext AiResult.Error("请先填写模型名称 (Model)")
+        }
 
         val startTime = System.currentTimeMillis()
         val testPrompt = "请仅回复五个字：服务已就绪。"
@@ -65,7 +69,7 @@ object AiService {
 
         return@withContext when (result) {
             is AiResult.Success -> {
-                AiResult.Success("✅ 连接成功！响应耗时: ${elapsed}ms\n${provider.shortName} 已就绪。")
+                AiResult.Success("✅ 连接成功！响应耗时: ${elapsed}ms\n模型 [${model}] 已就绪。")
             }
             is AiResult.Error -> result
         }
@@ -86,13 +90,12 @@ object AiService {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
         }
-        val apiKey = AiPreferences.getApiKey(context)
-        if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("请先在设置中填写有效的 API Key。")
-        }
-
         val baseUrl = AiPreferences.getBaseUrl(context)
+        val apiKey = AiPreferences.getApiKey(context)
         val model = AiPreferences.getModel(context)
+        if (baseUrl.isBlank() || apiKey.isBlank() || model.isBlank()) {
+            return@withContext AiResult.Error("请先在设置中完整配置接口地址、密钥与模型。")
+        }
 
         val prompt = """
             你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据，生成一份结构清晰、有洞察力的高质量复盘报告：
@@ -121,18 +124,12 @@ object AiService {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在设置中停用。")
         }
-        val apiKey = AiPreferences.getApiKey(context)
-        if (apiKey.isBlank()) {
-            return@withContext AiResult.Error("未配置 API Key！请前往「系统设置」中配置。")
-        }
-
-        val provider = AiPreferences.getProvider(context)
-        if (provider != AiProvider.CUSTOM) {
-            return@withContext AiResult.Error("当前预设的文本分析引擎不支持图像视觉识别。如需解析截图课表，请使用自定义兼容接口并指定视觉模型。")
-        }
-
         val baseUrl = AiPreferences.getBaseUrl(context)
+        val apiKey = AiPreferences.getApiKey(context)
         val model = AiPreferences.getModel(context)
+        if (baseUrl.isBlank() || apiKey.isBlank() || model.isBlank()) {
+            return@withContext AiResult.Error("未完整配置接口！请前往「系统设置」中配置自定义接口地址、密钥与视觉模型。")
+        }
 
         val prompt = """
             你是一名专业的教务课表识别提取助手。请仔细观察这张课程表截图，识别横轴（星期几）和纵轴（节次时间）以及所有的课程单元格。
