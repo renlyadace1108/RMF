@@ -195,6 +195,52 @@ object FluidCloudHelper {
     }
 
     /**
+     * 为日程或课程提醒注入小米 HyperOS 焦点通知参数
+     */
+    fun applyXiaomiSuperIslandParams(
+        builder: NotificationCompat.Builder,
+        title: String,
+        content: String,
+        ticker: String
+    ) {
+        if (!isXiaomiOrHyperOs()) return
+        try {
+            val focusJson = JSONObject().apply {
+                val paramV2 = JSONObject().apply {
+                    put("business", "event_reminder")
+                    put("updatable", false)
+                    put("orderId", "rmf_event_alarm")
+
+                    val paramIsland = JSONObject().apply {
+                        put("islandProperty", 1)
+                        put("islandOrder", 1)
+
+                        val smallIsland = JSONObject().apply {
+                            val left = JSONObject().apply {
+                                put("type", 1)
+                                put("text", "🔔")
+                            }
+                            val right = JSONObject().apply {
+                                put("type", 1)
+                                put("text", title)
+                            }
+                            put("left", left)
+                            put("right", right)
+                        }
+                        put("smallIslandArea", smallIsland)
+                    }
+                    put("param_island", paramIsland)
+                }
+                put("param_v2", paramV2)
+            }
+
+            builder.extras.putString("miui.focus.param", focusJson.toString())
+            builder.extras.putBoolean("miui.focus.notification", true)
+            builder.setTicker(ticker)
+        } catch (_: Throwable) {}
+    }
+
+    /**
      * 为 NotificationCompat.Builder 注入实时活动提升请求与品牌胶囊标记
      */
     fun applyPromotedOngoing(builder: NotificationCompat.Builder) {
