@@ -806,7 +806,22 @@ class MainActivity : ComponentActivity() {
                             Screen.Expenses -> ExpensesScreen(
                                 expensesFlow = db.expenseDao().getAllActiveExpenses(),
                                 onAddExpense = { expense ->
-                                    lifecycleScope.launch { db.expenseDao().insertOrUpdate(expense) }
+                                    lifecycleScope.launch {
+                                        db.expenseDao().insertOrUpdate(expense)
+                                        Toast.makeText(this@MainActivity, "记账成功！", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onUpdateExpense = { expense ->
+                                    lifecycleScope.launch {
+                                        db.expenseDao().insertOrUpdate(expense)
+                                        Toast.makeText(this@MainActivity, "账目已更新！", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onDeleteExpense = { id ->
+                                    lifecycleScope.launch {
+                                        db.expenseDao().softDelete(id)
+                                        Toast.makeText(this@MainActivity, "账目已删除！", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
 

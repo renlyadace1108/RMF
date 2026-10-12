@@ -18,6 +18,9 @@ interface ExpenseDao {
     @Query("UPDATE expenses SET is_deleted = 1 WHERE id = :id")
     suspend fun softDelete(id: String)
 
+    @Query("DELETE FROM expenses WHERE id = :id")
+    suspend fun hardDelete(id: String)
+
     @Query("SELECT * FROM expenses")
     suspend fun getAllRawExpenses(): List<ExpenseEntity>
 }
