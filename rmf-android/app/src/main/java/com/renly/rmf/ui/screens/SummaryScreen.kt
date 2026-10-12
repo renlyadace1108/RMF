@@ -220,6 +220,9 @@ fun SummaryScreen(
 
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedBlock by remember { mutableStateOf<ClockTimeBlock?>(null) }
+    var isGeneratingAiAudit by remember { mutableStateOf(false) }
+    var aiAuditResult by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     val dailyBlocks = remember(selectedDate, schedules, courses) {
         getCombinedDailyBlocks(selectedDate, schedules, courses, context)
@@ -591,6 +594,111 @@ fun SummaryScreen(
         // 图表 3: 24小时时段精力热力柱状图
         item {
             HourlyEnergyHeatmap(blocks = dailyBlocks)
+        }
+
+        // 4.5 🤖 AI 智能效能与精力深度分析
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = colors.card),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, colors.dopaminePurple.copy(alpha = 0.35f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    val isAiEnabled = remember { com.renly.rmf.domain.service.AiPreferences.isAiEnabled(context) }
+                    val isAiConfigured = remember { com.renly.rmf.domain.service.AiPreferences.isConfigured(context) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "🤖 AI 智能效能深度分析",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                )
+                            }
+                            Text(
+                                text = "综合全息作息时钟、专注时长、心流打断与履约率生成智能诊断",
+                                fontSize = 11.sp,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                if (!isAiEnabled || !isAiConfigured) {
+                                    android.widget.Toast.makeText(context, "请先在「系统设置」中开启并配置自定义接口", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                coroutineScope.launch {
+                                    isGeneratingAiAudit = true
+                                    aiAuditResult = null
+                                    val focusMins = dailyBlocks.filter { it.workType == "DEEP_WORK" }
+                                        .sumOf { Duration.between(it.startTime, it.endTime).toMinutes().toInt() }
+                                    val catSummary = dailyBlocks.groupBy { it.category }
+                                        .map { "${it.key}: ${it.value.size}项" }.joinToString()
+
+                                    val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
+                                        context = context,
+                                        completedCount = completedSchedules,
+                                        totalSchedules = totalSchedules,
+                                        focusMinutes = if (focusMins > 0) focusMins else completedSchedules * 30,
+                                        interruptionCount = interruptions.size,
+                                        studySummary = catSummary.ifBlank { "全天均衡排期" },
+                                        customNote = "${selectedDate} 效能全盘分析，包含 ${dailyBlocks.size} 个作息时间块"
+                                    )
+                                    isGeneratingAiAudit = false
+                                    when (res) {
+                                        is com.renly.rmf.domain.service.AiResult.Success -> {
+                                            aiAuditResult = res.data
+                                        }
+                                        is com.renly.rmf.domain.service.AiResult.Error -> {
+                                            aiAuditResult = "分析失败: ${res.errorMessage}"
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !isGeneratingAiAudit,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.dopaminePurple,
+                                disabledContainerColor = colors.border
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (isGeneratingAiAudit) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("诊断中...", fontSize = 11.sp, color = Color.White)
+                            } else {
+                                Text("智能日常分析", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+
+                    if (aiAuditResult != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(color = colors.border, thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = aiAuditResult!!,
+                            fontSize = 12.sp,
+                            color = colors.textPrimary,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
         }
 
         // 5. 核心看板指标

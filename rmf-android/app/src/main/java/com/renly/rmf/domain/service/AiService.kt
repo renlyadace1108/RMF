@@ -126,6 +126,117 @@ object AiService {
         return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
     }
 
+    data class AiDailyReportDraft(
+        val summary: String,
+        val plan: String,
+        val reflection: String
+    )
+
+    /**
+     * 为每日复盘日报生成结构化的草稿内容 (今日交付、明日推进、心得反思)
+     */
+    suspend fun generateDailyReportDraft(
+        context: Context,
+        dateStr: String,
+        completedTasks: List<String>,
+        pendingTasks: List<String>,
+        completionRate: Int
+    ): AiResult<AiDailyReportDraft> = withContext(Dispatchers.IO) {
+        if (!AiPreferences.isAiEnabled(context)) {
+            return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
+        }
+        val baseUrl = AiPreferences.getBaseUrl(context)
+        val apiKey = AiPreferences.getApiKey(context)
+        val model = AiPreferences.getModel(context)
+        if (baseUrl.isBlank() || apiKey.isBlank() || model.isBlank()) {
+            return@withContext AiResult.Error("请先在设置中完整配置接口地址、密钥与模型。")
+        }
+
+        val completedText = if (completedTasks.isNotEmpty()) {
+            completedTasks.joinToString("\n") { "- $it" }
+        } else {
+            "今日无已完成事项"
+        }
+
+        val pendingText = if (pendingTasks.isNotEmpty()) {
+            pendingTasks.joinToString("\n") { "- $it" }
+        } else {
+            "今日无遗留待办事项"
+        }
+
+        val prompt = """
+            你是一名专业的高绩效个人效能与精力管理专家。请根据用户在 $dateStr 的执行清单数据，生成今日的复盘总结草稿。
+            
+            【今日执行数据】
+            - 任务履约达成率: $completionRate%
+            - 已交付完成事项:
+            $completedText
+            - 待推进/未完成事项:
+            $pendingText
+
+            【任务要求】
+            请分析并提炼出以下三部分内容，输出格式必须为纯 JSON 对象，严禁带有 markdown 标记或额外废话：
+            1. summary: 今日完成工作 (Done) 的条理化总结，突出重点成果。
+            2. plan: 明日攻坚计划 (Plan) 的建议安排，合理承接未完事项并设立重心。
+            3. reflection: 效率反思与心得 (Reflection)，结合达成率给出客观中肯的精力节奏与心流建议。
+
+            【JSON 格式规范】
+            {
+              "summary": "• 成果1\n• 成果2",
+              "plan": "• 明日重心1\n• 推进事项2",
+              "reflection": "今日完成率 XX%，..."
+            }
+        """.trimIndent()
+
+        val apiRes = callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
+        if (apiRes is AiResult.Success) {
+            try {
+                var jsonStr = apiRes.data.trim()
+                if (jsonStr.contains("```json")) {
+                    jsonStr = jsonStr.substringAfter("```json").substringBefore("```").trim()
+                } else if (jsonStr.contains("```")) {
+                    jsonStr = jsonStr.substringAfter("```").substringBefore("```").trim()
+                }
+                val startIdx = jsonStr.indexOf('{')
+                val endIdx = jsonStr.lastIndexOf('}')
+                if (startIdx != -1 && endIdx != -1 && endIdx > startIdx) {
+                    jsonStr = jsonStr.substring(startIdx, endIdx + 1)
+                }
+
+                val obj = gson.fromJson(jsonStr, JsonObject::class.java)
+                val summary = obj.get("summary")?.asString?.trim() ?: ""
+                val plan = obj.get("plan")?.asString?.trim() ?: ""
+                val reflection = obj.get("reflection")?.asString?.trim() ?: ""
+
+                if (summary.isNotBlank() || plan.isNotBlank() || reflection.isNotBlank()) {
+                    return@withContext AiResult.Success(
+                        AiDailyReportDraft(
+                            summary = summary,
+                            plan = plan,
+                            reflection = reflection
+                        ),
+                        rawResponse = apiRes.data
+                    )
+                }
+            } catch (e: Exception) {
+                // 降级使用 raw 回复
+            }
+            // 若非标准 JSON 但有内容，作为 reflection 返回
+            return@withContext AiResult.Success(
+                AiDailyReportDraft(
+                    summary = completedText,
+                    plan = pendingText,
+                    reflection = apiRes.data.trim()
+                ),
+                rawResponse = apiRes.data
+            )
+        } else if (apiRes is AiResult.Error) {
+            return@withContext AiResult.Error(apiRes.errorMessage)
+        }
+
+        return@withContext AiResult.Error("未知异常")
+    }
+
     /**
      * 智能识别用户输入的闪念文本，提取明确的时间安排与任务信息
      * 如果包含明确时间，返回 hasTime = true 及开始结束时间，用于询问用户是否自动排期；

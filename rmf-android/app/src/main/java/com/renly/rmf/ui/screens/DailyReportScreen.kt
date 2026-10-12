@@ -27,6 +27,12 @@ import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.renly.rmf.domain.service.AiPreferences
+import com.renly.rmf.domain.service.AiResult
+import com.renly.rmf.domain.service.AiService
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
@@ -36,19 +42,22 @@ fun DailyReportScreen(
     todaySchedulesFlow: Flow<List<ScheduleEntity>>,
     onSaveReport: (DailyReportEntity) -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val schedules by todaySchedulesFlow.collectAsState(initial = emptyList())
     val clipboardManager = LocalClipboardManager.current
 
     var summaryText by remember { mutableStateOf("") }
     var planText by remember { mutableStateOf("") }
     var reflectionText by remember { mutableStateOf("") }
+    var isGeneratingAi by remember { mutableStateOf(false) }
 
     val completedTasks = schedules.filter { it.status == "COMPLETED" }
     val totalTasks = schedules.size
     val completionRate = if (totalTasks > 0) (completedTasks.size * 100 / totalTasks) else 0
 
-    // 智能自动生成日报草稿
-    fun generateDraft() {
+    // 本地默认模板
+    fun generateLocalDraft() {
         val completedSummary = if (completedTasks.isNotEmpty()) {
             completedTasks.joinToString("\n") { "• [已达成] ${it.title} (${it.category})" }
         } else {
@@ -64,6 +73,44 @@ fun DailyReportScreen(
         summaryText = completedSummary
         planText = pendingSummary
         reflectionText = "今日完成率 ${completionRate}%。保持聚焦，减少打断，稳步推进北极星目标。"
+    }
+
+    // 智能自动生成日报草稿 (支持 AI 接入与本地兜底)
+    fun generateDraft() {
+        if (!AiPreferences.isAiEnabled(context) || !AiPreferences.isConfigured(context)) {
+            // 未开启或未配置 AI，直接走本地模版
+            generateLocalDraft()
+            return
+        }
+
+        coroutineScope.launch {
+            isGeneratingAi = true
+            val completedList = completedTasks.map { "${it.title} (${it.category})" }
+            val pendingList = schedules.filter { it.status != "COMPLETED" }.map { "${it.title} (${it.category})" }
+
+            val result = AiService.generateDailyReportDraft(
+                context = context,
+                dateStr = currentDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                completedTasks = completedList,
+                pendingTasks = pendingList,
+                completionRate = completionRate
+            )
+
+            isGeneratingAi = false
+            when (result) {
+                is AiResult.Success -> {
+                    if (result.data.summary.isNotBlank()) summaryText = result.data.summary
+                    if (result.data.plan.isNotBlank()) planText = result.data.plan
+                    if (result.data.reflection.isNotBlank()) reflectionText = result.data.reflection
+                    Toast.makeText(context, "✨ 智能日常分析与复盘草稿已生成", Toast.LENGTH_SHORT).show()
+                }
+                is AiResult.Error -> {
+                    // 出错时提示并降级使用本地模板
+                    generateLocalDraft()
+                    Toast.makeText(context, "智能分析未响应，已自动生成本地草稿: ${result.errorMessage}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     LazyColumn(
@@ -144,13 +191,31 @@ fun DailyReportScreen(
             ) {
                 Button(
                     onClick = { generateDraft() },
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
+                    enabled = !isGeneratingAi,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DarkSurface,
+                        disabledContainerColor = DarkSurface.copy(alpha = 0.6f)
+                    ),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DopaminePurple, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("智能生成草稿", fontSize = 12.sp, color = DopaminePurple)
+                    if (isGeneratingAi) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = DopaminePurple,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("AI 正在深度复盘...", fontSize = 12.sp, color = DopaminePurple)
+                    } else {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = DopaminePurple, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (AiPreferences.isAiEnabled(context) && AiPreferences.isConfigured(context)) "AI 智能日常分析" else "智能生成草稿",
+                            fontSize = 12.sp,
+                            color = DopaminePurple
+                        )
+                    }
                 }
 
                 Button(
