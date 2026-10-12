@@ -325,23 +325,59 @@ class FocusLiveService : Service() {
             stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val isLiveUpdateMode = FluidCloudHelper.isPromotedLiveUpdateSupported(this)
 
-        val toggleAction = NotificationCompat.Action.Builder(
-            if (isRunning) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-            if (isRunning) "暂停" else "继续",
-            togglePendingIntent
-        ).build()
+        // 模式 0 (双借道融合)、模式 1 (媒体借道)、模式 2 (原生实时活动芯片)：
+        // 核心突破：严禁包含任何 setCustomContentView，确保系统与 Android Live Updates 引擎能直接解析原生芯片！
+        val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
+            .setSmallIcon(R.drawable.ic_logo)
+            .setColor(0xFF00F0FF.toInt())
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(openPendingIntent)
+        // 添加标准交互 Action 按钮
+        builder.addAction(
+            NotificationCompat.Action.Builder(
+                R.drawable.ic_logo,
+                if (isRunning) "⏸️ 暂停" else "▶️ 继续",
+                togglePendingIntent
+            ).build()
+        )
+        builder.addAction(
+            NotificationCompat.Action.Builder(
+                R.drawable.ic_logo,
+                "⏹️ 结束",
+                stopPendingIntent
+            ).build()
+        )
 
-        val stopAction = NotificationCompat.Action.Builder(
-            android.R.drawable.ic_menu_close_clear_cancel,
-            "结束",
-            stopPendingIntent
-        ).build()
+        // 原生倒计时与 Chronometer 支持
+        if (isRunning) {
+            builder.setUsesChronometer(true)
+            builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                builder.setChronometerCountDown(true)
+            }
+        } else {
+            builder.setUsesChronometer(false)
+            builder.setWhen(System.currentTimeMillis())
+        }
 
-        val bridgeMode = FluidCloudPreferences.getBridgeMode(this)
+        // 注入 Android 16 Promoted Ongoing 标记
+        FluidCloudHelper.applyPromotedOngoing(builder)
 
-        // 模式 3: 经典抽屉卡片模式 (使用自定义 RemoteViews 布局)
-        if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
+        if (isLiveUpdateMode) {
+            // Android 16 官方 Live Updates 规范:
+            // 严禁绑定自定义 RemoteViews，必须使用 BigTextStyle 等原生合规样式，
+            // 才能通过 Notification.hasPromotableCharacteristics() 校验并成功在支持设备上触发状态栏胶囊与锁屏实时活动
+            val bigTextStyle = NotificationCompat.BigTextStyle()
+                .setBigContentTitle("🎯 $title")
+                .setSummaryText("胶囊通知")
+                .bigText(if (isRunning) "深度专注计时进行中 · 剩余 $timeStr\n胶囊通知实时活动接入已生效" else "专注已暂停 ($timeStr)，点击继续恢复")
+            builder.setStyle(bigTextStyle)
+        } else {
+            // 旧版本系统回退使用 RemoteViews 装饰自定义卡片
             val capsuleView = RemoteViews(packageName, R.layout.notification_fluid_cloud_capsule).apply {
                 setTextViewText(R.id.fluid_capsule_title, "🎯 $title")
                 setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "胶囊通知专注中" else "已暂停")
@@ -394,93 +430,14 @@ class FocusLiveService : Service() {
                 }
             }
 
-            val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
-                .setSmallIcon(R.drawable.ic_logo)
-                .setContentTitle("🎯 深度专注中: $title")
-                .setContentText(if (isRunning) "剩余: $timeStr" else "已暂停 ($timeStr)")
-                .setSubText("胶囊通知")
-                .setColor(0xFF00F0FF.toInt())
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setContentIntent(openPendingIntent)
-                .setCustomContentView(capsuleView)
-                .setCustomBigContentView(expandedView)
-                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-
-            if (isRunning) {
-                builder.setUsesChronometer(true)
-                builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    builder.setChronometerCountDown(true)
-                }
-            }
-            return builder.build()
+            builder.setCustomContentView(capsuleView)
+            builder.setCustomBigContentView(expandedView)
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
         }
 
-        // 模式 0 (双借道融合)、模式 1 (媒体借道)、模式 2 (原生实时活动芯片)：
-        // 核心突破：严禁包含任何 setCustomContentView，确保系统与 Android Live Updates 引擎能直接解析原生芯片！
-        val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
-            .setSmallIcon(R.drawable.ic_logo)
-            .setColor(0xFF00F0FF.toInt())
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(openPendingIntent)
-            .addAction(toggleAction)
-            .addAction(stopAction)
-
-        when (bridgeMode) {
-            FluidCloudPreferences.MODE_HYBRID -> {
-                // 双借道融合引擎：MediaStyle + Chronometer 原生倒计时芯片
-                val mediaStyle = MediaStyle()
-                    .setShowActionsInCompactView(0, 1)
-                mediaSession?.let { mediaStyle.setMediaSession(it.sessionToken) }
-
-                builder.setContentTitle("🎯 $title")
-                    .setContentText(if (isRunning) "心流倒计时 · 状态栏胶囊运行中" else "已暂停 ($timeStr)")
-                    .setSubText("胶囊通知")
-                    .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
-                    .setStyle(mediaStyle)
-
-                if (isRunning) {
-                    builder.setUsesChronometer(true)
-                    builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        builder.setChronometerCountDown(true)
-                    }
-                }
-            }
-            FluidCloudPreferences.MODE_MEDIA_SESSION -> {
-                // 纯媒体会话借道：针对挖孔胶囊与锁屏灵动大卡片
-                val mediaStyle = MediaStyle()
-                    .setShowActionsInCompactView(0, 1)
-                mediaSession?.let { mediaStyle.setMediaSession(it.sessionToken) }
-
-                builder.setContentTitle("🎯 $title")
-                    .setContentText(if (isRunning) "剩余心流时间: $timeStr" else "已暂停 ($timeStr)")
-                    .setSubText("胶囊通知")
-                    .setStyle(mediaStyle)
-            }
-            FluidCloudPreferences.MODE_NATIVE_LIVE_UPDATE -> {
-                // Android 15/16 纯净原生实时活动芯片 (Ongoing Activity Chip)
-                builder.setContentTitle("🎯 深度专注: $title")
-                    .setContentText(if (isRunning) "剩余倒计时: $timeStr" else "已暂停 ($timeStr)")
-                    .setSubText("实时活动")
-                    .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
-
-                if (isRunning) {
-                    builder.setUsesChronometer(true)
-                    builder.setWhen(System.currentTimeMillis() + (remSec * 1000L))
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        builder.setChronometerCountDown(true)
-                    }
-                }
-            }
-        }
-
-        return builder.build()
+        val notification = builder.build()
+        FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
+        return notification
     }
 
     private fun showCompletedNotification() {

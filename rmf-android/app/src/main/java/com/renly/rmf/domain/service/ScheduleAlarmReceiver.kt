@@ -95,6 +95,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             }
         }
 
+        val isLiveUpdateMode = FluidCloudHelper.isPromotedLiveUpdateSupported(context)
+        FluidCloudHelper.applyPromotedOngoing(builder)
+
         if (isCourse) {
             // 2. 快捷一键进入听课专注 (FocusLiveService)
             val focusIntent = Intent(context, FocusLiveService::class.java).apply {
@@ -125,70 +128,24 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 0L
             }
 
-            // 胶囊卡片 RemoteViews
-            val capsuleView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_capsule).apply {
-                setTextViewText(R.id.fluid_course_capsule_title, "🎓 $title")
-                val locText = if (courseLocation.isNotBlank()) "📍 $courseLocation" else "即将开课"
-                setTextViewText(R.id.fluid_course_capsule_location, "$locText | 点击进入专注")
-                setOnClickPendingIntent(R.id.fluid_course_capsule_btn, focusPendingIntent)
+            // 原生 Actions
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_logo,
+                    "🎓 开启专注",
+                    focusPendingIntent
+                ).build()
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_logo,
+                    "👀 查看详情",
+                    pendingIntent
+                ).build()
+            )
 
-                if (remainingMillis > 0) {
-                    setChronometer(
-                        R.id.fluid_course_capsule_chronometer,
-                        SystemClock.elapsedRealtime() + remainingMillis,
-                        "%s",
-                        true
-                    )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        setChronometerCountDown(R.id.fluid_course_capsule_chronometer, true)
-                    }
-                } else {
-                    setChronometer(R.id.fluid_course_capsule_chronometer, SystemClock.elapsedRealtime(), "进行中", false)
-                }
-            }
-
-            // 展开大卡片 RemoteViews
-            val expandedView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_expanded).apply {
-                setTextViewText(R.id.fluid_course_expanded_title, "🎓 $title")
-                val detailStr = StringBuilder()
-                if (courseLocation.isNotBlank()) detailStr.append("📍 地点: $courseLocation  ")
-                if (courseTeacher.isNotBlank()) detailStr.append("👤 教师: $courseTeacher")
-                setTextViewText(R.id.fluid_course_expanded_detail, detailStr.toString().ifBlank { "无地点信息" })
-                setTextViewText(R.id.fluid_course_expanded_time_range, "时长: ${courseDurationMinutes}分钟")
-
-                setOnClickPendingIntent(R.id.fluid_course_btn_focus, focusPendingIntent)
-                setOnClickPendingIntent(R.id.fluid_course_btn_view, pendingIntent)
-
-                if (remainingMillis > 0) {
-                    setChronometer(
-                        R.id.fluid_course_expanded_chronometer,
-                        SystemClock.elapsedRealtime() + remainingMillis,
-                        "%s",
-                        true
-                    )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        setChronometerCountDown(R.id.fluid_course_expanded_chronometer, true)
-                    }
-                } else {
-                    setChronometer(R.id.fluid_course_expanded_chronometer, SystemClock.elapsedRealtime(), "正在上课", false)
-                }
-            }
-
-            val bridgeMode = FluidCloudPreferences.getBridgeMode(context)
-            if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
-                builder.setContentTitle("🎓 上课提醒: $title")
-                    .setContentText(message)
-                    .setCustomContentView(capsuleView)
-                    .setCustomBigContentView(expandedView)
-                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            } else {
-                // 原生实时活动 / 借道模式：采用原生卡片与标准 Action，保证系统状态栏与锁屏胶囊解析通畅
-                val detail = if (courseLocation.isNotBlank()) " [$courseLocation]" else ""
-                builder.setContentTitle("🎓 上课提醒: $title$detail")
-                    .setContentText(message)
-                    .addAction(android.R.drawable.ic_media_play, "🎯 听课专注", focusPendingIntent)
-                    .addAction(android.R.drawable.ic_menu_view, "👀 查看详情", pendingIntent)
-            }
+            builder.setContentTitle("🎓 上课提醒: $title")
+                .setContentText(message)
 
             if (remainingMillis > 0) {
                 builder.setUsesChronometer(true)
@@ -197,8 +154,73 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     builder.setChronometerCountDown(true)
                 }
             }
-        } else {
-            // 通用日程也以胶囊通知实时卡片呈现！
+
+            if (isLiveUpdateMode) {
+                val detailStr = StringBuilder()
+                if (courseLocation.isNotBlank()) detailStr.append("📍 地点: $courseLocation\n")
+                if (courseTeacher.isNotBlank()) detailStr.append("👤 教师: $courseTeacher\n")
+                detailStr.append("⏱️ 课程时长: ${courseDurationMinutes}分钟\n$message")
+
+                builder.setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .setBigContentTitle("🎓 $title")
+                        .setSummaryText("胶囊通知 · 上课提醒")
+                        .bigText(detailStr.toString())
+                )
+            } else {
+                // 旧版本系统自定义 RemoteViews
+                val capsuleView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_capsule).apply {
+                    setTextViewText(R.id.fluid_course_capsule_title, "🎓 $title")
+                    val locText = if (courseLocation.isNotBlank()) "📍 $courseLocation" else "即将开课"
+                    setTextViewText(R.id.fluid_course_capsule_location, "$locText | 点击进入专注")
+                    setOnClickPendingIntent(R.id.fluid_course_capsule_btn, focusPendingIntent)
+
+                    if (remainingMillis > 0) {
+                        setChronometer(
+                            R.id.fluid_course_capsule_chronometer,
+                            SystemClock.elapsedRealtime() + remainingMillis,
+                            "%s",
+                            true
+                        )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            setChronometerCountDown(R.id.fluid_course_capsule_chronometer, true)
+                        }
+                    } else {
+                        setChronometer(R.id.fluid_course_capsule_chronometer, SystemClock.elapsedRealtime(), "进行中", false)
+                    }
+                }
+
+                val expandedView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_expanded).apply {
+                    setTextViewText(R.id.fluid_course_expanded_title, "🎓 $title")
+                    val detailStr = StringBuilder()
+                    if (courseLocation.isNotBlank()) detailStr.append("📍 地点: $courseLocation  ")
+                    if (courseTeacher.isNotBlank()) detailStr.append("👤 教师: $courseTeacher")
+                    setTextViewText(R.id.fluid_course_expanded_detail, detailStr.toString().ifBlank { "无地点信息" })
+                    setTextViewText(R.id.fluid_course_expanded_time_range, "时长: ${courseDurationMinutes}分钟")
+
+                    setOnClickPendingIntent(R.id.fluid_course_btn_focus, focusPendingIntent)
+                    setOnClickPendingIntent(R.id.fluid_course_btn_view, pendingIntent)
+
+                    if (remainingMillis > 0) {
+                        setChronometer(
+                            R.id.fluid_course_expanded_chronometer,
+                            SystemClock.elapsedRealtime() + remainingMillis,
+                            "%s",
+                            true
+                        )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            setChronometerCountDown(R.id.fluid_course_expanded_chronometer, true)
+                        }
+                    } else {
+                        setChronometer(R.id.fluid_course_expanded_chronometer, SystemClock.elapsedRealtime(), "正在上课", false)
+                    }
+                }
+
+                builder.setCustomContentView(capsuleView)
+                    .setCustomBigContentView(expandedView)
+                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            }
+            // 通用日程
             val startMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
             val remMillis = if (startMillis > System.currentTimeMillis()) startMillis - System.currentTimeMillis() else 0L
 
@@ -223,60 +245,23 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 )
             }
 
-            val schedCapsule = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_capsule).apply {
-                setTextViewText(R.id.fluid_schedule_capsule_title, "📌 $title")
-                setTextViewText(R.id.fluid_schedule_capsule_sub, message)
-                setOnClickPendingIntent(R.id.fluid_schedule_capsule_btn, focusPendingIntent)
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_logo,
+                    "🎯 进入专注",
+                    focusPendingIntent
+                ).build()
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_logo,
+                    "👀 查看日程",
+                    pendingIntent
+                ).build()
+            )
 
-                if (remMillis > 0) {
-                    setChronometer(
-                        R.id.fluid_schedule_capsule_chronometer,
-                        SystemClock.elapsedRealtime() + remMillis,
-                        "%s",
-                        true
-                    )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        setChronometerCountDown(R.id.fluid_schedule_capsule_chronometer, true)
-                    }
-                } else {
-                    setChronometer(R.id.fluid_schedule_capsule_chronometer, SystemClock.elapsedRealtime(), "即刻", false)
-                }
-            }
-
-            val schedExpanded = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_expanded).apply {
-                setTextViewText(R.id.fluid_schedule_expanded_title, "📌 $title")
-                setTextViewText(R.id.fluid_schedule_expanded_desc, message)
-                setOnClickPendingIntent(R.id.fluid_schedule_btn_focus, focusPendingIntent)
-                setOnClickPendingIntent(R.id.fluid_schedule_btn_view, pendingIntent)
-
-                if (remMillis > 0) {
-                    setChronometer(
-                        R.id.fluid_schedule_expanded_chronometer,
-                        SystemClock.elapsedRealtime() + remMillis,
-                        "%s",
-                        true
-                    )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        setChronometerCountDown(R.id.fluid_schedule_expanded_chronometer, true)
-                    }
-                } else {
-                    setChronometer(R.id.fluid_schedule_expanded_chronometer, SystemClock.elapsedRealtime(), "进行中", false)
-                }
-            }
-
-            val bridgeMode = FluidCloudPreferences.getBridgeMode(context)
-            if (bridgeMode == FluidCloudPreferences.MODE_CUSTOM_DRAWER) {
-                builder.setContentTitle("📌 日程提醒: $title")
-                    .setContentText(message)
-                    .setCustomContentView(schedCapsule)
-                    .setCustomBigContentView(schedExpanded)
-                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            } else {
-                builder.setContentTitle("📌 日程提醒: $title")
-                    .setContentText(message)
-                    .addAction(android.R.drawable.ic_media_play, "🎯 立即专注", focusPendingIntent)
-                    .addAction(android.R.drawable.ic_menu_view, "👀 查看日程", pendingIntent)
-            }
+            builder.setContentTitle("📌 日程提醒: $title")
+                .setContentText(message)
 
             if (remMillis > 0) {
                 builder.setUsesChronometer(true)
@@ -285,10 +270,66 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     builder.setChronometerCountDown(true)
                 }
             }
+
+            if (isLiveUpdateMode) {
+                builder.setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .setBigContentTitle("📌 $title")
+                        .setSummaryText("胶囊通知 · 日程提醒")
+                        .bigText("$message\n已自动接入原生胶囊通知服务")
+                )
+            } else {
+                val schedCapsule = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_capsule).apply {
+                    setTextViewText(R.id.fluid_schedule_capsule_title, "📌 $title")
+                    setTextViewText(R.id.fluid_schedule_capsule_sub, message)
+                    setOnClickPendingIntent(R.id.fluid_schedule_capsule_btn, focusPendingIntent)
+
+                    if (remMillis > 0) {
+                        setChronometer(
+                            R.id.fluid_schedule_capsule_chronometer,
+                            SystemClock.elapsedRealtime() + remMillis,
+                            "%s",
+                            true
+                        )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            setChronometerCountDown(R.id.fluid_schedule_capsule_chronometer, true)
+                        }
+                    } else {
+                        setChronometer(R.id.fluid_schedule_capsule_chronometer, SystemClock.elapsedRealtime(), "即刻", false)
+                    }
+                }
+
+                val schedExpanded = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_schedule_expanded).apply {
+                    setTextViewText(R.id.fluid_schedule_expanded_title, "📌 $title")
+                    setTextViewText(R.id.fluid_schedule_expanded_desc, message)
+                    setOnClickPendingIntent(R.id.fluid_schedule_btn_focus, focusPendingIntent)
+                    setOnClickPendingIntent(R.id.fluid_schedule_btn_view, pendingIntent)
+
+                    if (remMillis > 0) {
+                        setChronometer(
+                            R.id.fluid_schedule_expanded_chronometer,
+                            SystemClock.elapsedRealtime() + remMillis,
+                            "%s",
+                            true
+                        )
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            setChronometerCountDown(R.id.fluid_schedule_expanded_chronometer, true)
+                        }
+                    } else {
+                        setChronometer(R.id.fluid_schedule_expanded_chronometer, SystemClock.elapsedRealtime(), "进行中", false)
+                    }
+                }
+
+                builder.setCustomContentView(schedCapsule)
+                    .setCustomBigContentView(schedExpanded)
+                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            }
         }
 
+        val notification = builder.build()
+        FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(notificationId, builder.build())
+        manager.notify(notificationId, notification)
     }
 
     companion object {

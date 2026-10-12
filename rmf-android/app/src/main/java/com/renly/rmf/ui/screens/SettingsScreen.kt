@@ -1270,6 +1270,7 @@ fun SettingsScreen(
                 var isBatteryIgnored by remember {
                     mutableStateOf(com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext))
                 }
+                val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -1315,6 +1316,19 @@ fun SettingsScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (isLiveSupported) "🌊" else "📱", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isLiveSupported) "原生胶囊通知 (Live Updates 借道) 已就绪" else "胶囊通知标准模式已就绪",
+                                fontSize = 10.5.sp,
+                                color = if (isLiveSupported) DopamineCyan else TextMuted,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
