@@ -1233,23 +1233,21 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val icon = when {
-                                isLiveSupported -> "🌊"
-                                isXiaomi -> "🏝️"
-                                else -> "📱"
-                            }
-                            Text(icon, fontSize = 12.sp)
+                            Text(if (isLiveSupported) "🌊" else "📱", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = when {
                                     isLiveSupported -> {
-                                        if (isColorOs16) "ColorOS 17 实时活动已就绪 (原生流体云借道模式)" else "Android 16 实时活动 (Live Updates) 借道已就绪"
+                                        when {
+                                            isColorOs16 -> "ColorOS 17 实时活动已就绪 (原生流体云借道模式)"
+                                            isXiaomi -> "HyperOS 实时活动已就绪 (原生实时活动借道模式)"
+                                            else -> "Android 16 实时活动已就绪 (Live Updates 借道模式)"
+                                        }
                                     }
-                                    isXiaomi -> "HyperOS 焦点/超级岛已就绪 (原生卡片美化+协议注入)"
-                                    else -> "流体云标准胶囊已待命 (质感美化卡片模式)"
+                                    else -> "标准通知卡片已就绪 (半透磨砂卡片模式)"
                                 },
                                 fontSize = 10.5.sp,
-                                color = if (isLiveSupported || isXiaomi) DopamineCyan else TextMuted,
+                                color = if (isLiveSupported) DopamineCyan else TextMuted,
                                 fontWeight = FontWeight.Medium
                             )
                         }

@@ -22,7 +22,7 @@
             android:paddingEnd="10dp"
             android:paddingTop="4dp"
             android:paddingBottom="4dp"
-            android:text="📌 日程准时提醒"
+            android:text="日程提醒"
             android:textColor="@color/fluid_notif_tag_text"
             android:textSize="11.5sp"
             android:textStyle="bold"
@@ -36,7 +36,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="准时出发 / 准备"
+            android:text="准时开始"
             android:textColor="#10B981"
             android:textSize="11.5sp"
             android:textStyle="bold" />
@@ -48,7 +48,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="📌 日程准时提醒"
+        android:text="日程名称"
         android:textColor="@color/fluid_notif_title"
         android:textSize="16.5sp"
         android:textStyle="bold"

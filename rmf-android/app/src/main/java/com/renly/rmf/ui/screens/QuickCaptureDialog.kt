@@ -123,50 +123,7 @@ fun QuickCaptureDialog(
                         maxLines = 3
                     )
 
-                    // 实时智能解析预览
-                    if (rawText.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            color = DarkBg,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "⚡ 智能解析命中预览",
-                                    fontSize = 11.sp,
-                                    color = DopamineBlue,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (captureMode == "SCHEDULE" && parsedPreview is com.renly.rmf.domain.service.ParsedScheduleResult) {
-                                    Text(
-                                        text = "任务: ${parsedPreview.title}",
-                                        fontSize = 12.sp,
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = "时间: ${parsedPreview.startTime.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))} (${parsedPreview.durationMinutes}分钟)",
-                                        fontSize = 11.sp,
-                                        color = TextSecondary
-                                    )
-                                    if (parsedPreview.tag != null) {
-                                        Text(
-                                            text = "标签: #${parsedPreview.tag}",
-                                            fontSize = 11.sp,
-                                            color = DopamineOrange
-                                        )
-                                    }
-                                } else if (parsedPreview is Pair<*, *>) {
-                                    Text(
-                                        text = "项目: ${parsedPreview.first}   金额: ￥${parsedPreview.second}",
-                                        fontSize = 12.sp,
-                                        color = DopamineGreen
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // 移除智能解析预览卡片，直接极速捕获并入库
 
                     Spacer(modifier = Modifier.height(18.dp))
 

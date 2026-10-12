@@ -36,6 +36,31 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-12 12:45] - 专注时间滚轮重构、全端统一切换至 Android 实时活动借道与通知视觉极简美化
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“时间滑动做成滚轮。删除这里的胶囊待命。删上面的表情包，改名叫做深度专注，也罢多余的文字删了。把这个智能解析也删了。全局都只用实时活动借道，把媒体播放借道也删了。小米端删除超级岛，换用安卓实时活动借到。如果可以的话，在原生的实时活动卡片美化一下，做成coloros17的那种模糊的漂亮的效果。”
+* **核心落地成果**：
+  1. **专注时长滚轮选择器 (Scroll Wheel)**：
+     - 重构 `FocusScreen.kt`：彻底废弃繁杂的预设胶囊按钮与数字输入弹窗，换为纵向拟物滚轮选择器（5~180分钟，步进5分钟）。
+     - 采用 `rememberSnapFlingBehavior` 实现吸附平滑定格，上下配备高质感羽化渐变遮罩，中心具备高亮聚焦槽，体验极度丝滑。
+  2. **全面精简文本与彻底移除表情包 (改名“深度专注”)**：
+     - 将所有通知栏、前台服务、卡片标题统一改为纯净的「深度专注」，消除所有 Emoji（🎯、🎓、📌、⚡ 等）与繁琐后缀（“实时心流”、“流体云实时胶囊”等）。
+     - 按钮文字精简为纯粹的「暂停」、「继续」、「结束」。
+     - 页面顶部标题统一为「深度专注」与副标「沉浸心流 · 实时活动」。
+  3. **删除胶囊待命卡片**：
+     - 彻底删除 `FocusScreen.kt` 底部的「胶囊通知待命就绪 [待机]」卡片。
+  4. **删除闪念弹窗智能解析预览**：
+     - 从 `QuickCaptureDialog.kt` 中完全删除「⚡ 智能解析命中预览」浮层，输入后直接点击入库。
+  5. **全局统一为 Android 原生实时活动 (Live Updates) 借道**：
+     - 小米 HyperOS 彻底删除超级岛注入与 `miui.focus.param`，与 OPPO ColorOS 17 / Android 16 对齐统一走原生 Live Updates 实时活动借道。
+     - 全局彻底排除媒体播放通知借道逻辑，唯一依赖 Android 原生 Promoted Ongoing 机制。
+  6. **ColorOS 17 风格半透明磨砂亚克力美化**：
+     - 重新配置 `values/colors.xml` 与 `values-night/colors.xml` 的卡片色彩（高透光磨砂背景色 `#D9151A24`、微蓝半透发光质感描边 `#3338BDF8`、20dp 圆角）。
+* **影响范围**：
+  - `FocusScreen.kt`、`QuickCaptureDialog.kt`、`SettingsScreen.kt`
+  - `FluidCloudHelper.kt`、`FocusLiveService.kt`、`ScheduleAlarmReceiver.kt`
+  - `bg_fluid_card.xml`、`notification_fluid_cloud_*.xml`、`values/colors.xml`、`values-night/colors.xml`
+
 ### [2026-10-12 11:35] - 支持小米 HyperOS 超级岛协议并全面美化原生通知卡片 (磨砂质感+仪表盘药丸)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“现在也要支持小米超级岛，因为原生的卡片在小米hyperos很丑，所以要美化一下原生的卡片，如果能够直接介入小米超岛，那小米端就直接接系统接口，不能的话就修原生卡片”

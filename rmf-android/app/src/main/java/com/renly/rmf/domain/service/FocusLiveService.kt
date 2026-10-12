@@ -212,9 +212,9 @@ class FocusLiveService : Service() {
 
         val builder = NotificationCompat.Builder(this, RmfApplication.CHANNEL_FLUID_CLOUD)
             .setSmallIcon(R.drawable.ic_logo)
-            .setContentTitle("🎯 深度专注中: $title")
+            .setContentTitle("深度专注")
             .setContentText(if (isRunning) "剩余: $timeStr" else "已暂停 ($timeStr)")
-            .setSubText("$brandLabel · 实时心流")
+            .setSubText(brandLabel)
             .setColor(0xFF00F0FF.toInt())
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -222,18 +222,18 @@ class FocusLiveService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
 
-        // 添加标准交互 Action 按钮（ColorOS 17 / HyperOS 展开卡片与小窗交互）
+        // 添加标准交互 Action 按钮（ColorOS 17 / HyperOS / Android 16 展开卡片与锁屏实时活动交互）
         builder.addAction(
             NotificationCompat.Action.Builder(
                 R.drawable.ic_logo,
-                if (isRunning) "⏸️ 暂停" else "▶️ 继续",
+                if (isRunning) "暂停" else "继续",
                 togglePendingIntent
             ).build()
         )
         builder.addAction(
             NotificationCompat.Action.Builder(
                 R.drawable.ic_logo,
-                "⏹️ 结束",
+                "结束",
                 stopPendingIntent
             ).build()
         )
@@ -250,26 +250,23 @@ class FocusLiveService : Service() {
             builder.setWhen(System.currentTimeMillis())
         }
 
-        // 注入 Android 16 (ColorOS 17) Promoted Ongoing 标记
+        // 注入 Android 16 / ColorOS 17 / HyperOS 实时活动 Promoted Ongoing 标记
         FluidCloudHelper.applyPromotedOngoing(builder)
-
-        // 注入小米 HyperOS 超级岛 (Super Island) / 焦点通知 (Focus Notification) 原生协议
-        FluidCloudHelper.applyXiaomiSuperIslandParams(builder, title, remSec, isRunning)
 
         if (isLiveUpdateMode) {
             // Android 16 / ColorOS 17 官方 Live Updates 规范:
             // 严禁绑定自定义 RemoteViews，必须使用 BigTextStyle 等原生合规样式，
-            // 才能通过 Notification.hasPromotableCharacteristics() 校验并成功在 OPPO Find X9 等设备上触发状态栏胶囊与锁屏实时活动
+            // 才能通过 Notification.hasPromotableCharacteristics() 校验并成功在 OPPO / 小米等设备上触发状态栏胶囊与锁屏实时活动
             val bigTextStyle = NotificationCompat.BigTextStyle()
-                .setBigContentTitle("🎯 $title")
-                .setSummaryText("$brandLabel · 实时活动")
-                .bigText(if (isRunning) "深度专注计时进行中 · 剩余 $timeStr\n$brandLabel 实时活动接入已生效" else "专注已暂停 ($timeStr)，点击继续恢复")
+                .setBigContentTitle("深度专注")
+                .setSummaryText(brandLabel)
+                .bigText(if (isRunning) "剩余 $timeStr" else "已暂停 ($timeStr)")
             builder.setStyle(bigTextStyle)
         } else {
-            // 小米 HyperOS 及其他系统：展示深度美化的双态自定义卡片（带有磨砂药丸仪表盘与圆角交互按键）
+            // 自定义 RemoteViews（针对未开放 Live Updates 权限的旧版系统回退）
             val capsuleView = RemoteViews(packageName, R.layout.notification_fluid_cloud_capsule).apply {
-                setTextViewText(R.id.fluid_capsule_title, "🎯 $title")
-                setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "$brandLabel 专注中" else "已暂停")
+                setTextViewText(R.id.fluid_capsule_title, "深度专注")
+                setTextViewText(R.id.fluid_capsule_sub, if (isRunning) "专注中" else "已暂停")
                 setTextViewText(R.id.fluid_capsule_action_btn, if (isRunning) "暂停" else "继续")
                 setOnClickPendingIntent(R.id.fluid_capsule_action_btn, togglePendingIntent)
 
@@ -294,10 +291,10 @@ class FocusLiveService : Service() {
             }
 
             val expandedView = RemoteViews(packageName, R.layout.notification_fluid_cloud_expanded).apply {
-                setTextViewText(R.id.fluid_expanded_header, "🎯 $brandLabel · 深度专注中")
-                setTextViewText(R.id.fluid_expanded_state_badge, if (isRunning) "⚡ 心流进行中" else "⏸️ 已暂停")
+                setTextViewText(R.id.fluid_expanded_header, "深度专注")
+                setTextViewText(R.id.fluid_expanded_state_badge, if (isRunning) "专注中" else "已暂停")
                 setTextViewText(R.id.fluid_expanded_task_title, title)
-                setTextViewText(R.id.fluid_btn_pause, if (isRunning) "⏸️ 暂停专注" else "▶️ 继续专注")
+                setTextViewText(R.id.fluid_btn_pause, if (isRunning) "暂停" else "继续")
                 setOnClickPendingIntent(R.id.fluid_btn_pause, togglePendingIntent)
                 setOnClickPendingIntent(R.id.fluid_btn_stop, stopPendingIntent)
 

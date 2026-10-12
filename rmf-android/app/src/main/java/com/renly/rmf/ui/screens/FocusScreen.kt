@@ -9,9 +9,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -78,7 +80,6 @@ fun FocusScreen(
     var customMinutes by remember { mutableIntStateOf(25) }
     var selectedAmbientSound by remember { mutableStateOf(AmbientSoundType.NONE) }
     var showEventPickerModal by remember { mutableStateOf(false) }
-    var showCustomDurationDialog by remember { mutableStateOf(false) }
     var showInterruptionDialog by remember { mutableStateOf(false) }
 
     val isRunning = liveRunning
@@ -127,13 +128,13 @@ fun FocusScreen(
         ) {
             Column {
                 Text(
-                    text = "心流专注空间",
+                    text = "深度专注",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = TextPrimary
                 )
                 Text(
-                    text = "流体云实时胶囊 · 自定义时长 · 日程绑定",
+                    text = "沉浸心流 · 实时活动",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)
@@ -333,77 +334,126 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 4. 自定义专注时长控制区 (未开始时完全开放调节)
+        // 4. 时间滑动滚轮选择器 (Scroll Wheel Duration Picker)
         if (!isRunning) {
+            val minutesList = remember { (5..180 step 5).toList() }
+            val itemHeight = 40.dp
+            val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
+            val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+            val flingBehavior = rememberSnapFlingBehavior(lazyListState = wheelListState)
+
+            // 监听滚轮滚动并同步 customMinutes
+            LaunchedEffect(wheelListState.firstVisibleItemIndex) {
+                val selectedIdx = wheelListState.firstVisibleItemIndex.coerceIn(0, minutesList.lastIndex)
+                if (minutesList[selectedIdx] != customMinutes) {
+                    customMinutes = minutesList[selectedIdx]
+                }
+            }
+
+            // 当从外部改变 customMinutes 时同步滚轮位置
+            LaunchedEffect(customMinutes) {
+                val targetIdx = minutesList.indexOf(customMinutes)
+                if (targetIdx >= 0 && targetIdx != wheelListState.firstVisibleItemIndex) {
+                    wheelListState.animateScrollToItem(targetIdx)
+                }
+            }
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "⚙️ 设定专注时长: $customMinutes 分钟",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "设定专注时长",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     color = TextSecondary
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // 常用时长预设胶囊
-                val presets = listOf(15, 25, 35, 45, 60, 90)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
+                // 拟物滚轮容器 (带上下羽化渐变遮罩与中间高亮选框)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(itemHeight * 3)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(DarkCard)
+                        .border(1.dp, DarkBorder, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(presets) { mins ->
-                        val isSelected = customMinutes == mins
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { customMinutes = mins },
-                            label = { Text("${mins}m", fontSize = 12.sp) }
-                        )
-                    }
-                }
+                    // 中间高亮标尺线 / 背景槽
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(itemHeight)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DopamineCyan.copy(alpha = 0.12f))
+                            .border(1.dp, DopamineCyan.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                    )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 微调增减与自定义直接输入按钮组
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = { customMinutes = maxOf(5, customMinutes - 5) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(34.dp)
+                    // 纵向滚轮滚动列表
+                    LazyColumn(
+                        state = wheelListState,
+                        flingBehavior = flingBehavior,
+                        contentPadding = PaddingValues(vertical = itemHeight),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "-5m", modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("5m", fontSize = 11.5.sp)
+                        items(minutesList) { mins ->
+                            val isCurrentSelected = mins == customMinutes
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(itemHeight)
+                                    .clickable {
+                                        customMinutes = mins
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "$mins",
+                                        fontSize = if (isCurrentSelected) 22.sp else 16.sp,
+                                        fontWeight = if (isCurrentSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrentSelected) DopamineCyan else TextMuted
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "分钟",
+                                        fontSize = if (isCurrentSelected) 12.sp else 10.sp,
+                                        color = if (isCurrentSelected) TextPrimary else TextMuted
+                                    )
+                                }
+                            }
+                        }
                     }
 
-                    OutlinedButton(
-                        onClick = { showCustomDurationDialog = true },
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Icon(Icons.Default.Tune, contentDescription = "自定义", tint = DopamineCyan, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("精确输入时长", fontSize = 11.5.sp, color = DopamineCyan)
-                    }
-
-                    FilledTonalButton(
-                        onClick = { customMinutes = minOf(180, customMinutes + 5) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "+5m", modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("5m", fontSize = 11.5.sp)
-                    }
+                    // 上下羽化渐变遮罩 (打造 iOS / ColorOS 真实滚轮深度感)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(itemHeight)
+                            .align(Alignment.TopCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(DarkCard, Color.Transparent)
+                                )
+                            )
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(itemHeight)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, DarkCard)
+                                )
+                            )
+                    )
                 }
             }
         }
@@ -534,59 +584,7 @@ fun FocusScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
 
-        // 6. ColorOS 流体云实时状态指示卡片 (动态呈现流体云胶囊状态)
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = if (isRunning) DopamineCyan.copy(alpha = 0.12f) else DarkCard,
-            border = BorderStroke(1.dp, if (isRunning) DopamineCyan.copy(alpha = 0.45f) else DarkBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (isRunning) DopamineGreen else DopamineCyan)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isRunning) "🫧 ColorOS 流体云实时胶囊运行中" else "🫧 ColorOS 流体云待命就绪",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isRunning) DopamineCyan else TextPrimary
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Surface(
-                        color = (if (isRunning) DopamineCyan else TextMuted).copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = if (isRunning) "实时投递中" else "待机",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isRunning) DopamineCyan else TextMuted,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = if (isRunning) {
-                        "当前状态栏左上角挖孔旁已浮现实时动态胶囊！切换至手机桌面或息屏锁屏，胶囊与大卡片将常驻展示【${if (boundSchedule != null) boundSchedule.title else liveTitle}】倒计时与快捷暂停按钮。"
-                    } else {
-                        "点击上方开始专注后，系统将自动通过高优先级前台服务在状态栏与锁屏激活流体云实时胶囊（深度适配 OPPO ColorOS / 小米 HyperOS / vivo OriginOS）。"
-                    },
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    lineHeight = 16.sp
-                )
-            }
-        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -708,55 +706,7 @@ fun FocusScreen(
         )
     }
 
-    // 弹窗 2: 精确自定义时长输入弹窗
-    if (showCustomDurationDialog) {
-        var inputMinutesText by remember { mutableStateOf(customMinutes.toString()) }
-        AlertDialog(
-            onDismissRequest = { showCustomDurationDialog = false },
-            containerColor = DarkCard,
-            title = { Text("⏱️ 自定义专注时长 (分钟)", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = inputMinutesText,
-                        onValueChange = { inputMinutesText = it.filter { char -> char.isDigit() } },
-                        label = { Text("输入时长 (1 ~ 240 分钟)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DopamineCyan,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text("提示: 建议单次深度专注时长在 25 ~ 90 分钟以内，保持最佳神经认知专注力。", fontSize = 11.sp, color = TextSecondary)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val parsed = inputMinutesText.toIntOrNull()
-                        if (parsed != null && parsed in 1..240) {
-                            customMinutes = parsed
-                        }
-                        showCustomDurationDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("确定", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCustomDurationDialog = false }) { Text("取消", color = TextSecondary) }
-            }
-        )
-    }
-
-    // 弹窗 3: 记录打断弹窗
+    // 弹窗 2: 记录打断弹窗
     if (showInterruptionDialog) {
         RecordInterruptionDialog(
             onDismiss = { showInterruptionDialog = false },
