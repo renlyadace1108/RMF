@@ -38,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.entity.ExpenseEntity
+import com.renly.rmf.domain.service.ExpenseCategoryPreferences
+import com.renly.rmf.domain.service.ExpenseCategoryItem
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.flow.Flow
 import java.time.DayOfWeek
@@ -65,25 +67,8 @@ private val CATEGORY_COLORS = listOf(
     Color(0xFF64748B)  // 灰蓝
 )
 
-private fun getCategoryEmoji(category: String, type: String): String {
-    return when {
-        category.contains("餐") || category.contains("吃") || category.contains("饭") || category.contains("食") || category.contains("外卖") -> "🍜"
-        category.contains("车") || category.contains("交通") || category.contains("行") || category.contains("油") || category.contains("地铁") -> "🚗"
-        category.contains("购") || category.contains("买") || category.contains("服") -> "🛍️"
-        category.contains("学") || category.contains("书") || category.contains("课") -> "📚"
-        category.contains("玩") || category.contains("娱") || category.contains("游") || category.contains("影") -> "🎮"
-        category.contains("医") || category.contains("药") || category.contains("病") -> "💊"
-        category.contains("住") || category.contains("房") || category.contains("租") || category.contains("水") || category.contains("电") -> "🏠"
-        category.contains("情") || category.contains("礼") -> "🎁"
-        category.contains("资") || category.contains("薪") -> "💰"
-        category.contains("奖") -> "🏆"
-        category.contains("兼") -> "💼"
-        category.contains("理财") || category.contains("投资") || category.contains("股") -> "📈"
-        category.contains("包") -> "🧧"
-        category.contains("退") -> "🔄"
-        type == "INCOME" -> "💵"
-        else -> "🛒"
-    }
+private fun getCategoryEmoji(category: String, type: String = "EXPENSE"): String {
+    return ExpenseCategoryPreferences.getCategoryEmoji(category, type)
 }
 
 enum class ExpensePeriodMode(val title: String) {
@@ -108,6 +93,18 @@ fun ExpensesScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<ExpenseEntity?>(null) }
     var deletingExpense by remember { mutableStateOf<ExpenseEntity?>(null) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var categoryVersion by remember { mutableIntStateOf(0) }
+    val expenseCategories = remember(categoryVersion) {
+        ExpenseCategoryPreferences.getExpenseCategories(context)
+    }
+    val incomeCategories = remember(categoryVersion) {
+        ExpenseCategoryPreferences.getIncomeCategories(context)
+    }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var showManageCategoriesDialog by remember { mutableStateOf(false) }
+    var targetTypeForNewCategory by remember { mutableStateOf("EXPENSE") }
 
     // 周期视图模式：日、周、月、年、自定义
     var currentPeriodMode by remember { mutableStateOf(ExpensePeriodMode.MONTH) }
@@ -422,7 +419,7 @@ fun ExpensesScreen(
                     IconButton(
                         onClick = {
                             if (quickInputText.isNotBlank()) {
-                                val parsed = parseQuickExpense(quickInputText)
+                                val parsed = parseQuickExpense(quickInputText, context)
                                 onAddExpense(parsed)
                                 quickInputText = ""
                             }
@@ -549,6 +546,15 @@ fun ExpensesScreen(
                 onConfirm = { newExpense ->
                     onAddExpense(newExpense)
                     showAddDialog = false
+                },
+                expenseCategories = expenseCategories,
+                incomeCategories = incomeCategories,
+                onOpenAddCategory = { type ->
+                    targetTypeForNewCategory = type
+                    showAddCategoryDialog = true
+                },
+                onOpenManageCategories = {
+                    showManageCategoriesDialog = true
                 }
             )
         }
@@ -565,6 +571,43 @@ fun ExpensesScreen(
                 onDelete = {
                     deletingExpense = editingExpense
                     editingExpense = null
+                },
+                expenseCategories = expenseCategories,
+                incomeCategories = incomeCategories,
+                onOpenAddCategory = { type ->
+                    targetTypeForNewCategory = type
+                    showAddCategoryDialog = true
+                },
+                onOpenManageCategories = {
+                    showManageCategoriesDialog = true
+                }
+            )
+        }
+
+        // 新增自定义分类弹窗
+        if (showAddCategoryDialog) {
+            AddCustomExpenseCategoryDialog(
+                initialType = targetTypeForNewCategory,
+                onDismiss = { showAddCategoryDialog = false },
+                onConfirm = { name, type, emoji ->
+                    ExpenseCategoryPreferences.addCustomCategory(context, name, type, emoji)
+                    categoryVersion++
+                    showAddCategoryDialog = false
+                }
+            )
+        }
+
+        // 管理自定义分类弹窗
+        if (showManageCategoriesDialog) {
+            ManageExpenseCategoriesDialog(
+                categories = ExpenseCategoryPreferences.getAllCategories(context),
+                onDismiss = { showManageCategoriesDialog = false },
+                onDeleteCategory = { item ->
+                    ExpenseCategoryPreferences.deleteCustomCategory(context, item.id)
+                    categoryVersion++
+                },
+                onOpenAdd = {
+                    showAddCategoryDialog = true
                 }
             )
         }
@@ -1446,14 +1489,24 @@ private fun ExpenseItemCard(
 @Composable
 fun AddExpenseDialog(
     onDismiss: () -> Unit,
-    onConfirm: (ExpenseEntity) -> Unit
+    onConfirm: (ExpenseEntity) -> Unit,
+    expenseCategories: List<ExpenseCategoryItem> = emptyList(),
+    incomeCategories: List<ExpenseCategoryItem> = emptyList(),
+    onOpenAddCategory: (String) -> Unit = {},
+    onOpenManageCategories: () -> Unit = {}
 ) {
     var amountStr by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("餐饮") }
     var isExpense by remember { mutableStateOf(true) }
 
-    val presetList = if (isExpense) PRESET_EXPENSE_CATEGORIES else PRESET_INCOME_CATEGORIES
+    val currentCategories = remember(isExpense, expenseCategories, incomeCategories) {
+        if (isExpense) {
+            if (expenseCategories.isNotEmpty()) expenseCategories.map { it.name } else PRESET_EXPENSE_CATEGORIES
+        } else {
+            if (incomeCategories.isNotEmpty()) incomeCategories.map { it.name } else PRESET_INCOME_CATEGORIES
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1469,7 +1522,7 @@ fun AddExpenseDialog(
                         selected = isExpense,
                         onClick = {
                             isExpense = true
-                            category = "餐饮"
+                            category = if (expenseCategories.isNotEmpty()) expenseCategories.first().name else "餐饮"
                         },
                         label = { Text("支出") },
                         colors = FilterChipDefaults.filterChipColors(
@@ -1481,7 +1534,7 @@ fun AddExpenseDialog(
                         selected = !isExpense,
                         onClick = {
                             isExpense = false
-                            category = "工资"
+                            category = if (incomeCategories.isNotEmpty()) incomeCategories.first().name else "工资"
                         },
                         label = { Text("收入") },
                         colors = FilterChipDefaults.filterChipColors(
@@ -1509,12 +1562,34 @@ fun AddExpenseDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("分类选择", fontSize = 12.sp, color = TextSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("分类选择", fontSize = 12.sp, color = TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "➕ 自定义",
+                            fontSize = 11.5.sp,
+                            color = DopamineAmber,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { onOpenAddCategory(if (isExpense) "EXPENSE" else "INCOME") }
+                        )
+                        Text(
+                            text = "⚙️ 管理分类",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable { onOpenManageCategories() }
+                        )
+                    }
+                }
+
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(presetList) { cat ->
+                    items(currentCategories) { cat ->
                         val isSelected = category == cat
                         Surface(
                             onClick = { category = cat },
@@ -1535,6 +1610,23 @@ fun AddExpenseDialog(
                                     color = if (isSelected) DarkBg else TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
+                            }
+                        }
+                    }
+
+                    item {
+                        Surface(
+                            onClick = { onOpenAddCategory(if (isExpense) "EXPENSE" else "INCOME") },
+                            shape = RoundedCornerShape(6.dp),
+                            color = DopamineAmber.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.4f)),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("➕ 自定义", fontSize = 11.sp, color = DopamineAmber, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1591,7 +1683,11 @@ fun EditExpenseDialog(
     expense: ExpenseEntity,
     onDismiss: () -> Unit,
     onSave: (ExpenseEntity) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    expenseCategories: List<ExpenseCategoryItem> = emptyList(),
+    incomeCategories: List<ExpenseCategoryItem> = emptyList(),
+    onOpenAddCategory: (String) -> Unit = {},
+    onOpenManageCategories: () -> Unit = {}
 ) {
     var amountStr by remember { mutableStateOf(expense.amount.toString()) }
     var note by remember { mutableStateOf(expense.note) }
@@ -1599,7 +1695,13 @@ fun EditExpenseDialog(
     var isExpense by remember { mutableStateOf(expense.type == "EXPENSE") }
     var transactionTime by remember { mutableStateOf(expense.transactionTime) }
 
-    val presetList = if (isExpense) PRESET_EXPENSE_CATEGORIES else PRESET_INCOME_CATEGORIES
+    val currentCategories = remember(isExpense, expenseCategories, incomeCategories) {
+        if (isExpense) {
+            if (expenseCategories.isNotEmpty()) expenseCategories.map { it.name } else PRESET_EXPENSE_CATEGORIES
+        } else {
+            if (incomeCategories.isNotEmpty()) incomeCategories.map { it.name } else PRESET_INCOME_CATEGORIES
+        }
+    }
 
     val formattedTime = remember(transactionTime) {
         try {
@@ -1669,12 +1771,34 @@ fun EditExpenseDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("分类选择", fontSize = 12.sp, color = TextSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("分类选择", fontSize = 12.sp, color = TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "➕ 自定义",
+                            fontSize = 11.5.sp,
+                            color = DopamineAmber,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { onOpenAddCategory(if (isExpense) "EXPENSE" else "INCOME") }
+                        )
+                        Text(
+                            text = "⚙️ 管理分类",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.clickable { onOpenManageCategories() }
+                        )
+                    }
+                }
+
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(presetList) { cat ->
+                    items(currentCategories) { cat ->
                         val isSelected = category == cat
                         Surface(
                             onClick = { category = cat },
@@ -1695,6 +1819,23 @@ fun EditExpenseDialog(
                                     color = if (isSelected) DarkBg else TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
+                            }
+                        }
+                    }
+
+                    item {
+                        Surface(
+                            onClick = { onOpenAddCategory(if (isExpense) "EXPENSE" else "INCOME") },
+                            shape = RoundedCornerShape(6.dp),
+                            color = DopamineAmber.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.4f)),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("➕ 自定义", fontSize = 11.sp, color = DopamineAmber, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1825,9 +1966,226 @@ fun DeleteExpenseConfirmDialog(
 }
 
 /**
+ * 新增自定义记账分类弹窗 (AddCustomExpenseCategoryDialog)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddCustomExpenseCategoryDialog(
+    initialType: String = "EXPENSE",
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, type: String, emoji: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var isExpense by remember { mutableStateOf(initialType == "EXPENSE") }
+    var selectedEmoji by remember { mutableStateOf(if (initialType == "INCOME") "💰" else "🛒") }
+
+    val presetEmojis = listOf(
+        "🍜", "🚗", "🛍️", "🛒", "📚", "🎮", "💊", "🏠", "🎁", "📦",
+        "💰", "🏆", "💼", "📈", "🧧", "🔄", "☕", "🎬", "✈️", "🐾",
+        "💻", "⚡", "🏋️", "🎨", "🍺", "🍔", "🍼", "🔧", "💈", "🎫"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = { Text("添加自定义分类", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = isExpense,
+                        onClick = {
+                            isExpense = true
+                            if (selectedEmoji == "💰") selectedEmoji = "🛒"
+                        },
+                        label = { Text("支出分类") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = DopamineRed.copy(alpha = 0.25f),
+                            selectedLabelColor = DopamineRed
+                        )
+                    )
+                    FilterChip(
+                        selected = !isExpense,
+                        onClick = {
+                            isExpense = false
+                            if (selectedEmoji == "🛒") selectedEmoji = "💰"
+                        },
+                        label = { Text("收入分类") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = DopamineGreen.copy(alpha = 0.25f),
+                            selectedLabelColor = DopamineGreen
+                        )
+                    )
+                }
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("分类名称 (如: 咖啡、数码、奖学金)") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DopamineAmber,
+                        focusedLabelColor = DopamineAmber
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("选择图标 Emoji: $selectedEmoji", fontSize = 12.sp, color = TextSecondary)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(presetEmojis) { em ->
+                        val isSel = selectedEmoji == em
+                        Surface(
+                            onClick = { selectedEmoji = em },
+                            shape = CircleShape,
+                            color = if (isSel) DopamineAmber.copy(alpha = 0.3f) else DarkCard,
+                            border = BorderStroke(1.dp, if (isSel) DopamineAmber else DarkBorder),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(em, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onConfirm(name.trim(), if (isExpense) "EXPENSE" else "INCOME", selectedEmoji)
+                    }
+                },
+                enabled = name.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = DopamineAmber)
+            ) {
+                Text("确认添加", color = DarkBg, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = TextSecondary) }
+        }
+    )
+}
+
+/**
+ * 管理自定义记账分类弹窗 (ManageExpenseCategoriesDialog)
+ */
+@Composable
+fun ManageExpenseCategoriesDialog(
+    categories: List<ExpenseCategoryItem>,
+    onDismiss: () -> Unit,
+    onDeleteCategory: (ExpenseCategoryItem) -> Unit,
+    onOpenAdd: () -> Unit
+) {
+    val customList = categories.filter { it.isCustom }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("管理自定义分类", color = TextPrimary, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onOpenAdd) {
+                    Text("+ 新增", color = DopamineAmber, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                if (customList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无自定义分类。\n点击右上角「+ 新增」即可创建专属收支分类！",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(customList) { item ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkCard,
+                                border = BorderStroke(1.dp, DarkBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(item.emoji, fontSize = 16.sp)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(item.name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (item.type == "INCOME") DopamineGreen.copy(alpha = 0.2f) else DopamineRed.copy(alpha = 0.2f),
+                                            modifier = Modifier.height(18.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
+                                                Text(
+                                                    text = if (item.type == "INCOME") "收入" else "支出",
+                                                    fontSize = 9.sp,
+                                                    color = if (item.type == "INCOME") DopamineGreen else DopamineRed
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteCategory(item) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = "删除", tint = DopamineRed, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = DopamineAmber)
+            ) {
+                Text("完成", color = DarkBg, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+/**
  * 自然语言记账文本解析
  */
-private fun parseQuickExpense(text: String): ExpenseEntity {
+private fun parseQuickExpense(text: String, context: android.content.Context? = null): ExpenseEntity {
     var raw = text.trim()
     var type = "EXPENSE"
     if (raw.contains("收入") || raw.contains("工资") || raw.contains("兼职") || raw.contains("奖金") || raw.contains("红包")) {
@@ -1842,18 +2200,31 @@ private fun parseQuickExpense(text: String): ExpenseEntity {
         raw = raw.replace(matcher.group(0) ?: "", "").trim()
     }
 
-    val category = when {
-        raw.contains("吃") || raw.contains("饭") || raw.contains("外卖") || raw.contains("餐") -> "餐饮"
-        raw.contains("车") || raw.contains("打车") || raw.contains("地铁") || raw.contains("油") -> "交通"
-        raw.contains("买") || raw.contains("物") || raw.contains("服") -> "购物"
-        raw.contains("学") || raw.contains("书") || raw.contains("课") -> "学习"
-        raw.contains("玩") || raw.contains("游") || raw.contains("影") -> "娱乐"
-        raw.contains("药") || raw.contains("医") -> "医疗"
-        raw.contains("房") || raw.contains("租") || raw.contains("水电") -> "居住"
-        raw.contains("工") || raw.contains("薪") -> "工资"
-        raw.contains("兼") -> "兼职"
-        raw.contains("包") -> "红包"
-        else -> if (type == "INCOME") "工资" else "日常"
+    // 优先匹配用户自定义分类与全量分类
+    var category = ""
+    if (context != null) {
+        val allCats = ExpenseCategoryPreferences.getAllCategories(context)
+        val matched = allCats.firstOrNull { raw.contains(it.name) }
+        if (matched != null) {
+            category = matched.name
+            type = matched.type
+        }
+    }
+
+    if (category.isEmpty()) {
+        category = when {
+            raw.contains("吃") || raw.contains("饭") || raw.contains("外卖") || raw.contains("餐") -> "餐饮"
+            raw.contains("车") || raw.contains("打车") || raw.contains("地铁") || raw.contains("油") -> "交通"
+            raw.contains("买") || raw.contains("物") || raw.contains("服") -> "购物"
+            raw.contains("学") || raw.contains("书") || raw.contains("课") -> "学习"
+            raw.contains("玩") || raw.contains("游") || raw.contains("影") -> "娱乐"
+            raw.contains("药") || raw.contains("医") -> "医疗"
+            raw.contains("房") || raw.contains("租") || raw.contains("水电") -> "居住"
+            raw.contains("工") || raw.contains("薪") -> "工资"
+            raw.contains("兼") -> "兼职"
+            raw.contains("包") -> "红包"
+            else -> if (type == "INCOME") "工资" else "日常"
+        }
     }
 
     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)

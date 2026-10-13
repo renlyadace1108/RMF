@@ -32,9 +32,23 @@
 * [ ] **Google Drive 同步引擎核心实现** (0%)
 * [x] **Gemini AI 监管与记账模块实现** (75% - 动态模型选择、真实 API 直连、日程审查、想法评估监督、自然语言记账均已打通)
 
----
-
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
+
+### [2026-10-13 23:00] - 手机端与电脑端记账收支分类及日程待办标签全量支持用户自定义 (v1.4.9.6 / Code 1040906)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“记账的分类也要支持自定义软件里面所有这种类型标签的都要支持自定义，手机电脑都是”
+* **核心改进**：
+  1. **移动端 (Android) 记账分类与收支类型全量支持自定义 ([`ExpenseCategoryPreferences.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/domain/service/ExpenseCategoryPreferences.kt), [`ExpensesScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ExpensesScreen.kt))**：
+     - **安全持久化存储架构**：为严守“新版本覆盖安装不丢失数据”规范，采用 `ExpenseCategoryPreferences` 配合 SharedPreferences JSON 储存自定义分类项，避免直接改动 Room 数据库触发数据库迁移或数据清空风险。
+     - **新增与管理弹窗**：在新增账目（`AddExpenseDialog`）与编辑账目（`EditExpenseDialog`）分类网格中加入 `➕ 自定义` 与 `⚙️ 管理` 按钮；呼出 `AddCustomExpenseCategoryDialog` 可自选收支类型（支出/收入）、输入分类名并点选丰富的预设 Emoji（🍜, 🚗, 🛍️, 🎮, 🏠, ☕, 💻, ✈️, 🐾, 🎁 等 24 种）；呼出 `ManageExpenseCategoriesDialog` 可统一查看与一键删除自定义分类。
+     - **自然语言记账动态优先匹配**：更新 `parseQuickExpense` 自然语言解析器，优先比对包含用户自定义的全部收支标签，输入包含自定义标签的文本时自动识别对应类型与分类。
+  2. **移动端 (Android) 日程/待办标签全量自定义与动态联动 ([`ScheduleScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt), [`MainActivity.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/MainActivity.kt))**：
+     - **顶部过滤栏与弹窗无缝接入**：在日程过滤 Chips 条、新建日程弹窗（`AddScheduleDialog`）、编辑日程弹窗（`EditScheduleDialog`）以及待办箱弹窗（`BacklogDialog`）分类行中统一提供 `➕ 标签` 与 `⚙️ 管理` 快捷入口。
+     - **标签颜色与 CRUD**：新增 `AddScheduleTagDialog`（支持 10 种高饱和度多巴胺配色挑选与名称设定）和 `ManageScheduleTagsDialog`；在 `MainActivity.kt` 中打通 `db.syncDao().insertOrUpdateTag(tag)` 与 `db.syncDao().deleteTag(tag.id)`，实现实时持久化与响应式 Flow 刷新。
+  3. **电脑端 (Windows) 记账收支分类与日程标签自定义一体化 ([`DatabaseService.cs`](file:///c:/Users/Renly/Desktop/RMF/rmf-windows/RMF.Windows/Services/DatabaseService.cs), [`ExpenseCategoryItem.cs`](file:///c:/Users/Renly/Desktop/RMF/rmf-windows/RMF.Windows/Models/ExpenseCategoryItem.cs), [`MainWindow.xaml`](file:///c:/Users/Renly/Desktop/RMF/rmf-windows/RMF.Windows/MainWindow.xaml), [`MainWindow.xaml.cs`](file:///c:/Users/Renly/Desktop/RMF/rmf-windows/RMF.Windows/MainWindow.xaml.cs))**：
+     - **SQLite 扩展与历史数据自动同步**：在 Windows SQLite 数据库中创建 `expense_categories` 表，自动写入默认收支分类，并从历史 `expenses` 表中自动提取已存在的历史分类，确保已有账目数据完美衔接。
+     - **多标签管理模态窗升级**：重构 `TagManagementModal` 弹窗，新增 `🏷️ 日程分类标签` 与 `💰 记账收支分类` 标签页自由切换；收支分类页支持添加新分类（指定名称、收支类型、Emoji 快捷选择）以及列表查看、使用频次统计与安全删除。
+  4. **版本升级**：Android `versionCode` 升级至 `1040906`，`versionName` 升级至 `1.4.9.6`。
 
 ### [2026-10-13 22:10] - 四象限任务开始时间标注/拖拽移动/时间排序与记账日周月年图表全景重构 (v1.4.9.5 / Code 1040905)
 * **执行角色**：AI 全栈工程师 (Antigravity)

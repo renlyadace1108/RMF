@@ -77,6 +77,15 @@ public class DatabaseService
                 created_at TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS expense_categories (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                type TEXT NOT NULL DEFAULT 'EXPENSE',
+                emoji TEXT DEFAULT '🛒',
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS focus_logs (
                 id TEXT PRIMARY KEY,
                 process_name TEXT,
@@ -494,6 +503,53 @@ public class DatabaseService
                 GROUP BY TRIM(category);
             ", conn);
             syncCmd.ExecuteNonQuery();
+
+            // 确保默认记账收支分类已存在
+            var defaultExpenseCategories = new (string Name, string Type, string Emoji)[]
+            {
+                ("餐饮", "EXPENSE", "🍜"),
+                ("交通", "EXPENSE", "🚗"),
+                ("购物", "EXPENSE", "🛍️"),
+                ("日常", "EXPENSE", "🛒"),
+                ("学习", "EXPENSE", "📚"),
+                ("娱乐", "EXPENSE", "🎮"),
+                ("医疗", "EXPENSE", "💊"),
+                ("居住", "EXPENSE", "🏠"),
+                ("人情", "EXPENSE", "🎁"),
+                ("其他", "EXPENSE", "📦"),
+                ("工资", "INCOME", "💰"),
+                ("奖金", "INCOME", "🏆"),
+                ("兼职", "INCOME", "💼"),
+                ("理财", "INCOME", "📈"),
+                ("红包", "INCOME", "🧧"),
+                ("退款", "INCOME", "🔄"),
+                ("其他收入", "INCOME", "💵")
+            };
+            for (int i = 0; i < defaultExpenseCategories.Length; i++)
+            {
+                var item = defaultExpenseCategories[i];
+                using var expCmd = new SqliteCommand(@"
+                    INSERT OR IGNORE INTO expense_categories (id, name, type, emoji, sort_order, created_at)
+                    VALUES (@id, @name, @type, @emoji, @order, @now);
+                ", conn);
+                expCmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+                expCmd.Parameters.AddWithValue("@name", item.Name);
+                expCmd.Parameters.AddWithValue("@type", item.Type);
+                expCmd.Parameters.AddWithValue("@emoji", item.Emoji);
+                expCmd.Parameters.AddWithValue("@order", i);
+                expCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                expCmd.ExecuteNonQuery();
+            }
+
+            // 自动同步 expenses 表中既往已有分类至 expense_categories 分类库
+            using var syncExpCmd = new SqliteCommand(@"
+                INSERT OR IGNORE INTO expense_categories (id, name, type, emoji, sort_order, created_at)
+                SELECT lower(hex(randomblob(16))), TRIM(category), 'EXPENSE', '🛒', 100, datetime('now')
+                FROM expenses
+                WHERE is_deleted = 0 AND category IS NOT NULL AND TRIM(category) != ''
+                GROUP BY TRIM(category);
+            ", conn);
+            syncExpCmd.ExecuteNonQuery();
         }
         catch { }
     }
@@ -1551,6 +1607,119 @@ public class DatabaseService
             return Convert.ToDecimal(val);
         }
         return 0m;
+    }
+
+    public static List<ExpenseCategoryItem> GetExpenseCategories(string? type = null)
+    {
+        var list = new List<ExpenseCategoryItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = string.IsNullOrEmpty(type)
+            ? @"SELECT c.id, c.name, c.type, c.emoji, c.sort_order,
+                       (SELECT COUNT(1) FROM expenses e WHERE e.is_deleted = 0 AND e.category = c.name) as usage_cnt
+                FROM expense_categories c
+                ORDER BY c.sort_order ASC, c.name ASC;"
+            : @"SELECT c.id, c.name, c.type, c.emoji, c.sort_order,
+                       (SELECT COUNT(1) FROM expenses e WHERE e.is_deleted = 0 AND e.category = c.name) as usage_cnt
+                FROM expense_categories c
+                WHERE c.type = @type
+                ORDER BY c.sort_order ASC, c.name ASC;";
+
+        using var cmd = new SqliteCommand(sql, conn);
+        if (!string.IsNullOrEmpty(type))
+        {
+            cmd.Parameters.AddWithValue("@type", type);
+        }
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new ExpenseCategoryItem
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1),
+                Type = reader.IsDBNull(2) ? "EXPENSE" : reader.GetString(2),
+                Emoji = reader.IsDBNull(3) ? "🛒" : reader.GetString(3),
+                SortOrder = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                UsageCount = reader.IsDBNull(5) ? 0 : reader.GetInt32(5)
+            });
+        }
+        return list;
+    }
+
+    public static bool AddExpenseCategory(string name, string type = "EXPENSE", string emoji = "🛒")
+    {
+        name = name.Trim();
+        if (string.IsNullOrEmpty(name)) return false;
+
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            INSERT OR IGNORE INTO expense_categories (id, name, type, emoji, sort_order, created_at)
+            VALUES (@id, @name, @type, @emoji, 50, @now);
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", Guid.NewGuid().ToString("N"));
+        cmd.Parameters.AddWithValue("@name", name);
+        cmd.Parameters.AddWithValue("@type", type);
+        cmd.Parameters.AddWithValue("@emoji", string.IsNullOrWhiteSpace(emoji) ? (type == "INCOME" ? "💵" : "🛒") : emoji.Trim());
+        cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+        return cmd.ExecuteNonQuery() > 0;
+    }
+
+    public static bool RenameExpenseCategory(string oldName, string newName, string emoji = "")
+    {
+        oldName = oldName.Trim();
+        newName = newName.Trim();
+        if (string.IsNullOrEmpty(oldName) || string.IsNullOrEmpty(newName)) return false;
+
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        try
+        {
+            using var cmd = new SqliteCommand(@"
+                UPDATE expense_categories 
+                SET name = @newName, 
+                    emoji = CASE WHEN @emoji != '' THEN @emoji ELSE emoji END
+                WHERE name = @oldName;
+            ", conn, tx);
+            cmd.Parameters.AddWithValue("@newName", newName);
+            cmd.Parameters.AddWithValue("@oldName", oldName);
+            cmd.Parameters.AddWithValue("@emoji", emoji ?? "");
+            cmd.ExecuteNonQuery();
+
+            using var updateExpCmd = new SqliteCommand(@"
+                UPDATE expenses SET category = @newName WHERE category = @oldName;
+            ", conn, tx);
+            updateExpCmd.Parameters.AddWithValue("@newName", newName);
+            updateExpCmd.Parameters.AddWithValue("@oldName", oldName);
+            updateExpCmd.ExecuteNonQuery();
+
+            tx.Commit();
+            return true;
+        }
+        catch
+        {
+            tx.Rollback();
+            return false;
+        }
+    }
+
+    public static bool DeleteExpenseCategory(string nameOrId)
+    {
+        nameOrId = nameOrId.Trim();
+        if (string.IsNullOrEmpty(nameOrId)) return false;
+
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        using var cmd = new SqliteCommand("DELETE FROM expense_categories WHERE id = @val OR name = @val;", conn);
+        cmd.Parameters.AddWithValue("@val", nameOrId);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     // ==================== 行为活动采集打点 (Activity Log) ====================

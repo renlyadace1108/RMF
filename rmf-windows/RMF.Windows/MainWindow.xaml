@@ -5116,66 +5116,141 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- Row 0: Header -->
-                    <Grid Grid.Row="0" Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="🏷️ 日程分类标签管理" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" />
-                            <TextBlock Text="自定义与维护标签库。日程创建时只能在此库中选取，保持标签规范统一。" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,2,0,0" />
+                    <!-- Row 0: Header & Tabs -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="🏷️ 分类与标签管理" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" />
+                                <TextBlock Text="自定义与维护日程标签库及记账收支分类，全端同步，灵活扩展。" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource GoogleModalCloseBtnStyle}" VerticalAlignment="Center" ToolTip="关闭 (Esc)" Click="OnCloseTagManagementClicked" />
+                        </Grid>
+
+                        <!-- Tab Switcher -->
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="TagTabScheduleBtn" Content="🏷️ 日程分类标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="14,5" FontSize="11.5" Margin="0,0,8,0" Click="OnTagTabScheduleClicked" />
+                            <Button x:Name="TagTabExpenseBtn" Content="💰 记账收支分类" Style="{StaticResource GoogleOutlineBtnStyle}" Padding="14,5" FontSize="11.5" Click="OnTagTabExpenseClicked" />
                         </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource GoogleModalCloseBtnStyle}" VerticalAlignment="Center" ToolTip="关闭 (Esc)" Click="OnCloseTagManagementClicked" />
-                    </Grid>
+                    </StackPanel>
 
                     <!-- Row 1: Content -->
                     <ScrollViewer Grid.Row="1" MaxHeight="440" VerticalScrollBarVisibility="Hidden" Padding="0,0,6,0">
                         <StackPanel>
-                            <!-- Card A: 新增标签 -->
-                            <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
-                                <StackPanel>
-                                    <TextBlock Text="➕ 添加新分类标签" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8" />
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox x:Name="NewTagNameInput" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="10,6" FontSize="12" VerticalAlignment="Center" ToolTip="输入新标签名称，如 读书、复习、健身..." />
-                                        <Button Grid.Column="2" Content="+ 添加标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="14,6" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Click="OnAddNewTagClicked" />
-                                    </Grid>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="选择颜色: " FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <ComboBox x:Name="NewTagColorCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,2" FontSize="11" SelectedIndex="0">
-                                            <ComboBoxItem Content="🔵 默认蓝 (#1A73E8)" Tag="#1A73E8" />
-                                            <ComboBoxItem Content="🟢 翡翠绿 (#059669)" Tag="#059669" />
-                                            <ComboBoxItem Content="🟣 薰衣紫 (#7C3AED)" Tag="#7C3AED" />
-                                            <ComboBoxItem Content="🟠 琥珀橙 (#D97706)" Tag="#D97706" />
-                                            <ComboBoxItem Content="🔴 玫瑰红 (#DC2626)" Tag="#DC2626" />
-                                            <ComboBoxItem Content="🩵 青碧色 (#0891B2)" Tag="#0891B2" />
-                                            <ComboBoxItem Content="🌸 樱花粉 (#EC4899)" Tag="#EC4899" />
-                                            <ComboBoxItem Content="🔘 炭石灰 (#4B5563)" Tag="#4B5563" />
-                                        </ComboBox>
-                                        <Button Content="🎨 RGB 调色盘" Style="{StaticResource GoogleTopBtnStyle}" Padding="8,3" FontSize="11" Margin="8,0,0,0" ToolTip="打开 RGB 调色盘实时自选颜色" Click="OnOpenNewTagRgbPickerClicked" />
+                            <!-- Section 1: 日程分类标签 -->
+                            <StackPanel x:Name="ScheduleTagSectionPanel" Visibility="Visible">
+                                <!-- Card A: 新增标签 -->
+                                <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="➕ 添加新分类标签" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8" />
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="NewTagNameInput" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="10,6" FontSize="12" VerticalAlignment="Center" ToolTip="输入新标签名称，如 读书、复习、健身..." />
+                                            <Button Grid.Column="2" Content="+ 添加标签" Style="{StaticResource GoogleActionBtnStyle}" Padding="14,6" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Click="OnAddNewTagClicked" />
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="选择颜色: " FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <ComboBox x:Name="NewTagColorCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,2" FontSize="11" SelectedIndex="0">
+                                                <ComboBoxItem Content="🔵 默认蓝 (#1A73E8)" Tag="#1A73E8" />
+                                                <ComboBoxItem Content="🟢 翡翠绿 (#059669)" Tag="#059669" />
+                                                <ComboBoxItem Content="🟣 薰衣紫 (#7C3AED)" Tag="#7C3AED" />
+                                                <ComboBoxItem Content="🟠 琥珀橙 (#D97706)" Tag="#D97706" />
+                                                <ComboBoxItem Content="🔴 玫瑰红 (#DC2626)" Tag="#DC2626" />
+                                                <ComboBoxItem Content="🩵 青碧色 (#0891B2)" Tag="#0891B2" />
+                                                <ComboBoxItem Content="🌸 樱花粉 (#EC4899)" Tag="#EC4899" />
+                                                <ComboBoxItem Content="🔘 炭石灰 (#4B5563)" Tag="#4B5563" />
+                                            </ComboBox>
+                                            <Button Content="🎨 RGB 调色盘" Style="{StaticResource GoogleTopBtnStyle}" Padding="8,3" FontSize="11" Margin="8,0,0,0" ToolTip="打开 RGB 调色盘实时自选颜色" Click="OnOpenNewTagRgbPickerClicked" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
+                                </Border>
 
-                            <!-- Card B: 现有标签列表 -->
-                            <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="📋 已有标签库" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="TagCountSummaryText" Grid.Column="1" Text="共 6 个标签" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" />
-                                    </Grid>
-                                    <StackPanel x:Name="TagItemsListPanel" />
-                                </StackPanel>
-                            </Border>
+                                <!-- Card B: 现有标签列表 -->
+                                <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="📋 已有标签库" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="TagCountSummaryText" Grid.Column="1" Text="共 6 个标签" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <StackPanel x:Name="TagItemsListPanel" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Section 2: 记账收支分类 -->
+                            <StackPanel x:Name="ExpenseCategorySectionPanel" Visibility="Collapsed">
+                                <!-- Card A: 新增记账分类 -->
+                                <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="➕ 添加记账收支分类" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,8" />
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="NewExpenseTypeCombo" SelectedIndex="0" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,3" FontSize="11" VerticalAlignment="Center">
+                                                <ComboBoxItem Content="支出" Tag="EXPENSE" />
+                                                <ComboBoxItem Content="收入" Tag="INCOME" />
+                                            </ComboBox>
+                                            <TextBox Grid.Column="2" x:Name="NewExpenseCategoryNameInput" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,5" FontSize="12" VerticalAlignment="Center" ToolTip="输入分类名称，如 咖啡、数码、奖学金..." />
+                                            <ComboBox Grid.Column="4" x:Name="NewExpenseEmojiCombo" SelectedIndex="0" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,3" FontSize="12" VerticalAlignment="Center">
+                                                <ComboBoxItem Content="🍜" />
+                                                <ComboBoxItem Content="🚗" />
+                                                <ComboBoxItem Content="🛍️" />
+                                                <ComboBoxItem Content="🛒" />
+                                                <ComboBoxItem Content="📚" />
+                                                <ComboBoxItem Content="🎮" />
+                                                <ComboBoxItem Content="💊" />
+                                                <ComboBoxItem Content="🏠" />
+                                                <ComboBoxItem Content="🎁" />
+                                                <ComboBoxItem Content="💰" />
+                                                <ComboBoxItem Content="🏆" />
+                                                <ComboBoxItem Content="💼" />
+                                                <ComboBoxItem Content="📈" />
+                                                <ComboBoxItem Content="☕" />
+                                                <ComboBoxItem Content="🎬" />
+                                                <ComboBoxItem Content="✈️" />
+                                                <ComboBoxItem Content="🐾" />
+                                                <ComboBoxItem Content="💻" />
+                                                <ComboBoxItem Content="⚡" />
+                                                <ComboBoxItem Content="📦" />
+                                            </ComboBox>
+                                            <Button Grid.Column="6" Content="+ 添加分类" Style="{StaticResource GoogleActionBtnStyle}" Padding="12,5" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Click="OnAddNewExpenseCategoryClicked" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Card B: 现有记账分类列表 -->
+                                <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="📋 记账分类库" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="ExpenseCategoryCountSummaryText" Grid.Column="1" Text="共 17 个分类" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <StackPanel x:Name="ExpenseCategoriesListPanel" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
 

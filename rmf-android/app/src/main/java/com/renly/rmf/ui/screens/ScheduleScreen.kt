@@ -92,7 +92,9 @@ fun ScheduleScreen(
     onDeleteSchedule: (String) -> Unit = {},
     onOpenQuickCapture: () -> Unit = {},
     onNavigateToSummary: () -> Unit = {},
-    onNavigateToFitness: () -> Unit = {}
+    onNavigateToFitness: () -> Unit = {},
+    onAddTag: (ScheduleTagEntity) -> Unit = {},
+    onDeleteTag: (ScheduleTagEntity) -> Unit = {}
 ) {
     val schedules by schedulesFlow.collectAsState(initial = emptyList())
     val dbTags by tagsFlow.collectAsState(initial = emptyList())
@@ -123,6 +125,8 @@ fun ScheduleScreen(
     var editingSchedule by remember { mutableStateOf<ScheduleEntity?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showCalendarSyncDialog by remember { mutableStateOf(false) }
+    var showAddTagDialog by remember { mutableStateOf(false) }
+    var showManageTagsDialog by remember { mutableStateOf(false) }
     var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
@@ -603,6 +607,40 @@ fun ScheduleScreen(
                                 }
                             }
                         }
+
+                        item {
+                            Surface(
+                                onClick = { showAddTagDialog = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = DarkSurface,
+                                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("➕ 标签", fontSize = 11.5.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+
+                        item {
+                            Surface(
+                                onClick = { showManageTagsDialog = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = DarkSurface,
+                                border = BorderStroke(1.dp, DarkBorder),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("⚙️ 管理", fontSize = 11.5.sp, color = TextSecondary)
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -695,6 +733,8 @@ fun ScheduleScreen(
             AddScheduleDialog(
                 availableTags = availableTags,
                 onDismiss = { showAddDialog = false },
+                onOpenAddTag = { showAddTagDialog = true },
+                onOpenManageTags = { showManageTagsDialog = true },
                 onConfirm = { title, workType, category, minutes, reminderMins, reminderType ->
                     val now = LocalDateTime.now()
                     val startStr = now.format(DateTimeFormatter.ISO_DATE_TIME)
@@ -726,6 +766,8 @@ fun ScheduleScreen(
                 availableTags = availableTags,
                 tagColorMap = tagColorMap,
                 onDismiss = { showBacklogDialog = false },
+                onOpenAddTag = { showAddTagDialog = true },
+                onOpenManageTags = { showManageTagsDialog = true },
                 onAddBacklog = { title, workType, category, minutes, dod, quadrant ->
                     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                     val entity = ScheduleEntity(
@@ -816,6 +858,8 @@ fun ScheduleScreen(
                     showEditDialog = false
                     editingSchedule = null
                 },
+                onOpenAddTag = { showAddTagDialog = true },
+                onOpenManageTags = { showManageTagsDialog = true },
                 onSave = { updated ->
                     onUpdateSchedule(updated)
                     showEditDialog = false
@@ -825,6 +869,31 @@ fun ScheduleScreen(
                     onDeleteSchedule(editingSchedule!!.id)
                     showEditDialog = false
                     editingSchedule = null
+                }
+            )
+        }
+
+        // ➕ 新增日程标签弹窗
+        if (showAddTagDialog) {
+            AddScheduleTagDialog(
+                onDismiss = { showAddTagDialog = false },
+                onConfirm = { tag ->
+                    onAddTag(tag)
+                    showAddTagDialog = false
+                }
+            )
+        }
+
+        // ⚙️ 管理日程标签弹窗
+        if (showManageTagsDialog) {
+            ManageScheduleTagsDialog(
+                tags = availableTags,
+                onDismiss = { showManageTagsDialog = false },
+                onDeleteTag = { tag ->
+                    onDeleteTag(tag)
+                },
+                onOpenAdd = {
+                    showAddTagDialog = true
                 }
             )
         }
@@ -2923,7 +2992,9 @@ fun BacklogDialog(
     onAddBacklog: (String, String, String, Int, String, String) -> Unit,
     onScheduleToToday: (ScheduleEntity) -> Unit,
     onToggleStatus: (ScheduleEntity) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onOpenAddTag: () -> Unit = {},
+    onOpenManageTags: () -> Unit = {}
 ) {
     var newTitle by remember { mutableStateOf("") }
     var newMinutes by remember { mutableIntStateOf(30) }
@@ -3016,7 +3087,17 @@ fun BacklogDialog(
                 }
 
                 if (availableTags.isNotEmpty()) {
-                    Text("分类标签:", fontSize = 11.sp, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("分类标签:", fontSize = 11.sp, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("➕ 新增", fontSize = 11.sp, color = DopamineAmber, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onOpenAddTag() })
+                            Text("⚙️ 管理", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.clickable { onOpenManageTags() })
+                        }
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(availableTags) { tagItem ->
                             val tagColor = tagColorMap[tagItem.name] ?: parseHexColor(tagItem.colorHex, DopamineAmber)
@@ -3033,6 +3114,23 @@ fun BacklogDialog(
                                 },
                                 label = { Text(tagItem.name, fontSize = 11.sp) }
                             )
+                        }
+
+                        item {
+                            Surface(
+                                onClick = onOpenAddTag,
+                                shape = RoundedCornerShape(8.dp),
+                                color = DopamineAmber.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.4f)),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("➕ 新增", fontSize = 11.sp, color = DopamineAmber, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
                     }
                 }
@@ -3260,7 +3358,9 @@ fun EditScheduleDialog(
     availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (ScheduleEntity) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onOpenAddTag: () -> Unit = {},
+    onOpenManageTags: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf(item.title) }
     var workType by remember { mutableStateOf(item.workType) }
@@ -3357,7 +3457,17 @@ fun EditScheduleDialog(
                 }
 
                 if (availableTags.isNotEmpty()) {
-                    Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("➕ 新增", fontSize = 11.5.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onOpenAddTag() })
+                            Text("⚙️ 管理", fontSize = 11.5.sp, color = TextSecondary, modifier = Modifier.clickable { onOpenManageTags() })
+                        }
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(availableTags) { tagItem ->
                             val tagColor = parseHexColor(tagItem.colorHex, DopamineBlue)
@@ -3374,6 +3484,23 @@ fun EditScheduleDialog(
                                 },
                                 label = { Text(tagItem.name, fontSize = 11.5.sp) }
                             )
+                        }
+
+                        item {
+                            Surface(
+                                onClick = onOpenAddTag,
+                                shape = RoundedCornerShape(8.dp),
+                                color = DopamineBlue.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("➕ 新增", fontSize = 11.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
                     }
                 }
@@ -3941,7 +4068,9 @@ fun ScheduleItemCard(
 fun AddScheduleDialog(
     availableTags: List<ScheduleTagEntity> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, Int, Int, String) -> Unit
+    onConfirm: (String, String, String, Int, Int, String) -> Unit,
+    onOpenAddTag: () -> Unit = {},
+    onOpenManageTags: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var title by remember { mutableStateOf("") }
@@ -3983,7 +4112,17 @@ fun AddScheduleDialog(
                 }
 
                 if (availableTags.isNotEmpty()) {
-                    Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("分类标签:", fontSize = 12.sp, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("➕ 新增", fontSize = 11.5.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onOpenAddTag() })
+                            Text("⚙️ 管理", fontSize = 11.5.sp, color = TextSecondary, modifier = Modifier.clickable { onOpenManageTags() })
+                        }
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(availableTags) { tagItem ->
                             val tagColor = parseHexColor(tagItem.colorHex, DopamineBlue)
@@ -4000,6 +4139,23 @@ fun AddScheduleDialog(
                                 },
                                 label = { Text(tagItem.name, fontSize = 11.5.sp) }
                             )
+                        }
+
+                        item {
+                            Surface(
+                                onClick = onOpenAddTag,
+                                shape = RoundedCornerShape(8.dp),
+                                color = DopamineBlue.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("➕ 新增", fontSize = 11.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
                     }
                 }
@@ -4219,3 +4375,207 @@ fun GoogleCalendarSyncModal(
     )
 }
 
+@Composable
+fun AddScheduleTagDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (ScheduleTagEntity) -> Unit
+) {
+    var tagName by remember { mutableStateOf("") }
+    val presetColors = listOf(
+        "#38BDF8", "#818CF8", "#34D399", "#F59E0B", "#EC4899",
+        "#10B981", "#F43F5E", "#A855F7", "#06B6D4", "#F97316"
+    )
+    var selectedColor by remember { mutableStateOf(presetColors[0]) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = {
+            Text("新增日程/待办分类标签", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = tagName,
+                    onValueChange = { tagName = it },
+                    label = { Text("标签名称", fontSize = 12.sp) },
+                    placeholder = { Text("例如: 项目A、健身、阅读", fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DopamineBlue,
+                        unfocusedBorderColor = DarkBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("选择标签颜色", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(presetColors) { hex ->
+                        val color = try {
+                            Color(android.graphics.Color.parseColor(hex))
+                        } catch (e: Exception) {
+                            DopamineBlue
+                        }
+                        val isSelected = selectedColor == hex
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .clickable { selectedColor = hex }
+                                .then(
+                                    if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
+                                    else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (tagName.isNotBlank()) {
+                        val newTag = ScheduleTagEntity(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = tagName.trim(),
+                            colorHex = selectedColor,
+                            sortOrder = 0
+                        )
+                        onConfirm(newTag)
+                    }
+                },
+                enabled = tagName.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
+            ) {
+                Text("创建", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = TextSecondary)
+            }
+        }
+    )
+}
+
+@Composable
+fun ManageScheduleTagsDialog(
+    tags: List<ScheduleTagEntity>,
+    onDismiss: () -> Unit,
+    onDeleteTag: (ScheduleTagEntity) -> Unit,
+    onOpenAdd: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("管理日程分类标签", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                TextButton(onClick = {
+                    onDismiss()
+                    onOpenAdd()
+                }) {
+                    Text("+ 新增", color = DopamineBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                if (tags.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无标签。\n点击右上角「+ 新增」即可创建专属日程分类！",
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(tags) { tag ->
+                            val tagColor = parseHexColor(tag.colorHex, DopamineBlue)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkCard,
+                                border = BorderStroke(1.dp, DarkBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(12.dp)
+                                                .clip(CircleShape)
+                                                .background(tagColor)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = tag.name,
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteTag(tag) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteOutline,
+                                            contentDescription = "删除",
+                                            tint = DopamineRed,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
+            ) {
+                Text("完成", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}

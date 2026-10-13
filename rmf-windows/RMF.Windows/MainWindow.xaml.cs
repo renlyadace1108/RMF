@@ -6576,11 +6576,34 @@ public partial class MainWindow : Window
     private void OnOpenTagManagementClicked(object sender, RoutedEventArgs e)
     {
         if (NewTagNameInput != null) NewTagNameInput.Clear();
+        if (NewExpenseCategoryNameInput != null) NewExpenseCategoryNameInput.Clear();
+        if (TagTabScheduleBtn != null) TagTabScheduleBtn.Style = (Style)FindResource("GoogleActionBtnStyle");
+        if (TagTabExpenseBtn != null) TagTabExpenseBtn.Style = (Style)FindResource("GoogleOutlineBtnStyle");
+        if (ScheduleTagSectionPanel != null) ScheduleTagSectionPanel.Visibility = Visibility.Visible;
+        if (ExpenseCategorySectionPanel != null) ExpenseCategorySectionPanel.Visibility = Visibility.Collapsed;
         RenderTagManagementList();
         if (TagManagementModal != null)
         {
             TagManagementModal.Visibility = Visibility.Visible;
         }
+    }
+
+    private void OnTagTabScheduleClicked(object sender, RoutedEventArgs e)
+    {
+        if (TagTabScheduleBtn != null) TagTabScheduleBtn.Style = (Style)FindResource("GoogleActionBtnStyle");
+        if (TagTabExpenseBtn != null) TagTabExpenseBtn.Style = (Style)FindResource("GoogleOutlineBtnStyle");
+        if (ScheduleTagSectionPanel != null) ScheduleTagSectionPanel.Visibility = Visibility.Visible;
+        if (ExpenseCategorySectionPanel != null) ExpenseCategorySectionPanel.Visibility = Visibility.Collapsed;
+        RenderTagManagementList();
+    }
+
+    private void OnTagTabExpenseClicked(object sender, RoutedEventArgs e)
+    {
+        if (TagTabScheduleBtn != null) TagTabScheduleBtn.Style = (Style)FindResource("GoogleOutlineBtnStyle");
+        if (TagTabExpenseBtn != null) TagTabExpenseBtn.Style = (Style)FindResource("GoogleActionBtnStyle");
+        if (ScheduleTagSectionPanel != null) ScheduleTagSectionPanel.Visibility = Visibility.Collapsed;
+        if (ExpenseCategorySectionPanel != null) ExpenseCategorySectionPanel.Visibility = Visibility.Visible;
+        RenderExpenseCategoryList();
     }
 
     private void OnCloseTagManagementClicked(object sender, RoutedEventArgs e)
@@ -6856,6 +6879,175 @@ public partial class MainWindow : Window
 
             rowBorder.Child = grid;
             TagItemsListPanel.Children.Add(rowBorder);
+        }
+    }
+
+    private void OnAddNewExpenseCategoryClicked(object sender, RoutedEventArgs e)
+    {
+        string name = NewExpenseCategoryNameInput?.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(name))
+        {
+            MessageBox.Show("请输入分类名称！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string type = "EXPENSE";
+        if (NewExpenseTypeCombo?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tTag && !string.IsNullOrEmpty(tTag))
+        {
+            type = tTag;
+        }
+
+        string emoji = "🛒";
+        if (NewExpenseEmojiCombo?.SelectedItem is ComboBoxItem eItem && eItem.Content is string eContent && !string.IsNullOrEmpty(eContent))
+        {
+            emoji = eContent.Trim();
+        }
+
+        bool success = DatabaseService.AddExpenseCategory(name, type, emoji);
+        if (!success)
+        {
+            MessageBox.Show($"分类「{name}」已存在或创建失败！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (NewExpenseCategoryNameInput != null) NewExpenseCategoryNameInput.Clear();
+        RenderExpenseCategoryList();
+    }
+
+    private void RenderExpenseCategoryList()
+    {
+        if (ExpenseCategoriesListPanel == null) return;
+        ExpenseCategoriesListPanel.Children.Clear();
+
+        var categories = DatabaseService.GetExpenseCategories();
+        if (ExpenseCategoryCountSummaryText != null)
+        {
+            ExpenseCategoryCountSummaryText.Text = $"共 {categories.Count} 个分类";
+        }
+
+        if (categories.Count == 0)
+        {
+            ExpenseCategoriesListPanel.Children.Add(new TextBlock
+            {
+                Text = "暂无任何记账分类，请在上方添加新分类。",
+                FontSize = 11.5,
+                Foreground = ThemeService.CurrentSecondaryTextBrush,
+                Margin = new Thickness(4, 6, 0, 6)
+            });
+            return;
+        }
+
+        foreach (var cat in categories)
+        {
+            var rowBorder = new Border
+            {
+                Background = (Brush)FindResource("CardBackground"),
+                BorderBrush = (Brush)FindResource("CardBorderBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 7, 10, 7),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // Left Display Panel
+            var leftSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+            var emojiText = new TextBlock
+            {
+                Text = cat.Emoji,
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            leftSp.Children.Add(emojiText);
+
+            var nameText = new TextBlock
+            {
+                Text = cat.Name,
+                FontSize = 12.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = ThemeService.CurrentTextBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            leftSp.Children.Add(nameText);
+
+            bool isIncome = cat.Type == "INCOME";
+            var typeBadge = new Border
+            {
+                Background = isIncome ? new SolidColorBrush(Color.FromArgb(40, 16, 185, 129)) : new SolidColorBrush(Color.FromArgb(40, 239, 68, 68)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            typeBadge.Child = new TextBlock
+            {
+                Text = isIncome ? "收入" : "支出",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = isIncome ? new SolidColorBrush(Color.FromRgb(16, 185, 129)) : new SolidColorBrush(Color.FromRgb(239, 68, 68))
+            };
+            leftSp.Children.Add(typeBadge);
+
+            if (cat.UsageCount > 0)
+            {
+                var usageBadge = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(28, 128, 128, 128)),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(5, 2, 5, 2),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                usageBadge.Child = new TextBlock
+                {
+                    Text = $"{cat.UsageCount} 笔记录",
+                    FontSize = 10,
+                    Foreground = ThemeService.CurrentSecondaryTextBrush
+                };
+                leftSp.Children.Add(usageBadge);
+            }
+
+            Grid.SetColumn(leftSp, 0);
+            grid.Children.Add(leftSp);
+
+            // Right Action Panel
+            var rightSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+            var deleteBtn = new Button
+            {
+                Content = "🗑️",
+                Style = (Style)FindResource("GoogleTopBtnStyle"),
+                Width = 28,
+                Height = 26,
+                FontSize = 11,
+                ToolTip = "删除此分类"
+            };
+            deleteBtn.Click += (s, e) =>
+            {
+                var res = MessageBox.Show(
+                    $"确定要从分类库中删除分类「{cat.Name}」吗？\n（已有该分类的历史账目不会被删除）",
+                    "删除分类确认",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question
+                );
+                if (res == MessageBoxResult.Yes)
+                {
+                    DatabaseService.DeleteExpenseCategory(cat.Name);
+                    RenderExpenseCategoryList();
+                }
+            };
+            rightSp.Children.Add(deleteBtn);
+
+            Grid.SetColumn(rightSp, 1);
+            grid.Children.Add(rightSp);
+
+            rowBorder.Child = grid;
+            ExpenseCategoriesListPanel.Children.Add(rowBorder);
         }
     }
 

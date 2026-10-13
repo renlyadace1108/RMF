@@ -657,7 +657,17 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenQuickCapture = { showQuickCaptureDialog = true },
                                 onNavigateToSummary = { currentScreen = Screen.Summary },
-                                onNavigateToFitness = { currentScreen = Screen.Fitness }
+                                onNavigateToFitness = { currentScreen = Screen.Fitness },
+                                onAddTag = { tag ->
+                                    lifecycleScope.launch {
+                                        db.syncDao().insertOrUpdateTag(tag)
+                                    }
+                                },
+                                onDeleteTag = { tag ->
+                                    lifecycleScope.launch {
+                                        db.syncDao().deleteTag(tag.id)
+                                    }
+                                }
                             )
 
                             Screen.Timetable -> TimetableScreen(
