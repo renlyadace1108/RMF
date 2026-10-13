@@ -43,6 +43,7 @@ fun CountdownsScreen(
 
     Scaffold(
         containerColor = DarkBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -60,7 +61,7 @@ fun CountdownsScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // 头部标题
             Row(

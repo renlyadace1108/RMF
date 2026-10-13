@@ -365,12 +365,12 @@ fun FocusScreen(
         // 时·分·秒 三列独立滑动滚轮配置
         val hoursList = remember { (0..12).toList() }
         val minsSecsList = remember { (0..59).toList() }
-        val itemHeight = 38.dp
+        val itemHeight = 40.dp
 
         // 3. 拟物环形双层发光倒计时表盘（时 : 分 : 秒 三列滚轮合为一体）
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(246.dp)
+            modifier = Modifier.size(260.dp)
         ) {
             CircularProgressIndicator(
                 progress = { 1f },
@@ -390,23 +390,23 @@ fun FocusScreen(
                 if (isRunning || isPausedMidSession) {
                     Text(
                         text = timeFormatted,
-                        fontSize = 36.sp,
+                        fontSize = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary,
                         letterSpacing = (-0.5).sp
                     )
                 } else {
-                    // 顶部 时 / 分 / 秒 微型标签
+                    // 顶部 时 / 分 / 秒 清晰标签
                     Row(
-                        modifier = Modifier.width(174.dp),
+                        modifier = Modifier.width(188.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("时", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Text("时", fontSize = 11.5.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("分", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Text("分", fontSize = 11.5.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("秒", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Text("秒", fontSize = 11.5.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
@@ -414,20 +414,20 @@ fun FocusScreen(
                     // 表盘中央：时 : 分 : 秒 三个独立滚轮并排组合
                     Box(
                         modifier = Modifier
-                            .width(178.dp)
+                            .width(190.dp)
                             .height(itemHeight * 3),
                         contentAlignment = Alignment.Center
                     ) {
                         // 中央选中行高亮胶囊框
                         Box(
                             modifier = Modifier
-                                .width(174.dp)
+                                .width(186.dp)
                                 .height(itemHeight + 2.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(DopamineCyan.copy(alpha = 0.10f))
                                 .border(
                                     width = 1.dp,
-                                    color = DopamineCyan.copy(alpha = 0.32f),
+                                    color = DopamineCyan.copy(alpha = 0.34f),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                         )
@@ -448,12 +448,12 @@ fun FocusScreen(
                                     }
                                 },
                                 itemHeight = itemHeight,
-                                modifier = Modifier.width(50.dp)
+                                modifier = Modifier.width(54.dp)
                             )
 
                             Text(
                                 text = ":",
-                                fontSize = 24.sp,
+                                fontSize = 26.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = TextPrimary,
                                 modifier = Modifier.padding(bottom = 2.dp)
@@ -470,12 +470,12 @@ fun FocusScreen(
                                     }
                                 },
                                 itemHeight = itemHeight,
-                                modifier = Modifier.width(50.dp)
+                                modifier = Modifier.width(54.dp)
                             )
 
                             Text(
                                 text = ":",
-                                fontSize = 24.sp,
+                                fontSize = 26.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = TextPrimary,
                                 modifier = Modifier.padding(bottom = 2.dp)
@@ -494,7 +494,7 @@ fun FocusScreen(
                                     }
                                 },
                                 itemHeight = itemHeight,
-                                modifier = Modifier.width(50.dp)
+                                modifier = Modifier.width(54.dp)
                             )
                         }
                     }
@@ -511,12 +511,12 @@ fun FocusScreen(
                             isPausedMidSession -> "⏸ 已暂停"
                             else -> "↕ 滑动时·分·秒调时"
                         },
-                        fontSize = 10.5.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = when {
                             isRunning -> DopamineGreen
                             isPausedMidSession -> DopamineAmber
-                            else -> TextMuted
+                            else -> TextSecondary
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                     )
@@ -536,7 +536,7 @@ fun FocusScreen(
                 ) {
                     Text(
                         text = "⏱️ 专注时长预设",
-                        fontSize = 12.5.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
@@ -544,9 +544,9 @@ fun FocusScreen(
                         onClick = { showAddPresetDialog = true },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = DopamineCyan, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("自定义预设", fontSize = 11.sp, color = DopamineCyan)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = DopamineCyan, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("自定义预设", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DopamineCyan)
                     }
                 }
 
@@ -568,18 +568,18 @@ fun FocusScreen(
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkCard,
                             border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
-                            modifier = Modifier.height(36.dp)
+                            modifier = Modifier.height(38.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp)
                             ) {
-                                Text(preset.icon, fontSize = 12.sp)
+                                Text(preset.icon, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "${preset.name} (${preset.minutes}m)",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) DopamineCyan else TextPrimary
                                 )
                             }
@@ -1424,9 +1424,9 @@ private fun DialTimeUnitWheel(
             ) {
                 Text(
                     text = "%02d".format(v),
-                    fontSize = if (isSelected) 28.sp else 15.sp,
+                    fontSize = if (isSelected) 30.sp else 16.sp,
                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                    color = if (isSelected) TextPrimary else TextMuted.copy(alpha = 0.38f),
+                    color = if (isSelected) TextPrimary else TextMuted.copy(alpha = 0.42f),
                     letterSpacing = (-0.5).sp
                 )
             }

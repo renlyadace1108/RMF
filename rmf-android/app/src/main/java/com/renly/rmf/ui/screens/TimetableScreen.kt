@@ -142,8 +142,11 @@ fun TimetableScreen(
         )
     }
 
+    var timetableZoomFactor by remember { mutableFloatStateOf(1.0f) }
+
     Scaffold(
         containerColor = DarkBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -164,16 +167,17 @@ fun TimetableScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 1. 顶部 Header (当前周次 + 学期/单双周 Badge + 核心操作按钮)
+            // 1. 顶部 Header 第一行：当前周次 + 学期/单双周 Badge + 网格缩放控制
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "第 $currentWeek 周",
-                            fontSize = 24.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
@@ -185,10 +189,10 @@ fun TimetableScreen(
                         ) {
                             Text(
                                 text = if (activeSemester == 1) "第一学期" else "第二学期",
-                                fontSize = 11.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DopamineBlue,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(6.dp))
@@ -207,112 +211,157 @@ fun TimetableScreen(
                     }
                     Text(
                         text = "课表实时映射至日程 · 开学 ${semesterStartDate.monthValue}月${semesterStartDate.dayOfMonth}日 (${totalWeeks}周)",
-                        fontSize = 11.5.sp,
+                        fontSize = 12.sp,
                         color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // 📷 截图导入 (AI 视觉多模态智能提取)
-                    Surface(
-                        onClick = {
-                            if (!com.renly.rmf.domain.service.AiPreferences.isAiEnabled(context)) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "AI 智能功能已在系统设置中停用，请先前往设置开启！",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            } else if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "请先在「系统设置 -> 智能互联 -> AI 接口与模型配置」中填写 API 密钥！",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            } else {
-                                imagePickerLauncher.launch("image/*")
-                            }
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                        color = DopaminePurple.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
-                        modifier = Modifier.height(34.dp)
+                // 课表网格/字体缩放调节胶囊 (－ / 100% / ＋)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 9.dp)
-                        ) {
-                            Text("📷", fontSize = 11.sp)
+                        Text(
+                            text = "－",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            modifier = Modifier
+                                .clickable { timetableZoomFactor = (timetableZoomFactor - 0.1f).coerceIn(0.8f, 1.4f) }
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                        Text(
+                            text = "${(timetableZoomFactor * 100).toInt()}%",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DopamineCyan,
+                            modifier = Modifier
+                                .clickable { timetableZoomFactor = 1.0f }
+                                .padding(horizontal = 2.dp)
+                        )
+                        Text(
+                            text = "＋",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            modifier = Modifier
+                                .clickable { timetableZoomFactor = (timetableZoomFactor + 0.1f).coerceIn(0.8f, 1.4f) }
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1.5 顶部快捷操作栏（独立单行，4个按钮均匀排布绝不挤压折行）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 📷 截图导入 (AI 视觉多模态智能提取)
+                Surface(
+                    onClick = {
+                        if (!com.renly.rmf.domain.service.AiPreferences.isAiEnabled(context)) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "AI 智能功能已在系统设置中停用，请先前往设置开启！",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else if (!com.renly.rmf.domain.service.AiPreferences.isConfigured(context)) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "请先在「系统设置 -> 智能互联 -> AI 接口与模型配置」中填写 API 密钥！",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            imagePickerLauncher.launch("image/*")
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopaminePurple.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                    modifier = Modifier.weight(1.1f).height(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📷", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(3.dp))
-                            Text("截图导入", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DopaminePurple)
+                            Text("截图导入", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DopaminePurple, maxLines = 1)
                         }
                     }
+                }
 
-                    // 🔄 调停课与补课管理弹窗 (CourseAdjustmentModal)
-                    Surface(
-                        onClick = { showAdjustmentDialog = true },
-                        shape = RoundedCornerShape(20.dp),
-                        color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 9.dp)
-                        ) {
-                            Text("🔄", fontSize = 11.sp)
+                // 🔄 调停课与补课管理弹窗 (CourseAdjustmentModal)
+                Surface(
+                    onClick = { showAdjustmentDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.weight(1f).height(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔄", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(3.dp))
                             val weekAdjCount = adjustments.count { it.targetWeek == currentWeek }
                             Text(
                                 text = if (weekAdjCount > 0) "调停课 $weekAdjCount" else "调停课",
-                                fontSize = 11.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1
                             )
                         }
                     }
+                }
 
-                    // ⚙️ 学期配置弹窗 (TimetableSettingsModal)
-                    Surface(
-                        onClick = { showSettingsDialog = true },
-                        shape = RoundedCornerShape(20.dp),
-                        color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 9.dp)
-                        ) {
-                            Text("⚙️", fontSize = 11.sp)
+                // ⚙️ 学期配置弹窗 (TimetableSettingsModal)
+                Surface(
+                    onClick = { showSettingsDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.weight(0.95f).height(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⚙️", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(3.dp))
-                            Text("学期", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text("学期配置", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, maxLines = 1)
                         }
                     }
+                }
 
-                    // ⚡ 投影到今日
-                    Surface(
-                        onClick = onProjectToToday,
-                        shape = RoundedCornerShape(20.dp),
-                        color = DopamineCyan.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        ) {
-                            Text("⚡", fontSize = 11.sp)
+                // ⚡ 投影到今日/全学期同步
+                Surface(
+                    onClick = onProjectToToday,
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopamineCyan.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
+                    modifier = Modifier.weight(0.95f).height(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⚡", fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(3.dp))
-                            Text("投影", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
+                            Text("同步日程", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DopamineCyan, maxLines = 1)
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 2. 灵动周次滚轮切换条 1..totalWeeks + 🔲网格 / 📋清单 视图切换
             Row(
@@ -331,12 +380,12 @@ fun TimetableScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkSurface,
                             border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(32.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 9.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                                 Text(
                                     text = "W$week",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) DopamineCyan else TextSecondary
                                 )
@@ -352,7 +401,7 @@ fun TimetableScreen(
                     shape = RoundedCornerShape(10.dp),
                     color = DarkSurface,
                     border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.height(30.dp)
+                    modifier = Modifier.height(32.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -363,10 +412,10 @@ fun TimetableScreen(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isGridView) DopamineCyan.copy(alpha = 0.2f) else Color.Transparent,
                             border = BorderStroke(1.dp, if (isGridView) DopamineCyan else Color.Transparent),
-                            modifier = Modifier.height(26.dp)
+                            modifier = Modifier.height(28.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 7.dp)) {
-                                Text("🔲 网格", fontSize = 11.sp, fontWeight = if (isGridView) FontWeight.Bold else FontWeight.Normal, color = if (isGridView) DopamineCyan else TextSecondary)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                                Text("🔲 网格", fontSize = 11.5.sp, fontWeight = if (isGridView) FontWeight.Bold else FontWeight.Normal, color = if (isGridView) DopamineCyan else TextSecondary)
                             }
                         }
 
@@ -375,17 +424,17 @@ fun TimetableScreen(
                             shape = RoundedCornerShape(8.dp),
                             color = if (!isGridView) DopamineCyan.copy(alpha = 0.2f) else Color.Transparent,
                             border = BorderStroke(1.dp, if (!isGridView) DopamineCyan else Color.Transparent),
-                            modifier = Modifier.height(26.dp)
+                            modifier = Modifier.height(28.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 7.dp)) {
-                                Text("📋 清单", fontSize = 11.sp, fontWeight = if (!isGridView) FontWeight.Bold else FontWeight.Normal, color = if (!isGridView) DopamineCyan else TextSecondary)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                                Text("📋 清单", fontSize = 11.5.sp, fontWeight = if (!isGridView) FontWeight.Bold else FontWeight.Normal, color = if (!isGridView) DopamineCyan else TextSecondary)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 3. 过滤并展示当前周次的课程
             val weekCourses = courses.filter { course ->
@@ -396,12 +445,13 @@ fun TimetableScreen(
             }
 
             if (isGridView) {
-                // 🔲 浅灰色网格视图 (7 列 x 12 节，包含真实浅灰色网格线)
+                // 🔲 浅灰色网格视图 (7 列 x 12 节，包含真实浅灰色网格线与自由缩放)
                 WeekTimetableGrid(
                     mondayDate = mondayDate,
                     daysOfWeek = daysOfWeek,
                     weekCourses = weekCourses,
                     sectionTimes = sectionTimes,
+                    zoomFactor = timetableZoomFactor,
                     onCourseClick = { course -> selectedCourseDetail = course },
                     onCellClick = { day, sec ->
                         addCourseInitialDay = day
@@ -1580,10 +1630,11 @@ fun WeekTimetableGrid(
     daysOfWeek: List<String>,
     weekCourses: List<CourseEntity>,
     sectionTimes: Map<Int, Pair<String, String>>,
+    zoomFactor: Float = 1.0f,
     onCourseClick: (CourseEntity) -> Unit,
     onCellClick: (dayOfWeek: Int, startSection: Int) -> Unit
 ) {
-    val sectionHeight = 58.dp
+    val sectionHeight = (60f * zoomFactor).dp
     val totalHeight = sectionHeight * 12
     val isDark = LocalAppColors.current.isDark
     val gridLineColor = if (isDark) Color(0x3894A3B8) else Color(0xFFE2E8F0) // 浅灰色网格线 (夜间微光 / 日间柔和 Slate-200)
@@ -1605,17 +1656,17 @@ fun WeekTimetableGrid(
             // 左上角月份
             Box(
                 modifier = Modifier
-                    .width(38.dp)
-                    .height(44.dp)
+                    .width(40.dp)
+                    .height(46.dp)
                     .border(BorderStroke(0.5.dp, gridLineColor)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "${mondayDate.monthValue}\n月",
-                    fontSize = 11.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = DopamineCyan,
-                    lineHeight = 13.sp,
+                    lineHeight = 13.5.sp,
                     textAlign = TextAlign.Center
                 )
             }
@@ -1627,7 +1678,7 @@ fun WeekTimetableGrid(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(44.dp)
+                        .height(46.dp)
                         .border(BorderStroke(0.5.dp, gridLineColor))
                         .background(if (isToday) DopamineCyan.copy(alpha = 0.15f) else Color.Transparent),
                     contentAlignment = Alignment.Center
@@ -1635,13 +1686,13 @@ fun WeekTimetableGrid(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = daysOfWeek[d],
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Medium,
                             color = if (isToday) DopamineCyan else TextPrimary
                         )
                         Text(
                             text = "${dayDate.monthValue}/${dayDate.dayOfMonth}",
-                            fontSize = 9.5.sp,
+                            fontSize = 10.sp,
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                             color = if (isToday) DopamineCyan else TextMuted
                         )
@@ -1660,7 +1711,7 @@ fun WeekTimetableGrid(
             // 左侧节次时间列 (1 ~ 12 节)
             Column(
                 modifier = Modifier
-                    .width(38.dp)
+                    .width(40.dp)
                     .height(totalHeight)
                     .background(DarkCard.copy(alpha = 0.7f))
             ) {
@@ -1682,21 +1733,21 @@ fun WeekTimetableGrid(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = "$sec",
-                                fontSize = 12.sp,
+                                fontSize = (12.5f * zoomFactor).coerceIn(11f, 15f).sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
                                 text = slot.first,
-                                fontSize = 8.5.sp,
+                                fontSize = (9f * zoomFactor).coerceIn(8f, 11f).sp,
                                 color = TextSecondary,
-                                lineHeight = 10.sp
+                                lineHeight = (10.5f * zoomFactor).coerceIn(9.5f, 12.5f).sp
                             )
                             Text(
                                 text = slot.second,
-                                fontSize = 8.sp,
+                                fontSize = (8.5f * zoomFactor).coerceIn(7.5f, 10.5f).sp,
                                 color = TextMuted,
-                                lineHeight = 9.sp
+                                lineHeight = (9.5f * zoomFactor).coerceIn(8.5f, 11.5f).sp
                             )
                         }
                     }
@@ -1764,33 +1815,33 @@ fun WeekTimetableGrid(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 3.dp, vertical = 3.dp),
-                                verticalArrangement = Arrangement.spacedBy(1.dp)
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
                                     text = course.name,
-                                    fontSize = 10.5.sp,
+                                    fontSize = (11f * zoomFactor).coerceIn(9.5f, 14f).sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
                                     maxLines = if (span >= 3) 4 else 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    lineHeight = 12.sp
+                                    lineHeight = (12.5f * zoomFactor).coerceIn(11f, 16f).sp
                                 )
                                 if (course.location.isNotBlank()) {
                                     Text(
                                         text = "@${course.location}",
-                                        fontSize = 9.sp,
+                                        fontSize = (9.5f * zoomFactor).coerceIn(8.5f, 12f).sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = Color.White.copy(alpha = 0.92f),
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
-                                        lineHeight = 10.sp
+                                        lineHeight = (10.5f * zoomFactor).coerceIn(9.5f, 13.5f).sp
                                     )
                                 }
                                 if (course.teacher.isNotBlank() && span >= 2) {
                                     Text(
                                         text = course.teacher,
-                                        fontSize = 8.5.sp,
-                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = (9f * zoomFactor).coerceIn(8f, 11.5f).sp,
+                                        color = Color.White.copy(alpha = 0.85f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )

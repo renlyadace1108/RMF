@@ -200,15 +200,16 @@ fun FitnessScreen(
         }
     }
 
+    var fitnessZoomFactor by remember { mutableFloatStateOf(1.0f) }
     val baseDensity = androidx.compose.ui.platform.LocalDensity.current
-    val compactDensity = remember(baseDensity) {
+    val scaledDensity = remember(baseDensity, fitnessZoomFactor) {
         androidx.compose.ui.unit.Density(
-            density = baseDensity.density * 0.88f,
-            fontScale = baseDensity.fontScale * 0.88f
+            density = baseDensity.density * fitnessZoomFactor,
+            fontScale = baseDensity.fontScale * fitnessZoomFactor
         )
     }
 
-    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides compactDensity) {
+    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides scaledDensity) {
     Scaffold(
         containerColor = DarkBg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -229,7 +230,7 @@ fun FitnessScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -240,20 +241,20 @@ fun FitnessScreen(
                                 Surface(
                                     color = DopamineGreen.copy(alpha = 0.2f),
                                     shape = CircleShape,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text("⏱", fontSize = 14.sp)
+                                        Text("⏱", fontSize = 15.sp)
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text("组间休息中", fontSize = 10.sp, color = TextSecondary)
+                                    Text("组间休息中", fontSize = 11.5.sp, color = TextSecondary)
                                     val minutes = restTimerSeconds / 60
                                     val seconds = restTimerSeconds % 60
                                     Text(
                                         text = "%02d:%02d".format(minutes, seconds),
-                                        fontSize = 16.sp,
+                                        fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = DopamineGreen
                                     )
@@ -272,7 +273,7 @@ fun FitnessScreen(
                                         restTimerSeconds = (restTimerSeconds - 15).coerceAtLeast(0)
                                     }
                                 ) {
-                                    Text("-15s", fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                                    Text("-15s", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                                 }
                                 Surface(
                                     color = DarkCard,
@@ -283,7 +284,7 @@ fun FitnessScreen(
                                         restTimerTotal += 30
                                     }
                                 ) {
-                                    Text("+30s", fontSize = 10.5.sp, color = DopamineCyan, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                                    Text("+30s", fontSize = 12.sp, color = DopamineCyan, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                                 }
                                 Surface(
                                     color = DopamineGreen.copy(alpha = 0.15f),
@@ -295,10 +296,10 @@ fun FitnessScreen(
                                 ) {
                                     Text(
                                         text = if (isRestTimerRunning) "暂停" else "继续",
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = DopamineGreen,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                                 Surface(
@@ -310,18 +311,18 @@ fun FitnessScreen(
                                         isRestTimerRunning = false
                                     }
                                 ) {
-                                    Text("跳过", fontSize = 10.5.sp, color = TextMuted, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                                    Text("跳过", fontSize = 12.sp, color = TextMuted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(5.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         val progress = if (restTimerTotal > 0) restTimerSeconds.toFloat() / restTimerTotal.toFloat() else 0f
                         LinearProgressIndicator(
                             progress = { progress.coerceIn(0f, 1f) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(3.dp)
+                                .height(4.dp)
                                 .clip(RoundedCornerShape(2.dp)),
                             color = DopamineGreen,
                             trackColor = DarkBorder
@@ -336,9 +337,9 @@ fun FitnessScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 0. 顶部标题与快捷操作栏（无返回箭头，紧凑单行）
+            // 0. 顶部标题与快捷操作栏（无返回箭头，支持自由缩放与模版/日程联动）
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -346,18 +347,18 @@ fun FitnessScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "🏋️ 每日健身规划",
-                            fontSize = 19.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
                         Text(
                             text = "力量抗阻 · 容量追踪 · 日程联动",
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = TextSecondary,
-                            modifier = Modifier.padding(top = 1.dp)
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
 
@@ -370,22 +371,22 @@ fun FitnessScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = DarkCard,
                             border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.45f)),
-                            modifier = Modifier.height(34.dp)
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 9.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Bolt,
                                     contentDescription = "分化模版",
                                     tint = DopamineAmber,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "分化模版",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = DopamineAmber
                                 )
@@ -412,22 +413,22 @@ fun FitnessScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = DarkCard,
                             border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.45f)),
-                            modifier = Modifier.height(34.dp)
+                            modifier = Modifier.height(36.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 9.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Icon(
                                     Icons.Default.CalendarToday,
                                     contentDescription = "投影日程",
                                     tint = DopamineCyan,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "同步日程",
-                                    fontSize = 11.5.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = DopamineCyan
                                 )
@@ -437,26 +438,26 @@ fun FitnessScreen(
                 }
             }
 
-            // 1. 日期切换条（紧凑高度）
+            // 1. 日期切换与视图缩放条
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkCard),
                     border = BorderStroke(1.dp, DarkBorder),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
                             onClick = { selectedDate = selectedDate.minusDays(1) },
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "前一天", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "前一天", tint = TextPrimary, modifier = Modifier.size(20.dp))
                         }
 
                         Row(
@@ -465,7 +466,7 @@ fun FitnessScreen(
                         ) {
                             Text(
                                 text = "${selectedDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))} · $dayOfWeekName",
-                                fontSize = 13.sp,
+                                fontSize = 14.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DopamineCyan
                             )
@@ -477,7 +478,7 @@ fun FitnessScreen(
                                 ) {
                                     Text(
                                         text = "回今天",
-                                        fontSize = 10.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = DopamineAmber,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -486,11 +487,57 @@ fun FitnessScreen(
                             }
                         }
 
-                        IconButton(
-                            onClick = { selectedDate = selectedDate.plusDays(1) },
-                            modifier = Modifier.size(30.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "后一天", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                            // 紧凑字号/视图缩放胶囊 (－ / 100% / ＋)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                border = BorderStroke(1.dp, DarkBorder),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "－",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextSecondary,
+                                        modifier = Modifier
+                                            .clickable { fitnessZoomFactor = (fitnessZoomFactor - 0.08f).coerceIn(0.84f, 1.24f) }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                    Text(
+                                        text = "${(fitnessZoomFactor * 100).toInt()}%",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = DopamineCyan,
+                                        modifier = Modifier
+                                            .clickable { fitnessZoomFactor = 1.0f }
+                                            .padding(horizontal = 2.dp)
+                                    )
+                                    Text(
+                                        text = "＋",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextSecondary,
+                                        modifier = Modifier
+                                            .clickable { fitnessZoomFactor = (fitnessZoomFactor + 0.08f).coerceIn(0.84f, 1.24f) }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { selectedDate = selectedDate.plusDays(1) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.ChevronRight, contentDescription = "后一天", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                            }
                         }
                     }
                 }
@@ -506,14 +553,14 @@ fun FitnessScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(1.dp, DarkBorder),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1.1f)
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Text("总训练容量", fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
-                            Spacer(modifier = Modifier.height(2.dp))
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text("总训练容量", fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                            Spacer(modifier = Modifier.height(4.dp))
                             val volStr = if (totalVolumeKg >= 1000) "%.1fk".format(totalVolumeKg / 1000.0) else "%.0f".format(totalVolumeKg)
-                            Text("⚡ $volStr kg", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DopamineCyan, maxLines = 1)
+                            Text("⚡ $volStr kg", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DopamineCyan, maxLines = 1)
                         }
                     }
 
@@ -521,14 +568,14 @@ fun FitnessScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(1.dp, DarkBorder),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Text("完成组数", fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
-                            Spacer(modifier = Modifier.height(2.dp))
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text("完成组数", fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                            Spacer(modifier = Modifier.height(4.dp))
                             val setProgressColor = if (totalSetsCount > 0 && completedSetsCount == totalSetsCount) DopamineGreen else DopaminePurple
-                            Text("✓ $completedSetsCount/$totalSetsCount 组", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = setProgressColor, maxLines = 1)
+                            Text("✓ $completedSetsCount/$totalSetsCount 组", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = setProgressColor, maxLines = 1)
                         }
                     }
 
@@ -536,27 +583,27 @@ fun FitnessScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(1.dp, DarkBorder),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(0.9f)
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Text("连续运动", fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text("🔥 $streakDays 天", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DopamineAmber, maxLines = 1)
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Text("连续运动", fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("🔥 $streakDays 天", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DopamineAmber, maxLines = 1)
                         }
                     }
                 }
             }
 
-            // 3. 今日训练主题卡片与核心操作（紧凑单行按钮，严禁折行）
+            // 3. 今日训练主题卡片与核心操作（清晰大字号 + 紧凑内边距确保单行不折行）
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkCard),
                     border = BorderStroke(1.dp, DarkBorder),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -565,16 +612,16 @@ fun FitnessScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = currentPlan?.title ?: "今日未定训练分化",
-                                    fontSize = 14.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.height(3.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     val typeTag = when (currentPlan?.workoutType) {
                                         "CARDIO" -> "有氧耐力"
@@ -584,13 +631,13 @@ fun FitnessScreen(
                                     }
                                     Surface(
                                         color = DopamineCyan.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(4.dp)
+                                        shape = RoundedCornerShape(5.dp)
                                     ) {
-                                        Text(typeTag, fontSize = 9.5.sp, color = DopamineCyan, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                        Text(typeTag, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineCyan, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                     }
                                     Text(
                                         text = "目标 ${currentPlan?.targetDurationMinutes ?: 45} 分钟",
-                                        fontSize = 10.5.sp,
+                                        fontSize = 12.5.sp,
                                         color = TextSecondary
                                     )
                                 }
@@ -601,14 +648,14 @@ fun FitnessScreen(
                             Surface(
                                 color = if (isCompleted) DopamineGreen.copy(alpha = 0.2f) else DopamineAmber.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, if (isCompleted) DopamineGreen else DopamineAmber),
-                                shape = RoundedCornerShape(6.dp)
+                                shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
                                     text = if (isCompleted) "已打卡完成" else "训练规划中",
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isCompleted) DopamineGreen else DopamineAmber,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
@@ -617,14 +664,14 @@ fun FitnessScreen(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "📝 ${currentPlan?.notes}",
-                                fontSize = 11.sp,
+                                fontSize = 12.5.sp,
                                 color = TextSecondary
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        // 操作按钮组（紧凑高度 34.dp，零多余内边距，单行显示不换行）
+                        // 操作按钮组（高度 38.dp，13.sp 清晰字号，紧凑水平内边距确保单行不换行）
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -633,42 +680,42 @@ fun FitnessScreen(
                                 onClick = { showExercisePicker = true },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(34.dp),
-                                shape = RoundedCornerShape(8.dp),
+                                    .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Black)
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.Black)
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text("添加动作", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+                                Text("添加动作", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
                             }
 
                             OutlinedButton(
                                 onClick = { showPlanDialog = true },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(34.dp),
-                                shape = RoundedCornerShape(8.dp),
+                                    .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 border = BorderStroke(1.dp, DarkBorder)
                             ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp), tint = TextPrimary)
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = TextPrimary)
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text("修改计划", fontSize = 11.5.sp, color = TextPrimary, maxLines = 1)
+                                Text("修改计划", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
                             }
 
                             Button(
                                 onClick = { showFinishDialog = true },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(34.dp),
-                                shape = RoundedCornerShape(8.dp),
+                                    .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text("打卡结算", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                                Text("打卡结算", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
                         }
                     }
@@ -682,7 +729,7 @@ fun FitnessScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("📋 训练动作与按组记录", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text("📋 训练动作与按组记录", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(
                             color = DarkCard,
@@ -690,7 +737,7 @@ fun FitnessScreen(
                             border = BorderStroke(1.dp, DarkBorder),
                             modifier = Modifier.clickable { startRestTimer(60) }
                         ) {
-                            Text("⏱ 60s", fontSize = 10.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Text("⏱ 60s", fontSize = 11.5.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                         }
                         Surface(
                             color = DarkCard,
@@ -698,7 +745,7 @@ fun FitnessScreen(
                             border = BorderStroke(1.dp, DarkBorder),
                             modifier = Modifier.clickable { startRestTimer(90) }
                         ) {
-                            Text("⏱ 90s", fontSize = 10.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Text("⏱ 90s", fontSize = 11.5.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                         }
                         Surface(
                             color = DarkCard,
@@ -706,7 +753,7 @@ fun FitnessScreen(
                             border = BorderStroke(1.dp, DarkBorder),
                             modifier = Modifier.clickable { startRestTimer(120) }
                         ) {
-                            Text("⏱ 120s", fontSize = 10.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Text("⏱ 120s", fontSize = 11.5.sp, color = DopamineGreen, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                         }
                     }
                 }
@@ -718,20 +765,20 @@ fun FitnessScreen(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(1.dp, DarkBorder),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                                .padding(horizontal = 16.dp, vertical = 20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("🏋️", fontSize = 26.sp)
+                            Text("🏋️", fontSize = 30.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("今日暂无动作安排", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("今日暂无动作安排", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text("点击右上角「分化模版」导入经典推拉腿，或点击「添加动作」从动作库选取", fontSize = 11.sp, color = TextSecondary, textAlign = TextAlign.Center)
+                            Text("点击右上角「分化模版」导入经典推拉腿，或点击「添加动作」从动作库选取", fontSize = 12.5.sp, color = TextSecondary, textAlign = TextAlign.Center)
                         }
                     }
                 }
@@ -753,20 +800,20 @@ fun FitnessScreen(
 
             // 6. 历史训练日志与周度概览
             item {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("📜 近期训练日志", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text("本周: $weekWorkoutsCount 次 · ${weekTotalMins}m · ${weekTotalCalories.toInt()}kcal", fontSize = 11.sp, color = DopaminePurple)
+                    Text("📜 近期训练日志", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text("本周: $weekWorkoutsCount 次 · ${weekTotalMins}m · ${weekTotalCalories.toInt()}kcal", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = DopaminePurple)
                 }
             }
 
             if (recentPlans.isEmpty()) {
                 item {
-                    Text("暂无历史记录，开启今日健身吧！", fontSize = 12.sp, color = TextSecondary)
+                    Text("暂无历史记录，开启今日健身吧！", fontSize = 13.sp, color = TextSecondary)
                 }
             } else {
                 items(recentPlans) { plan ->
@@ -793,14 +840,14 @@ fun FitnessScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = plan.planDate,
-                                        fontSize = 12.5.sp,
+                                        fontSize = 13.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = DopamineCyan
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = plan.title,
-                                        fontSize = 13.sp,
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = TextPrimary
                                     )
@@ -809,7 +856,7 @@ fun FitnessScreen(
                                 val usedMins = if (plan.actualDurationMinutes > 0) plan.actualDurationMinutes else plan.targetDurationMinutes
                                 Text(
                                     text = "耗时 $usedMins 分钟 · 消耗 ~${plan.caloriesBurned.toInt()} kcal · 感受: ${getFeelingLabel(plan.feeling)}",
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     color = TextSecondary
                                 )
                             }
@@ -818,13 +865,13 @@ fun FitnessScreen(
                             Surface(
                                 color = if (isDone) DopamineGreen.copy(alpha = 0.15f) else DarkBorder,
                                 shape = CircleShape,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(26.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     if (isDone) {
-                                        Text("✓", fontSize = 12.sp, color = DopamineGreen, fontWeight = FontWeight.Bold)
+                                        Text("✓", fontSize = 13.sp, color = DopamineGreen, fontWeight = FontWeight.Bold)
                                     } else {
-                                        Text("·", fontSize = 14.sp, color = TextMuted)
+                                        Text("·", fontSize = 15.sp, color = TextMuted)
                                     }
                                 }
                             }
@@ -1351,7 +1398,7 @@ private fun WorkoutExerciseCard(
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1368,10 +1415,10 @@ private fun WorkoutExerciseCard(
                     ) {
                         Text(
                             text = getCategoryName(record.category),
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = catColor,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
 
@@ -1385,16 +1432,16 @@ private fun WorkoutExerciseCard(
                         ) {
                             Text(
                                 text = record.equipment,
-                                fontSize = 9.5.sp,
+                                fontSize = 11.sp,
                                 color = TextSecondary,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
                     }
 
                     Text(
                         text = record.exerciseName,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isCompleted) TextSecondary else TextPrimary,
                         textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
@@ -1405,39 +1452,39 @@ private fun WorkoutExerciseCard(
 
                 IconButton(
                     onClick = onDeleteRecord,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除动作", tint = TextMuted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "删除动作", tint = TextMuted, modifier = Modifier.size(18.dp))
                 }
             }
 
             // 统计指标胶囊 (1RM & Volume)
             Spacer(modifier = Modifier.height(4.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (best1RM > 0) {
                     Text(
                         text = "估算 1RM: %.1fkg".format(best1RM),
-                        fontSize = 10.5.sp,
+                        fontSize = 12.sp,
                         color = DopamineCyan
                     )
                 }
                 if (exerciseVolume > 0) {
                     Text(
                         text = "容量: %.0fkg".format(exerciseVolume),
-                        fontSize = 10.5.sp,
+                        fontSize = 12.sp,
                         color = DopamineAmber
                     )
                 }
             }
 
             if (record.note.isNotBlank()) {
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "💡 ${record.note}",
-                    fontSize = 10.5.sp,
+                    fontSize = 12.sp,
                     color = TextMuted
                 )
             }
@@ -1448,15 +1495,15 @@ private fun WorkoutExerciseCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DarkSurface, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .background(DarkSurface, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("组号", fontSize = 10.sp, color = TextMuted, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
-                Text("类型", fontSize = 10.sp, color = TextMuted, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
-                Text("重量(KG)", fontSize = 10.sp, color = TextMuted, modifier = Modifier.weight(1.3f), textAlign = TextAlign.Center)
-                Text("次数", fontSize = 10.sp, color = TextMuted, modifier = Modifier.weight(1.2f), textAlign = TextAlign.Center)
-                Text("完成", fontSize = 10.sp, color = TextMuted, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
+                Text("组号", fontSize = 11.5.sp, color = TextMuted, modifier = Modifier.width(38.dp), textAlign = TextAlign.Center)
+                Text("类型", fontSize = 11.5.sp, color = TextMuted, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+                Text("重量(KG)", fontSize = 11.5.sp, color = TextMuted, modifier = Modifier.weight(1.3f), textAlign = TextAlign.Center)
+                Text("次数", fontSize = 11.5.sp, color = TextMuted, modifier = Modifier.weight(1.2f), textAlign = TextAlign.Center)
+                Text("完成", fontSize = 11.5.sp, color = TextMuted, modifier = Modifier.width(38.dp), textAlign = TextAlign.Center)
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -1516,9 +1563,9 @@ private fun WorkoutExerciseCard(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = DopamineCyan, modifier = Modifier.size(13.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, tint = DopamineCyan, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("添加一组", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
+                        Text("添加一组", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
                     }
                 }
 
@@ -1531,7 +1578,7 @@ private fun WorkoutExerciseCard(
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.clickable { onTriggerRestTimer(90) }
                     ) {
-                        Text("⏱ 休息90s", fontSize = 10.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                        Text("⏱ 休息90s", fontSize = 11.5.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                 }
             }
@@ -1557,16 +1604,16 @@ private fun WorkoutSetRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
             .background(rowBg)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1. 组号
         Text(
             text = "${set.setNumber}",
-            fontSize = 12.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.Bold,
             color = if (isDone) DopamineGreen else TextPrimary,
-            modifier = Modifier.width(36.dp),
+            modifier = Modifier.width(38.dp),
             textAlign = TextAlign.Center
         )
 
@@ -1581,7 +1628,7 @@ private fun WorkoutSetRow(
             color = badgeBg,
             shape = RoundedCornerShape(4.dp),
             modifier = Modifier
-                .width(36.dp)
+                .width(40.dp)
                 .clickable {
                     // 点击循环切换组类型
                     val nextType = when (set.type) {
@@ -1594,8 +1641,8 @@ private fun WorkoutSetRow(
                     onUpdate(set.copy(type = nextType))
                 }
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 2.dp)) {
-                Text(set.typeLabel, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = badgeTextColor)
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 3.dp)) {
+                Text(set.typeLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = badgeTextColor)
             }
         }
 
@@ -1609,7 +1656,7 @@ private fun WorkoutSetRow(
         ) {
             Text(
                 text = "-",
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 color = TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
@@ -1617,7 +1664,7 @@ private fun WorkoutSetRow(
                         val newWeight = (set.weightKg - 2.5).coerceAtLeast(0.0)
                         onUpdate(set.copy(weightKg = newWeight))
                     }
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
             )
             Surface(
                 color = DarkSurface,
@@ -1627,23 +1674,23 @@ private fun WorkoutSetRow(
             ) {
                 Text(
                     text = if (set.weightKg % 1.0 == 0.0) "%.0f".format(set.weightKg) else "%.1f".format(set.weightKg),
-                    fontSize = 12.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     textAlign = TextAlign.Center
                 )
             }
             Text(
                 text = "+",
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 color = TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
                     .clickable {
                         onUpdate(set.copy(weightKg = set.weightKg + 2.5))
                     }
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
             )
         }
 
@@ -1655,7 +1702,7 @@ private fun WorkoutSetRow(
         ) {
             Text(
                 text = "-",
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 color = TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
@@ -1663,7 +1710,7 @@ private fun WorkoutSetRow(
                         val newReps = (set.reps - 1).coerceAtLeast(1)
                         onUpdate(set.copy(reps = newReps))
                     }
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
             )
             Surface(
                 color = DarkSurface,
@@ -1673,29 +1720,29 @@ private fun WorkoutSetRow(
             ) {
                 Text(
                     text = "${set.reps}",
-                    fontSize = 12.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = TextPrimary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     textAlign = TextAlign.Center
                 )
             }
             Text(
                 text = "+",
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 color = TextSecondary,
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
                     .clickable {
                         onUpdate(set.copy(reps = set.reps + 1))
                     }
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
             )
         }
 
         // 5. 完成打勾按键
         Box(
-            modifier = Modifier.width(36.dp),
+            modifier = Modifier.width(38.dp),
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -1703,14 +1750,14 @@ private fun WorkoutSetRow(
                 shape = RoundedCornerShape(6.dp),
                 border = BorderStroke(1.dp, if (isDone) DopamineGreen else DarkBorder),
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(24.dp)
                     .clickable {
                         onUpdate(set.copy(isCompleted = !isDone))
                     }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (isDone) {
-                        Text("✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("✓", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }

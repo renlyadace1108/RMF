@@ -880,7 +880,7 @@ class MainActivity : ComponentActivity() {
                                 coursesFlow = db.courseDao().getAllActiveCourses(),
                                 interruptionsFlow = db.interruptionDao().getAllInterruptions(),
                                 expensesFlow = db.expenseDao().getAllActiveExpenses(),
-                                onBack = { currentScreen = Screen.Schedule }
+                                onBack = null
                             )
 
                             Screen.Tutorial -> TutorialScreen(

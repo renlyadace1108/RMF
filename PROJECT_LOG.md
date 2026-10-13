@@ -36,6 +36,23 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-13 14:26] - 全页面字体清晰度恢复、自由缩放控制与嵌套状态栏留白统一修复 (v1.4.9.3 / Code 1040903)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“字有点小现在检查所有页面的现实和缩放这些”
+* **核心改进**：
+  1. **健身规划页 ([`FitnessScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/FitnessScreen.kt))**：
+     * 取消此前强制写死的 `0.88x` 密度缩小，恢复默认 `100%` (`1.0f`) 标准清晰比例，并将标题、KPI 指标、动作卡片、按组输入行的字号全面恢复至舒适大字号（`12.sp ~ 21.sp`），同时通过紧凑水平 `contentPadding` 确保「添加动作 / 修改计划 / 打卡结算」三枚按钮在 `13.sp` 大字号下依然严格保持单行不折行。
+     * 在日期栏右侧新增交互式缩放胶囊（`－ / 100% / ＋`，支持 `84% ~ 124%` 自由调节，点击百分比一键复位 `100%`）。
+  2. **课程表页 ([`TimetableScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/TimetableScreen.kt))**：
+     * 将顶部原本拥挤在同一行的标题/学期徽章与 4 枚操作按钮（「📷 截图导入」「🔄 调停课」「⚙️ 学期配置」「⚡ 同步日程」）拆分为上下两行独立清晰排布，彻底消除窄屏下的文字挤压折行。
+     * 新增课表网格缩放控制（`－ / 100% / ＋`，支持 `80% ~ 140%` 缩放 `WeekTimetableGrid` 节次高度与课程卡片字号）。
+  3. **深度专注页 ([`FocusScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/FocusScreen.kt))**：
+     * 环形表盘尺寸升级至 `260.dp`，中央「时 : 分 : 秒」三列滚轮选中字号提升至 `30.sp`（未选中 `16.sp`，顶部单位标签 `11.5.sp`），预设胶囊字号提升至 `12.5.sp`。
+  4. **全局所有页面嵌套 `Scaffold` 状态栏双重留白与多余返回箭头清理**：
+     * 为 [`TimetableScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/TimetableScreen.kt)、[`StudyScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/StudyScreen.kt)、[`HabitsScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/HabitsScreen.kt)、[`CountdownsScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/CountdownsScreen.kt)、[`GoalsScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/GoalsScreen.kt)、[`ExpensesScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ExpensesScreen.kt) 全部补充 `contentWindowInsets = WindowInsets(0, 0, 0, 0)`，消除嵌套 `Scaffold` 导致的顶部双重留白。
+     * 移除 [`SummaryScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/SummaryScreen.kt) 在主导航下的多余左上角返回箭头（`onBack = null`）。
+  5. **版本号升级**：`build.gradle.kts` 升级至 `1.4.9.3` (`versionCode = 1040903`)。
+
 ### [2026-10-13 13:41] - 深度专注表盘升级为「时 : 分 : 秒」三列独立滚轮并排组合 (v1.4.9.2 / Code 1040902)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“做成时分秒三个单独的选项放在一起”

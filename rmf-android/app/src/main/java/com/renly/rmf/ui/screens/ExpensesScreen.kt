@@ -80,6 +80,7 @@ fun ExpensesScreen(
 
     Scaffold(
         containerColor = DarkBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -97,7 +98,7 @@ fun ExpensesScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // 页面标题与状态
             Row(
@@ -114,8 +115,8 @@ fun ExpensesScreen(
                     )
                     Text(
                         text = "共计 ${expenses.size} 笔明细 · 支持点击编辑与删除",
-                        fontSize = 11.sp,
-                        color = TextMuted
+                        fontSize = 12.sp,
+                        color = TextSecondary
                     )
                 }
             }
