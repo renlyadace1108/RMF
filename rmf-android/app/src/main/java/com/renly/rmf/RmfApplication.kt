@@ -11,9 +11,8 @@ import com.renly.rmf.data.local.RmfDatabase
 
 class RmfApplication : Application() {
 
-    val database: RmfDatabase by lazy {
-        RmfDatabase.getInstance(this)
-    }
+    val database: RmfDatabase
+        get() = RmfDatabase.getInstance(this)
 
     override fun onCreate() {
         super.onCreate()

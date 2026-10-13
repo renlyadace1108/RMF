@@ -2,37 +2,84 @@ package com.renly.rmf.domain.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.renly.rmf.BuildConfig
+import com.renly.rmf.data.local.RmfDatabase
 
 /**
  * 隐私政策与用户服务协议合规状态管理
  * 符合工信部双清单规范及各大应用商店审查要求
+ * 支持新版本覆盖安装时重新弹出隐私确认界面，并保障旧版本本地数据无损留存
  */
 object PrivacyPreferences {
     private const val PREFS_NAME = "rmf_privacy_compliance_prefs"
     private const val KEY_PRIVACY_ACCEPTED = "privacy_policy_accepted_v1"
     private const val KEY_ACCEPTED_TIME = "privacy_policy_accepted_time"
+    private const val KEY_ACCEPTED_VERSION_CODE = "privacy_accepted_version_code"
+    private const val KEY_ACCEPTED_VERSION_NAME = "privacy_accepted_version_name"
+    private const val KEY_ACCEPTED_UPDATE_TIME = "privacy_accepted_pkg_update_time"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    /**
-     * 用户是否已阅读并同意隐私政策
-     */
-    fun isPrivacyAccepted(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_PRIVACY_ACCEPTED, false)
+    private fun getPackageLastUpdateTime(context: Context): Long {
+        return try {
+            @Suppress("DEPRECATION")
+            val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pkgInfo.lastUpdateTime
+        } catch (_: Exception) {
+            0L
+        }
     }
 
     /**
-     * 设置用户同意状态
+     * 判断是否为已安装旧版本后的覆盖升级安装（本地已有同意记录或已有旧版 SQLite 数据库）
+     */
+    fun isOverwriteOrUpgradeInstall(context: Context): Boolean {
+        val prefs = getPrefs(context)
+        val everAccepted = prefs.getBoolean(KEY_PRIVACY_ACCEPTED, false)
+        val dbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
+        val hasExistingDb = dbFile.exists() && dbFile.length() > 1024L
+        return everAccepted || hasExistingDb
+    }
+
+    /**
+     * 用户是否已针对【当前安装版本/当前覆盖安装包】阅读并同意隐私政策。
+     * 当首次安装、升级新版本号 (versionCode/versionName) 或覆盖重装 APK (lastUpdateTime 变更) 时，
+     * 均返回 false 以重新弹出隐私合规界面。
+     */
+    fun isPrivacyAccepted(context: Context): Boolean {
+        val prefs = getPrefs(context)
+        if (!prefs.getBoolean(KEY_PRIVACY_ACCEPTED, false)) return false
+
+        val acceptedVersionCode = prefs.getInt(KEY_ACCEPTED_VERSION_CODE, -1)
+        val acceptedVersionName = prefs.getString(KEY_ACCEPTED_VERSION_NAME, "") ?: ""
+        val acceptedUpdateTime = prefs.getLong(KEY_ACCEPTED_UPDATE_TIME, -1L)
+        val currentUpdateTime = getPackageLastUpdateTime(context)
+
+        if (acceptedVersionCode != BuildConfig.VERSION_CODE) return false
+        if (acceptedVersionName != BuildConfig.VERSION_NAME) return false
+        if (currentUpdateTime > 0L && acceptedUpdateTime != currentUpdateTime) return false
+
+        return true
+    }
+
+    /**
+     * 设置用户同意状态，并绑定当前版本号与 APK 覆盖安装时间戳
      */
     fun setPrivacyAccepted(context: Context, accepted: Boolean) {
         val editor = getPrefs(context).edit()
         editor.putBoolean(KEY_PRIVACY_ACCEPTED, accepted)
         if (accepted) {
             editor.putLong(KEY_ACCEPTED_TIME, System.currentTimeMillis())
+            editor.putInt(KEY_ACCEPTED_VERSION_CODE, BuildConfig.VERSION_CODE)
+            editor.putString(KEY_ACCEPTED_VERSION_NAME, BuildConfig.VERSION_NAME)
+            editor.putLong(KEY_ACCEPTED_UPDATE_TIME, getPackageLastUpdateTime(context))
         } else {
             editor.remove(KEY_ACCEPTED_TIME)
+            editor.remove(KEY_ACCEPTED_VERSION_CODE)
+            editor.remove(KEY_ACCEPTED_VERSION_NAME)
+            editor.remove(KEY_ACCEPTED_UPDATE_TIME)
         }
         editor.apply()
     }

@@ -28,6 +28,7 @@ import com.renly.rmf.ui.theme.*
  */
 @Composable
 fun PrivacyComplianceDialog(
+    isUpgradeInstall: Boolean = false,
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
@@ -117,19 +118,36 @@ fun PrivacyComplianceDialog(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "用户协议与隐私保护提示",
+                            text = if (isUpgradeInstall) "新版本升级 · 隐私保护确认" else "用户协议与隐私保护提示",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "欢迎使用 RMF (Renly Management Platform)",
+                            text = "欢迎使用 RMF v${com.renly.rmf.BuildConfig.VERSION_NAME}",
                             fontSize = 11.5.sp,
                             color = TextSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        if (isUpgradeInstall) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                color = DopamineGreen.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "🛡️ 已检测到旧版本本地数据库，覆盖升级无损载入已就绪",
+                                    fontSize = 11.sp,
+                                    color = DopamineGreen,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
                     }
 
                     HorizontalDivider(color = DarkBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))

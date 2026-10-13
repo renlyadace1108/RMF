@@ -95,7 +95,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 
 class MainActivity : ComponentActivity() {
 
-    private val db by lazy { (application as RmfApplication).database }
+    private val db: com.renly.rmf.data.local.RmfDatabase
+        get() = (application as RmfApplication).database
     private var isInPipMode by mutableStateOf(false)
 
     override fun onPictureInPictureModeChanged(
@@ -329,18 +330,25 @@ class MainActivity : ComponentActivity() {
             ) {
                 var showSplashScreen by remember { mutableStateOf(true) }
                 var showSettingsGestureTutorial by remember { mutableStateOf(false) }
+                val isUpgradeInstall = remember {
+                    com.renly.rmf.domain.service.PrivacyPreferences.isOverwriteOrUpgradeInstall(this@MainActivity)
+                }
                 var showPrivacyDialog by remember {
                     mutableStateOf(!com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this@MainActivity))
                 }
 
                 if (showPrivacyDialog) {
                     com.renly.rmf.ui.screens.PrivacyComplianceDialog(
+                        isUpgradeInstall = isUpgradeInstall,
                         onAccept = {
                             com.renly.rmf.domain.service.PrivacyPreferences.setPrivacyAccepted(this@MainActivity, true)
                             showPrivacyDialog = false
-                            // 首次启动流程：先展示协议，用户同意后再展示设置手势教学
-                            showSettingsGestureTutorial = true
+                            // 若首次安装未完成过手势教学则展示教学；若为覆盖升级且已完成过则不再重复打扰
+                            showSettingsGestureTutorial = !com.renly.rmf.domain.service.SettingsTutorialPreferences.isSettingsGestureTutorialCompleted(this@MainActivity)
                             showSplashScreen = false
+                            if (isUpgradeInstall) {
+                                Toast.makeText(this@MainActivity, "✓ 隐私协议已确认，旧版本数据已完整无损载入", Toast.LENGTH_SHORT).show()
+                            }
                             checkAndRequestNotificationPermission()
                             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(

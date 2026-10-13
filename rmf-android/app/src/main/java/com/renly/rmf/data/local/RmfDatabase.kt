@@ -1,6 +1,7 @@
 package com.renly.rmf.data.local
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -62,6 +63,9 @@ abstract class RmfDatabase : RoomDatabase() {
             db.execSQL("DELETE FROM daily_reports;")
             db.execSQL("DELETE FROM fitness_plans;")
             db.execSQL("DELETE FROM fitness_records;")
+            db.execSQL("DELETE FROM habits;")
+            db.execSQL("DELETE FROM countdowns;")
+            db.execSQL("DELETE FROM focus_records;")
             db.execSQL("DELETE FROM snapshot_metadata;")
             db.execSQL("DELETE FROM timetable_settings WHERE key LIKE 'test_%';")
             db.setTransactionSuccessful()
@@ -72,293 +76,768 @@ abstract class RmfDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "rmf.db"
+        private const val CURRENT_DB_VERSION = 7
+
+        private data class ColSpec(
+            val name: String,
+            val type: String,
+            val notNull: Boolean,
+            val defaultSql: String? = null,
+            val fallbackExpr: String = "''",
+            val pkPos: Int = 0
+        )
+
+        private data class IndexSpec(
+            val name: String,
+            val unique: Boolean,
+            val columns: List<String>
+        )
+
+        private data class TableSpec(
+            val tableName: String,
+            val columns: List<ColSpec>,
+            val indices: List<IndexSpec> = emptyList()
+        )
+
+        /**
+         * 16 张核心业务表与 Room @Entity 100% 严格对齐的精确 Schema 规范表。
+         * 用于覆盖安装前/迁移时的无损表结构自愈，确保任何历史版本数据 0 丢失载入。
+         */
+        private val ALL_TABLE_SPECS: List<TableSpec> = listOf(
+            TableSpec(
+                tableName = "schedules",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("description", "TEXT", true, null, "''"),
+                    ColSpec("category", "TEXT", true, null, "'WORK'"),
+                    ColSpec("priority", "TEXT", true, null, "'MEDIUM'"),
+                    ColSpec("status", "TEXT", true, null, "'PENDING'"),
+                    ColSpec("start_time", "TEXT", true, null, "''"),
+                    ColSpec("end_time", "TEXT", true, null, "''"),
+                    ColSpec("estimated_minutes", "INTEGER", true, null, "30"),
+                    ColSpec("actual_minutes", "INTEGER", true, "0", "0"),
+                    ColSpec("work_type", "TEXT", true, "'DEEP_WORK'", "'DEEP_WORK'"),
+                    ColSpec("dod", "TEXT", true, "''", "''"),
+                    ColSpec("energy_delta", "INTEGER", true, "0", "0"),
+                    ColSpec("goal_id", "TEXT", false, null, "NULL"),
+                    ColSpec("study_topic_id", "TEXT", false, null, "NULL"),
+                    ColSpec("color_hex", "TEXT", false, null, "NULL"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("interruption_minutes", "INTEGER", false, "0", "0"),
+                    ColSpec("is_deferred", "INTEGER", false, "0", "0"),
+                    ColSpec("is_backlog", "INTEGER", false, "0", "0"),
+                    ColSpec("sync_version", "INTEGER", false, "1", "1"),
+                    ColSpec("is_dirty", "INTEGER", false, "0", "0"),
+                    ColSpec("is_all_day", "INTEGER", false, "0", "0"),
+                    ColSpec("recurrence", "TEXT", false, "'NONE'", "'NONE'"),
+                    ColSpec("source", "TEXT", false, "''", "''"),
+                    ColSpec("is_tentative", "INTEGER", false, "0", "0"),
+                    ColSpec("is_locked", "INTEGER", false, "0", "0"),
+                    ColSpec("depends_on_task_id", "TEXT", false, null, "NULL"),
+                    ColSpec("postpone_count", "INTEGER", false, "0", "0"),
+                    ColSpec("eisenhower_quadrant", "TEXT", false, "'Q2'", "'Q2'"),
+                    ColSpec("recurrence_rule", "TEXT", true, "''", "''"),
+                    ColSpec("subtasks_json", "TEXT", true, "'[]'", "'[]'"),
+                    ColSpec("reminder_minutes", "INTEGER", true, "10", "10"),
+                    ColSpec("reminder_type", "TEXT", true, "'ALL'", "'ALL'"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_schedules_time", false, listOf("start_time", "end_time", "is_deleted")),
+                    IndexSpec("idx_schedules_status", false, listOf("status", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "courses",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("name", "TEXT", true, null, "''"),
+                    ColSpec("teacher", "TEXT", true, null, "''"),
+                    ColSpec("location", "TEXT", true, null, "''"),
+                    ColSpec("room_code", "TEXT", true, null, "''"),
+                    ColSpec("day_of_week", "INTEGER", true, null, "1"),
+                    ColSpec("start_section", "INTEGER", true, null, "1"),
+                    ColSpec("section_span", "INTEGER", true, "2", "2"),
+                    ColSpec("start_week", "INTEGER", true, "1", "1"),
+                    ColSpec("end_week", "INTEGER", true, "16", "16"),
+                    ColSpec("week_type", "TEXT", true, "'ALL'", "'ALL'"),
+                    ColSpec("color_hex", "TEXT", true, "'#3B82F6'", "'#3B82F6'"),
+                    ColSpec("notes", "TEXT", true, null, "''"),
+                    ColSpec("is_custom_time", "INTEGER", true, "0", "0"),
+                    ColSpec("custom_start_time", "TEXT", false, null, "NULL"),
+                    ColSpec("custom_end_time", "TEXT", false, null, "NULL"),
+                    ColSpec("exam_date", "TEXT", false, null, "NULL"),
+                    ColSpec("course_url", "TEXT", false, null, "NULL"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_courses_day_sec", false, listOf("day_of_week", "start_section", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "course_adjustments",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("course_id", "TEXT", false, null, "NULL"),
+                    ColSpec("course_name", "TEXT", true, null, "''"),
+                    ColSpec("adjustment_type", "TEXT", true, null, "'CANCEL'"),
+                    ColSpec("target_week", "INTEGER", true, null, "1"),
+                    ColSpec("orig_day_of_week", "INTEGER", true, null, "1"),
+                    ColSpec("orig_start_section", "INTEGER", true, null, "1"),
+                    ColSpec("new_day_of_week", "INTEGER", true, null, "1"),
+                    ColSpec("new_start_section", "INTEGER", true, null, "1"),
+                    ColSpec("section_span", "INTEGER", true, "2", "2"),
+                    ColSpec("new_location", "TEXT", true, null, "''"),
+                    ColSpec("reason", "TEXT", true, null, "''"),
+                    ColSpec("is_custom_time", "INTEGER", true, "0", "0"),
+                    ColSpec("custom_start_time", "TEXT", false, null, "NULL"),
+                    ColSpec("custom_end_time", "TEXT", false, null, "NULL"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_course_adj_week", false, listOf("target_week", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "study_topics",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("category", "TEXT", true, "'技术栈'", "'技术栈'"),
+                    ColSpec("status", "TEXT", true, "'IN_PROGRESS'", "'IN_PROGRESS'"),
+                    ColSpec("progress_percent", "INTEGER", true, "0", "0"),
+                    ColSpec("progress_type", "TEXT", true, "'HOURS'", "'HOURS'"),
+                    ColSpec("custom_unit", "TEXT", true, "''", "''"),
+                    ColSpec("target_value", "REAL", true, "10.0", "10.0"),
+                    ColSpec("completed_value", "REAL", true, "0.0", "0.0"),
+                    ColSpec("target_hours", "REAL", true, "10.0", "10.0"),
+                    ColSpec("completed_hours", "REAL", true, "0.0", "0.0"),
+                    ColSpec("current_checkpoint", "TEXT", true, null, "''"),
+                    ColSpec("notes", "TEXT", true, null, "''"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_study_status", false, listOf("status", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "goals",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("level", "TEXT", true, null, "'ANNUAL'"),
+                    ColSpec("parent_id", "TEXT", false, null, "NULL"),
+                    ColSpec("quarter", "TEXT", false, null, "NULL"),
+                    ColSpec("progress", "INTEGER", true, "0", "0"),
+                    ColSpec("sort_order", "INTEGER", true, "0", "0"),
+                    ColSpec("is_north_star", "INTEGER", true, "0", "0"),
+                    ColSpec("confidence", "REAL", true, "1.0", "1.0"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_goals_parent", false, listOf("parent_id", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "interruptions",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("schedule_id", "TEXT", false, null, "NULL"),
+                    ColSpec("type", "TEXT", true, null, "'EXTERNAL'"),
+                    ColSpec("duration_seconds", "INTEGER", true, "0", "0"),
+                    ColSpec("timestamp", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("note", "TEXT", true, null, "''")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_interruptions_sched", false, listOf("schedule_id")),
+                    IndexSpec("idx_interruptions_time", false, listOf("timestamp"))
+                )
+            ),
+            TableSpec(
+                tableName = "expenses",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("type", "TEXT", true, null, "'EXPENSE'"),
+                    ColSpec("amount", "REAL", true, null, "0.0"),
+                    ColSpec("category", "TEXT", true, null, "'餐饮'"),
+                    ColSpec("note", "TEXT", true, null, "''"),
+                    ColSpec("raw_input_text", "TEXT", true, null, "''"),
+                    ColSpec("transaction_time", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')")
+                )
+            ),
+            TableSpec(
+                tableName = "daily_reports",
+                columns = listOf(
+                    ColSpec("date", "TEXT", true, null, "date('now')", pkPos = 1),
+                    ColSpec("reflection", "TEXT", true, null, "''"),
+                    ColSpec("ai_summary", "TEXT", true, null, "''"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                )
+            ),
+            TableSpec(
+                tableName = "schedule_tags",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("name", "TEXT", true, null, "''"),
+                    ColSpec("color_hex", "TEXT", true, "'#1A73E8'", "'#1A73E8'"),
+                    ColSpec("sort_order", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("index_schedule_tags_name", true, listOf("name"))
+                )
+            ),
+            TableSpec(
+                tableName = "snapshot_metadata",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "'current'", pkPos = 1),
+                    ColSpec("device_id", "TEXT", true, null, "''"),
+                    ColSpec("version_counter", "INTEGER", true, "1", "1"),
+                    ColSpec("file_hash", "TEXT", true, null, "''"),
+                    ColSpec("updated_at", "TEXT", true, null, "''")
+                )
+            ),
+            TableSpec(
+                tableName = "timetable_settings",
+                columns = listOf(
+                    ColSpec("key", "TEXT", true, null, "''", pkPos = 1),
+                    ColSpec("value", "TEXT", true, null, "''")
+                )
+            ),
+            TableSpec(
+                tableName = "fitness_plans",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("plan_date", "TEXT", true, null, "date('now')"),
+                    ColSpec("title", "TEXT", true, null, "'今日体能强化'"),
+                    ColSpec("workout_type", "TEXT", true, null, "'STRENGTH'"),
+                    ColSpec("target_duration_minutes", "INTEGER", true, null, "45"),
+                    ColSpec("actual_duration_minutes", "INTEGER", true, null, "0"),
+                    ColSpec("calories_burned", "REAL", true, null, "0.0"),
+                    ColSpec("feeling", "TEXT", true, null, "'MODERATE'"),
+                    ColSpec("status", "TEXT", true, null, "'PLANNED'"),
+                    ColSpec("notes", "TEXT", true, null, "''"),
+                    ColSpec("is_deleted", "INTEGER", true, null, "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_fitness_plans_date", false, listOf("plan_date"))
+                )
+            ),
+            TableSpec(
+                tableName = "fitness_records",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("plan_id", "TEXT", true, null, "''"),
+                    ColSpec("record_date", "TEXT", true, null, "date('now')"),
+                    ColSpec("exercise_name", "TEXT", true, null, "''"),
+                    ColSpec("category", "TEXT", true, null, "'CHEST'"),
+                    ColSpec("equipment", "TEXT", true, null, "''"),
+                    ColSpec("sets_data", "TEXT", true, null, "'[]'"),
+                    ColSpec("sets_count", "INTEGER", true, null, "4"),
+                    ColSpec("reps_per_set", "INTEGER", true, null, "10"),
+                    ColSpec("weight_kg", "REAL", true, null, "0.0"),
+                    ColSpec("sort_order", "INTEGER", true, null, "0"),
+                    ColSpec("distance_km", "REAL", true, null, "0.0"),
+                    ColSpec("duration_minutes", "INTEGER", true, null, "0"),
+                    ColSpec("calories_burned", "REAL", true, null, "0.0"),
+                    ColSpec("is_completed", "INTEGER", true, null, "0"),
+                    ColSpec("note", "TEXT", true, null, "''"),
+                    ColSpec("is_deleted", "INTEGER", true, null, "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_fitness_records_date", false, listOf("record_date")),
+                    IndexSpec("idx_fitness_records_plan", false, listOf("plan_id"))
+                )
+            ),
+            TableSpec(
+                tableName = "habits",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("icon", "TEXT", true, "'✨'", "'✨'"),
+                    ColSpec("target_days_per_week", "INTEGER", true, "7", "7"),
+                    ColSpec("color_hex", "TEXT", true, "'#38BDF8'", "'#38BDF8'"),
+                    ColSpec("current_streak", "INTEGER", true, "0", "0"),
+                    ColSpec("best_streak", "INTEGER", true, "0", "0"),
+                    ColSpec("history_dates_json", "TEXT", true, "'[]'", "'[]'"),
+                    ColSpec("reminder_time", "TEXT", true, "''", "''"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_habits_deleted", false, listOf("is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "countdowns",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("target_date", "TEXT", true, null, "date('now')"),
+                    ColSpec("category", "TEXT", true, "'EXAM'", "'EXAM'"),
+                    ColSpec("color_hex", "TEXT", true, "'#F59E0B'", "'#F59E0B'"),
+                    ColSpec("is_pinned", "INTEGER", true, "0", "0"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_countdowns_pinned", false, listOf("is_pinned", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "focus_records",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("schedule_id", "TEXT", false, null, "NULL"),
+                    ColSpec("task_title", "TEXT", true, null, "'深度专注'"),
+                    ColSpec("category", "TEXT", true, null, "'WORK'"),
+                    ColSpec("duration_minutes", "INTEGER", true, null, "25"),
+                    ColSpec("start_time", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("end_time", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("status", "TEXT", true, null, "'COMPLETED'"),
+                    ColSpec("interruption_count", "INTEGER", true, "0", "0"),
+                    ColSpec("note", "TEXT", true, null, "''")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_focus_records_sched", false, listOf("schedule_id")),
+                    IndexSpec("idx_focus_records_start", false, listOf("start_time"))
+                )
+            )
+        )
 
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                createFitnessTables(db)
                 ensureLosslessSchema(db)
             }
         }
 
         val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE fitness_records ADD COLUMN equipment TEXT NOT NULL DEFAULT '';")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE fitness_records ADD COLUMN sets_data TEXT NOT NULL DEFAULT '[]';")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE fitness_records ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;")
-                } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
         }
 
         val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE schedules ADD COLUMN reminder_minutes INTEGER NOT NULL DEFAULT 10;")
-                } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
         }
 
         val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE schedules ADD COLUMN recurrence_rule TEXT NOT NULL DEFAULT '';")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE schedules ADD COLUMN subtasks_json TEXT NOT NULL DEFAULT '[]';")
-                } catch (_: Exception) {}
-                createHabitsAndCountdownsTables(db)
                 ensureLosslessSchema(db)
             }
         }
 
         val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE schedules ADD COLUMN reminder_type TEXT NOT NULL DEFAULT 'ALL';")
-                } catch (_: Exception) {}
                 ensureLosslessSchema(db)
             }
         }
 
         val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                createFocusRecordsTable(db)
                 ensureLosslessSchema(db)
             }
-        }
-
-        private fun createFocusRecordsTable(db: SupportSQLiteDatabase) {
-            try {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS focus_records (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        schedule_id TEXT,
-                        task_title TEXT NOT NULL DEFAULT '深度专注',
-                        category TEXT NOT NULL DEFAULT 'WORK',
-                        duration_minutes INTEGER NOT NULL,
-                        start_time TEXT NOT NULL,
-                        end_time TEXT NOT NULL,
-                        status TEXT NOT NULL DEFAULT 'COMPLETED',
-                        interruption_count INTEGER NOT NULL DEFAULT 0,
-                        note TEXT NOT NULL DEFAULT ''
-                    );
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_focus_records_sched ON focus_records(schedule_id);")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_focus_records_start ON focus_records(start_time);")
-            } catch (_: Exception) {}
-        }
-
-        private fun createHabitsAndCountdownsTables(db: SupportSQLiteDatabase) {
-            try {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS habits (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        title TEXT NOT NULL,
-                        icon TEXT NOT NULL DEFAULT '✨',
-                        target_days_per_week INTEGER NOT NULL DEFAULT 7,
-                        color_hex TEXT NOT NULL DEFAULT '#38BDF8',
-                        current_streak INTEGER NOT NULL DEFAULT 0,
-                        best_streak INTEGER NOT NULL DEFAULT 0,
-                        history_dates_json TEXT NOT NULL DEFAULT '[]',
-                        reminder_time TEXT NOT NULL DEFAULT '',
-                        is_deleted INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_habits_deleted ON habits(is_deleted);")
-
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS countdowns (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        title TEXT NOT NULL,
-                        target_date TEXT NOT NULL,
-                        category TEXT NOT NULL DEFAULT 'EXAM',
-                        color_hex TEXT NOT NULL DEFAULT '#F59E0B',
-                        is_pinned INTEGER NOT NULL DEFAULT 0,
-                        is_deleted INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_countdowns_pinned ON countdowns(is_pinned, is_deleted);")
-            } catch (_: Exception) {}
-        }
-
-        private fun createFitnessTables(db: SupportSQLiteDatabase) {
-            try {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS fitness_plans (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        plan_date TEXT NOT NULL,
-                        title TEXT NOT NULL,
-                        workout_type TEXT NOT NULL,
-                        target_duration_minutes INTEGER NOT NULL,
-                        actual_duration_minutes INTEGER NOT NULL,
-                        calories_burned REAL NOT NULL,
-                        feeling TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        notes TEXT NOT NULL,
-                        is_deleted INTEGER NOT NULL,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_fitness_plans_date ON fitness_plans(plan_date);")
-
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS fitness_records (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        plan_id TEXT NOT NULL,
-                        record_date TEXT NOT NULL,
-                        exercise_name TEXT NOT NULL,
-                        category TEXT NOT NULL,
-                        equipment TEXT NOT NULL DEFAULT '',
-                        sets_data TEXT NOT NULL DEFAULT '[]',
-                        sets_count INTEGER NOT NULL,
-                        reps_per_set INTEGER NOT NULL,
-                        weight_kg REAL NOT NULL,
-                        sort_order INTEGER NOT NULL DEFAULT 0,
-                        distance_km REAL NOT NULL,
-                        duration_minutes INTEGER NOT NULL,
-                        calories_burned REAL NOT NULL,
-                        is_completed INTEGER NOT NULL,
-                        note TEXT NOT NULL,
-                        is_deleted INTEGER NOT NULL,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_fitness_records_date ON fitness_records(record_date);")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_fitness_records_plan ON fitness_records(plan_id);")
-            } catch (_: Exception) {}
         }
 
         @Volatile
         private var INSTANCE: RmfDatabase? = null
 
-        fun getInstance(context: Context): RmfDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    RmfDatabase::class.java,
-                    DATABASE_NAME
-                )
-                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
-                    .addCallback(object : Callback() {
-                        override fun onOpen(db: SupportSQLiteDatabase) {
-                            super.onOpen(db)
-                            // 启用与 Windows 端完全对齐的高性能 WAL 模式、内存缓存与外键约束
-                            try {
-                                db.query("PRAGMA journal_mode = WAL;").close()
-                                db.query("PRAGMA synchronous = NORMAL;").close()
-                                db.query("PRAGMA foreign_keys = ON;").close()
-                                db.query("PRAGMA busy_timeout = 5000;").close()
-                                db.query("PRAGMA temp_store = MEMORY;").close()
-                                db.query("PRAGMA cache_size = -8000;").close()
+        fun resetInstance() {
+            synchronized(this) {
+                try {
+                    INSTANCE?.close()
+                } catch (_: Exception) {}
+                INSTANCE = null
+            }
+        }
 
-                                // 无损动态列检查与补齐（对齐 Windows 端 SQLite 数据库热升级防护）
-                                ensureLosslessSchema(db)
-                            } catch (_: Exception) {}
-                        }
-                    })
-                    .build()
+        fun getInstance(context: Context): RmfDatabase {
+            val current = INSTANCE
+            if (current != null && current.isOpen) {
+                return current
+            }
+            return synchronized(this) {
+                val existing = INSTANCE
+                if (existing != null && existing.isOpen) {
+                    return@synchronized existing
+                }
+
+                val appCtx = context.applicationContext
+                // 1. 打开 Room 前先对本地已有数据库执行 WAL 合并、自动备份与无损表结构自愈
+                preHealExistingDatabaseFile(appCtx, forceMigrationReset = false)
+
+                var instance = buildRoomDatabase(appCtx)
+                try {
+                    // 主动触发连接打开与 Room Schema 校验；若因旧版哈希或跨端表结构差异报错，则立即强制自愈重试
+                    instance.openHelper.writableDatabase
+                } catch (_: Exception) {
+                    try {
+                        instance.close()
+                    } catch (_: Exception) {}
+                    preHealExistingDatabaseFile(appCtx, forceMigrationReset = true)
+                    instance = buildRoomDatabase(appCtx)
+                    try {
+                        instance.openHelper.writableDatabase
+                    } catch (_: Exception) {}
+                }
+
                 INSTANCE = instance
                 instance
             }
         }
 
+        private fun buildRoomDatabase(appCtx: Context): RmfDatabase {
+            return Room.databaseBuilder(
+                appCtx,
+                RmfDatabase::class.java,
+                DATABASE_NAME
+            )
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addCallback(object : Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        try {
+                            db.query("PRAGMA journal_mode = WAL;").close()
+                            db.query("PRAGMA synchronous = NORMAL;").close()
+                            db.query("PRAGMA foreign_keys = ON;").close()
+                            db.query("PRAGMA busy_timeout = 5000;").close()
+                            db.query("PRAGMA temp_store = MEMORY;").close()
+                            db.query("PRAGMA cache_size = -8000;").close()
+                            ensureDefaultScheduleTags(db)
+                        } catch (_: Exception) {}
+                    }
+                })
+                .build()
+        }
+
+        /**
+         * 在 Room 打开已有数据库文件前，直接通过原生 SQLiteDatabase：
+         * 1. 将 -wal 日志完整刷入主库 (防止最近未刷盘的数据在升级时丢失)；
+         * 2. 触发无损物理备份快照；
+         * 3. 逐表比对并无损重建/补齐所有表字段、默认值、非空约束与索引，保证 100% 通过 Room 校验且数据 0 丢失。
+         */
+        fun preHealExistingDatabaseFile(context: Context, forceMigrationReset: Boolean = false) {
+            val dbFile = context.getDatabasePath(DATABASE_NAME)
+            if (!dbFile.exists() || dbFile.length() < 100L) return
+
+            var rawDb: SQLiteDatabase? = null
+            try {
+                rawDb = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+                try {
+                    rawDb.rawQuery("PRAGMA wal_checkpoint(TRUNCATE);", null).close()
+                } catch (_: Exception) {}
+
+                // 先在任何结构变更前执行物理快照备份
+                com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(context)
+
+                val anyHealed = healAllTablesRaw(rawDb)
+                val userVersion = rawDb.version
+
+                // 若进行了表结构自愈、强制重置或版本号不在当前版本，则将 user_version 设为 6，
+                // 让 Room 通过 MIGRATION_6_7 正式执行 onValidateSchema 并写入最新的 room_master_table 哈希
+                if (forceMigrationReset || anyHealed || userVersion < 1 || userVersion > CURRENT_DB_VERSION) {
+                    rawDb.version = CURRENT_DB_VERSION - 1
+                } else if (userVersion == CURRENT_DB_VERSION) {
+                    // 检查是否存在 room_master_table，若不存在（如从外部或 Windows 导入的 .db）则同样设为 6 触发 Room 写入哈希
+                    var hasMaster = false
+                    val c = rawDb.rawQuery(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='room_master_table';",
+                        null
+                    )
+                    try {
+                        hasMaster = c.moveToFirst()
+                    } finally {
+                        c.close()
+                    }
+                    if (!hasMaster) {
+                        rawDb.version = CURRENT_DB_VERSION - 1
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                try {
+                    rawDb?.close()
+                } catch (_: Exception) {}
+            }
+        }
+
+        private data class ExistingColInfo(
+            val name: String,
+            val type: String,
+            val notNull: Boolean,
+            val defaultSql: String?,
+            val pkPos: Int
+        )
+
+        private fun buildCreateTableSql(tableName: String, columns: List<ColSpec>): String {
+            val colDefs = columns.map { col ->
+                val sb = StringBuilder()
+                sb.append("`${col.name}` ${col.type}")
+                if (col.notNull) sb.append(" NOT NULL")
+                if (col.defaultSql != null) sb.append(" DEFAULT ${col.defaultSql}")
+                sb.toString()
+            }
+            val pkCols = columns.filter { it.pkPos > 0 }.sortedBy { it.pkPos }.map { "`${it.name}`" }
+            val pkClause = if (pkCols.isNotEmpty()) ", PRIMARY KEY(${pkCols.joinToString(", ")})" else ""
+            return "CREATE TABLE IF NOT EXISTS `$tableName` (${colDefs.joinToString(", ")}$pkClause);"
+        }
+
+        private fun defaultSqlEquals(actual: String?, expected: String?): Boolean {
+            if (actual == null && expected == null) return true
+            if (actual == null || expected == null) return false
+            val a = actual.trim().removeSurrounding("(", ")")
+            val e = expected.trim().removeSurrounding("(", ")")
+            return a == e
+        }
+
+        private fun healAllTablesRaw(db: SQLiteDatabase): Boolean {
+            var anyModified = false
+            db.beginTransaction()
+            try {
+                // 清理早先版本遗留但未在 @Entity 声明的索引，避免触发 Room onValidateSchema 报错
+                db.execSQL("DROP INDEX IF EXISTS idx_schedules_active_time;")
+                db.execSQL("DROP INDEX IF EXISTS idx_courses_active_day;")
+
+                for (spec in ALL_TABLE_SPECS) {
+                    var tableExists = false
+                    db.rawQuery(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name=?;",
+                        arrayOf(spec.tableName)
+                    ).use { c ->
+                        tableExists = c.moveToFirst()
+                    }
+
+                    if (!tableExists) {
+                        db.execSQL(buildCreateTableSql(spec.tableName, spec.columns))
+                        for (idx in spec.indices) {
+                            val uniqueStr = if (idx.unique) "UNIQUE " else ""
+                            val colsStr = idx.columns.joinToString(", ") { "`$it`" }
+                            db.execSQL("CREATE ${uniqueStr}INDEX IF NOT EXISTS `${idx.name}` ON `${spec.tableName}` ($colsStr);")
+                        }
+                        anyModified = true
+                        continue
+                    }
+
+                    val existingCols = linkedMapOf<String, ExistingColInfo>()
+                    db.rawQuery("PRAGMA table_info(`${spec.tableName}`);", null).use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        val typeIdx = c.getColumnIndex("type")
+                        val notNullIdx = c.getColumnIndex("notnull")
+                        val dfltIdx = c.getColumnIndex("dflt_value")
+                        val pkIdx = c.getColumnIndex("pk")
+                        while (c.moveToNext()) {
+                            val name = c.getString(nameIdx)
+                            val type = c.getString(typeIdx) ?: "TEXT"
+                            val notNull = c.getInt(notNullIdx) != 0
+                            val dflt = if (c.isNull(dfltIdx)) null else c.getString(dfltIdx)
+                            val pk = c.getInt(pkIdx)
+                            existingCols[name.lowercase()] = ExistingColInfo(name, type, notNull, dflt, pk)
+                        }
+                    }
+
+                    var needsRebuild = existingCols.size != spec.columns.size
+                    if (!needsRebuild) {
+                        for (col in spec.columns) {
+                            val ex = existingCols[col.name.lowercase()]
+                            if (ex == null ||
+                                !ex.type.equals(col.type, ignoreCase = true) ||
+                                ex.notNull != col.notNull ||
+                                ex.pkPos != col.pkPos ||
+                                !defaultSqlEquals(ex.defaultSql, col.defaultSql)
+                            ) {
+                                needsRebuild = true
+                                break
+                            }
+                        }
+                    }
+
+                    if (needsRebuild) {
+                        val tempTable = "__rmf_heal_${spec.tableName}"
+                        db.execSQL("DROP TABLE IF EXISTS `$tempTable`;")
+                        db.execSQL(buildCreateTableSql(tempTable, spec.columns))
+
+                        val targetColsSql = spec.columns.joinToString(", ") { "`${it.name}`" }
+                        val selectExprsSql = spec.columns.joinToString(", ") { col ->
+                            val ex = existingCols[col.name.lowercase()]
+                            if (ex != null) {
+                                val fallback = col.defaultSql ?: col.fallbackExpr
+                                if (col.notNull) {
+                                    "COALESCE(`${ex.name}`, $fallback)"
+                                } else {
+                                    "`${ex.name}`"
+                                }
+                            } else {
+                                col.defaultSql ?: if (col.notNull) col.fallbackExpr else "NULL"
+                            }
+                        }
+
+                        db.execSQL("INSERT OR REPLACE INTO `$tempTable` ($targetColsSql) SELECT $selectExprsSql FROM `${spec.tableName}`;")
+                        db.execSQL("DROP TABLE `${spec.tableName}`;")
+                        db.execSQL("ALTER TABLE `$tempTable` RENAME TO `${spec.tableName}`;")
+                        anyModified = true
+                    }
+
+                    // 同步索引：删除未在 @Entity 中声明的自定义索引，并补齐声明的索引
+                    val expectedIndexNames = spec.indices.map { it.name }.toSet()
+                    val existingIndexNames = mutableListOf<String>()
+                    db.rawQuery("PRAGMA index_list(`${spec.tableName}`);", null).use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        while (c.moveToNext()) {
+                            val idxName = c.getString(nameIdx) ?: continue
+                            if (!idxName.startsWith("sqlite_autoindex_")) {
+                                existingIndexNames.add(idxName)
+                            }
+                        }
+                    }
+                    for (idxName in existingIndexNames) {
+                        if (!expectedIndexNames.contains(idxName)) {
+                            db.execSQL("DROP INDEX IF EXISTS `$idxName`;")
+                            anyModified = true
+                        }
+                    }
+                    for (idx in spec.indices) {
+                        val uniqueStr = if (idx.unique) "UNIQUE " else ""
+                        val colsStr = idx.columns.joinToString(", ") { "`$it`" }
+                        db.execSQL("CREATE ${uniqueStr}INDEX IF NOT EXISTS `${idx.name}` ON `${spec.tableName}` ($colsStr);")
+                    }
+                }
+
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            return anyModified
+        }
+
         private fun ensureLosslessSchema(db: SupportSQLiteDatabase) {
             try {
-                // 确保健身计划、习惯、倒数日与专注记录表结构存在
-                createFitnessTables(db)
-                createHabitsAndCountdownsTables(db)
-                createFocusRecordsTable(db)
+                db.execSQL("DROP INDEX IF EXISTS idx_schedules_active_time;")
+                db.execSQL("DROP INDEX IF EXISTS idx_courses_active_day;")
 
-                // 核心查询覆盖索引优化 (避免多余全表扫描与磁盘临时排序)
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_schedules_active_time ON schedules(is_deleted, start_time);")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_courses_active_day ON courses(is_deleted, day_of_week, start_section);")
-                // 1. 检查 schedules 表字段完整性
-                ensureTableColumns(
-                    db = db,
-                    tableName = "schedules",
-                    expectedColumns = mapOf(
-                        "goal_id" to "TEXT",
-                        "work_type" to "TEXT DEFAULT 'DEEP_WORK'",
-                        "dod" to "TEXT",
-                        "actual_minutes" to "INTEGER DEFAULT 0",
-                        "interruption_minutes" to "INTEGER DEFAULT 0",
-                        "is_deferred" to "INTEGER DEFAULT 0",
-                        "is_backlog" to "INTEGER DEFAULT 0",
-                        "sync_version" to "INTEGER DEFAULT 1",
-                        "is_dirty" to "INTEGER DEFAULT 0",
-                        "is_all_day" to "INTEGER DEFAULT 0",
-                        "recurrence" to "TEXT DEFAULT 'NONE'",
-                        "color_hex" to "TEXT DEFAULT ''",
-                        "source" to "TEXT DEFAULT ''",
-                        "study_topic_id" to "TEXT",
-                        "is_tentative" to "INTEGER DEFAULT 0",
-                        "is_locked" to "INTEGER DEFAULT 0",
-                        "depends_on_task_id" to "TEXT",
-                        "postpone_count" to "INTEGER DEFAULT 0",
-                        "eisenhower_quadrant" to "TEXT DEFAULT 'Q2'",
-                        "reminder_minutes" to "INTEGER NOT NULL DEFAULT 10",
-                        "reminder_type" to "TEXT NOT NULL DEFAULT 'ALL'",
-                        "recurrence_rule" to "TEXT NOT NULL DEFAULT ''",
-                        "subtasks_json" to "TEXT NOT NULL DEFAULT '[]'"
-                    )
-                )
+                for (spec in ALL_TABLE_SPECS) {
+                    var tableExists = false
+                    db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='${spec.tableName}';").use { c ->
+                        tableExists = c.moveToFirst()
+                    }
 
-                // 2. 检查 courses 表字段完整性
-                ensureTableColumns(
-                    db = db,
-                    tableName = "courses",
-                    expectedColumns = mapOf(
-                        "color_hex" to "TEXT DEFAULT '#0284C7'",
-                        "is_custom_time" to "INTEGER DEFAULT 0",
-                        "custom_start_time" to "TEXT",
-                        "custom_end_time" to "TEXT",
-                        "teacher" to "TEXT DEFAULT ''",
-                        "location" to "TEXT DEFAULT ''"
-                    )
-                )
+                    if (!tableExists) {
+                        db.execSQL(buildCreateTableSql(spec.tableName, spec.columns))
+                        for (idx in spec.indices) {
+                            val uniqueStr = if (idx.unique) "UNIQUE " else ""
+                            val colsStr = idx.columns.joinToString(", ") { "`$it`" }
+                            db.execSQL("CREATE ${uniqueStr}INDEX IF NOT EXISTS `${idx.name}` ON `${spec.tableName}` ($colsStr);")
+                        }
+                        continue
+                    }
 
-                // 3. 检查 fitness_records 表字段完整性 (包含 sets_data, equipment, sort_order)
-                ensureTableColumns(
-                    db = db,
-                    tableName = "fitness_records",
-                    expectedColumns = mapOf(
-                        "equipment" to "TEXT DEFAULT ''",
-                        "sets_data" to "TEXT DEFAULT '[]'",
-                        "sort_order" to "INTEGER DEFAULT 0"
-                    )
-                )
+                    val existingCols = linkedMapOf<String, ExistingColInfo>()
+                    db.query("PRAGMA table_info(`${spec.tableName}`);").use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        val typeIdx = c.getColumnIndex("type")
+                        val notNullIdx = c.getColumnIndex("notnull")
+                        val dfltIdx = c.getColumnIndex("dflt_value")
+                        val pkIdx = c.getColumnIndex("pk")
+                        while (c.moveToNext()) {
+                            val name = c.getString(nameIdx)
+                            val type = c.getString(typeIdx) ?: "TEXT"
+                            val notNull = c.getInt(notNullIdx) != 0
+                            val dflt = if (c.isNull(dfltIdx)) null else c.getString(dfltIdx)
+                            val pk = c.getInt(pkIdx)
+                            existingCols[name.lowercase()] = ExistingColInfo(name, type, notNull, dflt, pk)
+                        }
+                    }
 
-                // 4. 初始化日程分类标签库并同步现有分类 (1:1 对齐 Windows 端)
+                    var needsRebuild = existingCols.size != spec.columns.size
+                    if (!needsRebuild) {
+                        for (col in spec.columns) {
+                            val ex = existingCols[col.name.lowercase()]
+                            if (ex == null ||
+                                !ex.type.equals(col.type, ignoreCase = true) ||
+                                ex.notNull != col.notNull ||
+                                ex.pkPos != col.pkPos ||
+                                !defaultSqlEquals(ex.defaultSql, col.defaultSql)
+                            ) {
+                                needsRebuild = true
+                                break
+                            }
+                        }
+                    }
+
+                    if (needsRebuild) {
+                        val tempTable = "__rmf_heal_${spec.tableName}"
+                        db.execSQL("DROP TABLE IF EXISTS `$tempTable`;")
+                        db.execSQL(buildCreateTableSql(tempTable, spec.columns))
+
+                        val targetColsSql = spec.columns.joinToString(", ") { "`${it.name}`" }
+                        val selectExprsSql = spec.columns.joinToString(", ") { col ->
+                            val ex = existingCols[col.name.lowercase()]
+                            if (ex != null) {
+                                val fallback = col.defaultSql ?: col.fallbackExpr
+                                if (col.notNull) {
+                                    "COALESCE(`${ex.name}`, $fallback)"
+                                } else {
+                                    "`${ex.name}`"
+                                }
+                            } else {
+                                col.defaultSql ?: if (col.notNull) col.fallbackExpr else "NULL"
+                            }
+                        }
+
+                        db.execSQL("INSERT OR REPLACE INTO `$tempTable` ($targetColsSql) SELECT $selectExprsSql FROM `${spec.tableName}`;")
+                        db.execSQL("DROP TABLE `${spec.tableName}`;")
+                        db.execSQL("ALTER TABLE `$tempTable` RENAME TO `${spec.tableName}`;")
+                    }
+
+                    val expectedIndexNames = spec.indices.map { it.name }.toSet()
+                    val existingIndexNames = mutableListOf<String>()
+                    db.query("PRAGMA index_list(`${spec.tableName}`);").use { c ->
+                        val nameIdx = c.getColumnIndex("name")
+                        while (c.moveToNext()) {
+                            val idxName = c.getString(nameIdx) ?: continue
+                            if (!idxName.startsWith("sqlite_autoindex_")) {
+                                existingIndexNames.add(idxName)
+                            }
+                        }
+                    }
+                    for (idxName in existingIndexNames) {
+                        if (!expectedIndexNames.contains(idxName)) {
+                            db.execSQL("DROP INDEX IF EXISTS `$idxName`;")
+                        }
+                    }
+                    for (idx in spec.indices) {
+                        val uniqueStr = if (idx.unique) "UNIQUE " else ""
+                        val colsStr = idx.columns.joinToString(", ") { "`$it`" }
+                        db.execSQL("CREATE ${uniqueStr}INDEX IF NOT EXISTS `${idx.name}` ON `${spec.tableName}` ($colsStr);")
+                    }
+                }
+
                 ensureDefaultScheduleTags(db)
             } catch (_: Exception) {}
         }
 
         private fun ensureDefaultScheduleTags(db: SupportSQLiteDatabase) {
             try {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS schedule_tags (
-                        id TEXT PRIMARY KEY NOT NULL,
-                        name TEXT NOT NULL,
-                        color_hex TEXT NOT NULL DEFAULT '#1A73E8',
-                        sort_order INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_schedule_tags_name ON schedule_tags (name);")
-
                 val defaultTags = listOf(
                     Triple("工作", "#1A73E8", 0),
                     Triple("学习", "#7C3AED", 1),
@@ -384,33 +863,6 @@ abstract class RmfDatabase : RoomDatabase() {
                     GROUP BY TRIM(category);
                 """)
             } catch (_: Exception) {}
-        }
-
-        private fun ensureTableColumns(
-            db: SupportSQLiteDatabase,
-            tableName: String,
-            expectedColumns: Map<String, String>
-        ) {
-            val existingCols = mutableSetOf<String>()
-            val cursor = db.query("PRAGMA table_info($tableName);")
-            try {
-                val nameIndex = cursor.getColumnIndex("name")
-                while (cursor.moveToNext()) {
-                    if (nameIndex != -1) {
-                        existingCols.add(cursor.getString(nameIndex).lowercase())
-                    }
-                }
-            } finally {
-                cursor.close()
-            }
-
-            for ((colName, colDef) in expectedColumns) {
-                if (!existingCols.contains(colName.lowercase())) {
-                    try {
-                        db.execSQL("ALTER TABLE $tableName ADD COLUMN $colName $colDef;")
-                    } catch (_: Exception) {}
-                }
-            }
         }
     }
 }

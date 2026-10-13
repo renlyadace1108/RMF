@@ -152,7 +152,7 @@ object LosslessUpgradeManager {
             try {
                 database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
             } catch (_: Exception) {}
-            database.close()
+            RmfDatabase.resetInstance()
 
             val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
             // 先将当前可能损坏的文件保存为 rollback
@@ -169,6 +169,9 @@ object LosslessUpgradeManager {
             File(targetDbFile.path + "-wal").delete()
             File(targetDbFile.path + "-shm").delete()
             rollbackFile.delete()
+
+            // 立即对恢复后的旧版或跨端数据库文件执行无损表结构对齐自愈
+            RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
 
             Result.success(Unit)
         } catch (e: Exception) {

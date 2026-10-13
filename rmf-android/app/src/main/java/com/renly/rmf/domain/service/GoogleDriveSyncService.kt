@@ -339,8 +339,11 @@ class GoogleDriveSyncService(
                 targetDbFile.copyTo(backupFile, overwrite = true)
             }
 
-            // 关闭当前数据库连接
-            database.close()
+            // 关闭当前数据库连接并重置单例
+            try {
+                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+            } catch (_: Exception) {}
+            RmfDatabase.resetInstance()
 
             // 替换主数据库文件
             tempFile.copyTo(targetDbFile, overwrite = true)
@@ -349,6 +352,9 @@ class GoogleDriveSyncService(
             // 清理 WAL 临时文件
             java.io.File(targetDbFile.path + "-wal").delete()
             java.io.File(targetDbFile.path + "-shm").delete()
+
+            // 对拉取下来的云端/旧版数据库执行无损表结构对齐自愈
+            RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
 
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)

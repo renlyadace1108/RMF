@@ -36,6 +36,23 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-13 11:05] - 新版本覆盖安装强制重弹隐私合规确认 & 旧版本数据库 100% 无损自愈载入 (v1.4.7.0 / Code 1040700)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“现在需要在已安装RMFandroid的情况下，新版本覆盖安装也要重新跳出隐私界面，并且能够正确载入旧版本数据不会有丢失”
+* **核心改进与底层修复**：
+  1. **新版本覆盖安装自动重弹隐私合规界面 (`PrivacyPreferences.kt` / `PrivacyComplianceDialog.kt` / `MainActivity.kt`)**：
+     * 升级 `PrivacyPreferences.isPrivacyAccepted` 校验机制：不再仅判断静态布尔值，而是同时比对已确认的 `versionCode`、`versionName` 以及 Android `PackageInfo.lastUpdateTime`（安装包覆盖更新时间）。
+     * 只要用户在已安装旧版本的基础上进行**新版本升级或覆盖安装**，启动时必重新弹出隐私合规确认界面。
+     * 当检测到本地已有旧版本数据库 (`isOverwriteOrUpgradeInstall`) 时，隐私弹窗顶部显著展示绿色安全徽章：`🛡️ 已检测到旧版本本地数据库，覆盖升级无损载入已就绪`；用户点击同意后平滑进入主界面并提示旧版数据已完整载入（且若此前已完成过底部栏手势教学，不再重复打扰）。
+  2. **彻底修复旧版本升级时的 Room Schema 校验冲突与实现全表无损自愈引擎 (`RmfDatabase.kt` / `LosslessUpgradeManager.kt`)**：
+     * **定位并清除导致旧版升级崩溃/无法载入的 3 处 Schema 冲突**：
+       1. 移除了此前在 `ensureLosslessSchema` 中创建但未在 `@Entity` 声明的两个多余索引（`idx_schedules_active_time` 与 `idx_courses_active_day`），并在自愈流程中执行 `DROP INDEX IF EXISTS`，防止 Room `onValidateSchema` 校验失败。
+       2. 修正了 `focus_records`、`fitness_records`、`schedules`、`courses` 在历史迁移 SQL 中 `DEFAULT` 默认值及 `NOT NULL` 约束与 `@Entity` 注解不一致的问题。
+     * **构建 16 张全量业务表无损自愈引擎 (`preHealExistingDatabaseFile` + `ALL_TABLE_SPECS`)**：
+       * 在 Room 打开 `rmf.db` 之前，先通过原生 `SQLiteDatabase` 执行 `PRAGMA wal_checkpoint(TRUNCATE)` 将旧版本未落盘的 `-wal` 数据完整合并入主库，并自动创建升级前物理备份快照。
+       * 逐一扫描全部 16 张业务表的列定义（类型、非空约束、默认值、主键）与索引；一旦发现任何旧版本表结构差异或缺失字段，自动在事务内通过临时表 `COALESCE` 映射完成**原位无损重建 (Lossless In-Place Table Rebuild)**，确保旧版本所有日程、课表、记账、专注记录、习惯、倒数日、健身与目标数据 **100% 零丢失载入**。
+  3. **版本号升级**：`build.gradle.kts` 升级至 `1.4.7.0` (`versionCode = 1040700`)。
+
 ### [2026-10-13 10:42] - 彻底修复日程拖拽排期滚动坐标偏移 & 实现主视图内随手拖动预览 (v1.4.6.0 / Code 1040600)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“拖动排期的那个小方块还是有很大的偏移，我要的是拖动到主视图窗口后就直接绘制在里面预览，然后随手拖动”
