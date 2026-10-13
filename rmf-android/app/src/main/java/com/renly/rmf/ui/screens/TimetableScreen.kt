@@ -5,6 +5,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -210,54 +214,13 @@ fun TimetableScreen(
                         }
                     }
                     Text(
-                        text = "课表实时映射至日程 · 开学 ${semesterStartDate.monthValue}月${semesterStartDate.dayOfMonth}日 (${totalWeeks}周)",
+                        text = "课表实时映射至日程 · 开学 ${semesterStartDate.monthValue}月${semesterStartDate.dayOfMonth}日 (${totalWeeks}周) · 双指捏合缩放",
                         fontSize = 12.sp,
                         color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
                     )
-                }
-
-                // 课表网格/字体缩放调节胶囊 (－ / 100% / ＋)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.height(30.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    ) {
-                        Text(
-                            text = "－",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextSecondary,
-                            modifier = Modifier
-                                .clickable { timetableZoomFactor = (timetableZoomFactor - 0.1f).coerceIn(0.8f, 1.4f) }
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                        Text(
-                            text = "${(timetableZoomFactor * 100).toInt()}%",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = DopamineCyan,
-                            modifier = Modifier
-                                .clickable { timetableZoomFactor = 1.0f }
-                                .padding(horizontal = 2.dp)
-                        )
-                        Text(
-                            text = "＋",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextSecondary,
-                            modifier = Modifier
-                                .clickable { timetableZoomFactor = (timetableZoomFactor + 0.1f).coerceIn(0.8f, 1.4f) }
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                    }
                 }
             }
 
@@ -445,13 +408,14 @@ fun TimetableScreen(
             }
 
             if (isGridView) {
-                // 🔲 浅灰色网格视图 (7 列 x 12 节，包含真实浅灰色网格线与自由缩放)
+                // 🔲 浅灰色网格视图 (7 列 x 12 节，包含真实浅灰色网格线与双指捏合无极缩放)
                 WeekTimetableGrid(
                     mondayDate = mondayDate,
                     daysOfWeek = daysOfWeek,
                     weekCourses = weekCourses,
                     sectionTimes = sectionTimes,
                     zoomFactor = timetableZoomFactor,
+                    onZoomChange = { newZoom -> timetableZoomFactor = newZoom },
                     onCourseClick = { course -> selectedCourseDetail = course },
                     onCellClick = { day, sec ->
                         addCourseInitialDay = day
@@ -1631,9 +1595,12 @@ fun WeekTimetableGrid(
     weekCourses: List<CourseEntity>,
     sectionTimes: Map<Int, Pair<String, String>>,
     zoomFactor: Float = 1.0f,
+    onZoomChange: (Float) -> Unit = {},
     onCourseClick: (CourseEntity) -> Unit,
     onCellClick: (dayOfWeek: Int, startSection: Int) -> Unit
 ) {
+    val currentZoom by rememberUpdatedState(zoomFactor)
+    val currentOnZoomChange by rememberUpdatedState(onZoomChange)
     val sectionHeight = (60f * zoomFactor).dp
     val totalHeight = sectionHeight * 12
     val isDark = LocalAppColors.current.isDark
@@ -1701,10 +1668,25 @@ fun WeekTimetableGrid(
             }
         }
 
-        // 2. 纵向滚动的节次与网格矩阵
+        // 2. 纵向滚动的节次与网格矩阵（支持双指捏合无极缩放）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val event = awaitPointerEvent()
+                            if (event.changes.count { it.pressed } >= 2) {
+                                val zoomChange = event.calculateZoom()
+                                if (zoomChange != 1f && zoomChange > 0f) {
+                                    currentOnZoomChange((currentZoom * zoomChange).coerceIn(0.65f, 1.8f))
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
                 .verticalScroll(rememberScrollState())
                 .height(totalHeight)
         ) {

@@ -9,6 +9,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -336,7 +340,22 @@ fun FitnessScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 14.dp)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val event = awaitPointerEvent()
+                            if (event.changes.count { it.pressed } >= 2) {
+                                val zoomChange = event.calculateZoom()
+                                if (zoomChange != 1f && zoomChange > 0f) {
+                                    fitnessZoomFactor = (fitnessZoomFactor * zoomChange).coerceIn(0.84f, 1.25f)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                },
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 0. 顶部标题与快捷操作栏（无返回箭头，支持自由缩放与模版/日程联动）
@@ -487,57 +506,11 @@ fun FitnessScreen(
                             }
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        IconButton(
+                            onClick = { selectedDate = selectedDate.plusDays(1) },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            // 紧凑字号/视图缩放胶囊 (－ / 100% / ＋)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = DarkSurface,
-                                border = BorderStroke(1.dp, DarkBorder),
-                                modifier = Modifier.height(28.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "－",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextSecondary,
-                                        modifier = Modifier
-                                            .clickable { fitnessZoomFactor = (fitnessZoomFactor - 0.08f).coerceIn(0.84f, 1.24f) }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                    Text(
-                                        text = "${(fitnessZoomFactor * 100).toInt()}%",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = DopamineCyan,
-                                        modifier = Modifier
-                                            .clickable { fitnessZoomFactor = 1.0f }
-                                            .padding(horizontal = 2.dp)
-                                    )
-                                    Text(
-                                        text = "＋",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextSecondary,
-                                        modifier = Modifier
-                                            .clickable { fitnessZoomFactor = (fitnessZoomFactor + 0.08f).coerceIn(0.84f, 1.24f) }
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-
-                            IconButton(
-                                onClick = { selectedDate = selectedDate.plusDays(1) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Default.ChevronRight, contentDescription = "后一天", tint = TextPrimary, modifier = Modifier.size(20.dp))
-                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = "后一天", tint = TextPrimary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

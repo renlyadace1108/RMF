@@ -36,6 +36,19 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-13 14:38] - 课程表网格与日程天/周网格全面升级为双指捏合无极缩放并移除缩放按钮 (v1.4.9.4 / Code 1040904)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“课表网格日常网格放大都双指放大缩小，不要那个缩放的按钮”
+* **核心改进**：
+  1. **全面移除 `－ / 100% / ＋` 缩放按钮**：
+     * 从日程页（[`ScheduleScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt)）的周视图（[`ScheduleWeekGridView`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt#L1185-L1225)）与天视图（[`ScheduleDayGridView`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt#L2188-L2210)）顶部控制条中彻底移除缩放按钮胶囊。
+     * 从课程表页（[`TimetableScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/TimetableScreen.kt)）顶部标题行及健身页（[`FitnessScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/FitnessScreen.kt)）日期栏右侧彻底移除缩放按钮胶囊，使界面更加简洁清爽。
+  2. **原生双指捏合无极缩放 (`awaitEachGesture` + `calculateZoom`)**：
+     * **日程周视图网格 ([`ScheduleWeekGridView`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt#L1462-L1486)) & 天视图网格 ([`ScheduleDayGridView`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt#L2252-L2282))**：在 24 小时时间轴滚动容器上挂载多点触控手势监听，仅当检测到 `>= 2` 指同时按下时拦截并计算 `calculateZoom()`，在 `0.6x ~ 2.5x` 范围内丝滑无极缩放小时行高，与单指上下滚动、单击新建、长按拖拽移时/拉伸时长完全无冲突。
+     * **课程表网格 ([`WeekTimetableGrid`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/TimetableScreen.kt#L1667-L1690))**：在 7 列 × 12 节课程矩阵上支持双指捏合无极缩放（`0.65x ~ 1.8x`），实时动态调整每节课高度与课程卡片字号。
+     * **健身规划页 ([`FitnessScreen`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/FitnessScreen.kt#L340-L360))**：同样支持双指捏合调整页面密度（`0.84x ~ 1.25x`），无需额外按钮。
+  3. **版本升级**：`versionName` 升至 `1.4.9.4`，`versionCode` 升至 `1040904`。
+
 ### [2026-10-13 14:26] - 全页面字体清晰度恢复、自由缩放控制与嵌套状态栏留白统一修复 (v1.4.9.3 / Code 1040903)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“字有点小现在检查所有页面的现实和缩放这些”

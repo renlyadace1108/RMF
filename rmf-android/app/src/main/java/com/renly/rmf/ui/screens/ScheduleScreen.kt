@@ -38,6 +38,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -1219,44 +1220,6 @@ fun ScheduleWeekGridView(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 放大 / 缩小视图缩放控制器
-                Surface(
-                    onClick = { weekZoomFactor = (weekZoomFactor - 0.2f).coerceAtLeast(0.6f) },
-                    shape = RoundedCornerShape(6.dp),
-                    color = DarkCard,
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.size(26.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("－", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    }
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Surface(
-                    onClick = { weekZoomFactor = 1.0f },
-                    shape = RoundedCornerShape(6.dp),
-                    color = DarkCard,
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.height(26.dp).padding(horizontal = 2.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
-                        Text("${(weekZoomFactor * 100).roundToInt()}%", fontSize = 10.sp, color = TextSecondary)
-                    }
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Surface(
-                    onClick = { weekZoomFactor = (weekZoomFactor + 0.2f).coerceAtMost(2.5f) },
-                    shape = RoundedCornerShape(6.dp),
-                    color = DarkCard,
-                    border = BorderStroke(1.dp, DarkBorder),
-                    modifier = Modifier.size(26.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("＋", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    }
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-
                 Surface(
                     onClick = { onSelectDate(LocalDate.now()) },
                     shape = RoundedCornerShape(6.dp),
@@ -1496,13 +1459,28 @@ fun ScheduleWeekGridView(
 
                     HorizontalDivider(color = DarkBorder.copy(alpha = 0.5f), thickness = 0.8.dp)
 
-                    // 24 小时纵向滚动网格
+                    // 24 小时纵向滚动网格（支持双指捏合无极缩放）
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .onGloballyPositioned { coords ->
                                 weekGridRootY = coords.positionInRoot().y
                                 weekGridRootX = coords.positionInRoot().x
+                            }
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.count { it.pressed } >= 2) {
+                                            val zoomChange = event.calculateZoom()
+                                            if (zoomChange != 1f && zoomChange > 0f) {
+                                                weekZoomFactor = (weekZoomFactor * zoomChange).coerceIn(0.6f, 2.5f)
+                                                event.changes.forEach { it.consume() }
+                                            }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
                             }
                             .verticalScroll(verticalScrollState)
                     ) {
@@ -2207,7 +2185,7 @@ fun ScheduleDayGridView(
             }
         }
 
-        // 快捷操作提示与缩放控制条
+        // 快捷操作提示条
         Surface(
             shape = RoundedCornerShape(6.dp),
             color = DarkCard.copy(alpha = 0.6f),
@@ -2217,64 +2195,23 @@ fun ScheduleDayGridView(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Text("💡", fontSize = 9.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "长按框选 · 拖拽移时 · 拉伸时长",
-                        fontSize = 8.5.sp,
-                        color = TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        onClick = { dayZoomFactor = (dayZoomFactor - 0.2f).coerceAtLeast(0.6f) },
-                        shape = RoundedCornerShape(4.dp),
-                        color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("－", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Surface(
-                        onClick = { dayZoomFactor = 1.0f },
-                        shape = RoundedCornerShape(4.dp),
-                        color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
-                        modifier = Modifier.height(20.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
-                            Text("${(dayZoomFactor * 100).roundToInt()}%", fontSize = 8.5.sp, color = TextSecondary)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Surface(
-                        onClick = { dayZoomFactor = (dayZoomFactor + 0.2f).coerceAtMost(2.5f) },
-                        shape = RoundedCornerShape(4.dp),
-                        color = DarkSurface,
-                        border = BorderStroke(1.dp, DarkBorder),
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("＋", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        }
-                    }
-                }
+                Text("💡", fontSize = 9.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "长按框选 · 拖拽移时 · 拉伸时长 · 双指捏合缩放",
+                    fontSize = 8.5.sp,
+                    color = TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(1.dp))
 
-        // 3. 24 小时时间轴轨道
+        // 3. 24 小时时间轴轨道（支持双指捏合无极缩放）
         Surface(
             shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
             color = DarkSurface,
@@ -2286,6 +2223,21 @@ fun ScheduleDayGridView(
                     .fillMaxSize()
                     .onGloballyPositioned { coords ->
                         timelineYInRoot = coords.positionInRoot().y
+                    }
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.count { it.pressed } >= 2) {
+                                    val zoomChange = event.calculateZoom()
+                                    if (zoomChange != 1f && zoomChange > 0f) {
+                                        dayZoomFactor = (dayZoomFactor * zoomChange).coerceIn(0.6f, 2.5f)
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
                     }
                     .verticalScroll(verticalScrollState)
             ) {
