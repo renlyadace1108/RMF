@@ -178,6 +178,8 @@ object TimetablePreferences {
         return if (active == 1) getTerm1Weeks(context) else getTerm2Weeks(context)
     }
 
+    fun getSemesterTotalWeeks(context: Context): Int = getTotalWeeks(context)
+
     fun setTotalWeeks(context: Context, weeks: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val active = getActiveSemester(context)
