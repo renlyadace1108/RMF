@@ -92,8 +92,16 @@ fun FocusScreen(
         allSchedules.find { it.id == boundScheduleId }
     }
 
-    var customMinutes by remember { mutableIntStateOf(25) }
+    var selectedHours by remember { mutableIntStateOf(0) }
+    var selectedMinutes by remember { mutableIntStateOf(25) }
+    var selectedSeconds by remember { mutableIntStateOf(0) }
     var presets by remember { mutableStateOf(FocusPreferences.getPresets(context)) }
+
+    fun applyPresetMinutes(totalMins: Int) {
+        selectedHours = (totalMins / 60).coerceIn(0, 12)
+        selectedMinutes = (totalMins % 60).coerceIn(0, 59)
+        selectedSeconds = 0
+    }
 
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var showEventPickerModal by remember { mutableStateOf(false) }
@@ -101,12 +109,20 @@ fun FocusScreen(
     var showHistoryDialog by remember { mutableStateOf(false) }
 
     val isRunning = liveRunning
-    val currentRemainingSeconds = if (isRunning) liveSeconds else (customMinutes * 60)
-    val maxSeconds = if (isRunning) maxOf(1, initialSeconds) else maxOf(1, customMinutes * 60)
+    val isPausedMidSession = !isRunning && liveSeconds > 0 && liveSeconds < initialSeconds
+    val configuredTotalSeconds = (selectedHours * 3600 + selectedMinutes * 60 + selectedSeconds).coerceAtLeast(1)
+    val currentRemainingSeconds = if (isRunning || isPausedMidSession) liveSeconds else configuredTotalSeconds
+    val maxSeconds = if (isRunning || isPausedMidSession) maxOf(1, initialSeconds) else maxOf(1, configuredTotalSeconds)
 
-    val minutes = currentRemainingSeconds / 60
-    val seconds = currentRemainingSeconds % 60
-    val timeFormatted = "%02d:%02d".format(minutes, seconds)
+    val displayHours = currentRemainingSeconds / 3600
+    val displayMinutes = (currentRemainingSeconds % 3600) / 60
+    val displaySeconds = currentRemainingSeconds % 60
+    val timeFormatted = "%02d:%02d:%02d".format(displayHours, displayMinutes, displaySeconds)
+    val pipTimeFormatted = if (displayHours > 0) {
+        "%02d:%02d:%02d".format(displayHours, displayMinutes, displaySeconds)
+    } else {
+        "%02d:%02d".format(displayMinutes, displaySeconds)
+    }
     val progress = ((maxSeconds - currentRemainingSeconds).toFloat() / maxSeconds.toFloat()).coerceIn(0f, 1f)
 
     // ==========================================
@@ -114,7 +130,7 @@ fun FocusScreen(
     // ==========================================
     if (isInPip) {
         FocusPipCapsule(
-            timeFormatted = timeFormatted,
+            timeFormatted = pipTimeFormatted,
             taskTitle = if (isRunning) liveTitle else (boundSchedule?.title ?: "深度专注"),
             isRunning = isRunning,
             onTogglePlay = {
@@ -346,50 +362,15 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 时间滑动滚轮状态 (1分钟精度，与表盘中央时钟数字融为一体)
-        val minutesList = remember { (1..360).toList() }
-        val itemHeight = 44.dp
-        val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
-        val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-        val flingBehavior = rememberSnapFlingBehavior(lazyListState = wheelListState)
-        val isPausedMidSession = !isRunning && liveSeconds > 0 && liveSeconds < initialSeconds
+        // 时·分·秒 三列独立滑动滚轮配置
+        val hoursList = remember { (0..12).toList() }
+        val minsSecsList = remember { (0..59).toList() }
+        val itemHeight = 38.dp
 
-        val centerWheelIndex by remember {
-            derivedStateOf {
-                val layoutInfo = wheelListState.layoutInfo
-                if (layoutInfo.visibleItemsInfo.isEmpty()) {
-                    wheelListState.firstVisibleItemIndex
-                } else {
-                    val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
-                    layoutInfo.visibleItemsInfo.minByOrNull { item ->
-                        kotlin.math.abs((item.offset + item.size / 2) - viewportCenter)
-                    }?.index ?: wheelListState.firstVisibleItemIndex
-                }
-            }
-        }
-
-        LaunchedEffect(centerWheelIndex, wheelListState.isScrollInProgress) {
-            if (wheelListState.isScrollInProgress) {
-                val selectedMins = minutesList[centerWheelIndex.coerceIn(0, minutesList.lastIndex)]
-                if (selectedMins != customMinutes) {
-                    customMinutes = selectedMins
-                }
-            }
-        }
-
-        LaunchedEffect(customMinutes) {
-            if (!wheelListState.isScrollInProgress) {
-                val targetIdx = minutesList.indexOf(customMinutes)
-                if (targetIdx >= 0 && targetIdx != centerWheelIndex) {
-                    wheelListState.animateScrollToItem(targetIdx)
-                }
-            }
-        }
-
-        // 3. 拟物环形双层发光倒计时表盘（时钟数字与1分钟微调滚轮合二为一）
+        // 3. 拟物环形双层发光倒计时表盘（时 : 分 : 秒 三列滚轮合为一体）
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(240.dp)
+            modifier = Modifier.size(246.dp)
         ) {
             CircularProgressIndicator(
                 progress = { 1f },
@@ -409,77 +390,113 @@ fun FocusScreen(
                 if (isRunning || isPausedMidSession) {
                     Text(
                         text = timeFormatted,
-                        fontSize = 48.sp,
+                        fontSize = 36.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary,
-                        letterSpacing = (-1).sp
+                        letterSpacing = (-0.5).sp
                     )
                 } else {
-                    // 表盘中央一体化数字滚轮：直接上下拨动时钟数字即可1分钟精度调时
+                    // 顶部 时 / 分 / 秒 微型标签
+                    Row(
+                        modifier = Modifier.width(174.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("时", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("分", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("秒", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // 表盘中央：时 : 分 : 秒 三个独立滚轮并排组合
                     Box(
                         modifier = Modifier
-                            .width(172.dp)
+                            .width(178.dp)
                             .height(itemHeight * 3),
                         contentAlignment = Alignment.Center
                     ) {
-                        // 中央选中行微光上下刻度线
+                        // 中央选中行高亮胶囊框
                         Box(
                             modifier = Modifier
-                                .width(124.dp)
-                                .height(itemHeight + 4.dp)
+                                .width(174.dp)
+                                .height(itemHeight + 2.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(DopamineCyan.copy(alpha = 0.08f))
+                                .background(DopamineCyan.copy(alpha = 0.10f))
                                 .border(
                                     width = 1.dp,
-                                    color = DopamineCyan.copy(alpha = 0.28f),
+                                    color = DopamineCyan.copy(alpha = 0.32f),
                                     shape = RoundedCornerShape(12.dp)
                                 )
                         )
 
-                        LazyColumn(
-                            state = wheelListState,
-                            flingBehavior = flingBehavior,
-                            contentPadding = PaddingValues(vertical = itemHeight),
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(minutesList) { mins ->
-                                val isCurrentSelected = mins == customMinutes
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(itemHeight)
-                                        .clickable {
-                                            customMinutes = mins
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "%02d:00".format(mins),
-                                        fontSize = if (isCurrentSelected) 40.sp else 17.sp,
-                                        fontWeight = if (isCurrentSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                        color = if (isCurrentSelected) TextPrimary else TextMuted.copy(alpha = 0.45f),
-                                        letterSpacing = if (isCurrentSelected) (-1).sp else 0.sp
-                                    )
-                                }
-                            }
-                        }
+                            // 时 (00..12)
+                            DialTimeUnitWheel(
+                                values = hoursList,
+                                selectedValue = selectedHours,
+                                onValueChange = { h ->
+                                    selectedHours = h
+                                    if (h == 0 && selectedMinutes == 0 && selectedSeconds == 0) {
+                                        selectedMinutes = 1
+                                    }
+                                },
+                                itemHeight = itemHeight,
+                                modifier = Modifier.width(50.dp)
+                            )
 
-                        // 顶部与底部渐隐遮罩，让滚轮自然融入表盘内部背景
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(itemHeight * 0.85f)
-                                .align(Alignment.TopCenter)
-                                .background(Brush.verticalGradient(listOf(DarkBg, Color.Transparent)))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(itemHeight * 0.85f)
-                                .align(Alignment.BottomCenter)
-                                .background(Brush.verticalGradient(listOf(Color.Transparent, DarkBg)))
-                        )
+                            Text(
+                                text = ":",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TextPrimary,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+
+                            // 分 (00..59)
+                            DialTimeUnitWheel(
+                                values = minsSecsList,
+                                selectedValue = selectedMinutes,
+                                onValueChange = { m ->
+                                    selectedMinutes = m
+                                    if (selectedHours == 0 && m == 0 && selectedSeconds == 0) {
+                                        selectedSeconds = 30
+                                    }
+                                },
+                                itemHeight = itemHeight,
+                                modifier = Modifier.width(50.dp)
+                            )
+
+                            Text(
+                                text = ":",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TextPrimary,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            )
+
+                            // 秒 (00..59)
+                            DialTimeUnitWheel(
+                                values = minsSecsList,
+                                selectedValue = selectedSeconds,
+                                onValueChange = { s ->
+                                    if (selectedHours == 0 && selectedMinutes == 0 && s == 0) {
+                                        selectedMinutes = 1
+                                        selectedSeconds = 0
+                                    } else {
+                                        selectedSeconds = s
+                                    }
+                                },
+                                itemHeight = itemHeight,
+                                modifier = Modifier.width(50.dp)
+                            )
+                        }
                     }
                 }
 
@@ -492,9 +509,9 @@ fun FocusScreen(
                         text = when {
                             isRunning -> "● 深度心流中"
                             isPausedMidSession -> "⏸ 已暂停"
-                            else -> "↕ 滑动数字调时 · 准备就绪"
+                            else -> "↕ 滑动时·分·秒调时"
                         },
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = when {
                             isRunning -> DopamineGreen
@@ -540,13 +557,13 @@ fun FocusScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(presets) { preset ->
-                        val isSelected = customMinutes == preset.minutes
+                        val isSelected = (selectedHours * 60 + selectedMinutes == preset.minutes && selectedSeconds == 0)
                         Surface(
                             onClick = {
                                 if (isPausedMidSession) {
                                     FocusLiveService.stop(context)
                                 }
-                                customMinutes = preset.minutes
+                                applyPresetMinutes(preset.minutes)
                             },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkCard,
@@ -606,7 +623,7 @@ fun FocusScreen(
                         FocusLiveService.pause(context)
                     } else {
                         val title = boundSchedule?.title ?: "深度专注"
-                        val secs = if (liveSeconds > 0 && liveSeconds < customMinutes * 60) liveSeconds else customMinutes * 60
+                        val secs = if (isPausedMidSession) liveSeconds else configuredTotalSeconds
                         FocusLiveService.start(
                             context = context,
                             title = title,
@@ -808,7 +825,7 @@ fun FocusScreen(
                         val n = presetName.trim().ifBlank { "${m}分钟专注" }
                         FocusPreferences.addPreset(context, n, m, presetIcon)
                         presets = FocusPreferences.getPresets(context)
-                        customMinutes = m
+                        applyPresetMinutes(m)
                         showAddPresetDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan)
@@ -1344,3 +1361,76 @@ fun RecordInterruptionDialog(
         }
     )
 }
+
+@Composable
+private fun DialTimeUnitWheel(
+    values: List<Int>,
+    selectedValue: Int,
+    onValueChange: (Int) -> Unit,
+    itemHeight: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier
+) {
+    val initialIdx = remember { values.indexOf(selectedValue).coerceAtLeast(0) }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIdx)
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+
+    val centerIndex by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            if (layoutInfo.visibleItemsInfo.isEmpty()) {
+                listState.firstVisibleItemIndex
+            } else {
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                layoutInfo.visibleItemsInfo.minByOrNull { item ->
+                    kotlin.math.abs((item.offset + item.size / 2) - viewportCenter)
+                }?.index ?: listState.firstVisibleItemIndex
+            }
+        }
+    }
+
+    LaunchedEffect(centerIndex, listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            val currentVal = values[centerIndex.coerceIn(0, values.lastIndex)]
+            if (currentVal != selectedValue) {
+                onValueChange(currentVal)
+            }
+        }
+    }
+
+    LaunchedEffect(selectedValue) {
+        if (!listState.isScrollInProgress) {
+            val targetIdx = values.indexOf(selectedValue)
+            if (targetIdx >= 0 && targetIdx != centerIndex) {
+                listState.animateScrollToItem(targetIdx)
+            }
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        flingBehavior = flingBehavior,
+        contentPadding = PaddingValues(vertical = itemHeight),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.height(itemHeight * 3)
+    ) {
+        items(values) { v ->
+            val isSelected = v == selectedValue
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(itemHeight)
+                    .clickable { onValueChange(v) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "%02d".format(v),
+                    fontSize = if (isSelected) 28.sp else 15.sp,
+                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    color = if (isSelected) TextPrimary else TextMuted.copy(alpha = 0.38f),
+                    letterSpacing = (-0.5).sp
+                )
+            }
+        }
+    }
+}
+
