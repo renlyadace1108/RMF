@@ -34,6 +34,12 @@ interface ScheduleDao {
     @Query("UPDATE schedules SET status = :status, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateStatus(id: String, status: String, updatedAt: String)
 
+    @Query("SELECT * FROM schedules WHERE source = 'TIMETABLE_SYNC'")
+    suspend fun getTimetableSyncedSchedules(): List<ScheduleEntity>
+
+    @Query("DELETE FROM schedules WHERE source = 'TIMETABLE_SYNC' OR (source = '' AND title LIKE '🎓 %' AND description LIKE '地点:%')")
+    suspend fun deleteAllTimetableSyncedSchedules()
+
     @Query("SELECT * FROM schedules")
     suspend fun getAllRawSchedules(): List<ScheduleEntity>
 }

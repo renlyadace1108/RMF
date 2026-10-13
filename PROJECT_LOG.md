@@ -36,6 +36,21 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-13 11:15] - 课程表首次使用强制配置开学日期、无年份双学期设置 & 全学期课表实时映射到日程 (v1.4.8.0 / Code 1040800)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“首次使用课程表强制用户配置开学日期，删除年，配置第一学期和第二学期的开学日期还有学期周数，然后填写的课表实时映射到日程”
+* **核心功能与改进**：
+  1. **首次进入课程表强制引导配置开学日期 (`TimetablePreferences.kt` / `TimetableScreen.kt`)**：
+     * 新增 `TimetablePreferences.isSemesterConfigured` 持久化标识；首次进入课程表界面时，系统自动弹出不可关闭（禁用返回键与遮罩点击、隐藏取消按钮）的学期初始化配置弹窗，强制用户完成第一/第二学期开学日期与周数配置后方可开始排课。
+  2. **移除“年份”输入，重构第一学期 & 第二学期双学期配置体系 (`TimetablePreferences.kt` / `TimetableScreen.kt`)**：
+     * 彻底移除学期设置弹窗中的「开学年」输入框，内置 `resolveStartDateWithoutYear(month, day, totalWeeks)` 智能学年推导算法（自动兼容跨年第一学期如 9 月至次年 1 月，以及春季第二学期）。
+     * 在设置弹窗中独立提供 **🍂 第一学期（秋季）** 与 **🌱 第二学期（春季）** 专属配置卡片，分别支持设置「开学月」、「开学日」与「学期总周数 (1~30 周)」，并支持一键切换当前激活学期。
+     * 手动新增课程弹窗 (`AddCourseDialog`) 默认结课周自动对齐当前学期的总周数，并提供起始周、结束周与单双周（全周/单周/双周）快捷配置。
+  3. **填写的课表全学期实时映射到日程 (`TimetableProjectionService.kt` / `ScheduleDao.kt` / `MainActivity.kt`)**：
+     * 新增 `TimetableProjectionService.syncAllToSchedule` 实时全学期映射引擎：将当前激活学期第 `1..totalWeeks` 周的所有排课（含单双周、起止周过滤及调休停课/改期/补课变更）自动映射为 `schedules` 表中的日程时间块（带确定性 ID `tt_t{term}_w{week}_{date}_{courseId}_{HHmm}` 与 `source = "TIMETABLE_SYNC"`）。
+     * 无论是**新增课程、删除课程、教务导入课表、添加/撤销调停课，还是修改第一/第二学期开学日期与周数**，均会在毫秒级内全自动重算并实时同步到日程视图（同时完整保留用户已打卡完成的 `"COMPLETED"` 状态）。
+  4. **版本号升级**：`build.gradle.kts` 升级至 `1.4.8.0` (`versionCode = 1040800`)。
+
 ### [2026-10-13 11:05] - 新版本覆盖安装强制重弹隐私合规确认 & 旧版本数据库 100% 无损自愈载入 (v1.4.7.0 / Code 1040700)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“现在需要在已安装RMFandroid的情况下，新版本覆盖安装也要重新跳出隐私界面，并且能够正确载入旧版本数据不会有丢失”

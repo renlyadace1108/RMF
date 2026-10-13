@@ -1,10 +1,13 @@
 package com.renly.rmf.domain.service
 
+import android.content.Context
 import com.renly.rmf.data.local.dao.CourseDao
+import com.renly.rmf.data.local.dao.ScheduleDao
 import com.renly.rmf.data.local.entity.CourseAdjustmentEntity
 import com.renly.rmf.data.local.entity.CourseEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
-import java.time.DayOfWeek
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -42,10 +45,11 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
     )
 
     /**
-     * 计算指定日期属于学期的第几周
+     * 计算指定日期属于学期的第几周（统一以开学日期所在周的周一作为第1周起点）
      */
     fun calculateWeekNumber(date: LocalDate, semesterStartDate: LocalDate): Int {
-        val days = ChronoUnit.DAYS.between(semesterStartDate, date)
+        val alignedMonday = semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+        val days = ChronoUnit.DAYS.between(alignedMonday, date)
         if (days < 0) return 0
         return (days / 7).toInt() + 1
     }
@@ -62,31 +66,44 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
 
         val allCourses = courseDao.getAllCoursesList()
         val adjustments = courseDao.getAdjustmentsForWeekList(weekNumber)
+        return projectSlotsForDay(
+            targetDate = targetDate,
+            weekNumber = weekNumber,
+            allCourses = allCourses,
+            weekAdjustments = adjustments
+        )
+    }
 
+    private fun projectSlotsForDay(
+        targetDate: LocalDate,
+        weekNumber: Int,
+        allCourses: List<CourseEntity>,
+        weekAdjustments: List<CourseAdjustmentEntity>
+    ): List<ProjectedCourseSlot> {
         val dayOfWeekInt = targetDate.dayOfWeek.value // 1 = Monday, 7 = Sunday
         val isOddWeek = (weekNumber % 2 != 0)
-
         val result = mutableListOf<ProjectedCourseSlot>()
 
         // 1. 遍历基准课程
         for (course in allCourses) {
-            // 校验周次范围
             if (weekNumber < course.startWeek || weekNumber > course.endWeek) continue
-
-            // 校验单双周
             if (course.weekType == "ODD" && !isOddWeek) continue
             if (course.weekType == "EVEN" && isOddWeek) continue
 
-            // 检查当前课程在当周是否有微调
-            val adj = adjustments.find { it.courseId == course.id }
+            val adj = weekAdjustments.find { it.courseId == course.id }
             if (adj != null) {
                 if (adj.adjustmentType == "CANCEL") {
-                    // 本周该课程停课，跳过
                     continue
                 } else if (adj.adjustmentType == "RESCHEDULE") {
-                    // 调课：检查新安排是否在今天
                     if (adj.newDayOfWeek == dayOfWeekInt) {
-                        val times = calculateTimes(targetDate, adj.isCustomTime == 1, adj.customStartTime, adj.customEndTime, adj.newStartSection, adj.sectionSpan)
+                        val times = calculateTimes(
+                            targetDate,
+                            adj.isCustomTime == 1,
+                            adj.customStartTime,
+                            adj.customEndTime,
+                            adj.newStartSection,
+                            adj.sectionSpan
+                        )
                         result.add(
                             ProjectedCourseSlot(
                                 courseId = course.id,
@@ -97,7 +114,7 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
                                 endTime = times.second,
                                 colorHex = course.colorHex,
                                 isAdjusted = true,
-                                adjustmentReason = "已调课: ${adj.reason}"
+                                adjustmentReason = if (adj.reason.isNotBlank()) "已调课: ${adj.reason}" else "已调课"
                             )
                         )
                     }
@@ -105,9 +122,15 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
                 }
             }
 
-            // 正常基准课程在今天
             if (course.dayOfWeek == dayOfWeekInt) {
-                val times = calculateTimes(targetDate, course.isCustomTime == 1, course.customStartTime, course.customEndTime, course.startSection, course.sectionSpan)
+                val times = calculateTimes(
+                    targetDate,
+                    course.isCustomTime == 1,
+                    course.customStartTime,
+                    course.customEndTime,
+                    course.startSection,
+                    course.sectionSpan
+                )
                 result.add(
                     ProjectedCourseSlot(
                         courseId = course.id,
@@ -124,9 +147,16 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
         }
 
         // 2. 检查是否有针对当天的独立加课 (ADD)
-        val addedCourses = adjustments.filter { it.adjustmentType == "ADD" && it.newDayOfWeek == dayOfWeekInt }
+        val addedCourses = weekAdjustments.filter { it.adjustmentType == "ADD" && it.newDayOfWeek == dayOfWeekInt }
         for (addAdj in addedCourses) {
-            val times = calculateTimes(targetDate, addAdj.isCustomTime == 1, addAdj.customStartTime, addAdj.customEndTime, addAdj.newStartSection, addAdj.sectionSpan)
+            val times = calculateTimes(
+                targetDate,
+                addAdj.isCustomTime == 1,
+                addAdj.customStartTime,
+                addAdj.customEndTime,
+                addAdj.newStartSection,
+                addAdj.sectionSpan
+            )
             result.add(
                 ProjectedCourseSlot(
                     courseId = addAdj.id,
@@ -135,14 +165,95 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
                     location = addAdj.newLocation,
                     startTime = times.first,
                     endTime = times.second,
-                    colorHex = "#10B981", // 绿色标注临时加课
+                    colorHex = "#10B981",
                     isAdjusted = true,
-                    adjustmentReason = "临时加课: ${addAdj.reason}"
+                    adjustmentReason = if (addAdj.reason.isNotBlank()) "临时加课: ${addAdj.reason}" else "临时加课"
                 )
             )
         }
 
         return result.sortedBy { it.startTime }
+    }
+
+    /**
+     * 将整个学期的课表（含单双周、起止周、调停课）实时全量映射同步至日程表 (schedules)
+     * 任何新增课程、删除课程、AI 截图导入、调停课或修改开学日期/周数都会实时触发此同步
+     */
+    suspend fun syncSemesterTimetableToSchedules(
+        context: Context,
+        scheduleDao: ScheduleDao
+    ): Int = withContext(Dispatchers.IO) {
+        val semesterStart = TimetablePreferences.getSemesterStartDate(context)
+        val totalWeeks = TimetablePreferences.getTotalWeeks(context).coerceIn(1, 30)
+        val activeTerm = TimetablePreferences.getActiveSemester(context)
+        val alignedMonday = semesterStart.minusDays((semesterStart.dayOfWeek.value - 1).toLong())
+
+        val allCourses = courseDao.getAllCoursesList()
+        val allAdjustments = courseDao.getAllRawAdjustments().filter { it.isDeleted == 0 }
+        val adjustmentsByWeek = allAdjustments.groupBy { it.targetWeek }
+
+        // 保留用户已手动勾选完成的课程日程状态
+        val existingSynced = scheduleDao.getTimetableSyncedSchedules()
+        val completedIds = existingSynced.filter { it.status == "COMPLETED" }.map { it.id }.toSet()
+
+        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+        val mappedSchedules = mutableListOf<ScheduleEntity>()
+
+        if (allCourses.isNotEmpty() || allAdjustments.isNotEmpty()) {
+            for (week in 1..totalWeeks) {
+                val weekMonday = alignedMonday.plusWeeks((week - 1).toLong())
+                val weekAdjs = adjustmentsByWeek[week] ?: emptyList()
+
+                for (dayOffset in 0..6) {
+                    val targetDate = weekMonday.plusDays(dayOffset.toLong())
+                    val slots = projectSlotsForDay(
+                        targetDate = targetDate,
+                        weekNumber = week,
+                        allCourses = allCourses,
+                        weekAdjustments = weekAdjs
+                    )
+                    for (slot in slots) {
+                        val timeKey = slot.startTime.format(DateTimeFormatter.ofPattern("HHmm"))
+                        val deterministicId = "tt_t${activeTerm}_w${week}_${targetDate}_${slot.courseId}_$timeKey"
+                        val mins = ChronoUnit.MINUTES.between(slot.startTime, slot.endTime).toInt().coerceAtLeast(15)
+                        val metaParts = mutableListOf("第${week}周")
+                        if (slot.location.isNotBlank()) metaParts.add("地点: ${slot.location}")
+                        if (slot.teacher.isNotBlank()) metaParts.add("教师: ${slot.teacher}")
+                        if (slot.isAdjusted && slot.adjustmentReason.isNotBlank()) metaParts.add(slot.adjustmentReason)
+
+                        mappedSchedules.add(
+                            ScheduleEntity(
+                                id = deterministicId,
+                                title = "🎓 ${slot.name}",
+                                description = metaParts.joinToString(" | "),
+                                workType = "DEEP_WORK",
+                                category = "学习",
+                                colorHex = slot.colorHex,
+                                estimatedMinutes = mins,
+                                startTime = slot.startTime.format(DateTimeFormatter.ISO_DATE_TIME),
+                                endTime = slot.endTime.format(DateTimeFormatter.ISO_DATE_TIME),
+                                status = if (completedIds.contains(deterministicId)) "COMPLETED" else "PENDING",
+                                reminderMinutes = if (TimetablePreferences.isCourseReminderEnabled(context)) {
+                                    TimetablePreferences.getReminderAdvanceMinutes(context)
+                                } else {
+                                    -1
+                                },
+                                source = "TIMETABLE_SYNC",
+                                isDeleted = 0,
+                                createdAt = nowStr,
+                                updatedAt = nowStr
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        scheduleDao.deleteAllTimetableSyncedSchedules()
+        if (mappedSchedules.isNotEmpty()) {
+            scheduleDao.insertAll(mappedSchedules)
+        }
+        mappedSchedules.size
     }
 
     private fun calculateTimes(
@@ -154,8 +265,16 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
         span: Int
     ): Pair<LocalDateTime, LocalDateTime> {
         if (isCustomTime && !customStart.isNullOrBlank() && !customEnd.isNullOrBlank()) {
-            val sTime = LocalTime.parse(customStart, DateTimeFormatter.ofPattern("HH:mm"))
-            val eTime = LocalTime.parse(customEnd, DateTimeFormatter.ofPattern("HH:mm"))
+            val sTime = try {
+                LocalTime.parse(customStart, DateTimeFormatter.ofPattern("HH:mm"))
+            } catch (_: Exception) {
+                LocalTime.of(8, 0)
+            }
+            val eTime = try {
+                LocalTime.parse(customEnd, DateTimeFormatter.ofPattern("HH:mm"))
+            } catch (_: Exception) {
+                LocalTime.of(9, 40)
+            }
             return Pair(LocalDateTime.of(date, sTime), LocalDateTime.of(date, eTime))
         }
 
@@ -166,5 +285,16 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
         val sTime = LocalTime.parse(startStr, DateTimeFormatter.ofPattern("HH:mm"))
         val eTime = LocalTime.parse(endStr, DateTimeFormatter.ofPattern("HH:mm"))
         return Pair(LocalDateTime.of(date, sTime), LocalDateTime.of(date, eTime))
+    }
+
+    companion object {
+        suspend fun syncAllToSchedule(
+            context: Context,
+            courseDao: CourseDao,
+            scheduleDao: ScheduleDao
+        ): Int {
+            val service = TimetableProjectionService(courseDao)
+            return service.syncSemesterTimetableToSchedules(context, scheduleDao)
+        }
     }
 }

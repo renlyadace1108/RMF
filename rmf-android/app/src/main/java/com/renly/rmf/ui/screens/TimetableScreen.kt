@@ -57,6 +57,8 @@ fun TimetableScreen(
     val courses by coursesFlow.collectAsState(initial = emptyList())
     val adjustments by adjustmentsFlow.collectAsState(initial = emptyList())
 
+    var isSemesterConfigured by remember { mutableStateOf(TimetablePreferences.isSemesterConfigured(context)) }
+    var activeSemester by remember { mutableIntStateOf(TimetablePreferences.getActiveSemester(context)) }
     var semesterStartDate by remember { mutableStateOf(TimetablePreferences.getSemesterStartDate(context)) }
     var totalWeeks by remember { mutableIntStateOf(TimetablePreferences.getTotalWeeks(context)) }
 
@@ -98,16 +100,18 @@ fun TimetableScreen(
         }
     }
 
-    // 自动根据开学日期推算当前周次
-    val calculatedCurrentWeek = remember(semesterStartDate) {
-        val days = ChronoUnit.DAYS.between(semesterStartDate, LocalDate.now())
+    // 自动根据开学日期推算当前周次（以开学周周一对齐）
+    val calculatedCurrentWeek = remember(semesterStartDate, totalWeeks) {
+        val alignedMonday = semesterStartDate.minusDays((semesterStartDate.dayOfWeek.value - 1).toLong())
+        val days = ChronoUnit.DAYS.between(alignedMonday, LocalDate.now())
         if (days >= 0) ((days / 7).toInt() + 1).coerceIn(1, totalWeeks) else 1
     }
-    var currentWeek by remember { mutableIntStateOf(calculatedCurrentWeek) }
+    var currentWeek by remember(calculatedCurrentWeek) { mutableIntStateOf(calculatedCurrentWeek) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showAdjustmentDialog by remember { mutableStateOf(false) }
-    var showSettingsDialog by remember { mutableStateOf(false) }
+    // 首次进入课程表若尚未配置开学日期，强制弹出学期配置弹窗
+    var showSettingsDialog by remember { mutableStateOf(!isSemesterConfigured) }
     var selectedCourseDetail by remember { mutableStateOf<CourseEntity?>(null) }
     var isGridView by remember { mutableStateOf(true) } // 默认网格视图，画上浅灰色格子
     var addCourseInitialDay by remember { mutableIntStateOf(1) }
@@ -160,7 +164,7 @@ fun TimetableScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 1. 顶部 Header (当前周次 + 单双周 Badge + 电脑端核心弹窗: ⚡投影 / 🔄调停课 / ⚙️学期)
+            // 1. 顶部 Header (当前周次 + 学期/单双周 Badge + 核心操作按钮)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -173,7 +177,21 @@ fun TimetableScreen(
                             fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            onClick = { showSettingsDialog = true },
+                            color = DopamineBlue.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (activeSemester == 1) "第一学期" else "第二学期",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DopamineBlue,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             color = DopamineCyan.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(6.dp)
@@ -188,8 +206,8 @@ fun TimetableScreen(
                         }
                     }
                     Text(
-                        text = "学期课表动态映射与时间块对齐",
-                        fontSize = 12.sp,
+                        text = "课表实时映射至日程 · 开学 ${semesterStartDate.monthValue}月${semesterStartDate.dayOfMonth}日 (${totalWeeks}周)",
+                        fontSize = 11.5.sp,
                         color = TextSecondary,
                         modifier = Modifier.padding(top = 2.dp)
                     )
@@ -445,6 +463,7 @@ fun TimetableScreen(
             AddCourseDialog(
                 initialDay = addCourseInitialDay,
                 initialSection = addCourseInitialSection,
+                defaultEndWeek = totalWeeks,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { newCourse ->
                     onAddCourse(newCourse)
@@ -481,18 +500,23 @@ fun TimetableScreen(
             )
         }
 
-        // 学期课表参数设置弹窗 (TimetableSettingsModal)
+        // 学期课表参数设置弹窗 (TimetableSettingsModal - 首次使用强制配置第一/第二学期开学月日与周数)
         if (showSettingsDialog) {
             TimetableSettingsDialog(
-                currentStartDate = semesterStartDate,
-                currentTotalWeeks = totalWeeks,
-                onDismiss = { showSettingsDialog = false },
-                onSave = { newStart, newWeeks ->
+                isMandatoryFirstSetup = !isSemesterConfigured,
+                onDismiss = {
+                    if (isSemesterConfigured) {
+                        showSettingsDialog = false
+                    }
+                },
+                onSave = { newActiveSemester, newStart, newWeeks ->
+                    isSemesterConfigured = true
+                    activeSemester = newActiveSemester
                     semesterStartDate = newStart
                     totalWeeks = newWeeks
-                    TimetablePreferences.setSemesterStartDate(context, newStart)
-                    TimetablePreferences.setTotalWeeks(context, newWeeks)
                     showSettingsDialog = false
+                    // 保存学期配置后立即触发课表到日程的全学期实时映射
+                    onProjectToToday()
                 }
             )
         }
@@ -1045,81 +1069,271 @@ fun CourseAdjustmentDialog(
 }
 
 // -----------------------------------------------------------------------------------------
-// ⚙️ 电脑版 1:1 学期课表参数设置弹窗 (TimetableSettingsModal)
+// ⚙️ 学期课表参数设置弹窗 (无年份输入，支持第一学期/第二学期开学月日与周数配置 & 首次强制配置)
 // -----------------------------------------------------------------------------------------
 @Composable
 fun TimetableSettingsDialog(
-    currentStartDate: LocalDate,
-    currentTotalWeeks: Int,
+    isMandatoryFirstSetup: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (LocalDate, Int) -> Unit
+    onSave: (activeSemester: Int, resolvedStartDate: LocalDate, resolvedTotalWeeks: Int) -> Unit
 ) {
     val ctx = LocalContext.current
-    var year by remember { mutableIntStateOf(currentStartDate.year) }
-    var month by remember { mutableIntStateOf(currentStartDate.monthValue) }
-    var day by remember { mutableIntStateOf(currentStartDate.dayOfMonth) }
-    var weeks by remember { mutableIntStateOf(currentTotalWeeks) }
+    var activeSemester by remember { mutableIntStateOf(TimetablePreferences.getActiveSemester(ctx)) }
+
+    // 第一学期 (月、日、周数) —— 已删除“年”
+    var term1MonthText by remember { mutableStateOf(TimetablePreferences.getTerm1StartMonth(ctx).toString()) }
+    var term1DayText by remember { mutableStateOf(TimetablePreferences.getTerm1StartDay(ctx).toString()) }
+    var term1Weeks by remember { mutableIntStateOf(TimetablePreferences.getTerm1Weeks(ctx)) }
+
+    // 第二学期 (月、日、周数) —— 已删除“年”
+    var term2MonthText by remember { mutableStateOf(TimetablePreferences.getTerm2StartMonth(ctx).toString()) }
+    var term2DayText by remember { mutableStateOf(TimetablePreferences.getTerm2StartDay(ctx).toString()) }
+    var term2Weeks by remember { mutableIntStateOf(TimetablePreferences.getTerm2Weeks(ctx)) }
+
     var reminderEnabled by remember { mutableStateOf(TimetablePreferences.isCourseReminderEnabled(ctx)) }
     var advanceMins by remember { mutableIntStateOf(TimetablePreferences.getReminderAdvanceMinutes(ctx)) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!isMandatoryFirstSetup) {
+                onDismiss()
+            }
+        },
+        properties = androidx.compose.ui.window.DialogProperties(
+            dismissOnBackPress = !isMandatoryFirstSetup,
+            dismissOnClickOutside = !isMandatoryFirstSetup
+        ),
         containerColor = DarkCard,
-        title = { Text("⚙️ 学期课表参数配置", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("配置开学第一周周一的基准日期，系统将自动精确映射教学周：", fontSize = 11.5.sp, color = TextSecondary)
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = year.toString(),
-                        onValueChange = { year = it.toIntOrNull() ?: year },
-                        label = { Text("开学年") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DopamineCyan,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1.2f)
-                    )
-                    OutlinedTextField(
-                        value = month.toString(),
-                        onValueChange = { month = (it.toIntOrNull() ?: month).coerceIn(1, 12) },
-                        label = { Text("月") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DopamineCyan,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = day.toString(),
-                        onValueChange = { day = (it.toIntOrNull() ?: day).coerceIn(1, 31) },
-                        label = { Text("日") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DopamineCyan,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+        title = {
+            Column {
+                Text(
+                    text = if (isMandatoryFirstSetup) "🎓 首次使用课表 · 请配置学期参数" else "⚙️ 学期课表参数配置",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+                if (isMandatoryFirstSetup) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "首次使用课程表需完成第一、第二学期开学日期与周数配置，录入的课程将实时映射至日程表",
+                        color = DopamineCyan,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
                     )
                 }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "选择当前启用的学期，并配置第一学期与第二学期的开学日期（月/日）及周数：",
+                    fontSize = 11.5.sp,
+                    color = TextSecondary
+                )
 
-                Text("学期总周数: $weeks 周", fontSize = 12.sp, color = TextSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(16, 18, 20, 22).forEach { w ->
-                        FilterChip(
-                            selected = weeks == w,
-                            onClick = { weeks = w },
-                            label = { Text("${w}周", fontSize = 12.sp) }
-                        )
+                // 当前启用学期切换
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    listOf(1 to "🍂 第一学期 (当前)", 2 to "🌱 第二学期 (当前)").forEach { (termIdx, label) ->
+                        val isSelected = activeSemester == termIdx
+                        Surface(
+                            onClick = { activeSemester = termIdx },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkSurface,
+                            border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (isSelected) label else if (termIdx == 1) "🍂 第一学期" else "🌱 第二学期",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) DopamineCyan else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 1. 第一学期配置卡片 (仅月、日 + 学期周数)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(
+                        1.dp,
+                        if (activeSemester == 1) DopamineCyan.copy(alpha = 0.55f) else DarkBorder
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "🍂 第一学期开学日期",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeSemester == 1) DopamineCyan else TextPrimary
+                            )
+                            Text(
+                                text = "总周数: $term1Weeks 周",
+                                fontSize = 11.5.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = term1MonthText,
+                                onValueChange = { input ->
+                                    val digits = input.filter { it.isDigit() }.take(2)
+                                    term1MonthText = digits
+                                },
+                                label = { Text("开学月 (1-12)") },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DopamineCyan,
+                                    unfocusedBorderColor = DarkBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = term1DayText,
+                                onValueChange = { input ->
+                                    val digits = input.filter { it.isDigit() }.take(2)
+                                    term1DayText = digits
+                                },
+                                label = { Text("开学日 (1-31)") },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DopamineCyan,
+                                    unfocusedBorderColor = DarkBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(16, 18, 20, 22).forEach { w ->
+                                FilterChip(
+                                    selected = term1Weeks == w,
+                                    onClick = { term1Weeks = w },
+                                    label = { Text("${w}周", fontSize = 11.5.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 2. 第二学期配置卡片 (仅月、日 + 学期周数)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(
+                        1.dp,
+                        if (activeSemester == 2) DopamineCyan.copy(alpha = 0.55f) else DarkBorder
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "🌱 第二学期开学日期",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeSemester == 2) DopamineCyan else TextPrimary
+                            )
+                            Text(
+                                text = "总周数: $term2Weeks 周",
+                                fontSize = 11.5.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = term2MonthText,
+                                onValueChange = { input ->
+                                    val digits = input.filter { it.isDigit() }.take(2)
+                                    term2MonthText = digits
+                                },
+                                label = { Text("开学月 (1-12)") },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DopamineCyan,
+                                    unfocusedBorderColor = DarkBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = term2DayText,
+                                onValueChange = { input ->
+                                    val digits = input.filter { it.isDigit() }.take(2)
+                                    term2DayText = digits
+                                },
+                                label = { Text("开学日 (1-31)") },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = DopamineCyan,
+                                    unfocusedBorderColor = DarkBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(16, 18, 20, 22).forEach { w ->
+                                FilterChip(
+                                    selected = term2Weeks == w,
+                                    onClick = { term2Weeks = w },
+                                    label = { Text("${w}周", fontSize = 11.5.sp) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -1160,26 +1374,43 @@ fun TimetableSettingsDialog(
             }
         },
         confirmButton = {
-            val ctx = LocalContext.current
             Button(
-                    onClick = {
-                        TimetablePreferences.setCourseReminderEnabled(ctx, reminderEnabled)
-                        TimetablePreferences.setReminderAdvanceMinutes(ctx, advanceMins)
-                        try {
-                            val newDate = LocalDate.of(year, month, day.coerceAtMost(LocalDate.of(year, month, 1).lengthOfMonth()))
-                            onSave(newDate, weeks)
-                        } catch (_: Exception) {
-                            onSave(currentStartDate, weeks)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("保存设置", color = DarkBg, fontWeight = FontWeight.Bold)
-                }
+                onClick = {
+                    val t1M = (term1MonthText.toIntOrNull() ?: 9).coerceIn(1, 12)
+                    val t1D = (term1DayText.toIntOrNull() ?: 1).coerceIn(1, 31)
+                    val t2M = (term2MonthText.toIntOrNull() ?: 2).coerceIn(1, 12)
+                    val t2D = (term2DayText.toIntOrNull() ?: 24).coerceIn(1, 31)
+
+                    TimetablePreferences.setCourseReminderEnabled(ctx, reminderEnabled)
+                    TimetablePreferences.setReminderAdvanceMinutes(ctx, advanceMins)
+                    TimetablePreferences.saveDualSemesterConfig(
+                        context = ctx,
+                        activeSemester = activeSemester,
+                        term1Month = t1M,
+                        term1Day = t1D,
+                        term1Weeks = term1Weeks,
+                        term2Month = t2M,
+                        term2Day = t2D,
+                        term2Weeks = term2Weeks
+                    )
+                    val resolvedStart = TimetablePreferences.getSemesterStartDate(ctx)
+                    val resolvedWeeks = TimetablePreferences.getTotalWeeks(ctx)
+                    onSave(activeSemester, resolvedStart, resolvedWeeks)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = if (isMandatoryFirstSetup) "完成配置并开启课表" else "保存设置",
+                    color = DarkBg,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = TextSecondary) }
+            if (!isMandatoryFirstSetup) {
+                TextButton(onClick = onDismiss) { Text("取消", color = TextSecondary) }
+            }
         }
     )
 }
@@ -1189,6 +1420,7 @@ fun TimetableSettingsDialog(
 fun AddCourseDialog(
     initialDay: Int = 1,
     initialSection: Int = 1,
+    defaultEndWeek: Int = 20,
     onDismiss: () -> Unit,
     onConfirm: (CourseEntity) -> Unit
 ) {
@@ -1198,6 +1430,9 @@ fun AddCourseDialog(
     var dayOfWeek by remember(initialDay) { mutableIntStateOf(initialDay) }
     var startSection by remember(initialSection) { mutableIntStateOf(initialSection) }
     var sectionSpan by remember { mutableIntStateOf(2) }
+    var startWeek by remember { mutableIntStateOf(1) }
+    var endWeek by remember(defaultEndWeek) { mutableIntStateOf(defaultEndWeek) }
+    var weekType by remember { mutableStateOf("ALL") }
     var colorHex by remember { mutableStateOf("#38BDF8") }
 
     val daysOfWeek = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
@@ -1205,9 +1440,14 @@ fun AddCourseDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
-        title = { Text("录入学期课程", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        title = { Text("录入学期课程 (实时映射日程)", color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -1269,6 +1509,35 @@ fun AddCourseDialog(
                         IconButton(onClick = { if (startSection < 12) startSection++ }) { Text("▶", color = DopamineCyan) }
                     }
                 }
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("单次节数:", fontSize = 12.sp, color = TextSecondary)
+                    listOf(1, 2, 3, 4).forEach { span ->
+                        FilterChip(
+                            selected = sectionSpan == span,
+                            onClick = { sectionSpan = span },
+                            label = { Text("${span}节", fontSize = 11.sp) }
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("周次范围: 第 $startWeek - $endWeek 周", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+                    Row {
+                        IconButton(onClick = { if (endWeek > startWeek) endWeek-- }) { Text("-", color = DopamineCyan) }
+                        IconButton(onClick = { if (endWeek < 30) endWeek++ }) { Text("+", color = DopamineCyan) }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("ALL" to "每周", "ODD" to "单周", "EVEN" to "双周").forEach { (wType, label) ->
+                        FilterChip(
+                            selected = weekType == wType,
+                            onClick = { weekType = wType },
+                            label = { Text(label, fontSize = 11.sp) }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1283,9 +1552,9 @@ fun AddCourseDialog(
                             dayOfWeek = dayOfWeek,
                             startSection = startSection,
                             sectionSpan = sectionSpan,
-                            startWeek = 1,
-                            endWeek = 16,
-                            weekType = "ALL",
+                            startWeek = startWeek,
+                            endWeek = endWeek,
+                            weekType = weekType,
                             colorHex = colorHex,
                             createdAt = nowStr,
                             updatedAt = nowStr
@@ -1296,7 +1565,7 @@ fun AddCourseDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("录入课程", color = DarkBg, fontWeight = FontWeight.Bold)
+                Text("录入并同步日程", color = DarkBg, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

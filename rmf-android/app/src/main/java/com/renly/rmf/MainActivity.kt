@@ -296,10 +296,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         handleWidgetIntent(intent)
 
-        // 异步后台自动检查并排期未来课程的胶囊通知上课提醒 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
+        // 异步后台自动检查并排期未来课程的胶囊通知上课提醒与全学期课表日程实时映射 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
         if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
             checkAndRequestNotificationPermission()
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                if (com.renly.rmf.domain.service.TimetablePreferences.isSemesterConfigured(this@MainActivity)) {
+                    com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                        context = this@MainActivity,
+                        courseDao = db.courseDao(),
+                        scheduleDao = db.scheduleDao()
+                    )
+                }
                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                     context = this@MainActivity,
                     courseDao = db.courseDao(),
@@ -351,6 +358,13 @@ class MainActivity : ComponentActivity() {
                             }
                             checkAndRequestNotificationPermission()
                             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                if (com.renly.rmf.domain.service.TimetablePreferences.isSemesterConfigured(this@MainActivity)) {
+                                    com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                        context = this@MainActivity,
+                                        courseDao = db.courseDao(),
+                                        scheduleDao = db.scheduleDao()
+                                    )
+                                }
                                 com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                     context = this@MainActivity,
                                     courseDao = db.courseDao(),
@@ -652,83 +666,87 @@ class MainActivity : ComponentActivity() {
                                 onAddCourse = { course ->
                                     lifecycleScope.launch {
                                         db.courseDao().insertOrUpdateCourse(course)
+                                        val syncedCount = com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
                                         com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "课程已保存，胶囊通知上课提醒已就绪！", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "✓ 课程已保存，全学期（共 $syncedCount 节课）已实时映射到日程！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onDeleteCourse = { id ->
                                     lifecycleScope.launch {
                                         db.courseDao().softDeleteCourse(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
                                         com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
+                                        Toast.makeText(this@MainActivity, "课程已删除，日程映射已实时更新", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onAddAdjustment = { adj ->
                                     lifecycleScope.launch {
                                         db.courseDao().insertOrUpdateAdjustment(adj)
+                                        com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
                                         com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "已保存调停课，胶囊通知提醒已同步更新！", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "✓ 已保存调停课，日程与胶囊通知提醒已实时同步更新！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onDeleteAdjustment = { id ->
                                     lifecycleScope.launch {
                                         db.courseDao().softDeleteAdjustment(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
                                         com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "已撤销调停课记录", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "已撤销调停课记录，日程映射已实时恢复", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onProjectToToday = {
                                     lifecycleScope.launch {
-                                        val projectionService = com.renly.rmf.domain.service.TimetableProjectionService(db.courseDao())
-                                        val today = java.time.LocalDate.now()
-                                        val semesterStart = com.renly.rmf.domain.service.TimetablePreferences.getSemesterStartDate(this@MainActivity)
-                                        val projected = projectionService.getProjectedCoursesForDate(today, semesterStart)
-                                        if (projected.isEmpty()) {
-                                            Toast.makeText(this@MainActivity, "今日无排期课程可供投影", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            for (slot in projected) {
-                                                val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                                val startStr = slot.startTime.format(DateTimeFormatter.ISO_DATE_TIME)
-                                                val endStr = slot.endTime.format(DateTimeFormatter.ISO_DATE_TIME)
-                                                val mins = java.time.temporal.ChronoUnit.MINUTES.between(slot.startTime, slot.endTime).toInt()
-                                                val entity = ScheduleEntity(
-                                                    title = "🎓 ${slot.name}",
-                                                    description = "地点: ${slot.location} | 教师: ${slot.teacher}",
-                                                    workType = "DEEP_WORK",
-                                                    category = "STUDY",
-                                                    colorHex = slot.colorHex,
-                                                    estimatedMinutes = mins,
-                                                    startTime = startStr,
-                                                    endTime = endStr,
-                                                    createdAt = nowStr,
-                                                    updatedAt = nowStr
-                                                )
-                                                db.scheduleDao().insertOrUpdate(entity)
-                                                com.renly.rmf.domain.service.ScheduleReminderManager.scheduleReminder(
-                                                    context = this@MainActivity,
-                                                    scheduleId = entity.id,
-                                                    title = entity.title,
-                                                    startTimeStr = entity.startTime,
-                                                    advanceMinutes = 10
-                                                )
-                                            }
-                                            Toast.makeText(this@MainActivity, "已成功将今日 ${projected.size} 门课程投影到时间块！", Toast.LENGTH_SHORT).show()
-                                        }
+                                        val syncedCount = com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
+                                        com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            daysAhead = 7
+                                        )
+                                        val activeTerm = com.renly.rmf.domain.service.TimetablePreferences.getActiveSemester(this@MainActivity)
+                                        val totalWeeks = com.renly.rmf.domain.service.TimetablePreferences.getSemesterTotalWeeks(this@MainActivity)
+                                        val termLabel = if (activeTerm == 1) "第一学期" else "第二学期"
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "✓ $termLabel（共 $totalWeeks 周，$syncedCount 节课）已实时映射到日程！",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 },
                                 onImportCourses = { courses ->
@@ -736,12 +754,21 @@ class MainActivity : ComponentActivity() {
                                         courses.forEach { course ->
                                             db.courseDao().insertOrUpdateCourse(course)
                                         }
+                                        val syncedCount = com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
+                                            context = this@MainActivity,
+                                            courseDao = db.courseDao(),
+                                            scheduleDao = db.scheduleDao()
+                                        )
                                         com.renly.rmf.domain.service.CourseReminderScheduler.scheduleUpcomingCourseReminders(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
                                             daysAhead = 7
                                         )
-                                        Toast.makeText(this@MainActivity, "🎉 成功导入 ${courses.size} 门课程！", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "🎉 成功导入 ${courses.size} 门课程，全学期 $syncedCount 节课已实时映射到日程！",
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 }
                             )
