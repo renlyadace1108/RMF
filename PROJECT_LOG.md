@@ -36,6 +36,18 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-13 10:42] - 彻底修复日程拖拽排期滚动坐标偏移 & 实现主视图内随手拖动预览 (v1.4.6.0 / Code 1040600)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“拖动排期的那个小方块还是有很大的偏移，我要的是拖动到主视图窗口后就直接绘制在里面预览，然后随手拖动”
+* **核心根因与修复 (`ScheduleScreen.kt`)**：
+  1. **彻底修复 `verticalScroll` 导致的双倍滚动偏移 Bug**：
+     * **根因**：此前在 `DayGridView` 与 `WeekGridView` 中，`.onGloballyPositioned` 被放置在了 `.verticalScroll(verticalScrollState)` 之后。在 Jetpack Compose 中，位于 `.verticalScroll` 之后的修饰符处于已滚动的子坐标系内，导致 `coords.positionInRoot().y` 返回的是 `视口顶部Y - verticalScrollState.value`；而在计算手指相对高度时又叠加了一次 `+ verticalScrollState.value`，从而产生了双倍滚动量的巨大向下偏移（例如滚动在 10:00 时，手指在屏幕顶部却偏移到了 19:15）。
+     * **修复**：将 `DayGridView` 与 `WeekGridView` 的 `.onGloballyPositioned` 移至 `.verticalScroll(verticalScrollState)` **之前**，确保 `timelineYInRoot` 与 `weekGridRootY` 始终精确捕获固定视口顶部的 Root Y 坐标，彻底消除任何滚动位置下的偏移。
+  2. **拖入主视图窗口后直接在时间轴内绘制并随手 1:1 拖动预览**：
+     * 当手指将待办拖入下方主时间轴视图区域（`dropGlobalY >= timelineYInRoot` / `weekGridRootY`）时，自动隐藏顶部的独立小浮标（`✊ xxx 拖动中`），改为**直接在时间轴画布内部绘制完整的日程预览块**。
+     * 预览块以手指为中心（`blockTopDp = relDp - previewBlockH / 2f`）1:1 丝滑随手移动（无跳变卡顿），同时在块内实时计算并显示按 15 分钟对齐的排期时间段（如 `📍 10:15 - 11:15`），松手落点与预览位置 100% 严丝合缝。
+  3. **版本号升级**：`build.gradle.kts` 升级至 `1.4.6.0` (`versionCode = 1040600`)。
+
 ### [2026-10-12 22:00] - 记账模块全面支持删改与版本号升级 (v1.4.5.0 / Code 1040500)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“记账模块要支持删改，记得改版本号！！！”

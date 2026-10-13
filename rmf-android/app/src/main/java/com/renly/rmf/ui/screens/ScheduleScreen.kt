@@ -1126,15 +1126,17 @@ fun ScheduleWeekGridView(
         val currentScroll = verticalScrollState.value
         val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
         val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
-        if (dropGlobalY >= (weekGridRootY - 15f)) {
+        if (dropGlobalY >= weekGridRootY) {
             val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
             val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
             val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
             val targetDay = weekDates[colW]
 
             val relDp = relativeY / density.density
-            val totalMinutes = ((relDp / hourHeightDpValue) * 60f).roundToInt()
-            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+            val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
+            val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+            val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
             val dropHour = snappedMinutes / 60
             val dropMinute = snappedMinutes % 60
             val targetDt = targetDay.atTime(dropHour, dropMinute)
@@ -1498,11 +1500,11 @@ fun ScheduleWeekGridView(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(verticalScrollState)
                             .onGloballyPositioned { coords ->
                                 weekGridRootY = coords.positionInRoot().y
                                 weekGridRootX = coords.positionInRoot().x
                             }
+                            .verticalScroll(verticalScrollState)
                     ) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             // 时间刻度列
@@ -1635,39 +1637,56 @@ fun ScheduleWeekGridView(
                                     }
                                 }
 
-                                // 待办拖拽至周历的实时预览虚影 (Hover Preview Ghost on Week Column)
+                                // 待办拖拽至周历的实时预览虚影 (直接绘制在主视图内随手拖动预览)
                                 if (draggingBacklogItem != null) {
                                     val currentScroll = verticalScrollState.value
                                     val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
                                     val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
-                                    if (dropGlobalY >= (weekGridRootY - 15f)) {
+                                    if (dropGlobalY >= weekGridRootY) {
                                         val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
                                         val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
 
                                         val colW = (relativeX / dayColWidthPx).toInt().coerceIn(0, 6)
                                         val relDp = relativeY / density.density
-                                        val totalMinutes = ((relDp / hourHeightDpValue) * 60f).roundToInt()
-                                        val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+                                        val previewBlockH = (draggingBacklogItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
+                                        val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                                        val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+                                        val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - draggingBacklogItem!!.estimatedMinutes).coerceAtLeast(0))
                                         val previewHour = snappedMinutes / 60
                                         val previewMinute = snappedMinutes % 60
-                                        val previewTopY = previewHour * hourHeightDpValue + previewMinute * hourHeightDpValue / 60f
-                                        val previewBlockH = (draggingBacklogItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
+                                        val draggedColor = tagColorMap[draggingBacklogItem!!.category] ?: when (draggingBacklogItem!!.workType) {
+                                            "DEEP_WORK" -> DopamineBlue
+                                            "SHALLOW_WORK" -> DopamineAmber
+                                            "REST_BUFFER" -> DopamineGreen
+                                            else -> DopaminePurple
+                                        }
 
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
-                                            color = DopamineBlue.copy(alpha = 0.45f),
-                                            border = BorderStroke(1.5.dp, DopamineBlue),
+                                            color = draggedColor.copy(alpha = 0.55f),
+                                            border = BorderStroke(1.5.dp, draggedColor),
                                             modifier = Modifier
-                                                .offset(x = dayColWidth * colW + 1.dp, y = previewTopY.dp)
+                                                .offset(x = dayColWidth * colW + 1.dp, y = blockTopDp.dp)
                                                 .width(dayColWidth - 2.dp)
                                                 .height(previewBlockH.dp)
                                         ) {
-                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 2.dp),
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
                                                 Text(
-                                                    text = "🎯 %02d:%02d".format(previewHour, previewMinute),
+                                                    text = draggingBacklogItem!!.title,
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    color = Color.White
+                                                )
+                                                Text(
+                                                    text = "%02d:%02d".format(previewHour, previewMinute),
                                                     fontSize = 7.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                                    color = Color.White.copy(alpha = 0.9f)
                                                 )
                                             }
                                         }
@@ -1808,8 +1827,8 @@ fun ScheduleWeekGridView(
         }
     }
 
-    // 🎯 待排期任务拖动时：跟随手指移动的跟手任务卡片 (实时反馈拖动是否成功)
-    if (draggingBacklogItem != null && backlogDragTouchInRoot != Offset.Zero) {
+    // 🎯 待排期任务拖动时：仅在进入主视图前显示过渡卡片，进入主视图后直接在时间轴内预览
+    if (draggingBacklogItem != null && backlogDragTouchInRoot != Offset.Zero && backlogDragTouchInRoot.y < weekGridRootY) {
         val draggedColor = tagColorMap[draggingBacklogItem!!.category] ?: when (draggingBacklogItem!!.workType) {
             "DEEP_WORK" -> DopamineBlue
             "SHALLOW_WORK" -> DopamineAmber
@@ -1944,11 +1963,13 @@ fun ScheduleDayGridView(
     val executeDropDay: (ScheduleEntity) -> Unit = { item ->
         val currentScroll = verticalScrollState.value
         val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
-        if (dropGlobalY >= (timelineYInRoot - 15f)) {
+        if (dropGlobalY >= timelineYInRoot) {
             val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
             val relDp = relativeY / density.density
-            val totalMinutes = ((relDp / hourHeightDpValue) * 60f).roundToInt()
-            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+            val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
+            val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+            val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
             val dropHour = snappedMinutes / 60
             val dropMinute = snappedMinutes % 60
             val targetDt = selectedDate.atTime(dropHour, dropMinute)
@@ -2263,10 +2284,10 @@ fun ScheduleDayGridView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(verticalScrollState)
                     .onGloballyPositioned { coords ->
                         timelineYInRoot = coords.positionInRoot().y
                     }
+                    .verticalScroll(verticalScrollState)
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.width(timeColWidth)) {
@@ -2379,42 +2400,74 @@ fun ScheduleDayGridView(
                             }
                         }
 
-                        // 动态待办拖拽预览色块 (Hover Preview Ghost)
+                        // 动态待办拖拽预览色块 (拖入主视图后直接绘制在时间轴内并随手拖动预览)
                         if (draggingItem != null) {
                             val currentScroll = verticalScrollState.value
                             val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
-                            if (dropGlobalY >= (timelineYInRoot - 15f)) {
+                            if (dropGlobalY >= timelineYInRoot) {
                                 val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
                                 val relDp = relativeY / density.density
-                                val totalMinutes = ((relDp / hourHeightDpValue) * 60f).roundToInt()
-                                val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, 1425)
+                                val previewBlockH = (draggingItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
+                                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                                val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+                                val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - draggingItem!!.estimatedMinutes).coerceAtLeast(0))
                                 val previewHour = snappedMinutes / 60
                                 val previewMinute = snappedMinutes % 60
-                                val previewTopY = previewHour * hourHeightDpValue + previewMinute * hourHeightDpValue / 60f
-                                val previewBlockH = (draggingItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(24f)
+                                val endMinutesTotal = (snappedMinutes + draggingItem!!.estimatedMinutes).coerceAtMost(1440)
+                                val endHour = endMinutesTotal / 60
+                                val endMinute = endMinutesTotal % 60
+                                val draggedColor = tagColorMap[draggingItem!!.category] ?: when (draggingItem!!.workType) {
+                                    "DEEP_WORK" -> DopamineBlue
+                                    "SHALLOW_WORK" -> DopamineAmber
+                                    "REST_BUFFER" -> DopamineGreen
+                                    else -> DopaminePurple
+                                }
 
                                 Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = DopamineBlue.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.5.dp, DopamineBlue),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = draggedColor.copy(alpha = 0.42f),
+                                    border = BorderStroke(1.8.dp, draggedColor),
                                     modifier = Modifier
-                                        .offset(y = previewTopY.dp)
+                                        .offset(y = blockTopDp.dp)
                                         .fillMaxWidth()
                                         .padding(horizontal = 4.dp)
                                         .height(previewBlockH.dp)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
-                                        Text("📍", fontSize = 11.sp)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "放置到 %02d:%02d · %s (%dm)".format(previewHour, previewMinute, draggingItem!!.title, draggingItem!!.estimatedMinutes),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                        Box(
+                                            modifier = Modifier
+                                                .width(3.5.dp)
+                                                .height(24.dp)
+                                                .background(draggedColor, RoundedCornerShape(2.dp))
                                         )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = draggingItem!!.title,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "📍 %02d:%02d - %02d:%02d · %d分钟".format(
+                                                    previewHour,
+                                                    previewMinute,
+                                                    endHour,
+                                                    endMinute,
+                                                    draggingItem!!.estimatedMinutes
+                                                ),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = draggedColor
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2651,7 +2704,6 @@ fun ScheduleDayGridView(
                             val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
                             val targetEndMin = targetEndMinTotal % 60
 
-                            val previewTopDp = targetMinSnapped / 60f * hourHeightDpValue
                             val previewHeightDp = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(24f)
 
                             Surface(
@@ -2659,7 +2711,7 @@ fun ScheduleDayGridView(
                                 color = DopamineAmber.copy(alpha = 0.38f),
                                 border = BorderStroke(2.dp, DopamineAmber),
                                 modifier = Modifier
-                                    .offset(y = previewTopDp.dp)
+                                    .offset(y = currentTopDp.dp)
                                     .fillMaxWidth()
                                     .padding(horizontal = 4.dp)
                                     .height(previewHeightDp.dp)
@@ -2834,8 +2886,8 @@ fun ScheduleDayGridView(
         }
     }
 
-    // 🎯 单日视图下待排期任务拖动时的跟手任务卡片 (实时反馈拖动是否成功)
-    if (draggingItem != null && dayDragTouchInRoot != Offset.Zero) {
+    // 🎯 单日视图下待排期任务拖动时：仅在进入主视图前显示过渡卡片，进入主视图后直接在时间轴内预览
+    if (draggingItem != null && dayDragTouchInRoot != Offset.Zero && dayDragTouchInRoot.y < timelineYInRoot) {
         val draggedColor = tagColorMap[draggingItem!!.category] ?: when (draggingItem!!.workType) {
             "DEEP_WORK" -> DopamineBlue
             "SHALLOW_WORK" -> DopamineAmber
