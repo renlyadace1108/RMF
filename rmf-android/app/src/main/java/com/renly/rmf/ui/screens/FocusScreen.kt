@@ -693,7 +693,7 @@ fun FocusScreen(
                                 onClick = {
                                     boundScheduleId = schedule.id
                                     if (!isRunning) {
-                                        customMinutes = schedule.estimatedMinutes.coerceIn(5, 180)
+                                        applyPresetMinutes(schedule.estimatedMinutes.coerceIn(5, 360))
                                     }
                                     showEventPickerModal = false
                                 },
