@@ -346,10 +346,50 @@ fun FocusScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        // 3. 拟物环形双层发光倒计时表盘
+        // 时间滑动滚轮状态 (1分钟精度，与表盘中央时钟数字融为一体)
+        val minutesList = remember { (1..360).toList() }
+        val itemHeight = 44.dp
+        val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
+        val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+        val flingBehavior = rememberSnapFlingBehavior(lazyListState = wheelListState)
+        val isPausedMidSession = !isRunning && liveSeconds > 0 && liveSeconds < initialSeconds
+
+        val centerWheelIndex by remember {
+            derivedStateOf {
+                val layoutInfo = wheelListState.layoutInfo
+                if (layoutInfo.visibleItemsInfo.isEmpty()) {
+                    wheelListState.firstVisibleItemIndex
+                } else {
+                    val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                    layoutInfo.visibleItemsInfo.minByOrNull { item ->
+                        kotlin.math.abs((item.offset + item.size / 2) - viewportCenter)
+                    }?.index ?: wheelListState.firstVisibleItemIndex
+                }
+            }
+        }
+
+        LaunchedEffect(centerWheelIndex, wheelListState.isScrollInProgress) {
+            if (wheelListState.isScrollInProgress) {
+                val selectedMins = minutesList[centerWheelIndex.coerceIn(0, minutesList.lastIndex)]
+                if (selectedMins != customMinutes) {
+                    customMinutes = selectedMins
+                }
+            }
+        }
+
+        LaunchedEffect(customMinutes) {
+            if (!wheelListState.isScrollInProgress) {
+                val targetIdx = minutesList.indexOf(customMinutes)
+                if (targetIdx >= 0 && targetIdx != centerWheelIndex) {
+                    wheelListState.animateScrollToItem(targetIdx)
+                }
+            }
+        }
+
+        // 3. 拟物环形双层发光倒计时表盘（时钟数字与1分钟微调滚轮合二为一）
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(220.dp)
+            modifier = Modifier.size(240.dp)
         ) {
             CircularProgressIndicator(
                 progress = { 1f },
@@ -366,23 +406,101 @@ fun FocusScreen(
             )
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = timeFormatted,
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = TextPrimary,
-                    letterSpacing = (-1).sp
-                )
+                if (isRunning || isPausedMidSession) {
+                    Text(
+                        text = timeFormatted,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary,
+                        letterSpacing = (-1).sp
+                    )
+                } else {
+                    // 表盘中央一体化数字滚轮：直接上下拨动时钟数字即可1分钟精度调时
+                    Box(
+                        modifier = Modifier
+                            .width(172.dp)
+                            .height(itemHeight * 3),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 中央选中行微光上下刻度线
+                        Box(
+                            modifier = Modifier
+                                .width(124.dp)
+                                .height(itemHeight + 4.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DopamineCyan.copy(alpha = 0.08f))
+                                .border(
+                                    width = 1.dp,
+                                    color = DopamineCyan.copy(alpha = 0.28f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        )
+
+                        LazyColumn(
+                            state = wheelListState,
+                            flingBehavior = flingBehavior,
+                            contentPadding = PaddingValues(vertical = itemHeight),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(minutesList) { mins ->
+                                val isCurrentSelected = mins == customMinutes
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(itemHeight)
+                                        .clickable {
+                                            customMinutes = mins
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "%02d:00".format(mins),
+                                        fontSize = if (isCurrentSelected) 40.sp else 17.sp,
+                                        fontWeight = if (isCurrentSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                        color = if (isCurrentSelected) TextPrimary else TextMuted.copy(alpha = 0.45f),
+                                        letterSpacing = if (isCurrentSelected) (-1).sp else 0.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // 顶部与底部渐隐遮罩，让滚轮自然融入表盘内部背景
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(itemHeight * 0.85f)
+                                .align(Alignment.TopCenter)
+                                .background(Brush.verticalGradient(listOf(DarkBg, Color.Transparent)))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(itemHeight * 0.85f)
+                                .align(Alignment.BottomCenter)
+                                .background(Brush.verticalGradient(listOf(Color.Transparent, DarkBg)))
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
                 Surface(
-                    color = (if (isRunning) DopamineGreen else TextMuted).copy(alpha = 0.15f),
+                    color = (if (isRunning) DopamineGreen else if (isPausedMidSession) DopamineAmber else TextMuted).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = if (isRunning) "● 深度心流中" else "○ 准备就绪",
-                        fontSize = 11.5.sp,
+                        text = when {
+                            isRunning -> "● 深度心流中"
+                            isPausedMidSession -> "⏸ 已暂停"
+                            else -> "↕ 滑动数字调时 · 准备就绪"
+                        },
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isRunning) DopamineGreen else TextMuted,
+                        color = when {
+                            isRunning -> DopamineGreen
+                            isPausedMidSession -> DopamineAmber
+                            else -> TextMuted
+                        },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                     )
                 }
@@ -424,7 +542,12 @@ fun FocusScreen(
                     items(presets) { preset ->
                         val isSelected = customMinutes == preset.minutes
                         Surface(
-                            onClick = { customMinutes = preset.minutes },
+                            onClick = {
+                                if (isPausedMidSession) {
+                                    FocusLiveService.stop(context)
+                                }
+                                customMinutes = preset.minutes
+                            },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkCard,
                             border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
@@ -445,113 +568,6 @@ fun FocusScreen(
                             }
                         }
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 时间滑动滚轮选择器 (Scroll Wheel Duration Picker - 1分钟精度)
-            val minutesList = remember { (1..180).toList() }
-            val itemHeight = 40.dp
-            val initialIndex = remember { (minutesList.indexOf(customMinutes)).coerceAtLeast(0) }
-            val wheelListState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-            val flingBehavior = rememberSnapFlingBehavior(lazyListState = wheelListState)
-
-            LaunchedEffect(wheelListState.firstVisibleItemIndex) {
-                val selectedIdx = wheelListState.firstVisibleItemIndex.coerceIn(0, minutesList.lastIndex)
-                if (minutesList[selectedIdx] != customMinutes) {
-                    customMinutes = minutesList[selectedIdx]
-                }
-            }
-
-            LaunchedEffect(customMinutes) {
-                val targetIdx = minutesList.indexOf(customMinutes)
-                if (targetIdx >= 0 && targetIdx != wheelListState.firstVisibleItemIndex) {
-                    wheelListState.animateScrollToItem(targetIdx)
-                }
-            }
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "微调滑轮 (1分钟精细刻度)",
-                    fontSize = 11.sp,
-                    color = TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.65f)
-                        .height(itemHeight * 3)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(DarkCard)
-                        .border(1.dp, DarkBorder, RoundedCornerShape(14.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(itemHeight)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(DopamineCyan.copy(alpha = 0.12f))
-                            .border(1.dp, DopamineCyan.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-                    )
-
-                    LazyColumn(
-                        state = wheelListState,
-                        flingBehavior = flingBehavior,
-                        contentPadding = PaddingValues(vertical = itemHeight),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(minutesList) { mins ->
-                            val isCurrentSelected = mins == customMinutes
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(itemHeight)
-                                    .clickable { customMinutes = mins },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = "$mins",
-                                        fontSize = if (isCurrentSelected) 20.sp else 15.sp,
-                                        fontWeight = if (isCurrentSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCurrentSelected) DopamineCyan else TextMuted
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "分钟",
-                                        fontSize = if (isCurrentSelected) 11.sp else 10.sp,
-                                        color = if (isCurrentSelected) TextPrimary else TextMuted
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(itemHeight)
-                            .align(Alignment.TopCenter)
-                            .background(Brush.verticalGradient(listOf(DarkCard, Color.Transparent)))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(itemHeight)
-                            .align(Alignment.BottomCenter)
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, DarkCard)))
-                    )
                 }
             }
         }
