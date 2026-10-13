@@ -123,6 +123,7 @@ fun ScheduleScreen(
     var editingSchedule by remember { mutableStateOf<ScheduleEntity?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showCalendarSyncDialog by remember { mutableStateOf(false) }
+    var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
     val calendarSchedules = schedules.filter { it.status != "BACKLOG" }
@@ -659,6 +660,11 @@ fun ScheduleScreen(
                             updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                         )
                         onUpdateSchedule(updated)
+                    },
+                    onUpdateSchedule = onUpdateSchedule,
+                    onAddNewInQuadrant = { qCode ->
+                        defaultQuadrantForNewSchedule = qCode
+                        showAddDialog = true
                     }
                 )
             }
@@ -668,7 +674,10 @@ fun ScheduleScreen(
 
         // 悬浮新建日程 FAB (贴合右下角，不挤占日程网格纵向高度)
         FloatingActionButton(
-            onClick = { showAddDialog = true },
+            onClick = {
+                defaultQuadrantForNewSchedule = "Q2"
+                showAddDialog = true
+            },
             containerColor = DopamineBlue,
             contentColor = if (LocalAppColors.current.isDark) DarkBg else Color.White,
             shape = CircleShape,
@@ -698,6 +707,7 @@ fun ScheduleScreen(
                         estimatedMinutes = minutes,
                         startTime = startStr,
                         endTime = endStr,
+                        eisenhowerQuadrant = defaultQuadrantForNewSchedule,
                         reminderMinutes = reminderMins,
                         reminderType = reminderType,
                         createdAt = nowStr,
@@ -716,7 +726,7 @@ fun ScheduleScreen(
                 availableTags = availableTags,
                 tagColorMap = tagColorMap,
                 onDismiss = { showBacklogDialog = false },
-                onAddBacklog = { title, workType, category, minutes, dod ->
+                onAddBacklog = { title, workType, category, minutes, dod, quadrant ->
                     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                     val entity = ScheduleEntity(
                         title = title,
@@ -727,6 +737,7 @@ fun ScheduleScreen(
                         status = "BACKLOG",
                         startTime = "",
                         endTime = "",
+                        eisenhowerQuadrant = quadrant,
                         createdAt = nowStr,
                         updatedAt = nowStr
                     )
@@ -2909,7 +2920,7 @@ fun BacklogDialog(
     availableTags: List<ScheduleTagEntity> = emptyList(),
     tagColorMap: Map<String, Color> = emptyMap(),
     onDismiss: () -> Unit,
-    onAddBacklog: (String, String, String, Int, String) -> Unit,
+    onAddBacklog: (String, String, String, Int, String, String) -> Unit,
     onScheduleToToday: (ScheduleEntity) -> Unit,
     onToggleStatus: (ScheduleEntity) -> Unit,
     onDelete: (String) -> Unit
@@ -2919,6 +2930,7 @@ fun BacklogDialog(
     var newWorkType by remember { mutableStateOf("DEEP_WORK") }
     var newCategory by remember { mutableStateOf(availableTags.firstOrNull()?.name ?: "工作") }
     var newDod by remember { mutableStateOf("") }
+    var newQuadrant by remember { mutableStateOf("Q2") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2978,7 +2990,7 @@ fun BacklogDialog(
                     Button(
                         onClick = {
                             if (newTitle.isNotBlank()) {
-                                onAddBacklog(newTitle, newWorkType, newCategory, newMinutes, newDod)
+                                onAddBacklog(newTitle, newWorkType, newCategory, newMinutes, newDod, newQuadrant)
                                 newTitle = ""
                             }
                         },
@@ -2987,6 +2999,19 @@ fun BacklogDialog(
                         contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
                         Text("存入", color = DarkBg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                // 象限归属选择
+                Text("🎯 象限归属:", fontSize = 11.sp, color = TextSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Q1" to "🔥 Q1", "Q2" to "⭐ Q2", "Q3" to "⚡ Q3", "Q4" to "🍃 Q4").forEach { (qCode, qLabel) ->
+                        val isSel = newQuadrant == qCode
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { newQuadrant = qCode },
+                            label = { Text(qLabel, fontSize = 10.5.sp) }
+                        )
                     }
                 }
 

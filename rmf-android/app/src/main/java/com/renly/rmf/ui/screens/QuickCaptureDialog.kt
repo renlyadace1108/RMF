@@ -229,6 +229,13 @@ fun QuickCaptureDialog(
                                             // 未开AI：直接入库手动排期
                                             val parsed = NaturalLanguageScheduleParser.parse(rawText)
                                             val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                            val qCode = when (parsed.priority.uppercase()) {
+                                                "URGENT" -> "Q1"
+                                                "HIGH" -> "Q2"
+                                                "MEDIUM" -> "Q3"
+                                                "LOW" -> "Q4"
+                                                else -> "Q2"
+                                            }
                                             val newSchedule = ScheduleEntity(
                                                 id = UUID.randomUUID().toString(),
                                                 title = parsed.title,
@@ -237,6 +244,7 @@ fun QuickCaptureDialog(
                                                 estimatedMinutes = parsed.durationMinutes,
                                                 priority = parsed.priority,
                                                 category = parsed.category,
+                                                eisenhowerQuadrant = qCode,
                                                 status = "BACKLOG",
                                                 createdAt = now,
                                                 updatedAt = now
@@ -297,6 +305,13 @@ fun QuickCaptureDialog(
             onDismissRequest = {
                 // 点击外部或后退：默认存入待排期任务池手动排期
                 val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                val qCode = when (candidate.priority.uppercase()) {
+                    "URGENT" -> "Q1"
+                    "HIGH" -> "Q2"
+                    "MEDIUM" -> "Q3"
+                    "LOW" -> "Q4"
+                    else -> "Q2"
+                }
                 val backlogSchedule = ScheduleEntity(
                     id = UUID.randomUUID().toString(),
                     title = candidate.title,
@@ -305,6 +320,7 @@ fun QuickCaptureDialog(
                     estimatedMinutes = candidate.durationMinutes,
                     priority = candidate.priority,
                     category = candidate.category,
+                    eisenhowerQuadrant = qCode,
                     status = "BACKLOG",
                     createdAt = now,
                     updatedAt = now
@@ -334,6 +350,13 @@ fun QuickCaptureDialog(
                         val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                         val startIso = candidate.startDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
                         val endIso = candidate.endDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                        val qCode = when (candidate.priority.uppercase()) {
+                            "URGENT" -> "Q1"
+                            "HIGH" -> "Q2"
+                            "MEDIUM" -> "Q3"
+                            "LOW" -> "Q4"
+                            else -> "Q2"
+                        }
                         val autoSchedule = ScheduleEntity(
                             id = UUID.randomUUID().toString(),
                             title = candidate.title,
@@ -342,6 +365,7 @@ fun QuickCaptureDialog(
                             estimatedMinutes = candidate.durationMinutes,
                             priority = candidate.priority,
                             category = candidate.category,
+                            eisenhowerQuadrant = qCode,
                             status = "PENDING",
                             createdAt = now,
                             updatedAt = now
@@ -360,6 +384,13 @@ fun QuickCaptureDialog(
                 OutlinedButton(
                     onClick = {
                         val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        val qCode = when (candidate.priority.uppercase()) {
+                            "URGENT" -> "Q1"
+                            "HIGH" -> "Q2"
+                            "MEDIUM" -> "Q3"
+                            "LOW" -> "Q4"
+                            else -> "Q2"
+                        }
                         val backlogSchedule = ScheduleEntity(
                             id = UUID.randomUUID().toString(),
                             title = candidate.title,
@@ -368,6 +399,7 @@ fun QuickCaptureDialog(
                             estimatedMinutes = candidate.durationMinutes,
                             priority = candidate.priority,
                             category = candidate.category,
+                            eisenhowerQuadrant = qCode,
                             status = "BACKLOG",
                             createdAt = now,
                             updatedAt = now
