@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +45,12 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.lifecycle.lifecycleScope
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.DataExportService
@@ -390,8 +398,31 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember {
                     mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
                 }
+                var previousScreen by remember { mutableStateOf<Screen>(currentScreen) }
+                var slideDirection by remember { mutableIntStateOf(1) } // 1: forward (right to left), -1: backward (left to right)
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
+
+                val density = LocalDensity.current
+                val haptic = LocalHapticFeedback.current
+
+                val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
+                val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
+
+                val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, explicitDir ->
+                    if (targetScreen != currentScreen) {
+                        val prevIdx = safeNavScreens.indexOf(currentScreen)
+                        val nextIdx = safeNavScreens.indexOf(targetScreen)
+                        slideDirection = explicitDir ?: if (nextIdx != -1 && prevIdx != -1) {
+                            if (nextIdx >= prevIdx) 1 else -1
+                        } else 1
+                        previousScreen = currentScreen
+                        if (currentScreen != Screen.Settings) {
+                            lastScreenBeforeSettings = currentScreen
+                        }
+                        currentScreen = targetScreen
+                    }
+                }
 
                 var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
@@ -410,7 +441,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(pendingTargetRoute) {
                     pendingTargetRoute?.let { route ->
-                        currentScreen = Screen.fromRoute(route)
+                        navigateToScreen(Screen.fromRoute(route), null)
                         showSplashScreen = false
                         pendingTargetRoute = null
                     }
@@ -455,15 +486,30 @@ class MainActivity : ComponentActivity() {
                                         onDragStopped = { velocity ->
                                             val dist = bottomBarDragDelta
                                             bottomBarDragDelta = 0f
-                                            // 在底部栏左右滑进入设置界面退出设置界面
+                                            val curIdx = safeNavScreens.indexOf(currentScreen)
+
                                             if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
                                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                                 showSettingsGestureTutorial = false
+
                                                 if (currentScreen == Screen.Settings) {
-                                                    currentScreen = lastScreenBeforeSettings
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    navigateToScreen(lastScreenBeforeSettings, -1)
+                                                } else if (dist < 0 || velocity < 0) {
+                                                    // 向左滑 -> 切换到下一个模块 (若为最后一个则进入设置)
+                                                    if (curIdx != -1 && curIdx < safeNavScreens.size - 1) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        navigateToScreen(safeNavScreens[curIdx + 1], 1)
+                                                    } else if (curIdx == safeNavScreens.size - 1) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        navigateToScreen(Screen.Settings, 1)
+                                                    }
                                                 } else {
-                                                    lastScreenBeforeSettings = currentScreen
-                                                    currentScreen = Screen.Settings
+                                                    // 向右滑 -> 切换到上一个模块
+                                                    if (curIdx > 0) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        navigateToScreen(safeNavScreens[curIdx - 1], -1)
+                                                    }
                                                 }
                                             }
                                         }
@@ -473,13 +519,11 @@ class MainActivity : ComponentActivity() {
                                     containerColor = DarkSurface,
                                     tonalElevation = 0.dp
                                 ) {
-                                    val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
-                                    val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
                                     safeNavScreens.forEach { screen ->
                                         val isSelected = currentScreen == screen
                                         NavigationBarItem(
                                             selected = isSelected,
-                                            onClick = { currentScreen = screen },
+                                            onClick = { navigateToScreen(screen, null) },
                                             icon = { Icon(screen.icon, contentDescription = screen.title) },
                                             label = {
                                                 Text(
@@ -509,9 +553,96 @@ class MainActivity : ComponentActivity() {
                                 .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
                             color = DarkBg
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(safeNavScreens, currentScreen) {
+                                        val touchSlop = viewConfiguration.touchSlop
+                                        val swipeThreshold = with(density) { 46.dp.toPx() }
+
+                                        awaitEachGesture {
+                                            val down = awaitFirstDown(requireUnconsumed = false)
+                                            var totalX = 0f
+                                            var totalY = 0f
+                                            var isHorizontalSwipe: Boolean? = null
+                                            val velocityTracker = VelocityTracker()
+                                            velocityTracker.addPosition(down.uptimeMillis, down.position)
+
+                                            while (true) {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                                                if (event.changes.count { it.pressed } >= 2) {
+                                                    isHorizontalSwipe = false
+                                                    break
+                                                }
+
+                                                if (change.changedToUp()) {
+                                                    if (isHorizontalSwipe == true) {
+                                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                                        val velocity = velocityTracker.calculateVelocity().x
+                                                        val curIdx = safeNavScreens.indexOf(currentScreen)
+
+                                                        if (currentScreen == Screen.Settings) {
+                                                            if (totalX > swipeThreshold || velocity > 360f) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                navigateToScreen(lastScreenBeforeSettings, -1)
+                                                            }
+                                                        } else if (curIdx != -1) {
+                                                            if ((totalX < -swipeThreshold || velocity < -360f) && curIdx < safeNavScreens.size - 1) {
+                                                                // 主界面向左滑 -> 切换到下一个模块
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                navigateToScreen(safeNavScreens[curIdx + 1], 1)
+                                                            } else if ((totalX < -swipeThreshold || velocity < -360f) && curIdx == safeNavScreens.size - 1) {
+                                                                // 最后一个模块左滑 -> 进入设置
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                navigateToScreen(Screen.Settings, 1)
+                                                            } else if ((totalX > swipeThreshold || velocity > 360f) && curIdx > 0) {
+                                                                // 主界面向右滑 -> 切换到上一个模块
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                navigateToScreen(safeNavScreens[curIdx - 1], -1)
+                                                            }
+                                                        } else {
+                                                            // 当前在次级页面（如健身、统计、目标等），右滑返回
+                                                            if (totalX > swipeThreshold || velocity > 360f) {
+                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                navigateToScreen(lastScreenBeforeSettings, -1)
+                                                            }
+                                                        }
+                                                    }
+                                                    break
+                                                }
+
+                                                val pos = change.position
+                                                val prevPos = change.previousPosition
+                                                val dx = pos.x - prevPos.x
+                                                val dy = pos.y - prevPos.y
+                                                totalX += dx
+                                                totalY += dy
+                                                velocityTracker.addPosition(change.uptimeMillis, pos)
+
+                                                if (isHorizontalSwipe == null) {
+                                                    val absX = kotlin.math.abs(totalX)
+                                                    val absY = kotlin.math.abs(totalY)
+                                                    if (absX > touchSlop || absY > touchSlop) {
+                                                        if (absX > absY * 1.35f && absX > touchSlop) {
+                                                            isHorizontalSwipe = true
+                                                        } else {
+                                                            isHorizontalSwipe = false
+                                                        }
+                                                    }
+                                                }
+
+                                                if (isHorizontalSwipe == true) {
+                                                    change.consume()
+                                                }
+                                            }
+                                        }
+                                    }
+                            ) {
                                 visitedScreens.forEach { screen ->
                                     val isActive = (currentScreen == screen)
+                                    val isPrev = (previousScreen == screen && previousScreen != currentScreen)
                                     val isSettings = (screen == Screen.Settings)
                                     val isSettingsActive = (currentScreen == Screen.Settings)
 
@@ -528,6 +659,26 @@ class MainActivity : ComponentActivity() {
                                         animationSpec = androidx.compose.animation.core.tween(durationMillis = 240),
                                         label = "settingsAlpha"
                                     )
+
+                                    // 模块间左右平滑切换动画
+                                    val animProgress by androidx.compose.animation.core.animateFloatAsState(
+                                        targetValue = if (isActive) 1f else 0f,
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 240,
+                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                        ),
+                                        label = "screenAnim_${screen.route}"
+                                    )
+
+                                    val targetTranslationX = if (isSettings) {
+                                        settingsSlideX
+                                    } else if (isActive) {
+                                        (1f - animProgress) * (slideDirection * 280f)
+                                    } else if (isPrev) {
+                                        (animProgress - 1f) * (slideDirection * 280f)
+                                    } else {
+                                        100000f
+                                    }
 
                                     key(screen.route) {
                                         saveableStateHolder.SaveableStateProvider(screen.route) {
@@ -550,8 +701,11 @@ class MainActivity : ComponentActivity() {
                                                                     .clearAndSetSemantics { }
                                                             }
                                                         } else {
-                                                            if (isActive) {
-                                                                Modifier
+                                                            if (isActive || (isPrev && animProgress > 0.01f)) {
+                                                                Modifier.graphicsLayer {
+                                                                    translationX = targetTranslationX
+                                                                    alpha = if (isActive) animProgress else (1f - animProgress)
+                                                                }
                                                             } else {
                                                                 Modifier
                                                                     .graphicsLayer {
@@ -656,8 +810,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onOpenQuickCapture = { showQuickCaptureDialog = true },
-                                onNavigateToSummary = { currentScreen = Screen.Summary },
-                                onNavigateToFitness = { currentScreen = Screen.Fitness },
+                                onNavigateToSummary = { navigateToScreen(Screen.Summary, 1) },
+                                onNavigateToFitness = { navigateToScreen(Screen.Fitness, 1) },
                                 onAddTag = { tag ->
                                     lifecycleScope.launch {
                                         db.syncDao().insertOrUpdateTag(tag)
@@ -900,7 +1054,7 @@ class MainActivity : ComponentActivity() {
                             Screen.Fitness -> FitnessScreen(
                                 fitnessDao = db.fitnessDao(),
                                 scheduleDao = db.scheduleDao(),
-                                onBack = { currentScreen = Screen.Schedule },
+                                onBack = { navigateToScreen(Screen.Schedule, -1) },
                                 onProjectToSchedule = { plan, _ ->
                                     lifecycleScope.launch {
                                         db.fitnessDao().upsertPlan(plan)
@@ -992,15 +1146,15 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Workbench -> WorkbenchScreen(
-                                onNavigateToSettings = { currentScreen = Screen.Settings },
-                                onNavigateToGoals = { currentScreen = Screen.Goals },
-                                onNavigateToExpenses = { currentScreen = Screen.Expenses },
-                                onNavigateToFitness = { currentScreen = Screen.Fitness },
-                                onNavigateToDailyReport = { currentScreen = Screen.DailyReport },
-                                onNavigateToSummary = { currentScreen = Screen.Summary },
-                                onNavigateToHabits = { currentScreen = Screen.Habits },
-                                onNavigateToCountdowns = { currentScreen = Screen.Countdowns },
-                                onNavigateToTutorial = { currentScreen = Screen.Tutorial },
+                                onNavigateToSettings = { navigateToScreen(Screen.Settings, 1) },
+                                onNavigateToGoals = { navigateToScreen(Screen.Goals, 1) },
+                                onNavigateToExpenses = { navigateToScreen(Screen.Expenses, 1) },
+                                onNavigateToFitness = { navigateToScreen(Screen.Fitness, 1) },
+                                onNavigateToDailyReport = { navigateToScreen(Screen.DailyReport, 1) },
+                                onNavigateToSummary = { navigateToScreen(Screen.Summary, 1) },
+                                onNavigateToHabits = { navigateToScreen(Screen.Habits, 1) },
+                                onNavigateToCountdowns = { navigateToScreen(Screen.Countdowns, 1) },
+                                onNavigateToTutorial = { navigateToScreen(Screen.Tutorial, 1) },
                                 onTriggerAudit = {
                                     val currentList = runBlockingOrCachedSchedules()
                                     SchedulerAuditEngine.audit(currentList)
@@ -1029,7 +1183,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Settings -> SettingsScreen(
-                                onBack = { currentScreen = lastScreenBeforeSettings },
+                                onBack = { navigateToScreen(lastScreenBeforeSettings, -1) },
                                 currentThemeMode = currentThemeMode,
                                 onThemeModeChange = { newMode ->
                                     currentThemeMode = newMode
@@ -1238,7 +1392,7 @@ class MainActivity : ComponentActivity() {
                                                 val isCurrent = currentScreen == scr
                                                 Surface(
                                                     onClick = {
-                                                        currentScreen = scr
+                                                        navigateToScreen(scr, null)
                                                         showFloatingNavMenu = false
                                                     },
                                                     shape = RoundedCornerShape(10.dp),
