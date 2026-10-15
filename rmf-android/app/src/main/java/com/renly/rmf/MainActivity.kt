@@ -440,39 +440,42 @@ class MainActivity : ComponentActivity() {
                 var dragOffsetX by remember { mutableFloatStateOf(0f) }
                 var isHandDragging by remember { mutableStateOf(false) }
                 var isDragSettling by remember { mutableStateOf(false) }
-                var dragDirection by remember { mutableIntStateOf(0) }
+                var activeAdjacentScreen by remember { mutableStateOf<Screen?>(null) }
                 var skipTransitionAnim by remember { mutableStateOf(false) }
                 var settleJob by remember { mutableStateOf<Job?>(null) }
 
                 val curNavIdx = safeNavScreens.indexOf(currentScreen)
-                val targetAdjacent: Screen? = when (dragDirection) {
-                    -1 -> if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
-                        safeNavScreens[curNavIdx + 1]
-                    } else if (curNavIdx == safeNavScreens.size - 1) {
-                        Screen.Settings
-                    } else {
-                        null
-                    }
-                    1 -> if (currentScreen == Screen.Settings) {
-                        lastScreenBeforeSettings
-                    } else if (curNavIdx > 0) {
-                        safeNavScreens[curNavIdx - 1]
-                    } else if (curNavIdx == -1) {
-                        lastScreenBeforeSettings
-                    } else {
-                        null
-                    }
-                    else -> null
-                }
-
-                LaunchedEffect(targetAdjacent) {
-                    if (targetAdjacent != null && !visitedScreens.contains(targetAdjacent)) {
-                        visitedScreens = visitedScreens + targetAdjacent
+                val getAdjacentScreen: (Int) -> Screen? = { dir ->
+                    when (dir) {
+                        -1 -> if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
+                            safeNavScreens[curNavIdx + 1]
+                        } else if (curNavIdx == safeNavScreens.size - 1) {
+                            Screen.Settings
+                        } else {
+                            null
+                        }
+                        1 -> if (currentScreen == Screen.Settings) {
+                            lastScreenBeforeSettings
+                        } else if (curNavIdx > 0) {
+                            safeNavScreens[curNavIdx - 1]
+                        } else if (curNavIdx == -1) {
+                            lastScreenBeforeSettings
+                        } else {
+                            null
+                        }
+                        else -> null
                     }
                 }
 
-                val renderScreens = remember(visitedScreens, targetAdjacent) {
-                    if (targetAdjacent != null) (visitedScreens + targetAdjacent).toList() else visitedScreens.toList()
+                LaunchedEffect(activeAdjacentScreen) {
+                    val adj = activeAdjacentScreen
+                    if (adj != null && !visitedScreens.contains(adj)) {
+                        visitedScreens = visitedScreens + adj
+                    }
+                }
+
+                val renderScreens = remember(visitedScreens, activeAdjacentScreen) {
+                    if (activeAdjacentScreen != null) (visitedScreens + activeAdjacentScreen!!).toList() else visitedScreens.toList()
                 }
 
                 LaunchedEffect(currentScreen) {
@@ -632,7 +635,7 @@ class MainActivity : ComponentActivity() {
                                                                 targetValue = 0f,
                                                                 animationSpec = androidx.compose.animation.core.tween(200)
                                                             ) { v, _ -> dragOffsetX = v }
-                                                            dragDirection = 0
+                                                            activeAdjacentScreen = null
                                                         }
                                                     }
                                                     break
@@ -647,8 +650,9 @@ class MainActivity : ComponentActivity() {
                                                         val passedDistance = absOffset > (screenPxWidth * 0.16f) || absOffset > swipeThreshold
                                                         val passedVelocity = kotlin.math.abs(velocity) > 360f
                                                         val directionAgrees = (curOffset < 0 && velocity <= 100f) || (curOffset > 0 && velocity >= -100f)
-                                                        val shouldCommit = targetAdjacent != null && (passedDistance || passedVelocity) && directionAgrees
-                                                        val commitTarget = targetAdjacent
+                                                        val targetDir = if (curOffset < 0) -1 else 1
+                                                        val commitTarget = getAdjacentScreen(targetDir)
+                                                        val shouldCommit = commitTarget != null && (passedDistance || passedVelocity) && directionAgrees
 
                                                         if (shouldCommit && commitTarget != null) {
                                                             val targetX = if (curOffset < 0) -screenPxWidth else screenPxWidth
@@ -669,7 +673,7 @@ class MainActivity : ComponentActivity() {
                                                                 skipTransitionAnim = true
                                                                 navigateToScreen(commitTarget, dir)
                                                                 dragOffsetX = 0f
-                                                                dragDirection = 0
+                                                                activeAdjacentScreen = null
                                                                 isDragSettling = false
                                                                 kotlinx.coroutines.delay(60)
                                                                 skipTransitionAnim = false
@@ -687,13 +691,13 @@ class MainActivity : ComponentActivity() {
                                                                         easing = FastOutSlowInEasing
                                                                     )
                                                                 ) { v, _ -> dragOffsetX = v }
-                                                                dragDirection = 0
+                                                                activeAdjacentScreen = null
                                                                 isDragSettling = false
                                                             }
                                                         }
                                                     } else {
                                                         isHandDragging = false
-                                                        dragDirection = 0
+                                                        activeAdjacentScreen = null
                                                     }
                                                     break
                                                 }
@@ -723,8 +727,9 @@ class MainActivity : ComponentActivity() {
                                                     isHandDragging = true
                                                     settleJob?.cancel()
                                                     val newDir = if (totalX < -touchSlop) -1 else if (totalX > touchSlop) 1 else 0
-                                                    if (newDir != 0 && dragDirection != newDir) {
-                                                        dragDirection = newDir
+                                                    val adjacent = getAdjacentScreen(newDir)
+                                                    if (activeAdjacentScreen != adjacent) {
+                                                        activeAdjacentScreen = adjacent
                                                     }
                                                     val isOverBoundary = (totalX > 0 && curNavIdx == 0) ||
                                                                          (totalX < 0 && currentScreen == Screen.Settings) ||
@@ -740,7 +745,7 @@ class MainActivity : ComponentActivity() {
 
                                 renderScreens.forEach { screen ->
                                     val isActive = (currentScreen == screen)
-                                    val isAdjacent = (targetAdjacent == screen && (isHandDragging || isDragSettling))
+                                    val isAdjacent = (activeAdjacentScreen == screen && (isHandDragging || isDragSettling))
                                     val isPrev = (previousScreen == screen && previousScreen != currentScreen)
 
                                     // 模块间左右平滑切换动效 (Material 3 Emphasized Decelerate 规范)
