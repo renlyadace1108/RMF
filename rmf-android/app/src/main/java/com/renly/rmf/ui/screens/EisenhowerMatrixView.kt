@@ -119,7 +119,15 @@ private fun parseDateTimeOrNull(timeStr: String): LocalDateTime? {
     return try {
         LocalDateTime.parse(timeStr)
     } catch (e: Exception) {
-        null
+        try {
+            LocalDateTime.parse(timeStr, DateTimeFormatter.ISO_DATE_TIME)
+        } catch (e2: Exception) {
+            try {
+                LocalDate.parse(timeStr, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay()
+            } catch (e3: Exception) {
+                null
+            }
+        }
     }
 }
 

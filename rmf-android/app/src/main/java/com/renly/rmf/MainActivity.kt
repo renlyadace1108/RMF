@@ -439,22 +439,20 @@ class MainActivity : ComponentActivity() {
                 val dragOffset = remember { Animatable(0f) }
                 var isHandDragging by remember { mutableStateOf(false) }
                 var isDragSettling by remember { mutableStateOf(false) }
+                var dragDirection by remember { mutableIntStateOf(0) }
                 var skipTransitionAnim by remember { mutableStateOf(false) }
                 var settleJob by remember { mutableStateOf<Job?>(null) }
 
                 val curNavIdx = safeNavScreens.indexOf(currentScreen)
-                val targetAdjacent: Screen? = if (dragOffset.value < -1f) {
-                    // 向左滑动手指 -> 露出右侧下一个页面
-                    if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
+                val targetAdjacent: Screen? = when (dragDirection) {
+                    -1 -> if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
                         safeNavScreens[curNavIdx + 1]
                     } else if (curNavIdx == safeNavScreens.size - 1) {
                         Screen.Settings
                     } else {
                         null
                     }
-                } else if (dragOffset.value > 1f) {
-                    // 向右滑动手指 -> 露出左侧上一个页面
-                    if (currentScreen == Screen.Settings) {
+                    1 -> if (currentScreen == Screen.Settings) {
                         lastScreenBeforeSettings
                     } else if (curNavIdx > 0) {
                         safeNavScreens[curNavIdx - 1]
@@ -463,8 +461,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         null
                     }
-                } else {
-                    null
+                    else -> null
                 }
 
                 LaunchedEffect(targetAdjacent) {
@@ -630,6 +627,7 @@ class MainActivity : ComponentActivity() {
                                                         isHandDragging = false
                                                         coroutineScope.launch {
                                                             dragOffset.animateTo(0f, androidx.compose.animation.core.tween(200))
+                                                            dragDirection = 0
                                                         }
                                                     }
                                                     break
@@ -665,6 +663,7 @@ class MainActivity : ComponentActivity() {
                                                                 skipTransitionAnim = true
                                                                 navigateToScreen(commitTarget, dir)
                                                                 dragOffset.snapTo(0f)
+                                                                dragDirection = 0
                                                                 isDragSettling = false
                                                                 kotlinx.coroutines.delay(60)
                                                                 skipTransitionAnim = false
@@ -681,11 +680,13 @@ class MainActivity : ComponentActivity() {
                                                                         easing = FastOutSlowInEasing
                                                                     )
                                                                 )
+                                                                dragDirection = 0
                                                                 isDragSettling = false
                                                             }
                                                         }
                                                     } else {
                                                         isHandDragging = false
+                                                        dragDirection = 0
                                                     }
                                                     break
                                                 }
@@ -714,6 +715,10 @@ class MainActivity : ComponentActivity() {
                                                     change.consume()
                                                     isHandDragging = true
                                                     settleJob?.cancel()
+                                                    val newDir = if (totalX < -touchSlop) -1 else if (totalX > touchSlop) 1 else 0
+                                                    if (newDir != 0 && dragDirection != newDir) {
+                                                        dragDirection = newDir
+                                                    }
                                                     val isOverBoundary = (totalX > 0 && curNavIdx == 0) ||
                                                                          (totalX < 0 && currentScreen == Screen.Settings) ||
                                                                          (totalX > 0 && curNavIdx == -1 && lastScreenBeforeSettings == currentScreen)
@@ -741,46 +746,6 @@ class MainActivity : ComponentActivity() {
                                         label = "screenAnim_${screen.route}"
                                     )
 
-                                    val (targetTranslationX, targetAlpha, targetScale) = when {
-                                        isHandDragging || isDragSettling -> {
-                                            val currentOffset = dragOffset.value
-                                            val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
-                                            if (isActive) {
-                                                Triple(
-                                                    currentOffset,
-                                                    1f - dragFraction * 0.22f,
-                                                    1f - dragFraction * 0.03f
-                                                )
-                                            } else if (isAdjacent) {
-                                                val base = if (currentOffset < 0f) screenWidth else -screenWidth
-                                                Triple(
-                                                    base + currentOffset,
-                                                    0.80f + dragFraction * 0.20f,
-                                                    0.97f + dragFraction * 0.03f
-                                                )
-                                            } else {
-                                                Triple(100000f, 0f, 1f)
-                                            }
-                                        }
-                                        isActive -> {
-                                            Triple(
-                                                (1f - animProgress) * (slideDirection * screenWidth),
-                                                animProgress.coerceIn(0f, 1f),
-                                                0.96f + 0.04f * animProgress.coerceIn(0f, 1f)
-                                            )
-                                        }
-                                        isPrev && animProgress > 0.01f -> {
-                                            Triple(
-                                                (animProgress - 1f) * (slideDirection * (screenWidth * 0.28f)),
-                                                animProgress.coerceIn(0f, 1f),
-                                                0.96f + 0.04f * animProgress.coerceIn(0f, 1f)
-                                            )
-                                        }
-                                        else -> {
-                                            Triple(100000f, 0f, 1f)
-                                        }
-                                    }
-
                                     val shouldRender = ((isHandDragging || isDragSettling) && (isActive || isAdjacent)) ||
                                                        (!isHandDragging && !isDragSettling && (isActive || (isPrev && animProgress > 0.01f)))
 
@@ -792,10 +757,42 @@ class MainActivity : ComponentActivity() {
                                                     .then(
                                                         if (shouldRender) {
                                                             Modifier.graphicsLayer {
-                                                                translationX = targetTranslationX
-                                                                alpha = targetAlpha
-                                                                scaleX = targetScale
-                                                                scaleY = targetScale
+                                                                if (isHandDragging || isDragSettling) {
+                                                                    val currentOffset = dragOffset.value
+                                                                    val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
+                                                                    if (isActive) {
+                                                                        translationX = currentOffset
+                                                                        alpha = 1f - dragFraction * 0.22f
+                                                                        scaleX = 1f - dragFraction * 0.03f
+                                                                        scaleY = 1f - dragFraction * 0.03f
+                                                                    } else if (isAdjacent) {
+                                                                        val base = if (currentOffset < 0f) screenWidth else -screenWidth
+                                                                        translationX = base + currentOffset
+                                                                        alpha = 0.80f + dragFraction * 0.20f
+                                                                        scaleX = 0.97f + dragFraction * 0.03f
+                                                                        scaleY = 0.97f + dragFraction * 0.03f
+                                                                    } else {
+                                                                        translationX = 100000f
+                                                                        alpha = 0f
+                                                                    }
+                                                                } else if (isActive) {
+                                                                    val progress = animProgress
+                                                                    translationX = (1f - progress) * (slideDirection * screenWidth)
+                                                                    alpha = progress.coerceIn(0f, 1f)
+                                                                    val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
+                                                                    scaleX = s
+                                                                    scaleY = s
+                                                                } else if (isPrev && animProgress > 0.01f) {
+                                                                    val progress = animProgress
+                                                                    translationX = (progress - 1f) * (slideDirection * (screenWidth * 0.28f))
+                                                                    alpha = progress.coerceIn(0f, 1f)
+                                                                    val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
+                                                                    scaleX = s
+                                                                    scaleY = s
+                                                                } else {
+                                                                    translationX = 100000f
+                                                                    alpha = 0f
+                                                                }
                                                             }
                                                         } else {
                                                             Modifier
