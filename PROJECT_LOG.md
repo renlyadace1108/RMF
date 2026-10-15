@@ -48,7 +48,10 @@
   3. **双向无缝模块滑动过渡动效**：
      - 基于 `slideDirection` 动态计算前后进出位移，进入页面自偏方向平滑滑入（280f -> 0f）并伴随渐变显现，退出页面同步反向滑出，带来原生丝滑的卡片过渡视觉体验。
      - 继续完备保留 `visitedScreens` 与 `SaveableStateHolder`，切换模块时所有页面内部状态（滚轮进度、网格缩放倍数、草稿文本、筛选状态等）100% 保持，无需重复加载。
-  4. **版本升级**：Android `versionCode` 升级至 `1040907`，`versionName` 升级至 `1.4.9.7`。
+  4. **编译与导入问题修复**：
+     - 补充导入 `ScheduleScreen.kt` 缺失的 `androidx.compose.ui.text.style.TextAlign`（用于标签管理弹窗内暂无标签的居中文本提示）。
+     - 采用现代 Compose `!change.pressed` 彻底替换废弃的 `changedToUp()`，确保 Android Studio 100% 零错误直接编译通过。
+  5. **版本升级**：Android `versionCode` 升级至 `1040907`，`versionName` 升级至 `1.4.9.7`。
 
 ### [2026-10-13 23:00] - 手机端与电脑端记账收支分类及日程待办标签全量支持用户自定义 (v1.4.9.6 / Code 1040906)
 * **执行角色**：AI 全栈工程师 (Antigravity)
