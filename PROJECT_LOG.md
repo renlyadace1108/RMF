@@ -34,6 +34,25 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-15 11:55] - 全面重构并优化主界面模块滑动过渡动效 (v1.4.9.8 / Code 1040908)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“优化滑动动画”
+* **核心改进**：
+  1. **彻底修复旧页面反向透明度闪烁 Bug**：
+     - 原先 `alpha = if (isActive) animProgress else (1f - animProgress)` 导致旧页面在动画第 0 帧瞬间变为 100% 全透明并在滑动中反向变亮。
+     - 修复为统一的单调递减曲线 `targetAlpha = animProgress.coerceIn(0f, 1f)`，确保退出页面从 1.0f 柔和渐隐至 0.0f，彻底消除闪烁。
+  2. **升级自适应全屏滑动与视差深度分层 (Parallax Depth)**：
+     - 将原本固定的 `280f` 局部像素小位移升级为 `BoxWithConstraints` 动态获取当前屏幕物理全宽 `screenWidth`。
+     - **新进入页面**：自屏幕边缘全宽滑入（`translationX = (1f - animProgress) * slideDirection * screenWidth`），自然平滑覆盖。
+     - **旧退出页面**：施加 **28% 视差后退滑动**（`translationX = (animProgress - 1f) * slideDirection * (screenWidth * 0.28f)`），营造 iOS 与 Material 3 规范的高级物理视差层级感。
+  3. **微量尺度进深感 (Scale Depth)**：
+     - 新页面从 0.96 缩放至 1.0，旧页面从 1.0 缩小至 0.96，形成优雅的前后景深微动效。
+  4. **Emphasized Decelerate 质感缓动曲线升级**：
+     - 弃用生硬的 `FastOutSlowInEasing`，采用 Material Design 3 官方推荐的强调减速贝塞尔曲线 `CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)`，时长优化至 320ms，起步灵敏跟手，收尾行云流水。
+  5. **统一系统设置页面的滑动动效**：
+     - 消除原本硬编码的 `-600f` 偏向位移，将设置页全面纳入统一的双向视差滑动管线。
+  6. **版本升级**：Android `versionCode` 升级至 `1040908`，`versionName` 升级至 `1.4.9.8`。
+
 ### [2026-10-15 10:45] - 主界面支持左右滑动手势切换核心功能模块与平滑过渡动画 (v1.4.9.7 / Code 1040907)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“主界面左右滑动要能够切换模块”

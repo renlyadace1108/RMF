@@ -415,6 +415,10 @@ class MainActivity : ComponentActivity() {
                         val nextIdx = safeNavScreens.indexOf(targetScreen)
                         slideDirection = explicitDir ?: if (nextIdx != -1 && prevIdx != -1) {
                             if (nextIdx >= prevIdx) 1 else -1
+                        } else if (targetScreen == Screen.Settings) {
+                            1
+                        } else if (currentScreen == Screen.Settings) {
+                            -1
                         } else 1
                         previousScreen = currentScreen
                         if (currentScreen != Screen.Settings) {
@@ -553,7 +557,7 @@ class MainActivity : ComponentActivity() {
                                 .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
                             color = DarkBg
                         ) {
-                            Box(
+                            BoxWithConstraints(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .pointerInput(safeNavScreens, currentScreen) {
@@ -640,44 +644,41 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                             ) {
+                                val screenWidth = constraints.maxWidth.toFloat().coerceAtLeast(400f)
+
                                 visitedScreens.forEach { screen ->
                                     val isActive = (currentScreen == screen)
                                     val isPrev = (previousScreen == screen && previousScreen != currentScreen)
-                                    val isSettings = (screen == Screen.Settings)
-                                    val isSettingsActive = (currentScreen == Screen.Settings)
 
-                                    val settingsSlideX by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (isSettingsActive) 0f else -600f,
-                                        animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 260,
-                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
-                                        ),
-                                        label = "settingsSlideX"
-                                    )
-                                    val settingsAlpha by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (isSettingsActive) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(durationMillis = 240),
-                                        label = "settingsAlpha"
-                                    )
-
-                                    // 模块间左右平滑切换动画
+                                    // 模块间左右平滑切换动效 (Material 3 Emphasized Decelerate 规范)
                                     val animProgress by androidx.compose.animation.core.animateFloatAsState(
                                         targetValue = if (isActive) 1f else 0f,
                                         animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 240,
-                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                            durationMillis = 320,
+                                            easing = androidx.compose.animation.core.CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
                                         ),
                                         label = "screenAnim_${screen.route}"
                                     )
 
-                                    val targetTranslationX = if (isSettings) {
-                                        settingsSlideX
-                                    } else if (isActive) {
-                                        (1f - animProgress) * (slideDirection * 280f)
+                                    // 新页面自屏幕边缘全宽滑入，旧页面以 28% 视差后退滑出并轻微缩小
+                                    val targetTranslationX = if (isActive) {
+                                        (1f - animProgress) * (slideDirection * screenWidth)
                                     } else if (isPrev) {
-                                        (animProgress - 1f) * (slideDirection * 280f)
+                                        (animProgress - 1f) * (slideDirection * (screenWidth * 0.28f))
                                     } else {
                                         100000f
+                                    }
+
+                                    val targetAlpha = if (isActive || isPrev) {
+                                        animProgress.coerceIn(0f, 1f)
+                                    } else {
+                                        0f
+                                    }
+
+                                    val targetScale = if (isActive || isPrev) {
+                                        0.96f + 0.04f * animProgress.coerceIn(0f, 1f)
+                                    } else {
+                                        1f
                                     }
 
                                     key(screen.route) {
@@ -686,34 +687,20 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .then(
-                                                        if (isSettings) {
-                                                            if (isSettingsActive || settingsAlpha > 0.01f) {
-                                                                Modifier.graphicsLayer {
-                                                                    translationX = settingsSlideX
-                                                                    alpha = settingsAlpha
-                                                                }
-                                                            } else {
-                                                                Modifier
-                                                                    .graphicsLayer {
-                                                                        alpha = 0f
-                                                                        translationX = 100000f
-                                                                    }
-                                                                    .clearAndSetSemantics { }
+                                                        if (isActive || (isPrev && animProgress > 0.01f)) {
+                                                            Modifier.graphicsLayer {
+                                                                translationX = targetTranslationX
+                                                                alpha = targetAlpha
+                                                                scaleX = targetScale
+                                                                scaleY = targetScale
                                                             }
                                                         } else {
-                                                            if (isActive || (isPrev && animProgress > 0.01f)) {
-                                                                Modifier.graphicsLayer {
-                                                                    translationX = targetTranslationX
-                                                                    alpha = if (isActive) animProgress else (1f - animProgress)
+                                                            Modifier
+                                                                .graphicsLayer {
+                                                                    alpha = 0f
+                                                                    translationX = 100000f
                                                                 }
-                                                            } else {
-                                                                Modifier
-                                                                    .graphicsLayer {
-                                                                        alpha = 0f
-                                                                        translationX = 100000f
-                                                                    }
-                                                                    .clearAndSetSemantics { }
-                                                            }
+                                                                .clearAndSetSemantics { }
                                                         }
                                                     )
                                             ) {
@@ -1469,8 +1456,7 @@ class MainActivity : ComponentActivity() {
                             onTryNow = {
                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                 showSettingsGestureTutorial = false
-                                lastScreenBeforeSettings = currentScreen
-                                currentScreen = Screen.Settings
+                                navigateToScreen(Screen.Settings, 1)
                                 Toast.makeText(this@MainActivity, "✨ 已进入系统设置！在底部栏左右轻滑即可退回", Toast.LENGTH_SHORT).show()
                             }
                         )
