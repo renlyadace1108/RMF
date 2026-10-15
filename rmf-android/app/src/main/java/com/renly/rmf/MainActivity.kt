@@ -512,6 +512,8 @@ class MainActivity : ComponentActivity() {
                                             bottomBarDragDelta += delta
                                         },
                                         onDragStopped = { velocity ->
+                                            val dist = bottomBarDragDelta
+                                            bottomBarDragDelta = 0f
                                             val curIdx = pagerState.currentPage
 
                                             if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {

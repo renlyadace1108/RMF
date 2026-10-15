@@ -49,6 +49,7 @@
      - 将页面解构为“核心底部导航模块 (Pager)”与“次级独立页面 (AnimatedVisibility 覆盖层)”：
        - `safeNavScreens`（如日程、课表、学习、专注、工作台）全部由 `HorizontalPager` 并行托管，享有全部跟手滑动特性。
        - 二级页面（如设置、健身、记账、目标、复盘等）在打开时由右向左平滑滑入；支持右滑边缘手势与 Android 系统返回键 (`BackHandler`) 无缝退回主 Pager，底层核心模块状态 100% 完好保持。
+     - 修复底部导航栏拖拽监听 `onDragStopped` 中遗漏的 `val dist = bottomBarDragDelta` 变量定义，消除 `Function invocation 'dist(...)' expected` 编译错误。
   4. **版本升级**：Android `versionCode` 升级至 `1040909`，`versionName` 升级至 `1.4.9.9`。
 
 ### [2026-10-15 10:45] - 主界面支持左右滑动手势切换核心功能模块与平滑过渡动画 (v1.4.9.7 / Code 1040907)
