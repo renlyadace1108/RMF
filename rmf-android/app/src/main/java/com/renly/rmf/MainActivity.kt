@@ -4,10 +4,18 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -16,6 +24,8 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -398,45 +408,59 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember {
                     mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
                 }
-                var previousScreen by remember { mutableStateOf<Screen>(currentScreen) }
-                var slideDirection by remember { mutableIntStateOf(1) } // 1: forward (right to left), -1: backward (left to right)
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
 
                 val density = LocalDensity.current
                 val haptic = LocalHapticFeedback.current
+                val coroutineScope = rememberCoroutineScope()
 
                 val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
                 val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
 
-                val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, explicitDir ->
-                    if (targetScreen != currentScreen) {
-                        val prevIdx = safeNavScreens.indexOf(currentScreen)
-                        val nextIdx = safeNavScreens.indexOf(targetScreen)
-                        slideDirection = explicitDir ?: if (nextIdx != -1 && prevIdx != -1) {
-                            if (nextIdx >= prevIdx) 1 else -1
-                        } else if (targetScreen == Screen.Settings) {
-                            1
-                        } else if (currentScreen == Screen.Settings) {
-                            -1
-                        } else 1
-                        previousScreen = currentScreen
-                        if (currentScreen != Screen.Settings) {
+                val initialPageIndex = remember(safeNavScreens, defaultHomeRoute) {
+                    val idx = safeNavScreens.indexOf(Screen.fromRoute(defaultHomeRoute))
+                    if (idx != -1) idx else 0
+                }
+
+                @OptIn(ExperimentalFoundationApi::class)
+                val pagerState = rememberPagerState(
+                    initialPage = initialPageIndex,
+                    pageCount = { safeNavScreens.size }
+                )
+
+                val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, _ ->
+                    val targetIdx = safeNavScreens.indexOf(targetScreen)
+                    if (targetIdx != -1) {
+                        if (pagerState.currentPage != targetIdx) {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(targetIdx)
+                            }
+                        }
+                        currentScreen = targetScreen
+                        lastScreenBeforeSettings = targetScreen
+                    } else {
+                        if (currentScreen != Screen.Settings && safeNavScreens.contains(currentScreen)) {
                             lastScreenBeforeSettings = currentScreen
                         }
                         currentScreen = targetScreen
                     }
                 }
 
-                var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
 
-                LaunchedEffect(currentScreen) {
-                    if (currentScreen != Screen.Settings) {
-                        lastScreenBeforeSettings = currentScreen
+                LaunchedEffect(pagerState.currentPage) {
+                    val pageScreen = safeNavScreens.getOrNull(pagerState.currentPage)
+                    if (pageScreen != null && safeNavScreens.contains(currentScreen) && currentScreen != pageScreen) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        currentScreen = pageScreen
+                        lastScreenBeforeSettings = pageScreen
                     }
-                    if (!visitedScreens.contains(currentScreen)) {
-                        visitedScreens = visitedScreens + currentScreen
+                }
+
+                LaunchedEffect(safeNavScreens) {
+                    if (pagerState.currentPage >= safeNavScreens.size && safeNavScreens.isNotEmpty()) {
+                        pagerState.scrollToPage(safeNavScreens.size - 1)
                     }
                 }
 
@@ -488,31 +512,27 @@ class MainActivity : ComponentActivity() {
                                             bottomBarDragDelta += delta
                                         },
                                         onDragStopped = { velocity ->
-                                            val dist = bottomBarDragDelta
-                                            bottomBarDragDelta = 0f
-                                            val curIdx = safeNavScreens.indexOf(currentScreen)
+                                            val curIdx = pagerState.currentPage
 
                                             if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
                                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                                 showSettingsGestureTutorial = false
 
-                                                if (currentScreen == Screen.Settings) {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    navigateToScreen(lastScreenBeforeSettings, -1)
-                                                } else if (dist < 0 || velocity < 0) {
-                                                    // 向左滑 -> 切换到下一个模块 (若为最后一个则进入设置)
-                                                    if (curIdx != -1 && curIdx < safeNavScreens.size - 1) {
+                                                if (dist < 0 || velocity < 0) {
+                                                    // 向左滑 -> 切换到下一个模块
+                                                    if (curIdx < safeNavScreens.size - 1) {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(safeNavScreens[curIdx + 1], 1)
-                                                    } else if (curIdx == safeNavScreens.size - 1) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(Screen.Settings, 1)
+                                                        coroutineScope.launch {
+                                                            pagerState.animateScrollToPage(curIdx + 1)
+                                                        }
                                                     }
                                                 } else {
                                                     // 向右滑 -> 切换到上一个模块
                                                     if (curIdx > 0) {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(safeNavScreens[curIdx - 1], -1)
+                                                        coroutineScope.launch {
+                                                            pagerState.animateScrollToPage(curIdx - 1)
+                                                        }
                                                     }
                                                 }
                                             }
@@ -524,7 +544,12 @@ class MainActivity : ComponentActivity() {
                                     tonalElevation = 0.dp
                                 ) {
                                     safeNavScreens.forEach { screen ->
-                                        val isSelected = currentScreen == screen
+                                        val isSelected = if (safeNavScreens.contains(currentScreen)) {
+                                            val targetOrCurrent = if (pagerState.isScrollInProgress) pagerState.targetPage else pagerState.currentPage
+                                            safeNavScreens.getOrNull(targetOrCurrent) == screen
+                                        } else {
+                                            currentScreen == screen
+                                        }
                                         NavigationBarItem(
                                             selected = isSelected,
                                             onClick = { navigateToScreen(screen, null) },
@@ -551,161 +576,10 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     Box(modifier = Modifier.fillMaxSize()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
-                            color = DarkBg
-                        ) {
-                            BoxWithConstraints(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(safeNavScreens, currentScreen) {
-                                        val touchSlop = viewConfiguration.touchSlop
-                                        val swipeThreshold = with(density) { 46.dp.toPx() }
-
-                                        awaitEachGesture {
-                                            val down = awaitFirstDown(requireUnconsumed = false)
-                                            var totalX = 0f
-                                            var totalY = 0f
-                                            var isHorizontalSwipe: Boolean? = null
-                                            val velocityTracker = VelocityTracker()
-                                            velocityTracker.addPosition(down.uptimeMillis, down.position)
-
-                                            while (true) {
-                                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-
-                                                if (event.changes.count { it.pressed } >= 2) {
-                                                    isHorizontalSwipe = false
-                                                    break
-                                                }
-
-                                                if (!change.pressed) {
-                                                    if (isHorizontalSwipe == true) {
-                                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-                                                        val velocity = velocityTracker.calculateVelocity().x
-                                                        val curIdx = safeNavScreens.indexOf(currentScreen)
-
-                                                        if (currentScreen == Screen.Settings) {
-                                                            if (totalX > swipeThreshold || velocity > 360f) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                navigateToScreen(lastScreenBeforeSettings, -1)
-                                                            }
-                                                        } else if (curIdx != -1) {
-                                                            if ((totalX < -swipeThreshold || velocity < -360f) && curIdx < safeNavScreens.size - 1) {
-                                                                // 主界面向左滑 -> 切换到下一个模块
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                navigateToScreen(safeNavScreens[curIdx + 1], 1)
-                                                            } else if ((totalX < -swipeThreshold || velocity < -360f) && curIdx == safeNavScreens.size - 1) {
-                                                                // 最后一个模块左滑 -> 进入设置
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                navigateToScreen(Screen.Settings, 1)
-                                                            } else if ((totalX > swipeThreshold || velocity > 360f) && curIdx > 0) {
-                                                                // 主界面向右滑 -> 切换到上一个模块
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                navigateToScreen(safeNavScreens[curIdx - 1], -1)
-                                                            }
-                                                        } else {
-                                                            // 当前在次级页面（如健身、统计、目标等），右滑返回
-                                                            if (totalX > swipeThreshold || velocity > 360f) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                navigateToScreen(lastScreenBeforeSettings, -1)
-                                                            }
-                                                        }
-                                                    }
-                                                    break
-                                                }
-
-                                                val pos = change.position
-                                                val prevPos = change.previousPosition
-                                                val dx = pos.x - prevPos.x
-                                                val dy = pos.y - prevPos.y
-                                                totalX += dx
-                                                totalY += dy
-                                                velocityTracker.addPosition(change.uptimeMillis, pos)
-
-                                                if (isHorizontalSwipe == null) {
-                                                    val absX = kotlin.math.abs(totalX)
-                                                    val absY = kotlin.math.abs(totalY)
-                                                    if (absX > touchSlop || absY > touchSlop) {
-                                                        if (absX > absY * 1.35f && absX > touchSlop) {
-                                                            isHorizontalSwipe = true
-                                                        } else {
-                                                            isHorizontalSwipe = false
-                                                        }
-                                                    }
-                                                }
-
-                                                if (isHorizontalSwipe == true) {
-                                                    change.consume()
-                                                }
-                                            }
-                                        }
-                                    }
-                            ) {
-                                val screenWidth = constraints.maxWidth.toFloat().coerceAtLeast(400f)
-
-                                visitedScreens.forEach { screen ->
-                                    val isActive = (currentScreen == screen)
-                                    val isPrev = (previousScreen == screen && previousScreen != currentScreen)
-
-                                    // 模块间左右平滑切换动效 (Material 3 Emphasized Decelerate 规范)
-                                    val animProgress by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (isActive) 1f else 0f,
-                                        animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 320,
-                                            easing = androidx.compose.animation.core.CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
-                                        ),
-                                        label = "screenAnim_${screen.route}"
-                                    )
-
-                                    // 新页面自屏幕边缘全宽滑入，旧页面以 28% 视差后退滑出并轻微缩小
-                                    val targetTranslationX = if (isActive) {
-                                        (1f - animProgress) * (slideDirection * screenWidth)
-                                    } else if (isPrev) {
-                                        (animProgress - 1f) * (slideDirection * (screenWidth * 0.28f))
-                                    } else {
-                                        100000f
-                                    }
-
-                                    val targetAlpha = if (isActive || isPrev) {
-                                        animProgress.coerceIn(0f, 1f)
-                                    } else {
-                                        0f
-                                    }
-
-                                    val targetScale = if (isActive || isPrev) {
-                                        0.96f + 0.04f * animProgress.coerceIn(0f, 1f)
-                                    } else {
-                                        1f
-                                    }
-
-                                    key(screen.route) {
-                                        saveableStateHolder.SaveableStateProvider(screen.route) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .then(
-                                                        if (isActive || (isPrev && animProgress > 0.01f)) {
-                                                            Modifier.graphicsLayer {
-                                                                translationX = targetTranslationX
-                                                                alpha = targetAlpha
-                                                                scaleX = targetScale
-                                                                scaleY = targetScale
-                                                            }
-                                                        } else {
-                                                            Modifier
-                                                                .graphicsLayer {
-                                                                    alpha = 0f
-                                                                    translationX = 100000f
-                                                                }
-                                                                .clearAndSetSemantics { }
-                                                        }
-                                                    )
-                                            ) {
-                                                when (screen) {
-                            Screen.Schedule -> ScheduleScreen(
+                        @Composable
+                        fun RenderScreenContent(screen: Screen) {
+                            when (screen) {
+                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
                                 tagsFlow = db.syncDao().getAllTags(),
                                 onToggleStatus = { schedule ->
@@ -1041,7 +915,7 @@ class MainActivity : ComponentActivity() {
                             Screen.Fitness -> FitnessScreen(
                                 fitnessDao = db.fitnessDao(),
                                 scheduleDao = db.scheduleDao(),
-                                onBack = { navigateToScreen(Screen.Schedule, -1) },
+                                onBack = { navigateToScreen(lastScreenBeforeSettings, -1) },
                                 onProjectToSchedule = { plan, _ ->
                                     lifecycleScope.launch {
                                         db.fitnessDao().upsertPlan(plan)
@@ -1265,12 +1139,102 @@ class MainActivity : ComponentActivity() {
                                     showSettingsGestureTutorial = true
                                 }
                             )
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
+                            color = DarkBg
+                        ) {
+                            BackHandler(enabled = !safeNavScreens.contains(currentScreen)) {
+                                navigateToScreen(lastScreenBeforeSettings, -1)
+                            }
+
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                // 1. 核心模块 HorizontalPager：实现真正意义上的 1:1 跟手滑动，滑动过程中下一模块内容同屏联动实时可见
+                                @OptIn(ExperimentalFoundationApi::class)
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    key = { index -> safeNavScreens.getOrNull(index)?.route ?: index },
+                                    beyondViewportPageCount = 1
+                                ) { pageIndex ->
+                                    val pageScreen = safeNavScreens.getOrNull(pageIndex)
+                                    if (pageScreen != null) {
+                                        saveableStateHolder.SaveableStateProvider(pageScreen.route) {
+                                            Box(modifier = Modifier.fillMaxSize()) {
+                                                RenderScreenContent(pageScreen)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 2. 次级页面覆盖层 (当当前页面不在 safeNavScreens 核心底部导航中时，如次级设置/目标/统计等)
+                                AnimatedVisibility(
+                                    visible = !safeNavScreens.contains(currentScreen),
+                                    enter = slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> fullWidth },
+                                        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(200)),
+                                    exit = slideOutHorizontally(
+                                        targetOffsetX = { fullWidth -> fullWidth },
+                                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(200))
+                                ) {
+                                    val secScreen = currentScreen
+                                    saveableStateHolder.SaveableStateProvider(secScreen.route) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(DarkBg)
+                                                .pointerInput(secScreen) {
+                                                    val touchSlop = viewConfiguration.touchSlop
+                                                    val swipeThreshold = with(density) { 46.dp.toPx() }
+                                                    awaitEachGesture {
+                                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                                        var totalX = 0f
+                                                        var totalY = 0f
+                                                        var isHorizontal: Boolean? = null
+                                                        val velocityTracker = VelocityTracker()
+                                                        velocityTracker.addPosition(down.uptimeMillis, down.position)
+                                                        while (true) {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                            if (!change.pressed) {
+                                                                if (isHorizontal == true) {
+                                                                    velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                                                    val vel = velocityTracker.calculateVelocity().x
+                                                                    if (totalX > swipeThreshold || vel > 360f) {
+                                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                                        navigateToScreen(lastScreenBeforeSettings, -1)
+                                                                    }
+                                                                }
+                                                                break
+                                                            }
+                                                            val dx = change.position.x - change.previousPosition.x
+                                                            val dy = change.position.y - change.previousPosition.y
+                                                            totalX += dx
+                                                            totalY += dy
+                                                            velocityTracker.addPosition(change.uptimeMillis, change.position)
+                                                            if (isHorizontal == null) {
+                                                                if (kotlin.math.abs(totalX) > touchSlop || kotlin.math.abs(totalY) > touchSlop) {
+                                                                    isHorizontal = (totalX > 0 && totalX > kotlin.math.abs(totalY) * 1.35f)
+                                                                }
+                                                            }
+                                                            if (isHorizontal == true && totalX > 0) {
+                                                                change.consume()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                        ) {
+                                            RenderScreenContent(secScreen)
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
-            }
 
                         if (showQuickCaptureDialog) {
                             QuickCaptureDialog(
@@ -1456,7 +1420,8 @@ class MainActivity : ComponentActivity() {
                             onTryNow = {
                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                 showSettingsGestureTutorial = false
-                                navigateToScreen(Screen.Settings, 1)
+                                lastScreenBeforeSettings = currentScreen
+                                currentScreen = Screen.Settings
                                 Toast.makeText(this@MainActivity, "✨ 已进入系统设置！在底部栏左右轻滑即可退回", Toast.LENGTH_SHORT).show()
                             }
                         )

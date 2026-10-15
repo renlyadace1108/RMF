@@ -34,24 +34,22 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
-### [2026-10-15 11:55] - 全面重构并优化主界面模块滑动过渡动效 (v1.4.9.8 / Code 1040908)
+### [2026-10-15 12:15] - 全面重构主界面手势交互架构，采用 HorizontalPager 实现 1:1 跟手滑动与下一页内容实时预览 (v1.4.9.9 / Code 1040909)
 * **执行角色**：AI 全栈工程师 (Antigravity)
-* **用户诉求**：“优化滑动动画”
+* **用户诉求**：“滑动到下一页的时候要能看到下一页的内容，你懂我意思吗”
 * **核心改进**：
-  1. **彻底修复旧页面反向透明度闪烁 Bug**：
-     - 原先 `alpha = if (isActive) animProgress else (1f - animProgress)` 导致旧页面在动画第 0 帧瞬间变为 100% 全透明并在滑动中反向变亮。
-     - 修复为统一的单调递减曲线 `targetAlpha = animProgress.coerceIn(0f, 1f)`，确保退出页面从 1.0f 柔和渐隐至 0.0f，彻底消除闪烁。
-  2. **升级自适应全屏滑动与视差深度分层 (Parallax Depth)**：
-     - 将原本固定的 `280f` 局部像素小位移升级为 `BoxWithConstraints` 动态获取当前屏幕物理全宽 `screenWidth`。
-     - **新进入页面**：自屏幕边缘全宽滑入（`translationX = (1f - animProgress) * slideDirection * screenWidth`），自然平滑覆盖。
-     - **旧退出页面**：施加 **28% 视差后退滑动**（`translationX = (animProgress - 1f) * slideDirection * (screenWidth * 0.28f)`），营造 iOS 与 Material 3 规范的高级物理视差层级感。
-  3. **微量尺度进深感 (Scale Depth)**：
-     - 新页面从 0.96 缩放至 1.0，旧页面从 1.0 缩小至 0.96，形成优雅的前后景深微动效。
-  4. **Emphasized Decelerate 质感缓动曲线升级**：
-     - 弃用生硬的 `FastOutSlowInEasing`，采用 Material Design 3 官方推荐的强调减速贝塞尔曲线 `CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)`，时长优化至 320ms，起步灵敏跟手，收尾行云流水。
-  5. **统一系统设置页面的滑动动效**：
-     - 消除原本硬编码的 `-600f` 偏向位移，将设置页全面纳入统一的双向视差滑动管线。
-  6. **版本升级**：Android `versionCode` 升级至 `1040908`，`versionName` 升级至 `1.4.9.8`。
+  1. **全面接入 Jetpack Compose `HorizontalPager` 原生跟手翻页体系 ([`MainActivity.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/MainActivity.kt))**：
+     - 彻底摒弃此前“抬手判定后才触发页面位移”的离散手势方案，引入 Compose 官方底层 `HorizontalPager` 与 `rememberPagerState`。
+     - **真实 1:1 跟手拖拽 (Follow-Finger Interactivity)**：手指在屏幕上滑动的每一像素，当前模块与相邻模块均在同一屏幕画布上并排以精确坐标同步平移。用户拖拽过程中可实时看到下一页（或上一页）的完整 UI 布局与内容细节，拖拽过半或快速轻扫平滑吸附停靠，取消则弹性回弹，手感行云流水。
+     - **预加载优化 (`beyondViewportPageCount = 1`)**：滑动起手前即已在后台轻量预绘制邻近页面视口，拖拽零白屏、零掉帧。
+  2. **底部导航栏双向联动与惯性抛掷同步**：
+     - 底部导航栏与 `pagerState.targetPage` / `pagerState.currentPage` 实现毫秒级平滑跟随，手指横拖时导航选中态随翻页方向平滑转移，并伴随细腻触觉反馈。
+     - 底部导航栏横滑手势无缝接入 `pagerState.animateScrollToPage`，点击或滑动手势均触发丝滑翻页。
+  3. **模块分层与次级页面覆盖层 (Overlay Pattern)**：
+     - 将页面解构为“核心底部导航模块 (Pager)”与“次级独立页面 (AnimatedVisibility 覆盖层)”：
+       - `safeNavScreens`（如日程、课表、学习、专注、工作台）全部由 `HorizontalPager` 并行托管，享有全部跟手滑动特性。
+       - 二级页面（如设置、健身、记账、目标、复盘等）在打开时由右向左平滑滑入；支持右滑边缘手势与 Android 系统返回键 (`BackHandler`) 无缝退回主 Pager，底层核心模块状态 100% 完好保持。
+  4. **版本升级**：Android `versionCode` 升级至 `1040909`，`versionName` 升级至 `1.4.9.9`。
 
 ### [2026-10-15 10:45] - 主界面支持左右滑动手势切换核心功能模块与平滑过渡动画 (v1.4.9.7 / Code 1040907)
 * **执行角色**：AI 全栈工程师 (Antigravity)
