@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -436,7 +437,7 @@ class MainActivity : ComponentActivity() {
                 var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
                 val saveableStateHolder = rememberSaveableStateHolder()
 
-                val dragOffset = remember { Animatable(0f) }
+                var dragOffsetX by remember { mutableFloatStateOf(0f) }
                 var isHandDragging by remember { mutableStateOf(false) }
                 var isDragSettling by remember { mutableStateOf(false) }
                 var dragDirection by remember { mutableIntStateOf(0) }
@@ -626,7 +627,11 @@ class MainActivity : ComponentActivity() {
                                                     if (isHandDragging) {
                                                         isHandDragging = false
                                                         coroutineScope.launch {
-                                                            dragOffset.animateTo(0f, androidx.compose.animation.core.tween(200))
+                                                            androidx.compose.animation.core.animate(
+                                                                initialValue = dragOffsetX,
+                                                                targetValue = 0f,
+                                                                animationSpec = androidx.compose.animation.core.tween(200)
+                                                            ) { v, _ -> dragOffsetX = v }
                                                             dragDirection = 0
                                                         }
                                                     }
@@ -637,7 +642,7 @@ class MainActivity : ComponentActivity() {
                                                     if (isHorizontalSwipe == true) {
                                                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                                                         val velocity = velocityTracker.calculateVelocity().x
-                                                        val curOffset = dragOffset.value
+                                                        val curOffset = dragOffsetX
                                                         val absOffset = kotlin.math.abs(curOffset)
                                                         val passedDistance = absOffset > (screenPxWidth * 0.16f) || absOffset > swipeThreshold
                                                         val passedVelocity = kotlin.math.abs(velocity) > 360f
@@ -653,16 +658,17 @@ class MainActivity : ComponentActivity() {
                                                             settleJob?.cancel()
                                                             settleJob = coroutineScope.launch {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                dragOffset.animateTo(
+                                                                androidx.compose.animation.core.animate(
+                                                                    initialValue = curOffset,
                                                                     targetValue = targetX,
                                                                     animationSpec = androidx.compose.animation.core.tween(
                                                                         durationMillis = 240,
                                                                         easing = FastOutSlowInEasing
                                                                     )
-                                                                )
+                                                                ) { v, _ -> dragOffsetX = v }
                                                                 skipTransitionAnim = true
                                                                 navigateToScreen(commitTarget, dir)
-                                                                dragOffset.snapTo(0f)
+                                                                dragOffsetX = 0f
                                                                 dragDirection = 0
                                                                 isDragSettling = false
                                                                 kotlinx.coroutines.delay(60)
@@ -673,13 +679,14 @@ class MainActivity : ComponentActivity() {
                                                             isHandDragging = false
                                                             settleJob?.cancel()
                                                             settleJob = coroutineScope.launch {
-                                                                dragOffset.animateTo(
+                                                                androidx.compose.animation.core.animate(
+                                                                    initialValue = curOffset,
                                                                     targetValue = 0f,
                                                                     animationSpec = androidx.compose.animation.core.tween(
                                                                         durationMillis = 200,
                                                                         easing = FastOutSlowInEasing
                                                                     )
-                                                                )
+                                                                ) { v, _ -> dragOffsetX = v }
                                                                 dragDirection = 0
                                                                 isDragSettling = false
                                                             }
@@ -723,7 +730,7 @@ class MainActivity : ComponentActivity() {
                                                                          (totalX < 0 && currentScreen == Screen.Settings) ||
                                                                          (totalX > 0 && curNavIdx == -1 && lastScreenBeforeSettings == currentScreen)
                                                     val effectiveX = if (isOverBoundary) totalX * 0.22f else totalX
-                                                    dragOffset.snapTo(effectiveX)
+                                                    dragOffsetX = effectiveX
                                                 }
                                             }
                                         }
@@ -758,7 +765,7 @@ class MainActivity : ComponentActivity() {
                                                         if (shouldRender) {
                                                             Modifier.graphicsLayer {
                                                                 if (isHandDragging || isDragSettling) {
-                                                                    val currentOffset = dragOffset.value
+                                                                    val currentOffset = dragOffsetX
                                                                     val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
                                                                     if (isActive) {
                                                                         translationX = currentOffset

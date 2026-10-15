@@ -605,6 +605,16 @@
   5. **一键同步与配置弹窗 (`GoogleCalendarSyncModal`)**：
      * 提供图文引导说明（如何从 Google Calendar 网页端设置中一键获取私密 iCal 地址）、一键测试同步保存与解除绑定功能。
 
+### [2026-10-15 23:56] - v1.5.0.2：修复 RestrictedSuspendingFunctions 编译错误并确保平滑过渡
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **核心修复**：
+  1. **彻底解决 AwaitPointerEventScope 受限挂起函数编译报错**：
+     - Android Studio 编译报错：`Restricted suspending functions can invoke member or extension suspending functions only when their receiver is the same restricted suspension class`。
+     - 原因：在 `@RestrictedSuspension` 标注的 `awaitEachGesture` 作用域内直接调用了属于外部协程挂起函数的 `Animatable.snapTo`。
+     - 修复方案：将位移状态重构为标准 Compose `MutableFloatState` (`dragOffsetX`)。在手势监听中直接进行纯标量赋值 `dragOffsetX = effectiveX`（非挂起函数，绝对合法）；在松手结算与回弹时，由 `coroutineScope.launch` 驱动 `androidx.compose.animation.core.animate` 进行平滑插值，彻底消除编译错误。
+  2. **绘制阶段零重组保障**：
+     - `Modifier.graphicsLayer` 内部在绘制阶段直接读取 `dragOffsetX`，继续保持 120 FPS 满帧丝滑无卡顿。
+
 ### [2026-10-15 23:08] - v1.5.0.1：RenderThread 绘制阶段零重组性能优化与全格式时间解析
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **性能与功能深层优化**：
