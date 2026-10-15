@@ -42,6 +42,7 @@
      - 在主界面核心容器上通过 `pointerInput`、`awaitEachGesture` 与 `VelocityTracker` 捕获水平滑动与惯性抛掷手势。
      - 智能手势过滤：严格判定单指滑动（排除双指捏合无极缩放）、严格判定水平位移优势（`|dx| > |dy| * 1.35`，彻底避免干扰上下垂直列表及网格滚动手势），只有达到位移阈值（46dp）或快速轻扫（速度 > 360f）才触发模块切换。
      - 切换联动：向左滑动平滑切换至下一个模块（日程 -> 课表 -> 学习 -> 专注 -> 工作台 -> 设置）；向右滑动平滑切换至上一个模块；在次级页面（如健身、统计等）右滑直接退回上一界面，操作行云流水。
+     - 手势事件处理适配现代 Jetpack Compose 标准（采用 `!change.pressed` 替代早期废弃的 `changedToUp()`，消除编译警告与符号未解析报错）。
   2. **底部导航栏左右滑动手势同步升级 ([`MainActivity.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/MainActivity.kt))**：
      - 将底部导航栏单调的切换设置逻辑升级为与主界面完全一致的全局模块顺序切换，向左滑前进、向右滑后退，并在触发切换时施加细腻的触觉震动反馈（HapticFeedback）。
   3. **双向无缝模块滑动过渡动效**：

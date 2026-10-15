@@ -577,7 +577,7 @@ class MainActivity : ComponentActivity() {
                                                     break
                                                 }
 
-                                                if (change.changedToUp()) {
+                                                if (!change.pressed) {
                                                     if (isHorizontalSwipe == true) {
                                                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                                                         val velocity = velocityTracker.calculateVelocity().x

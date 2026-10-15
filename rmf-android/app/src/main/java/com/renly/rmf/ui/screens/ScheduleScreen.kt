@@ -39,7 +39,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -1402,7 +1401,7 @@ fun ScheduleWeekGridView(
                                                     val event = awaitPointerEvent()
                                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
-                                                    if (change.changedToUp()) {
+                                                    if (!change.pressed) {
                                                         if (isDragging) {
                                                             change.consume()
                                                             executeDropWeek(item)
@@ -2204,7 +2203,7 @@ fun ScheduleDayGridView(
                                                     val event = awaitPointerEvent()
                                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
-                                                    if (change.changedToUp()) {
+                                                    if (!change.pressed) {
                                                         if (isDragging) {
                                                             change.consume()
                                                             executeDropDay(item)
