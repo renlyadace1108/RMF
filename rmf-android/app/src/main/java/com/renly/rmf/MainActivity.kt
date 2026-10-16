@@ -1421,7 +1421,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 }
-}
 
     private var cachedSchedules: List<ScheduleEntity> = emptyList()
 

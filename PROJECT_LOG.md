@@ -34,6 +34,17 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 13:53] - 修复 MainActivity 大括号配平错误导致的方法游离问题 (v1.5.0.12 / Code 1050012)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **问题现象**：Android Studio 报 3 处编译错误：
+  - `Unresolved reference 'lifecycleScope'. :1429`
+  - `Unresolved reference 'db'. :1430`
+  - `Syntax error: Expecting a top level declaration. :1434`
+* **根因定位与修复**：
+  - 在重构 `HorizontalPager` 时，`MainActivity.kt` 末尾多闭合了一个 `}`，导致 `class MainActivity` 提前闭合，使类成员方法 `runBlockingOrCachedSchedules()` 误逃逸至顶层文件作用域（Top-level function），无法访问 Activity 的成员字段 `db` 与 `lifecycleScope`，且行末引发了未配对的大括号语法报错。
+  - 通过栈计数脚本精确配平整份文件的全部层次大括号，剔除冗余的 `}`，将 `cachedSchedules` 与 `runBlockingOrCachedSchedules()` 重新纳回 `MainActivity` 类体内，经完整栈检验当前全文件未闭合大括号归零（0 errors）。
+  - 版本升级：Android `versionCode` 升级至 `1050012`，`versionName` 升级至 `1.5.0.12`。
+
 ### [2026-10-16 13:45] - 架构级重构：采用原生 HorizontalPager 彻底根除滑动卡顿与跳屏问题 (v1.5.0.11 / Code 1050011)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“左右滑动页面的时候会卡一下跳上一个页面的图片，然后滑动依旧很卡顿”
