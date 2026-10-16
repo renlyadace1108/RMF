@@ -12,7 +12,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -3745,35 +3748,65 @@ fun EditScheduleDialog(
                     // 添加子步骤输入框
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        OutlinedTextField(
-                            value = newSubtaskText,
-                            onValueChange = { newSubtaskText = it },
-                            placeholder = { Text("+ 添加分解步骤...", fontSize = 11.5.sp) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = DopamineCyan,
-                                unfocusedBorderColor = DarkBorder,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.weight(1f).height(48.dp)
-                        )
-                        Button(
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.CenterStart,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 10.dp)
+                            ) {
+                                if (newSubtaskText.isEmpty()) {
+                                    Text(
+                                        "+ 添加分解步骤...",
+                                        fontSize = 12.sp,
+                                        color = TextMuted,
+                                        maxLines = 1
+                                    )
+                                }
+                                BasicTextField(
+                                    value = newSubtaskText,
+                                    onValueChange = { newSubtaskText = it },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 12.5.sp,
+                                        color = TextPrimary
+                                    ),
+                                    cursorBrush = SolidColor(DopamineCyan),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        Surface(
                             onClick = {
                                 if (newSubtaskText.isNotBlank()) {
                                     subtasks = subtasks + SubTaskItem(title = newSubtaskText.trim(), isDone = false)
                                     newSubtaskText = ""
                                 }
                             },
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(8.dp),
+                            color = DopamineCyan.copy(alpha = 0.2f),
                             border = BorderStroke(1.dp, DopamineCyan),
-                            modifier = Modifier.height(44.dp)
+                            modifier = Modifier.height(40.dp)
                         ) {
-                            Text("添加", color = DopamineCyan, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "添加", tint = DopamineCyan, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("添加", color = DopamineCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

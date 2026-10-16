@@ -7,9 +7,11 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -612,8 +614,10 @@ fun AddEditReminderDialog(
                 // 提前提醒分钟数选择
                 Text("提前多久提醒 (借道实时活动与胶囊通知):", fontSize = 11.5.sp, color = TextSecondary)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val advanceOptions = listOf(
                         0 to "准时",
@@ -634,8 +638,10 @@ fun AddEditReminderDialog(
                 // 响铃与震动模式
                 Text("提醒模式:", fontSize = 11.5.sp, color = TextSecondary)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf("ALL" to "响铃+震动", "ALARM" to "仅响铃", "VIBRATE" to "仅震动", "NONE" to "静音").forEach { (type, label) ->
                         FilterChip(
