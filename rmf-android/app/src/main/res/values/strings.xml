@@ -1,6 +1,16 @@
 <resources>
     <string name="app_name">RMF</string>
-    <string name="widget_description">RMF 桌面全景看板小组件（今日日程、课表透视、倒数日与北极星目标）</string>
-    <string name="widget_schedule_description">RMF 今日日程清单小组件（日程任务列表、打卡完成度与一键新建）</string>
-    <string name="widget_capsule_description">RMF 专注与倒数胶囊小组件（置顶倒数日大字透视、快捷专注与闪念速记）</string>
+    <string name="widget_description">RMF 桌面全景看板（今日日程、课表透视、倒数日与北极星目标）</string>
+    <string name="widget_full_description">RMF 全景中枢全尺寸大看板（今日日程、课表透视、倒数日与战略目标完整掌控）</string>
+    <string name="widget_schedule_description">RMF 今日日程清单（日程任务列表、打卡完成度与一键新建）</string>
+    <string name="widget_schedule_full_description">RMF 今日日程全尺寸大看板（多达8项日程排期、起止时段、打卡进度与快速新建）</string>
+    <string name="widget_capsule_description">RMF 专注与倒数胶囊（置顶倒数日大字透视、快捷专注与闪念速记）</string>
+    <string name="widget_focus_full_description">RMF 深度专注与倒数全尺寸大看板（实时专注控制台、预设快捷计时、里程碑倒数日与今日专注战报）</string>
+
+    <string name="label_widget_overview">RMF 全景看板 (4x3)</string>
+    <string name="label_widget_overview_full">RMF 全景中枢 (4x4 全尺寸)</string>
+    <string name="label_widget_schedule">RMF 今日日程 (4x2)</string>
+    <string name="label_widget_schedule_full">RMF 今日日程 (4x4 全尺寸)</string>
+    <string name="label_widget_focus">RMF 专注与倒数 (2x2)</string>
+    <string name="label_widget_focus_full">RMF 深度专注与倒数 (4x4 全尺寸)</string>
 </resources>

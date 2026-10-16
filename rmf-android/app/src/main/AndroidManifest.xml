@@ -64,9 +64,10 @@
                 android:value="Focus countdown timer and status bar live capsule" />
         </service>
 
-        <!-- 桌面智能小组件 1: 全景看板 (4x3 / 4x4) -->
+        <!-- 桌面智能小组件 1: 全景看板 (4x3 标准) -->
         <receiver
             android:name=".ui.widget.RmfAppWidgetProvider"
+            android:label="@string/label_widget_overview"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -77,9 +78,24 @@
                 android:resource="@xml/rmf_widget_info" />
         </receiver>
 
-        <!-- 桌面智能小组件 2: 今日日程清单 (4x2) -->
+        <!-- 桌面智能小组件 1-Full: 全景中枢 (4x4 全尺寸) -->
+        <receiver
+            android:name=".ui.widget.RmfAppFullWidgetProvider"
+            android:label="@string/label_widget_overview_full"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.renly.rmf.ACTION_REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rmf_widget_full_info" />
+        </receiver>
+
+        <!-- 桌面智能小组件 2: 今日日程清单 (4x2 标准) -->
         <receiver
             android:name=".ui.widget.RmfScheduleWidgetProvider"
+            android:label="@string/label_widget_schedule"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -90,9 +106,24 @@
                 android:resource="@xml/rmf_schedule_widget_info" />
         </receiver>
 
-        <!-- 桌面智能小组件 3: 专注与倒数胶囊 (2x2) -->
+        <!-- 桌面智能小组件 2-Full: 今日日程攻坚看板 (4x4 全尺寸) -->
+        <receiver
+            android:name=".ui.widget.RmfScheduleFullWidgetProvider"
+            android:label="@string/label_widget_schedule_full"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.renly.rmf.ACTION_REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rmf_schedule_full_widget_info" />
+        </receiver>
+
+        <!-- 桌面智能小组件 3: 专注与倒数胶囊 (2x2 标准) -->
         <receiver
             android:name=".ui.widget.RmfFocusCapsuleWidgetProvider"
+            android:label="@string/label_widget_focus"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -101,6 +132,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/rmf_focus_capsule_widget_info" />
+        </receiver>
+
+        <!-- 桌面智能小组件 3-Full: 深度专注与倒数中枢 (4x4 全尺寸) -->
+        <receiver
+            android:name=".ui.widget.RmfFocusFullWidgetProvider"
+            android:label="@string/label_widget_focus_full"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.renly.rmf.ACTION_REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rmf_focus_full_widget_info" />
         </receiver>
 
         <!-- FileProvider 支持将数据库与导出文件安全共享至 Google Drive 及本地文件系统 -->

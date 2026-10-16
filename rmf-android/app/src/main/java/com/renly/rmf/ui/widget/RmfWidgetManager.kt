@@ -32,37 +32,25 @@ object RmfWidgetManager {
         try {
             val appWidgetManager = AppWidgetManager.getInstance(context.applicationContext) ?: return
 
-            // 1. 全景看板小组件
-            val mainProvider = ComponentName(context, RmfAppWidgetProvider::class.java)
-            val mainIds = appWidgetManager.getAppWidgetIds(mainProvider)
-            if (mainIds != null && mainIds.isNotEmpty()) {
-                val intent = Intent(context, RmfAppWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, mainIds)
-                }
-                context.sendBroadcast(intent)
-            }
+            val providers = listOf(
+                RmfAppWidgetProvider::class.java,
+                RmfAppFullWidgetProvider::class.java,
+                RmfScheduleWidgetProvider::class.java,
+                RmfScheduleFullWidgetProvider::class.java,
+                RmfFocusCapsuleWidgetProvider::class.java,
+                RmfFocusFullWidgetProvider::class.java
+            )
 
-            // 2. 今日日程清单小组件
-            val scheduleProvider = ComponentName(context, RmfScheduleWidgetProvider::class.java)
-            val scheduleIds = appWidgetManager.getAppWidgetIds(scheduleProvider)
-            if (scheduleIds != null && scheduleIds.isNotEmpty()) {
-                val intent = Intent(context, RmfScheduleWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, scheduleIds)
+            for (providerClass in providers) {
+                val component = ComponentName(context, providerClass)
+                val ids = appWidgetManager.getAppWidgetIds(component)
+                if (ids != null && ids.isNotEmpty()) {
+                    val intent = Intent(context, providerClass).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                    }
+                    context.sendBroadcast(intent)
                 }
-                context.sendBroadcast(intent)
-            }
-
-            // 3. 专注与倒数胶囊小组件
-            val capsuleProvider = ComponentName(context, RmfFocusCapsuleWidgetProvider::class.java)
-            val capsuleIds = appWidgetManager.getAppWidgetIds(capsuleProvider)
-            if (capsuleIds != null && capsuleIds.isNotEmpty()) {
-                val intent = Intent(context, RmfFocusCapsuleWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, capsuleIds)
-                }
-                context.sendBroadcast(intent)
             }
         } catch (_: Exception) {}
     }
@@ -112,5 +100,37 @@ object RmfWidgetManager {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /**
+     * 创建直接触发 FocusLiveService 动作（开始/暂停/恢复/停止）的 PendingIntent
+     */
+    fun createFocusActionPendingIntent(
+        context: Context,
+        action: String,
+        extraSeconds: Int = 25 * 60,
+        title: String = "深度专注",
+        requestCode: Int
+    ): PendingIntent {
+        val intent = Intent(context, com.renly.rmf.domain.service.FocusLiveService::class.java).apply {
+            this.action = action
+            putExtra(com.renly.rmf.domain.service.FocusLiveService.EXTRA_TITLE, title)
+            putExtra(com.renly.rmf.domain.service.FocusLiveService.EXTRA_SECONDS, extraSeconds)
+        }
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            PendingIntent.getForegroundService(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            PendingIntent.getService(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
     }
 }

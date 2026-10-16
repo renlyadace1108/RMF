@@ -95,6 +95,7 @@ class FocusLiveService : Service() {
         }
 
         launchTimerSyncLoop()
+        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(applicationContext)
     }
 
     private fun pauseFocusSession() {
@@ -126,6 +127,7 @@ class FocusLiveService : Service() {
         val notification = buildFluidCloudNotification()
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
+        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(applicationContext)
     }
 
     private fun resumeFocusSession() {
@@ -138,6 +140,7 @@ class FocusLiveService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.notify(NOTIFICATION_ID, notification)
             launchTimerSyncLoop()
+            com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(applicationContext)
         }
     }
 
@@ -156,6 +159,7 @@ class FocusLiveService : Service() {
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(applicationContext)
     }
 
     private fun onFocusCompleted() {
@@ -174,6 +178,7 @@ class FocusLiveService : Service() {
         showCompletedNotification()
         stopForeground(STOP_FOREGROUND_DETACH)
         stopSelf()
+        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(applicationContext)
     }
 
     private fun saveRecordToDb(durMins: Int, status: String, interruptions: Int = sessionInterruptionCount) {

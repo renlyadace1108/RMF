@@ -34,6 +34,23 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 09:50] - 桌面小组件全线支持 4x4 全尺寸大看板与自适应响应式伸缩体系 (v1.5.0.7 / Code 1050007)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“桌面小组件每个都要支持全尺寸的组件”
+* **核心改进**：
+  1. **三大核心小组件全面落地 4x4 全尺寸顶级大看板体系**：
+     - **全景中枢 (4x4 全尺寸, [`RmfAppFullWidgetProvider.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/widget/RmfAppFullWidgetProvider.kt) / [`widget_rmf_desktop_full.xml`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/res/layout/widget_rmf_desktop_full.xml))**：
+       顶部全景状态栏 + 倒数日/里程碑与北极星战略目标双列横向卡片透视 + 今日课程动态投影 + 5项攻坚重点日程纵深排期 + 底部专注/闪念/日历快捷入口。
+     - **今日日程攻坚看板 (4x4 全尺寸, [`RmfScheduleFullWidgetProvider.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/widget/RmfScheduleFullWidgetProvider.kt) / [`widget_rmf_schedule_full.xml`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/res/layout/widget_rmf_schedule_full.xml))**：
+       支持多达 8 项日程任务纵深全貌呈现，配备时段徽章、完成状态勾选、总进度百分比徽标与底部快速新建/总览按钮，大屏与平板排期一览无余。
+     - **深度专注与倒数中枢 (4x4 全尺寸, [`RmfFocusFullWidgetProvider.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/widget/RmfFocusFullWidgetProvider.kt) / [`widget_rmf_focus_full.xml`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/res/layout/widget_rmf_focus_full.xml))**：
+       集成实时专注控制台（大字计时器、实时心流状态标签、桌面一键播放/暂停/结束）、25m/45m/60m 预设快捷启动、置顶倒数日大字卡片与今日累计专注战报统计。
+  2. **双轨驱动：桌面自由拉伸自适应与组件选择器独立 4x4 选项支持**：
+     - **自由缩放全尺寸联动**：为既有标准小组件（全景 4x3、日程 4x2、胶囊 2x2）全面补全 `minResizeWidth="80dp"`、`minResizeHeight="80dp"`、`maxResizeWidth="600dp"`、`maxResizeHeight="800dp"` 与 `onAppWidgetOptionsChanged` 响应式拦截；当用户在桌面上将任何标准组件拉大至大尺寸时，自动无缝切换为对应的 4x4 满幅精细布局！
+     - **小组件库专属 4x4 规格**：在 `AndroidManifest.xml` 中分别为三个模块注册显式 label 的 4x4 全尺寸独立 Provider，满足 ColorOS 17 / 平板系统桌面直接拖放 4x4 大卡片的规范诉求。
+     - **专注服务与组件实时联动 ([`FocusLiveService.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/domain/service/FocusLiveService.kt))**：专注开启、暂停、恢复、结束时自动通知刷新桌面全部小组件，状态瞬时同步。
+  3. **版本升级**：Android `versionCode` 升级至 `1050007`，`versionName` 升级至 `1.5.0.7`。
+
 ### [2026-10-16 09:40] - 专注暂停自动记录心流打断与打断统计联动 (v1.5.0.6 / Code 1050006)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“暂停的时候自动记录一次打断”

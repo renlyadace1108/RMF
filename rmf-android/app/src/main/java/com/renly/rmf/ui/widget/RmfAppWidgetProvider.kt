@@ -24,6 +24,16 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        updateAppWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == RmfWidgetManager.ACTION_REFRESH_WIDGET || intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
@@ -45,6 +55,14 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
 
         fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
             if (appWidgetIds.isEmpty()) return
+
+            val firstId = appWidgetIds[0]
+            val options = appWidgetManager.getAppWidgetOptions(firstId)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+            if (minHeight >= 220) {
+                RmfAppFullWidgetProvider.updateAppWidgets(context, appWidgetManager, appWidgetIds)
+                return
+            }
 
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_desktop)
 
