@@ -34,6 +34,29 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 14:32] - 交互质感升级：底栏上拉拉出/下拉收回设置、全屏切页与操作触感震动反馈 (v1.5.0.13 / Code 1050013)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“改一下吧，底部栏上拉拉出设置界面，下拉收回。整个界面左滑右滑可以切换页面，设置里面加一个操作的触感反馈，就是震动。翻页这些可以支持触感”
+* **核心重构与功能实装**：
+  1. **底栏手势方向演进为垂直拉动 (Vertical Pull-Up/Pull-Down)**：
+     - 将底部栏手势方向从水平改为垂直方向（`Orientation.Vertical`）。
+     - 底部栏向上轻拉（`dist < -20f || velocity < -100f`）：如同优雅抽屉般顺滑呼出「系统设置」二级屏，并施加清脆回弹触感。
+     - 底部栏向下轻拉（`dist > 20f || velocity > 100f`）：丝滑收回系统设置，回归先前主功能模块。
+     - 底部栏拉手指示条升级为居中圆角横条（`width = 36.dp, height = 3.5.dp`），直观标示上拉手势。
+  2. **系统设置平滑抽屉动画与顶栏快速收回 Handle**：
+     - 二级页面 `AnimatedVisibility` 动画调整为物理级垂直弹出与沉降：`slideInVertically(initialOffsetY = { fullHeight })` 与 `slideOutVertically(targetOffsetY = { fullHeight })`，配合柔和阻尼弹簧过渡。
+     - 在 `SettingsScreen` 顶部中央增设触感下拉横条（`42.dp × 4.dp`）及可点击的“底栏下拉收回 ↓”徽章，下拉或轻点均可快速退回主界面。
+  3. **全屏左右滑屏切页联动触感震动 (Page Turn Haptics)**：
+     - 主功能模块（今日、日常、专注、习惯、清单）由 `HorizontalPager` 支持全屏任意位置左右滑动。
+     - 在 `LaunchedEffect(pagerState.currentPage)` 中接入 `HapticHelper.performPageTurn(context)` 与 Compose 触觉反馈，手指滑动完成翻页的瞬间触发极其短促微小的物理刻度级震动（`EFFECT_TICK` / 12ms 脉冲），带来媲美机械仪表的精密操作手感。
+  4. **系统设置操作触感引擎与总控开关**：
+     - 升级 `HapticHelper`，内置 SharedPreferences 持久化总控开关 `isHapticEnabled` / `setHapticEnabled`。
+     - 在系统设置中新增「📳 操作触感反馈 (震动)」卡片，支持用户一键开启或静音震动回馈，并实时响应多巴胺双振测试。
+     - 底栏点击、设置项交互、手势拉出均全面接入触感系统。
+  5. **动态教学指引弹窗同步焕新**：
+     - 重绘 `SettingsGestureTutorialDialog`：模拟底栏动画从左右漂移升级为向上拉动与指尖微光交互演示，要点列表清晰指引上拉进入、下拉收回与全屏滑动手感。
+  6. **版本升级**：Android `versionCode = 1050013`，`versionName = "1.5.0.13"`。
+
 ### [2026-10-16 13:53] - 修复 MainActivity 大括号配平错误导致的方法游离问题 (v1.5.0.12 / Code 1050012)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **问题现象**：Android Studio 报 3 处编译错误：

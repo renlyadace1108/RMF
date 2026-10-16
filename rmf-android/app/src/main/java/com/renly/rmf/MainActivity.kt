@@ -10,6 +10,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
@@ -431,10 +433,12 @@ class MainActivity : ComponentActivity() {
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
 
-                // 页面滑动手势完成后，自动同步当前选中的屏幕状态与底栏高亮
+                // 页面滑动手势完成后，自动同步当前选中的屏幕状态与底栏高亮，并触发触感反馈
                 LaunchedEffect(pagerState.currentPage) {
                     val pageScreen = safeNavScreens.getOrNull(pagerState.currentPage)
                     if (pageScreen != null && currentScreen != pageScreen && safeNavScreens.contains(currentScreen)) {
+                        com.renly.rmf.util.HapticHelper.performPageTurn(this@MainActivity)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         currentScreen = pageScreen
                     }
                 }
@@ -508,7 +512,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .draggable(
-                                        orientation = Orientation.Horizontal,
+                                        orientation = Orientation.Vertical,
                                         state = rememberDraggableState { delta ->
                                             bottomBarDragDelta += delta
                                         },
@@ -516,36 +520,46 @@ class MainActivity : ComponentActivity() {
                                             val dist = bottomBarDragDelta
                                             bottomBarDragDelta = 0f
 
-                                            if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
-                                                com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
-                                                showSettingsGestureTutorial = false
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-
+                                            // 底部栏向上轻拉 (dist < 0, velocity < 0)：拉出设置界面
+                                            if (dist < -20f || velocity < -100f) {
+                                                if (currentScreen != Screen.Settings) {
+                                                    com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
+                                                    showSettingsGestureTutorial = false
+                                                    com.renly.rmf.util.HapticHelper.performQuadrantMoved(this@MainActivity)
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    navigateToScreen(Screen.Settings, 1)
+                                                }
+                                            }
+                                            // 底部栏向下轻拉 (dist > 0, velocity > 0)：收回设置界面
+                                            else if (dist > 20f || velocity > 100f) {
                                                 if (currentScreen == Screen.Settings) {
-                                                    val dir = if (dist > 0 || velocity > 0) -1 else 1
-                                                    navigateToScreen(lastScreenBeforeSettings, dir)
-                                                } else {
-                                                    val dir = if (dist < 0 || velocity < 0) 1 else -1
-                                                    navigateToScreen(Screen.Settings, dir)
+                                                    com.renly.rmf.util.HapticHelper.performQuadrantMoved(this@MainActivity)
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    navigateToScreen(lastScreenBeforeSettings, -1)
                                                 }
                                             }
                                         }
                                     )
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    // 顶部微光手势质感指示条 (Subtle gesture pill indicator)
+                                    // 顶部微光上拉/下拉手势指示条 (Subtle vertical pull handle)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(3.dp),
+                                            .padding(top = 4.dp, bottom = 2.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .width(28.dp)
-                                                .height(2.5.dp)
+                                                .width(36.dp)
+                                                .height(3.5.dp)
                                                 .clip(RoundedCornerShape(2.dp))
-                                                .background(Color.White.copy(alpha = 0.18f))
+                                                .background(
+                                                    if (currentScreen == Screen.Settings)
+                                                        DopamineBlue.copy(alpha = 0.7f)
+                                                    else
+                                                        Color.White.copy(alpha = 0.22f)
+                                                )
                                         )
                                     }
 
@@ -566,6 +580,7 @@ class MainActivity : ComponentActivity() {
                                             NavigationBarItem(
                                                 selected = isSelected,
                                                 onClick = {
+                                                    com.renly.rmf.util.HapticHelper.performLightClick(this@MainActivity)
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     navigateToScreen(screen, null)
                                                 },
@@ -1194,18 +1209,18 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                                // 2. 二级子页面或系统设置平滑覆盖层 (带有原生弹簧与高质感渐变滑入滑出)
+                                // 2. 二级子页面或系统设置平滑覆盖层 (垂直上拉拉出、下拉收回)
                                 AnimatedVisibility(
                                     visible = !isInMainPager,
-                                    enter = slideInHorizontally(
-                                        initialOffsetX = { fullWidth -> fullWidth },
+                                    enter = slideInVertically(
+                                        initialOffsetY = { fullHeight -> fullHeight },
                                         animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
                                         )
-                                    ) + fadeIn(animationSpec = tween(180)),
-                                    exit = slideOutHorizontally(
-                                        targetOffsetX = { fullWidth -> fullWidth },
+                                    ) + fadeIn(animationSpec = tween(200)),
+                                    exit = slideOutVertically(
+                                        targetOffsetY = { fullHeight -> fullHeight },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -1411,7 +1426,7 @@ class MainActivity : ComponentActivity() {
                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                 showSettingsGestureTutorial = false
                                 navigateToScreen(Screen.Settings, 1)
-                                Toast.makeText(this@MainActivity, "✨ 已进入系统设置！在底部栏左右轻滑即可退回", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this@MainActivity, "✨ 已进入系统设置！在底部栏向下轻拉即可退回", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }

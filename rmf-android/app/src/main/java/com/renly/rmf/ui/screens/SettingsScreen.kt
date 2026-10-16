@@ -2,6 +2,7 @@ package com.renly.rmf.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -19,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,9 +86,43 @@ fun SettingsScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        // 顶部手势下拉指示条：向下拉动或点击可快速收回设置
+        var topDragDelta by remember { mutableFloatStateOf(0f) }
 
-        // 顶部导航栏：系统设置标题（纯手势操作退出，移除返回按钮）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, bottom = 8.dp)
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { delta ->
+                        topDragDelta += delta
+                    },
+                    onDragStopped = { velocity ->
+                        val dist = topDragDelta
+                        topDragDelta = 0f
+                        if (dist > 20f || velocity > 100f) {
+                            com.renly.rmf.util.HapticHelper.performQuadrantMoved(context)
+                            onBack()
+                        }
+                    }
+                )
+                .clickable {
+                    com.renly.rmf.util.HapticHelper.performLightClick(context)
+                    onBack()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.28f))
+            )
+        }
+
+        // 顶部导航栏：系统设置标题与下拉收回指示器
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -101,14 +137,18 @@ fun SettingsScreen(
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = DopamineBlue.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f))
+                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f)),
+                modifier = Modifier.clickable {
+                    com.renly.rmf.util.HapticHelper.performLightClick(context)
+                    onBack()
+                }
             ) {
                 Text(
-                    text = "底栏滑动退出 ⇆",
+                    text = "底栏下拉收回 ↓",
                     fontSize = 11.5.sp,
                     color = DopamineBlue,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             }
         }
@@ -908,6 +948,76 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        // 📳 操作触感反馈与物理震动设置卡片 (Tactile Haptic Feedback)
+        var isHapticFeedbackEnabled by remember {
+            mutableStateOf(com.renly.rmf.util.HapticHelper.isHapticEnabled(context))
+        }
+
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.5f) else DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "📳 操作触感反馈 (震动)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.15f) else TextMuted.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.4f) else DarkBorder)
+                            ) {
+                                Text(
+                                    text = if (isHapticFeedbackEnabled) "已开启" else "已静音",
+                                    fontSize = 10.5.sp,
+                                    color = if (isHapticFeedbackEnabled) DopamineEmerald else TextMuted,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "整个主界面左右滑屏翻页、切换模块、开关偏好与日常打卡时，提供清脆细腻的物理级马达触感回馈",
+                            fontSize = 11.5.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(top = 4.dp, end = 8.dp)
+                        )
+                    }
+
+                    Switch(
+                        checked = isHapticFeedbackEnabled,
+                        onCheckedChange = { enabled ->
+                            isHapticFeedbackEnabled = enabled
+                            com.renly.rmf.util.HapticHelper.setHapticEnabled(context, enabled)
+                            if (enabled) {
+                                com.renly.rmf.util.HapticHelper.performSuccess(context)
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = DopamineEmerald,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkSurface
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         // 💡 底部栏手势教学指引卡片
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -929,13 +1039,13 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "底栏滑动手势教学",
+                                text = "底栏与切页手势教学",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "向左或向右轻滑底栏可随时直达或退出系统设置",
+                                text = "底部栏上拉呼出设置，下拉收回；主界面左右轻滑快速穿梭翻页",
                                 fontSize = 11.sp,
                                 color = TextSecondary,
                                 modifier = Modifier.padding(top = 2.dp)
@@ -943,7 +1053,10 @@ fun SettingsScreen(
                         }
                     }
                     Button(
-                        onClick = onShowGestureTutorial,
+                        onClick = {
+                            com.renly.rmf.util.HapticHelper.performLightClick(context)
+                            onShowGestureTutorial()
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = DopamineCyan.copy(alpha = 0.18f)
                         ),

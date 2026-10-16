@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +35,7 @@ import com.renly.rmf.ui.theme.*
 
 /**
  * 首次操作教学：如何进入与退出系统设置
- * 专为底部栏左右滑动手势量身定制的动态图文交互指引
+ * 专为底部栏上拉呼出、下拉收回及全局左右滑屏切页量身定制的动态图文交互指引
  */
 @Composable
 fun SettingsGestureTutorialDialog(
@@ -42,14 +45,14 @@ fun SettingsGestureTutorialDialog(
     // 动态手势滑动动画
     val infiniteTransition = rememberInfiniteTransition(label = "GestureSwipeAnimation")
     
-    val fingerOffset by infiniteTransition.animateFloat(
-        initialValue = -65f,
-        targetValue = 65f,
+    val fingerOffsetY by infiniteTransition.animateFloat(
+        initialValue = 18f,
+        targetValue = -18f,
         animationSpec = infiniteRepeatable(
             animation = tween(1300, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "FingerOffset"
+        label = "FingerOffsetY"
     )
 
     val glowAlpha by infiniteTransition.animateFloat(
@@ -106,7 +109,7 @@ fun SettingsGestureTutorialDialog(
                             Text("✨", fontSize = 13.sp)
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "首次操作教学 · 快捷手势",
+                                text = "全新手势交互 · 触感反馈",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = DopamineCyan
@@ -118,7 +121,7 @@ fun SettingsGestureTutorialDialog(
 
                     // 标题
                     Text(
-                        text = "如何进入「系统设置」？",
+                        text = "底栏上拉与滑屏翻页",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
@@ -128,7 +131,7 @@ fun SettingsGestureTutorialDialog(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "工作台已独立分离，系统设置现拥有专属底栏手势",
+                        text = "底部栏上拉呼出设置，全屏左右滑动自由翻页",
                         fontSize = 12.5.sp,
                         color = TextSecondary,
                         textAlign = TextAlign.Center
@@ -150,7 +153,7 @@ fun SettingsGestureTutorialDialog(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "👇 动态演示：在底部导航栏左右滑动",
+                                text = "👇 动态演示：在底部导航栏向上轻拉",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = DopamineBlue
@@ -162,7 +165,7 @@ fun SettingsGestureTutorialDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(68.dp)
+                                    .height(72.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(DarkBg)
                                     .border(
@@ -174,25 +177,36 @@ fun SettingsGestureTutorialDialog(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
+                                // 顶部的模拟拉手胶囊
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(top = 4.dp)
+                                        .width(36.dp)
+                                        .height(3.5.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(DopamineCyan.copy(alpha = glowAlpha))
+                                )
+
                                 // 底栏模拟各个按键
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 10.dp),
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    MockNavItem("📅", "日程")
-                                    MockNavItem("🎓", "课表")
-                                    MockNavItem("📖", "学习")
+                                    MockNavItem("📅", "今日")
+                                    MockNavItem("🔄", "日常")
                                     MockNavItem("⏱️", "专注")
-                                    MockNavItem("🚀", "工作台")
+                                    MockNavItem("🌱", "习惯")
+                                    MockNavItem("📋", "清单")
                                 }
 
-                                // 左右滑动的动态触摸指示器与手势图标
+                                // 向上/向下拉动的动态触摸指示器与手势图标
                                 Box(
                                     modifier = Modifier
-                                        .offset(x = fingerOffset.dp)
+                                        .offset(y = fingerOffsetY.dp)
                                         .size(46.dp)
                                         .clip(CircleShape)
                                         .background(
@@ -207,7 +221,7 @@ fun SettingsGestureTutorialDialog(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.TouchApp,
-                                        contentDescription = "滑动指示",
+                                        contentDescription = "上拉指示",
                                         tint = Color.White,
                                         modifier = Modifier.size(26.dp)
                                     )
@@ -216,28 +230,28 @@ fun SettingsGestureTutorialDialog(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // 滑动手势方向示意标签
+                            // 手势方向示意标签
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBack,
+                                    imageVector = Icons.Default.ArrowUpward,
                                     contentDescription = null,
                                     tint = DopamineCyan,
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "向左或向右任意轻滑底栏",
+                                    text = "底部栏向上轻拉呼出 · 向下轻拉收回",
                                     fontSize = 11.5.sp,
                                     color = DopamineCyan,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
-                                    imageVector = Icons.Default.ArrowForward,
+                                    imageVector = Icons.Default.ArrowDownward,
                                     contentDescription = null,
                                     tint = DopamineCyan,
                                     modifier = Modifier.size(13.dp)
@@ -252,25 +266,33 @@ fun SettingsGestureTutorialDialog(
                     // 核心操作要点说明列表
                     // ---------------------------------------------------------
                     TutorialPointItem(
-                        icon = "⚡",
-                        title = "滑动直接进入",
-                        desc = "在屏幕底部的导航栏上向左或向右滑动，即可瞬间进入「系统设置」。"
+                        icon = "⬆️",
+                        title = "底部栏上拉呼出",
+                        desc = "在屏幕底部的快捷栏上向上轻拉，即可如同抽屉般顺滑呼出「系统设置」。"
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     TutorialPointItem(
-                        icon = "🔄",
-                        title = "滑动原路退出",
-                        desc = "在设置页面中再次左右滑动底栏（或点击顶栏返回键 ⬅️），即可返回当前页面。"
+                        icon = "⬇️",
+                        title = "下拉或点击收回",
+                        desc = "在设置页面中向下轻拉底栏，或点击顶部的收回胶囊条，即可轻松收回设置。"
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     TutorialPointItem(
-                        icon = "📱",
-                        title = "全局随时可用",
-                        desc = "无论身处日程、课表、学习还是工作台，在屏幕底栏左右滑动即可随时呼出设置。"
+                        icon = "⇆",
+                        title = "主界面左右滑屏切页",
+                        desc = "主界面支持全屏左右滑动，自由穿梭今日、日常、专注、习惯与清单模块。"
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    TutorialPointItem(
+                        icon = "📳",
+                        title = "物理触感反馈与震动",
+                        desc = "翻页、切换模块与完成打卡自带细腻马达反馈，可随时在系统设置中开关。"
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -297,7 +319,7 @@ fun SettingsGestureTutorialDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "👉 立即体验滑动进入设置",
+                                text = "👉 立即体验上拉进入设置",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DarkBg
