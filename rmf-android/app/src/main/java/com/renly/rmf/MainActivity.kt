@@ -4,8 +4,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -15,15 +21,14 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import kotlinx.coroutines.Job
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -57,9 +62,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.lifecycle.lifecycleScope
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.DataExportService
@@ -404,92 +406,62 @@ class MainActivity : ComponentActivity() {
                 var defaultHomeRoute by remember {
                     mutableStateOf(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity))
                 }
-                var currentScreen by remember {
-                    mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
-                }
-                var previousScreen by remember { mutableStateOf<Screen>(currentScreen) }
-                LaunchedEffect(currentScreen) {
-                    if (previousScreen != currentScreen) {
-                        kotlinx.coroutines.delay(300)
-                        previousScreen = currentScreen
-                    }
-                }
-                var slideDirection by remember { mutableIntStateOf(1) } // 1: forward (right to left), -1: backward (left to right)
-                var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
-                var showFloatingNavMenu by remember { mutableStateOf(false) }
 
                 val density = LocalDensity.current
                 val haptic = LocalHapticFeedback.current
                 val coroutineScope = rememberCoroutineScope()
+                val saveableStateHolder = rememberSaveableStateHolder()
 
                 val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
                 val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
 
-                val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, explicitDir ->
-                    if (targetScreen != currentScreen) {
-                        val prevIdx = safeNavScreens.indexOf(currentScreen)
-                        val nextIdx = safeNavScreens.indexOf(targetScreen)
-                        slideDirection = explicitDir ?: if (nextIdx != -1 && prevIdx != -1) {
-                            if (nextIdx >= prevIdx) 1 else -1
-                        } else if (targetScreen == Screen.Settings) {
-                            1
-                        } else if (currentScreen == Screen.Settings) {
-                            -1
-                        } else 1
-                        previousScreen = currentScreen
-                        if (currentScreen != Screen.Settings) {
+                val initialNavIndex = remember(safeNavScreens, defaultHomeRoute) {
+                    val idx = safeNavScreens.indexOfFirst { it.route == defaultHomeRoute }
+                    if (idx >= 0) idx else 0
+                }
+
+                val pagerState = rememberPagerState(
+                    initialPage = initialNavIndex,
+                    pageCount = { safeNavScreens.size }
+                )
+
+                var currentScreen by remember {
+                    mutableStateOf<Screen>(safeNavScreens.getOrNull(initialNavIndex) ?: Screen.Schedule)
+                }
+                var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
+                var showFloatingNavMenu by remember { mutableStateOf(false) }
+
+                // 页面滑动手势完成后，自动同步当前选中的屏幕状态与底栏高亮
+                LaunchedEffect(pagerState.currentPage) {
+                    val pageScreen = safeNavScreens.getOrNull(pagerState.currentPage)
+                    if (pageScreen != null && currentScreen != pageScreen && safeNavScreens.contains(currentScreen)) {
+                        currentScreen = pageScreen
+                    }
+                }
+
+                // 核心统一导航调度函数
+                val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, _ ->
+                    val targetIdx = safeNavScreens.indexOf(targetScreen)
+                    if (targetIdx != -1) {
+                        currentScreen = targetScreen
+                        coroutineScope.launch {
+                            if (kotlin.math.abs(pagerState.currentPage - targetIdx) > 1) {
+                                pagerState.scrollToPage(targetIdx)
+                            } else {
+                                pagerState.animateScrollToPage(targetIdx)
+                            }
+                        }
+                    } else {
+                        if (currentScreen != Screen.Settings && safeNavScreens.contains(currentScreen)) {
                             lastScreenBeforeSettings = currentScreen
                         }
                         currentScreen = targetScreen
                     }
                 }
 
-                var visitedScreens by remember { mutableStateOf(setOf<Screen>(currentScreen)) }
-                val saveableStateHolder = rememberSaveableStateHolder()
-
-                var dragOffsetX by remember { mutableFloatStateOf(0f) }
-                var isHandDragging by remember { mutableStateOf(false) }
-                var isDragSettling by remember { mutableStateOf(false) }
-                var activeAdjacentScreen by remember { mutableStateOf<Screen?>(null) }
-                var skipTransitionAnim by remember { mutableStateOf(false) }
-                var settleJob by remember { mutableStateOf<Job?>(null) }
-
-                val curNavIdx = safeNavScreens.indexOf(currentScreen)
-                val getAdjacentScreen: (Int) -> Screen? = { dir ->
-                    when (dir) {
-                        -1 -> if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
-                            safeNavScreens[curNavIdx + 1]
-                        } else {
-                            null
-                        }
-                        1 -> if (currentScreen == Screen.Settings) {
-                            lastScreenBeforeSettings
-                        } else if (curNavIdx > 0) {
-                            safeNavScreens[curNavIdx - 1]
-                        } else {
-                            null
-                        }
-                        else -> null
-                    }
-                }
-
-                LaunchedEffect(activeAdjacentScreen) {
-                    val adj = activeAdjacentScreen
-                    if (adj != null && !visitedScreens.contains(adj)) {
-                        visitedScreens = visitedScreens + adj
-                    }
-                }
-
-                val renderScreens = remember(visitedScreens, activeAdjacentScreen) {
-                    if (activeAdjacentScreen != null) (visitedScreens + activeAdjacentScreen!!).toList() else visitedScreens.toList()
-                }
-
                 LaunchedEffect(currentScreen) {
-                    if (currentScreen != Screen.Settings) {
+                    if (currentScreen != Screen.Settings && safeNavScreens.contains(currentScreen)) {
                         lastScreenBeforeSettings = currentScreen
-                    }
-                    if (!visitedScreens.contains(currentScreen)) {
-                        visitedScreens = visitedScreens + currentScreen
                     }
                 }
 
@@ -629,171 +601,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
-                            color = DarkBg
-                        ) {
-                            BoxWithConstraints(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .pointerInput(safeNavScreens, currentScreen) {
-                                        val touchSlop = viewConfiguration.touchSlop
-                                        val swipeThreshold = with(density) { 46.dp.toPx() }
-                                        val screenPxWidth = size.width.toFloat().coerceAtLeast(400f)
+                    val isInMainPager = safeNavScreens.contains(currentScreen)
 
-                                        awaitEachGesture {
-                                            val down = awaitFirstDown(requireUnconsumed = false)
-                                            settleJob?.cancel()
-                                            var totalX = 0f
-                                            var totalY = 0f
-                                            var isHorizontalSwipe: Boolean? = null
-                                            val velocityTracker = VelocityTracker()
-                                            velocityTracker.addPosition(down.uptimeMillis, down.position)
+                    BackHandler(enabled = !isInMainPager) {
+                        currentScreen = lastScreenBeforeSettings
+                    }
 
-                                            while (true) {
-                                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-
-                                                if (event.changes.count { it.pressed } >= 2) {
-                                                    isHorizontalSwipe = false
-                                                    if (isHandDragging) {
-                                                        isHandDragging = false
-                                                        coroutineScope.launch {
-                                                            androidx.compose.animation.core.animate(
-                                                                initialValue = dragOffsetX,
-                                                                targetValue = 0f,
-                                                                animationSpec = androidx.compose.animation.core.tween(200)
-                                                            ) { v, _ -> dragOffsetX = v }
-                                                            activeAdjacentScreen = null
-                                                        }
-                                                    }
-                                                    break
-                                                }
-
-                                                if (!change.pressed) {
-                                                    if (isHorizontalSwipe == true) {
-                                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-                                                        val velocity = velocityTracker.calculateVelocity().x
-                                                        val curOffset = dragOffsetX
-                                                        val absOffset = kotlin.math.abs(curOffset)
-                                                        val passedDistance = absOffset > (screenPxWidth * 0.16f) || absOffset > swipeThreshold
-                                                        val passedVelocity = kotlin.math.abs(velocity) > 360f
-                                                        val directionAgrees = (curOffset < 0 && velocity <= 100f) || (curOffset > 0 && velocity >= -100f)
-                                                        val targetDir = if (curOffset < 0) -1 else 1
-                                                        val commitTarget = getAdjacentScreen(targetDir)
-                                                        val shouldCommit = commitTarget != null && (passedDistance || passedVelocity) && directionAgrees
-
-                                                        if (shouldCommit && commitTarget != null) {
-                                                            val targetX = if (curOffset < 0) -screenPxWidth else screenPxWidth
-                                                            val dir = if (curOffset < 0) 1 else -1
-                                                            isDragSettling = true
-                                                            isHandDragging = false
-                                                            settleJob?.cancel()
-                                                            settleJob = coroutineScope.launch {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                androidx.compose.animation.core.animate(
-                                                                    initialValue = curOffset,
-                                                                    targetValue = targetX,
-                                                                    animationSpec = androidx.compose.animation.core.tween(
-                                                                        durationMillis = 240,
-                                                                        easing = FastOutSlowInEasing
-                                                                    )
-                                                                ) { v, _ -> dragOffsetX = v }
-                                                                skipTransitionAnim = true
-                                                                navigateToScreen(commitTarget, dir)
-                                                                dragOffsetX = 0f
-                                                                activeAdjacentScreen = null
-                                                                isDragSettling = false
-                                                                kotlinx.coroutines.delay(60)
-                                                                skipTransitionAnim = false
-                                                            }
-                                                        } else {
-                                                            isDragSettling = true
-                                                            isHandDragging = false
-                                                            settleJob?.cancel()
-                                                            settleJob = coroutineScope.launch {
-                                                                androidx.compose.animation.core.animate(
-                                                                    initialValue = curOffset,
-                                                                    targetValue = 0f,
-                                                                    animationSpec = androidx.compose.animation.core.tween(
-                                                                        durationMillis = 200,
-                                                                        easing = FastOutSlowInEasing
-                                                                    )
-                                                                ) { v, _ -> dragOffsetX = v }
-                                                                activeAdjacentScreen = null
-                                                                isDragSettling = false
-                                                            }
-                                                        }
-                                                    } else {
-                                                        isHandDragging = false
-                                                        activeAdjacentScreen = null
-                                                    }
-                                                    break
-                                                }
-
-                                                val pos = change.position
-                                                val prevPos = change.previousPosition
-                                                val dx = pos.x - prevPos.x
-                                                val dy = pos.y - prevPos.y
-                                                totalX += dx
-                                                totalY += dy
-                                                velocityTracker.addPosition(change.uptimeMillis, pos)
-
-                                                if (isHorizontalSwipe == null) {
-                                                    val absX = kotlin.math.abs(totalX)
-                                                    val absY = kotlin.math.abs(totalY)
-                                                    if (absX > touchSlop || absY > touchSlop) {
-                                                        if (absX > absY * 1.35f && absX > touchSlop) {
-                                                            isHorizontalSwipe = true
-                                                        } else {
-                                                            isHorizontalSwipe = false
-                                                        }
-                                                    }
-                                                }
-
-                                                if (isHorizontalSwipe == true) {
-                                                    change.consume()
-                                                    isHandDragging = true
-                                                    settleJob?.cancel()
-                                                    val newDir = if (totalX < 0f) -1 else if (totalX > 0f) 1 else 0
-                                                    val adjacent = getAdjacentScreen(newDir)
-                                                    if (activeAdjacentScreen != adjacent) {
-                                                        activeAdjacentScreen = adjacent
-                                                    }
-                                                    val isOverBoundary = (totalX > 0 && getAdjacentScreen(1) == null) ||
-                                                                         (totalX < 0 && getAdjacentScreen(-1) == null)
-                                                    val effectiveX = if (isOverBoundary) totalX * 0.22f else totalX
-                                                    dragOffsetX = effectiveX
-                                                }
-                                            }
-                                        }
-                                    }
-                            ) {
-                                val screenWidth = constraints.maxWidth.toFloat().coerceAtLeast(400f)
-
-                                renderScreens.forEach { screen ->
-                                    val isActive = (currentScreen == screen)
-                                    val isAdjacent = (activeAdjacentScreen == screen && (isHandDragging || isDragSettling))
-                                    val isPrev = (previousScreen == screen && previousScreen != currentScreen)
-
-                                    key(screen.route) {
-                                        saveableStateHolder.SaveableStateProvider(screen.route) {
-                                            ScreenLayerSlot(
-                                                screen = screen,
-                                                isActive = isActive,
-                                                isAdjacent = isAdjacent,
-                                                isPrev = isPrev,
-                                                isHandDragging = isHandDragging,
-                                                isDragSettling = isDragSettling,
-                                                slideDirection = slideDirection,
-                                                screenWidth = screenWidth,
-                                                dragOffsetProvider = { dragOffsetX },
-                                                skipTransitionAnim = skipTransitionAnim
-                                            ) {
-                                                when (screen) {
+                    val renderScreenContent: @Composable (Screen) -> Unit = { screen ->
+                        when (screen) {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
                                 tagsFlow = db.syncDao().getAllTags(),
@@ -1354,12 +1169,62 @@ class MainActivity : ComponentActivity() {
                                     showSettingsGestureTutorial = true
                                 }
                             )
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
+                            color = DarkBg
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                // 1. 主功能模块原生 120Hz 极速硬件加速横向滑页视口 (HorizontalPager)
+                                // beyondViewportPageCount = 1 预加载前后相邻页，消除滑动手势掉帧与图片闪跳
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    beyondViewportPageCount = 1,
+                                    key = { page -> safeNavScreens.getOrNull(page)?.route ?: page }
+                                ) { page ->
+                                    val screen = safeNavScreens[page]
+                                    saveableStateHolder.SaveableStateProvider(screen.route) {
+                                        renderScreenContent(screen)
+                                    }
+                                }
+
+                                // 2. 二级子页面或系统设置平滑覆盖层 (带有原生弹簧与高质感渐变滑入滑出)
+                                AnimatedVisibility(
+                                    visible = !isInMainPager,
+                                    enter = slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> fullWidth },
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(180)),
+                                    exit = slideOutHorizontally(
+                                        targetOffsetX = { fullWidth -> fullWidth },
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(180))
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxSize(),
+                                        color = DarkBg
+                                    ) {
+                                        if (!isInMainPager) {
+                                            saveableStateHolder.SaveableStateProvider(currentScreen.route) {
+                                                renderScreenContent(currentScreen)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
-            }
 
                         if (showQuickCaptureDialog) {
                             QuickCaptureDialog(
@@ -1630,97 +1495,4 @@ fun AppSplashScreen(
     }
 }
 
-/**
- * 极速硬件加速屏幕容器 (ScreenLayerSlot)
- * 将位移动画与拖拽偏移量完全隔离在 RenderNode 的 graphicsLayer 绘制阶段，
- * 彻底消除切换动画与手势拖拽过程中的 Composable 树冗余重组，实现纯正原生 120Hz 满帧流体级体验。
- */
-@Composable
-private fun ScreenLayerSlot(
-    screen: Screen,
-    isActive: Boolean,
-    isAdjacent: Boolean,
-    isPrev: Boolean,
-    isHandDragging: Boolean,
-    isDragSettling: Boolean,
-    slideDirection: Int,
-    screenWidth: Float,
-    dragOffsetProvider: () -> Float,
-    skipTransitionAnim: Boolean,
-    content: @Composable () -> Unit
-) {
-    val animProgress = remember { androidx.compose.animation.core.Animatable(if (isActive) 1f else 0f) }
-
-    LaunchedEffect(isActive, skipTransitionAnim) {
-        if (skipTransitionAnim) {
-            animProgress.snapTo(if (isActive) 1f else 0f)
-        } else {
-            animProgress.animateTo(
-                targetValue = if (isActive) 1f else 0f,
-                animationSpec = androidx.compose.animation.core.tween(
-                    durationMillis = 280,
-                    easing = androidx.compose.animation.core.CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
-                )
-            )
-        }
-    }
-
-    val shouldRender = isActive || (isAdjacent && (isHandDragging || isDragSettling)) || isPrev
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (shouldRender) {
-                    Modifier.graphicsLayer {
-                        if (isHandDragging || isDragSettling) {
-                            val currentOffset = dragOffsetProvider()
-                            val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
-                            if (isActive) {
-                                translationX = currentOffset
-                                alpha = 1f - dragFraction * 0.22f
-                                scaleX = 1f - dragFraction * 0.03f
-                                scaleY = 1f - dragFraction * 0.03f
-                            } else if (isAdjacent) {
-                                val base = if (currentOffset < 0f) screenWidth else -screenWidth
-                                translationX = base + currentOffset
-                                alpha = 0.80f + dragFraction * 0.20f
-                                scaleX = 0.97f + dragFraction * 0.03f
-                                scaleY = 0.97f + dragFraction * 0.03f
-                            } else {
-                                translationX = 100000f
-                                alpha = 0f
-                            }
-                        } else if (isActive) {
-                            val progress = animProgress.value
-                            translationX = (1f - progress) * (slideDirection * screenWidth)
-                            alpha = progress.coerceIn(0f, 1f)
-                            val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
-                            scaleX = s
-                            scaleY = s
-                        } else if (isPrev) {
-                            val progress = animProgress.value
-                            translationX = (progress - 1f) * (slideDirection * (screenWidth * 0.28f))
-                            alpha = progress.coerceIn(0f, 1f)
-                            val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
-                            scaleX = s
-                            scaleY = s
-                        } else {
-                            translationX = 100000f
-                            alpha = 0f
-                        }
-                    }
-                } else {
-                    Modifier
-                        .graphicsLayer {
-                            alpha = 0f
-                            translationX = 100000f
-                        }
-                        .clearAndSetSemantics { }
-                }
-            )
-    ) {
-        content()
-    }
-}
 
