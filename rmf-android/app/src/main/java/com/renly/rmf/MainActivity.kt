@@ -449,8 +449,6 @@ class MainActivity : ComponentActivity() {
                     when (dir) {
                         -1 -> if (curNavIdx != -1 && curNavIdx < safeNavScreens.size - 1) {
                             safeNavScreens[curNavIdx + 1]
-                        } else if (curNavIdx == safeNavScreens.size - 1) {
-                            Screen.Settings
                         } else {
                             null
                         }
@@ -458,8 +456,6 @@ class MainActivity : ComponentActivity() {
                             lastScreenBeforeSettings
                         } else if (curNavIdx > 0) {
                             safeNavScreens[curNavIdx - 1]
-                        } else if (curNavIdx == -1) {
-                            lastScreenBeforeSettings
                         } else {
                             null
                         }
@@ -537,30 +533,18 @@ class MainActivity : ComponentActivity() {
                                         onDragStopped = { velocity ->
                                             val dist = bottomBarDragDelta
                                             bottomBarDragDelta = 0f
-                                            val curIdx = safeNavScreens.indexOf(currentScreen)
 
                                             if (kotlin.math.abs(dist) > 28f || kotlin.math.abs(velocity) > 120f) {
                                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)
                                                 showSettingsGestureTutorial = false
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
 
                                                 if (currentScreen == Screen.Settings) {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    navigateToScreen(lastScreenBeforeSettings, -1)
-                                                } else if (dist < 0 || velocity < 0) {
-                                                    // 向左滑 -> 切换到下一个模块 (若为最后一个则进入设置)
-                                                    if (curIdx != -1 && curIdx < safeNavScreens.size - 1) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(safeNavScreens[curIdx + 1], 1)
-                                                    } else if (curIdx == safeNavScreens.size - 1) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(Screen.Settings, 1)
-                                                    }
+                                                    val dir = if (dist > 0 || velocity > 0) -1 else 1
+                                                    navigateToScreen(lastScreenBeforeSettings, dir)
                                                 } else {
-                                                    // 向右滑 -> 切换到上一个模块
-                                                    if (curIdx > 0) {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        navigateToScreen(safeNavScreens[curIdx - 1], -1)
-                                                    }
+                                                    val dir = if (dist < 0 || velocity < 0) 1 else -1
+                                                    navigateToScreen(Screen.Settings, dir)
                                                 }
                                             }
                                         }
@@ -726,14 +710,13 @@ class MainActivity : ComponentActivity() {
                                                     change.consume()
                                                     isHandDragging = true
                                                     settleJob?.cancel()
-                                                    val newDir = if (totalX < -touchSlop) -1 else if (totalX > touchSlop) 1 else 0
+                                                    val newDir = if (totalX < 0f) -1 else if (totalX > 0f) 1 else 0
                                                     val adjacent = getAdjacentScreen(newDir)
                                                     if (activeAdjacentScreen != adjacent) {
                                                         activeAdjacentScreen = adjacent
                                                     }
-                                                    val isOverBoundary = (totalX > 0 && curNavIdx == 0) ||
-                                                                         (totalX < 0 && currentScreen == Screen.Settings) ||
-                                                                         (totalX > 0 && curNavIdx == -1 && lastScreenBeforeSettings == currentScreen)
+                                                    val isOverBoundary = (totalX > 0 && getAdjacentScreen(1) == null) ||
+                                                                         (totalX < 0 && getAdjacentScreen(-1) == null)
                                                     val effectiveX = if (isOverBoundary) totalX * 0.22f else totalX
                                                     dragOffsetX = effectiveX
                                                 }
