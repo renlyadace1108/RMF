@@ -68,6 +68,9 @@ data class CourseEntity(
     @ColumnInfo(name = "course_url")
     val courseUrl: String? = null,
 
+    @ColumnInfo(name = "reminder_minutes", defaultValue = "15")
+    val reminderMinutes: Int = 15,
+
     @ColumnInfo(name = "is_deleted", defaultValue = "0")
     val isDeleted: Int = 0,
 

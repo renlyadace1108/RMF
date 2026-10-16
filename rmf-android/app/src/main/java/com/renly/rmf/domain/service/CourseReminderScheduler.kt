@@ -30,7 +30,13 @@ object CourseReminderScheduler {
             for (course in projectedCourses) {
                 // 生成唯一 key: courseId_YYYY-MM-DD_start
                 val reminderKey = "course_${course.courseId}_${targetDate}_${course.startTime.toLocalTime()}"
+                if (course.reminderMinutes < 0) {
+                    ScheduleReminderManager.cancelReminder(context, reminderKey)
+                    continue
+                }
+
                 val durationMins = java.time.temporal.ChronoUnit.MINUTES.between(course.startTime, course.endTime).toInt()
+                val effectiveAdvanceMins = course.reminderMinutes
 
                 ScheduleReminderManager.scheduleCourseReminder(
                     context = context,
@@ -40,7 +46,7 @@ object CourseReminderScheduler {
                     teacher = course.teacher,
                     startTime = course.startTime,
                     durationMinutes = durationMins,
-                    advanceMinutes = advanceMinutes
+                    advanceMinutes = effectiveAdvanceMins
                 )
             }
         }

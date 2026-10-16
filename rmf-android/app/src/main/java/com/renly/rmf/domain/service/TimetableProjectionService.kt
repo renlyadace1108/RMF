@@ -23,7 +23,8 @@ data class ProjectedCourseSlot(
     val endTime: LocalDateTime,
     val colorHex: String,
     val isAdjusted: Boolean,
-    val adjustmentReason: String = ""
+    val adjustmentReason: String = "",
+    val reminderMinutes: Int = 15
 )
 
 class TimetableProjectionService(private val courseDao: CourseDao) {
@@ -114,7 +115,8 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
                                 endTime = times.second,
                                 colorHex = course.colorHex,
                                 isAdjusted = true,
-                                adjustmentReason = if (adj.reason.isNotBlank()) "已调课: ${adj.reason}" else "已调课"
+                                adjustmentReason = if (adj.reason.isNotBlank()) "已调课: ${adj.reason}" else "已调课",
+                                reminderMinutes = course.reminderMinutes
                             )
                         )
                     }
@@ -140,7 +142,8 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
                         startTime = times.first,
                         endTime = times.second,
                         colorHex = course.colorHex,
-                        isAdjusted = false
+                        isAdjusted = false,
+                        reminderMinutes = course.reminderMinutes
                     )
                 )
             }

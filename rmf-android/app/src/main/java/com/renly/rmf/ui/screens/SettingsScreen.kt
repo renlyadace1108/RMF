@@ -1381,9 +1381,6 @@ fun SettingsScreen(
                     alarmManager?.canScheduleExactAlarms() ?: true
                 } else true
 
-                var isBatteryIgnored by remember {
-                    mutableStateOf(com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext))
-                }
                 val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
 
                 Surface(
@@ -1421,12 +1418,12 @@ fun SettingsScreen(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isBatteryIgnored) "🛡️" else "🔋", fontSize = 11.sp)
+                                Text("🌱", fontSize = 11.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = if (isBatteryIgnored) "白名单已豁免" else "待豁免优化",
+                                    text = "0% CPU休眠",
                                     fontSize = 10.5.sp,
-                                    color = if (isBatteryIgnored) DopamineGreen else DopamineAmber,
+                                    color = DopamineGreen,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -1450,40 +1447,31 @@ fun SettingsScreen(
                     }
                 }
 
-                // 按钮排：申请忽略电池优化 & 跳转自启动设置
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // 系统原生超低功耗对齐唤醒架构卡片 (免电池优化、免自启动白名单)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = DopamineGreen.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            val ok = com.renly.rmf.domain.service.BackgroundResidencyHelper.requestIgnoreBatteryOptimizations(notifContext)
-                            if (ok) {
-                                isBatteryIgnored = com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext)
-                                notifFeedbackText = "✓ 已发起电池优化白名单申请，若弹出系统确认框请选择【允许】"
-                            } else {
-                                notifFeedbackText = "⚠️ 无法自动唤起，请手动前往系统设置开启无限制后台"
-                            }
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = if (isBatteryIgnored) DopamineGreen else DopamineAmber),
-                        border = BorderStroke(1.dp, if (isBatteryIgnored) DopamineGreen.copy(alpha = 0.5f) else DopamineAmber.copy(alpha = 0.6f)),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(if (isBatteryIgnored) "🛡️ 电池优化已豁免" else "🔋 申请【忽略电池优化】", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            com.renly.rmf.domain.service.BackgroundResidencyHelper.openAppDetailsSettings(notifContext)
-                            notifFeedbackText = "💡 请在系统应用详情中开启【允许后台活动】与【自启动】"
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
-                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("⚙️ 应用权限与自启动", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🌱", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "系统原生超低功耗唤醒架构 (0% CPU 后台冻结)",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DopamineGreen
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "RMF 深度兼容主流系统后台冻结机制，无需常驻后台或手动申请电池优化白名单。全部课程、日程与事件提醒均采用系统级硬件对齐闹钟 (AlarmClockInfo) 毫秒级按需唤起并借道实时活动展示，实现零持续CPU消耗与准时提醒的完美兼得。",
+                            fontSize = 10.5.sp,
+                            color = TextSecondary,
+                            lineHeight = 14.5.sp
+                        )
                     }
                 }
 

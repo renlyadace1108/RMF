@@ -307,17 +307,17 @@ class FocusLiveService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
 
-        // 添加标准交互 Action 按钮
+        // 添加标准交互 Action 按钮 (不加按钮内图标，图标仅展示在通知卡片右上角)
         builder.addAction(
             NotificationCompat.Action.Builder(
-                R.drawable.ic_logo,
+                0,
                 if (isRunning) "暂停" else "继续",
                 togglePendingIntent
             ).build()
         )
         builder.addAction(
             NotificationCompat.Action.Builder(
-                R.drawable.ic_logo,
+                0,
                 "结束",
                 stopPendingIntent
             ).build()

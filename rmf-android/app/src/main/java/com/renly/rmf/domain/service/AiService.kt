@@ -31,7 +31,8 @@ data class AiScheduleParseResult(
     val endDateTime: LocalDateTime? = null,
     val durationMinutes: Int = 60,
     val priority: String = "MEDIUM",
-    val category: String = "WORK"
+    val category: String = "WORK",
+    val isReminderOnly: Boolean = false
 )
 
 object AiService {
@@ -334,13 +335,18 @@ object AiService {
             任务要求：
             1. 判断文本中是否包含具体明确的计划时间（如 "明天下午3点"、"周五19:00"、"后天上午9点半"、"15:00-16:30" 等）：
                - 若包含具体时间：hasTime 必须为 true，并推算出对应的开始时间与结束时间。
-               - 若仅为纯待办事项（如 "买牛奶"、"背单词"、"做数学作业"）或时间模糊未指明具体几点几分：hasTime 必须为 false。
-            2. 字段规范：
+               - 若仅为纯待办事项或时间模糊未指明具体几点几分：hasTime 必须为 false。
+            2. 智能识别事件性质与适宜时长：
+               - isReminderOnly: 布尔值。若事件仅为一个单点即时提醒（例如 "提醒我喝水"、"记得吃药"、"交话费"、"带钥匙"、"取快递"、"关火"、"打卡" 等瞬间单次行为，无需占用日历时间块），必须设为 true，且 durationMinutes 设为 0。
+               - 若事件为需要专注投入的工作、会议、学习、运动或深度任务，设为 false。
+               - durationMinutes: 智能推测最合理的预计时长(分钟)。例如快速电话/站会 15分，常规讨论 30分，课程/单项任务 45~60分，深度编码/复习/实验 90~120分。
+            3. 字段规范：
                - hasTime: true 或 false
-               - title: 清洗后的纯任务标题（去掉时间修饰词）
+               - title: 清洗后的纯任务标题（去掉时间修饰词和"提醒我"等前缀）
+               - isReminderOnly: true 或 false
                - startTime: 格式严格为 "yyyy-MM-dd'T'HH:mm:ss"（若 hasTime 为 false 则为空字符串 ""）
-               - endTime: 格式严格为 "yyyy-MM-dd'T'HH:mm:ss"（若未指定持续时长默认60分钟，若 hasTime 为 false 则为空字符串 ""）
-               - durationMinutes: 持续时长整数(分钟，默认 60)
+               - endTime: 格式严格为 "yyyy-MM-dd'T'HH:mm:ss"（若 hasTime 为 false 则为空字符串 ""）
+               - durationMinutes: 持续时长整数(分钟，若 isReminderOnly 则为 0)
                - priority: "HIGH" / "MEDIUM" / "LOW" (根据紧急程度推断，默认 "MEDIUM")
                - category: "WORK" / "STUDY" / "LIFE" / "HEALTH" (根据分类推断，默认 "WORK")
 
@@ -348,6 +354,7 @@ object AiService {
             {
               "hasTime": true,
               "title": "项目评审会议",
+              "isReminderOnly": false,
               "startTime": "2026-10-13T15:00:00",
               "endTime": "2026-10-13T16:00:00",
               "durationMinutes": 60,
@@ -373,10 +380,11 @@ object AiService {
 
                 val obj = gson.fromJson(jsonStr, JsonObject::class.java)
                 val hasTime = obj.get("hasTime")?.asBoolean ?: false
+                val isReminderOnly = obj.get("isReminderOnly")?.asBoolean ?: false
                 val title = obj.get("title")?.asString?.trim()?.ifBlank { cleanInput } ?: cleanInput
-                val durationMinutes = obj.get("durationMinutes")?.asInt ?: 60
+                val durationMinutes = if (isReminderOnly) 0 else (obj.get("durationMinutes")?.asInt ?: 60)
                 val priority = obj.get("priority")?.asString?.uppercase() ?: "MEDIUM"
-                val category = obj.get("category")?.asString?.uppercase() ?: "WORK"
+                val category = obj.get("category")?.asString?.uppercase() ?: (if (isReminderOnly) "LIFE" else "WORK")
 
                 var startLdt: LocalDateTime? = null
                 var endLdt: LocalDateTime? = null
@@ -410,7 +418,8 @@ object AiService {
                     endDateTime = endLdt,
                     durationMinutes = durationMinutes,
                     priority = priority,
-                    category = category
+                    category = category,
+                    isReminderOnly = isReminderOnly
                 )
             } catch (e: Exception) {
                 // JSON 解析异常，走本地降级
@@ -426,7 +435,8 @@ object AiService {
             endDateTime = if (local.hasExplicitTime) local.endTime else null,
             durationMinutes = local.durationMinutes,
             priority = local.priority,
-            category = local.category
+            category = local.category,
+            isReminderOnly = local.isReminderOnly
         )
     }
 

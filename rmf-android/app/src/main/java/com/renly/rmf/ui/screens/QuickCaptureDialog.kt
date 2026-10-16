@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.entity.ExpenseEntity
+import com.renly.rmf.data.local.entity.ReminderEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.AiPreferences
 import com.renly.rmf.domain.service.AiScheduleParseResult
@@ -39,7 +40,8 @@ import java.util.UUID
 fun QuickCaptureDialog(
     onDismissRequest: () -> Unit,
     onSaveSchedule: (ScheduleEntity) -> Unit,
-    onSaveExpense: (ExpenseEntity) -> Unit
+    onSaveExpense: (ExpenseEntity) -> Unit,
+    onSaveReminder: ((ReminderEntity) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -226,32 +228,45 @@ fun QuickCaptureDialog(
                                                 }
                                             }
                                         } else {
-                                            // 未开AI：直接入库手动排期
+                                            // 未开AI：通过本地自然语言正则引擎解析
                                             val parsed = NaturalLanguageScheduleParser.parse(rawText)
-                                            val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                                            val qCode = when (parsed.priority.uppercase()) {
-                                                "URGENT" -> "Q1"
-                                                "HIGH" -> "Q2"
-                                                "MEDIUM" -> "Q3"
-                                                "LOW" -> "Q4"
-                                                else -> "Q2"
+                                            if (parsed.isReminderOnly && onSaveReminder != null) {
+                                                pendingScheduleCandidate = AiScheduleParseResult(
+                                                    hasTime = parsed.hasExplicitTime,
+                                                    title = parsed.title,
+                                                    startDateTime = if (parsed.hasExplicitTime) parsed.startTime else LocalDateTime.now().plusMinutes(10),
+                                                    endDateTime = if (parsed.hasExplicitTime) parsed.endTime else LocalDateTime.now().plusMinutes(10),
+                                                    durationMinutes = parsed.durationMinutes,
+                                                    priority = parsed.priority,
+                                                    category = parsed.category,
+                                                    isReminderOnly = true
+                                                )
+                                            } else {
+                                                val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                                val qCode = when (parsed.priority.uppercase()) {
+                                                    "URGENT" -> "Q1"
+                                                    "HIGH" -> "Q2"
+                                                    "MEDIUM" -> "Q3"
+                                                    "LOW" -> "Q4"
+                                                    else -> "Q2"
+                                                }
+                                                val newSchedule = ScheduleEntity(
+                                                    id = UUID.randomUUID().toString(),
+                                                    title = parsed.title,
+                                                    startTime = "",
+                                                    endTime = "",
+                                                    estimatedMinutes = parsed.durationMinutes,
+                                                    priority = parsed.priority,
+                                                    category = parsed.category,
+                                                    eisenhowerQuadrant = qCode,
+                                                    status = "BACKLOG",
+                                                    createdAt = now,
+                                                    updatedAt = now
+                                                )
+                                                onSaveSchedule(newSchedule)
+                                                Toast.makeText(context, "✓ 已存入待排期任务池，请在日历中手动排期", Toast.LENGTH_SHORT).show()
+                                                onDismissRequest()
                                             }
-                                            val newSchedule = ScheduleEntity(
-                                                id = UUID.randomUUID().toString(),
-                                                title = parsed.title,
-                                                startTime = "",
-                                                endTime = "",
-                                                estimatedMinutes = parsed.durationMinutes,
-                                                priority = parsed.priority,
-                                                category = parsed.category,
-                                                eisenhowerQuadrant = qCode,
-                                                status = "BACKLOG",
-                                                createdAt = now,
-                                                updatedAt = now
-                                            )
-                                            onSaveSchedule(newSchedule)
-                                            Toast.makeText(context, "✓ 已存入待排期任务池，请在日历中手动排期", Toast.LENGTH_SHORT).show()
-                                            onDismissRequest()
                                         }
                                     } else {
                                         // 记账模式
@@ -296,123 +311,202 @@ fun QuickCaptureDialog(
         }
     )
 
-    // 自动排期询问确认弹框
+    // 自动排期 / 事件提醒 询问确认弹框
     pendingScheduleCandidate?.let { candidate ->
         val sTime = candidate.startDateTime?.format(DateTimeFormatter.ofPattern("M月d日 HH:mm")) ?: ""
         val eTime = candidate.endDateTime?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: ""
 
-        AlertDialog(
-            onDismissRequest = {
-                // 点击外部或后退：默认存入待排期任务池手动排期
-                val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                val qCode = when (candidate.priority.uppercase()) {
-                    "URGENT" -> "Q1"
-                    "HIGH" -> "Q2"
-                    "MEDIUM" -> "Q3"
-                    "LOW" -> "Q4"
-                    else -> "Q2"
-                }
-                val backlogSchedule = ScheduleEntity(
-                    id = UUID.randomUUID().toString(),
-                    title = candidate.title,
-                    startTime = "",
-                    endTime = "",
-                    estimatedMinutes = candidate.durationMinutes,
-                    priority = candidate.priority,
-                    category = candidate.category,
-                    eisenhowerQuadrant = qCode,
-                    status = "BACKLOG",
-                    createdAt = now,
-                    updatedAt = now
-                )
-                onSaveSchedule(backlogSchedule)
-                pendingScheduleCandidate = null
-                Toast.makeText(context, "✓ 已存入待排期任务池，可在日历中手动排期", Toast.LENGTH_SHORT).show()
-                onDismissRequest()
-            },
-            containerColor = DarkCard,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("📅 识别到排期时间", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("任务名称：${candidate.title}", fontWeight = FontWeight.SemiBold, color = TextPrimary, fontSize = 14.sp)
-                    Text("建议时段：$sTime ~ $eTime (${candidate.durationMinutes}分钟)", color = DopamineBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("是否确认按此时间自动排期到日程表？若选择手动排期，将存入待排期任务池供您随时拖拽排程。", color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val startIso = candidate.startDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
-                        val endIso = candidate.endDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
-                        val qCode = when (candidate.priority.uppercase()) {
-                            "URGENT" -> "Q1"
-                            "HIGH" -> "Q2"
-                            "MEDIUM" -> "Q3"
-                            "LOW" -> "Q4"
-                            else -> "Q2"
-                        }
-                        val autoSchedule = ScheduleEntity(
-                            id = UUID.randomUUID().toString(),
-                            title = candidate.title,
-                            startTime = startIso,
-                            endTime = endIso,
-                            estimatedMinutes = candidate.durationMinutes,
-                            priority = candidate.priority,
-                            category = candidate.category,
-                            eisenhowerQuadrant = qCode,
-                            status = "PENDING",
-                            createdAt = now,
-                            updatedAt = now
-                        )
-                        onSaveSchedule(autoSchedule)
-                        pendingScheduleCandidate = null
-                        Toast.makeText(context, "✓ 已按识别时间自动排期", Toast.LENGTH_SHORT).show()
-                        onDismissRequest()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
-                ) {
-                    Text("确认自动排期", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = {
-                        val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val qCode = when (candidate.priority.uppercase()) {
-                            "URGENT" -> "Q1"
-                            "HIGH" -> "Q2"
-                            "MEDIUM" -> "Q3"
-                            "LOW" -> "Q4"
-                            else -> "Q2"
-                        }
-                        val backlogSchedule = ScheduleEntity(
-                            id = UUID.randomUUID().toString(),
-                            title = candidate.title,
-                            startTime = "",
-                            endTime = "",
-                            estimatedMinutes = candidate.durationMinutes,
-                            priority = candidate.priority,
-                            category = candidate.category,
-                            eisenhowerQuadrant = qCode,
-                            status = "BACKLOG",
-                            createdAt = now,
-                            updatedAt = now
-                        )
-                        onSaveSchedule(backlogSchedule)
-                        pendingScheduleCandidate = null
-                        Toast.makeText(context, "✓ 已存入待排期任务池，可在日历中手动排期", Toast.LENGTH_SHORT).show()
-                        onDismissRequest()
+        if (candidate.isReminderOnly && onSaveReminder != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    pendingScheduleCandidate = null
+                    onDismissRequest()
+                },
+                containerColor = DarkCard,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔔 智能识别为事件提醒", fontWeight = FontWeight.Bold, color = DopamineCyan, fontSize = 16.sp)
                     }
-                ) {
-                    Text("仅存入库 (手动排期)", color = TextSecondary)
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("事项名称：${candidate.title}", fontWeight = FontWeight.SemiBold, color = TextPrimary, fontSize = 14.sp)
+                        Text("提醒时间：$sTime (实时活动胶囊与系统通知)", color = DopamineCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("智能提示：该事项属于单点动作提醒，建议保存至「事件提醒」（借道实时活动与系统日历），无需占用日历时间块。", color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            val startIso = candidate.startDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: now
+                            val newReminder = ReminderEntity(
+                                id = UUID.randomUUID().toString(),
+                                title = candidate.title,
+                                content = "",
+                                remindTime = startIso,
+                                advanceMinutes = 0,
+                                reminderType = "ALL",
+                                priority = candidate.priority,
+                                category = candidate.category,
+                                createdAt = now,
+                                updatedAt = now
+                            )
+                            onSaveReminder(newReminder)
+                            pendingScheduleCandidate = null
+                            Toast.makeText(context, "✓ 已存入事件提醒，将通过实时活动精准提醒", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan)
+                    ) {
+                        Text("作为提醒保存 (推荐)", color = DarkBg, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(
+                            onClick = {
+                                val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                val startIso = candidate.startDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                                val endIso = candidate.endDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: startIso
+                                val autoSchedule = ScheduleEntity(
+                                    id = UUID.randomUUID().toString(),
+                                    title = candidate.title,
+                                    startTime = startIso,
+                                    endTime = endIso,
+                                    estimatedMinutes = 30,
+                                    priority = candidate.priority,
+                                    category = candidate.category,
+                                    status = "PENDING",
+                                    createdAt = now,
+                                    updatedAt = now
+                                )
+                                onSaveSchedule(autoSchedule)
+                                pendingScheduleCandidate = null
+                                Toast.makeText(context, "✓ 已作为日程排期", Toast.LENGTH_SHORT).show()
+                                onDismissRequest()
+                            }
+                        ) {
+                            Text("仍作为日程排期", color = TextSecondary, fontSize = 11.5.sp)
+                        }
+                    }
                 }
-            }
-        )
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = {
+                    val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    val qCode = when (candidate.priority.uppercase()) {
+                        "URGENT" -> "Q1"
+                        "HIGH" -> "Q2"
+                        "MEDIUM" -> "Q3"
+                        "LOW" -> "Q4"
+                        else -> "Q2"
+                    }
+                    val backlogSchedule = ScheduleEntity(
+                        id = UUID.randomUUID().toString(),
+                        title = candidate.title,
+                        startTime = "",
+                        endTime = "",
+                        estimatedMinutes = candidate.durationMinutes,
+                        priority = candidate.priority,
+                        category = candidate.category,
+                        eisenhowerQuadrant = qCode,
+                        status = "BACKLOG",
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                    onSaveSchedule(backlogSchedule)
+                    pendingScheduleCandidate = null
+                    Toast.makeText(context, "✓ 已存入待排期任务池，可在日历中手动排期", Toast.LENGTH_SHORT).show()
+                    onDismissRequest()
+                },
+                containerColor = DarkCard,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📅 识别到排期时间", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("任务名称：${candidate.title}", fontWeight = FontWeight.SemiBold, color = TextPrimary, fontSize = 14.sp)
+                        Text("建议时段：$sTime ~ $eTime (${candidate.durationMinutes}分钟)", color = DopamineBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("是否确认按此时间自动排期到日程表？若选择手动排期，将存入待排期任务池供您随时拖拽排程。", color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            val startIso = candidate.startDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                            val endIso = candidate.endDateTime?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) ?: ""
+                            val qCode = when (candidate.priority.uppercase()) {
+                                "URGENT" -> "Q1"
+                                "HIGH" -> "Q2"
+                                "MEDIUM" -> "Q3"
+                                "LOW" -> "Q4"
+                                else -> "Q2"
+                            }
+                            val autoSchedule = ScheduleEntity(
+                                id = UUID.randomUUID().toString(),
+                                title = candidate.title,
+                                startTime = startIso,
+                                endTime = endIso,
+                                estimatedMinutes = candidate.durationMinutes,
+                                priority = candidate.priority,
+                                category = candidate.category,
+                                eisenhowerQuadrant = qCode,
+                                status = "PENDING",
+                                createdAt = now,
+                                updatedAt = now
+                            )
+                            onSaveSchedule(autoSchedule)
+                            pendingScheduleCandidate = null
+                            Toast.makeText(context, "✓ 已按识别时间自动排期", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
+                    ) {
+                        Text("确认自动排期", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = {
+                            val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            val qCode = when (candidate.priority.uppercase()) {
+                                "URGENT" -> "Q1"
+                                "HIGH" -> "Q2"
+                                "MEDIUM" -> "Q3"
+                                "LOW" -> "Q4"
+                                else -> "Q2"
+                            }
+                            val backlogSchedule = ScheduleEntity(
+                                id = UUID.randomUUID().toString(),
+                                title = candidate.title,
+                                startTime = "",
+                                endTime = "",
+                                estimatedMinutes = candidate.durationMinutes,
+                                priority = candidate.priority,
+                                category = candidate.category,
+                                eisenhowerQuadrant = qCode,
+                                status = "BACKLOG",
+                                createdAt = now,
+                                updatedAt = now
+                            )
+                            onSaveSchedule(backlogSchedule)
+                            pendingScheduleCandidate = null
+                            Toast.makeText(context, "✓ 已存入待排期任务池，可在日历中手动排期", Toast.LENGTH_SHORT).show()
+                            onDismissRequest()
+                        }
+                    ) {
+                        Text("仅存入库 (手动排期)", color = TextSecondary)
+                    }
+                }
+            )
+        }
     }
 }
+

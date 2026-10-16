@@ -44,6 +44,7 @@ fun WorkbenchScreen(
     onNavigateToTutorial: () -> Unit,
     onNavigateToHabits: () -> Unit = {},
     onNavigateToCountdowns: () -> Unit = {},
+    onNavigateToReminders: () -> Unit = {},
     onTriggerAudit: () -> AuditReport,
     onTriggerAiReview: (String, (String) -> Unit) -> Unit
 ) {
@@ -111,9 +112,16 @@ fun WorkbenchScreen(
         val functionalCards = remember(
             onNavigateToGoals, onNavigateToExpenses, onNavigateToFitness,
             onNavigateToDailyReport, onNavigateToSummary, onNavigateToHabits,
-            onNavigateToCountdowns, onNavigateToTutorial, appColors
+            onNavigateToCountdowns, onNavigateToReminders, onNavigateToTutorial, appColors
         ) {
             listOf(
+                FunctionalItem(
+                    title = "事件提醒",
+                    subtitle = "单点提醒与实时活动胶囊",
+                    icon = Icons.Default.NotificationsActive,
+                    color = appColors.dopamineCyan,
+                    onClick = onNavigateToReminders
+                ),
                 FunctionalItem(
                     title = "目标金字塔",
                     subtitle = "OKR与北极星目标追踪",

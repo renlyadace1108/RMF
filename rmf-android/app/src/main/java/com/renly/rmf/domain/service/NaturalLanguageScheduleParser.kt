@@ -15,7 +15,8 @@ data class ParsedScheduleResult(
     val category: String = "WORK",
     val tag: String? = null,
     val previewSummary: String = "",
-    val hasExplicitTime: Boolean = false
+    val hasExplicitTime: Boolean = false,
+    val isReminderOnly: Boolean = false
 )
 
 object NaturalLanguageScheduleParser {
@@ -31,9 +32,21 @@ object NaturalLanguageScheduleParser {
         }
 
         var remaining = text.trim()
+        val reminderKeywords = listOf("提醒我", "提醒", "记得", "吃药", "喝水", "带钥匙", "拿钥匙", "拿快递", "取快递", "关火", "打卡", "交话费", "交电费", "关门", "抢票", "签到", "喝茶", "买菜")
+        val isReminderOnly = reminderKeywords.any { remaining.contains(it) }
+
         var priority = "MEDIUM"
-        var durationMinutes = 60
-        var category = "WORK"
+        // 智能推测事件适宜时长
+        var durationMinutes = when {
+            isReminderOnly -> 0
+            remaining.contains("对齐") || remaining.contains("电话") || remaining.contains("站会") -> 15
+            remaining.contains("开会") || remaining.contains("讨论") || remaining.contains("沟通") -> 30
+            remaining.contains("实验") || remaining.contains("考试") || remaining.contains("调研") -> 90
+            remaining.contains("复习") || remaining.contains("研读") || remaining.contains("设计") -> 60
+            remaining.contains("健身") || remaining.contains("跑步") || remaining.contains("运动") -> 45
+            else -> 45
+        }
+        var category = if (isReminderOnly) "LIFE" else "WORK"
         var tag: String? = null
 
         // 1. 优先级提取: p:高 / p:high / p:urgent / p:紧急 / p:低 / p:low
@@ -49,7 +62,7 @@ object NaturalLanguageScheduleParser {
             remaining = remaining.replace(pMatcher.group(0) ?: "", "").trim()
         }
 
-        // 2. 耗时提取: d:45m / d:1.5h / d:60
+        // 2. 耗时提取: d:45m / d:1.5h / d:60 (显式指定覆盖智能推断)
         val dRegex = Pattern.compile("(?i)\\bd:(\\d+(?:\\.\\d+)?)(m|h)?\\b")
         val dMatcher = dRegex.matcher(remaining)
         if (dMatcher.find()) {
@@ -146,7 +159,8 @@ object NaturalLanguageScheduleParser {
             category = category,
             tag = tag,
             previewSummary = summary,
-            hasExplicitTime = hasExplicitTime
+            hasExplicitTime = hasExplicitTime,
+            isReminderOnly = isReminderOnly
         )
     }
 }

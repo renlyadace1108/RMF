@@ -53,6 +53,12 @@ class BootReceiver : BroadcastReceiver() {
                         daysAhead = 3
                     )
 
+                    // 重新排期并注册待提醒的自定义事件提醒 (借道实时活动与胶囊通知)
+                    val pendingReminders = db.reminderDao().getPendingRemindersList()
+                    for (reminder in pendingReminders) {
+                        ScheduleReminderManager.scheduleDirectReminder(context, reminder)
+                    }
+
                     // 重新装配并刷新桌面全部小组件
                     com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
                 } catch (_: Exception) {}

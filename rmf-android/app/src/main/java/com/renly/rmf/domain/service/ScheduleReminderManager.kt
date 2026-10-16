@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.renly.rmf.MainActivity
 import com.renly.rmf.R
 import com.renly.rmf.RmfApplication
+import com.renly.rmf.data.local.entity.ReminderEntity
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -180,6 +181,90 @@ object ScheduleReminderManager {
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
                 scheduleId.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        } catch (_: Exception) { }
+    }
+
+    /**
+     * 单点自定义事件提醒 (支持单点倒计时、实时活动借道与完成/稍后推迟交互)
+     */
+    fun scheduleDirectReminder(context: Context, reminder: ReminderEntity) {
+        if (reminder.isDeleted == 1 || reminder.isCompleted == 1 || reminder.advanceMinutes < 0) {
+            cancelDirectReminder(context, reminder.id)
+            return
+        }
+
+        try {
+            val remindLdt = try {
+                LocalDateTime.parse(reminder.remindTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            } catch (_: Exception) {
+                LocalDateTime.parse(reminder.remindTime, DateTimeFormatter.ISO_DATE_TIME)
+            }
+
+            val triggerTime = remindLdt.minusMinutes(reminder.advanceMinutes.toLong())
+            val triggerEpoch = triggerTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val targetEpoch = remindLdt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+            if (triggerEpoch <= System.currentTimeMillis()) {
+                return
+            }
+
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val msg = if (reminder.advanceMinutes == 0) {
+                "${reminder.title} 时间已到 (${remindLdt.format(DateTimeFormatter.ofPattern("HH:mm"))})"
+            } else {
+                "${reminder.title} 将在 ${remindLdt.format(DateTimeFormatter.ofPattern("HH:mm"))} 到期 (${reminder.advanceMinutes}分钟后)"
+            }
+
+            val intent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, reminder.title)
+                putExtra(ScheduleAlarmReceiver.EXTRA_MESSAGE, reminder.content.ifBlank { msg })
+                putExtra(ScheduleAlarmReceiver.EXTRA_ID, reminder.id.hashCode())
+                putExtra(ScheduleAlarmReceiver.EXTRA_IS_DIRECT_REMINDER, true)
+                putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_ID, reminder.id)
+                putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_START_MILLIS, targetEpoch)
+                putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_TYPE, reminder.reminderType)
+            }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                reminder.id.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            try {
+                // 原生 AlarmClock 对齐唤醒，ColorOS 及主流系统零功耗豁免休眠机制
+                val clockInfo = AlarmManager.AlarmClockInfo(triggerEpoch, pendingIntent)
+                alarmManager.setAlarmClock(clockInfo, pendingIntent)
+            } catch (e: Exception) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerEpoch,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerEpoch,
+                        pendingIntent
+                    )
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun cancelDirectReminder(context: Context, reminderId: String) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, ScheduleAlarmReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                reminderId.hashCode(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

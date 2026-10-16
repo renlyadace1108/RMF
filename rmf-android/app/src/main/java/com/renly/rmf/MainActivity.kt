@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -90,6 +91,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Fitness : Screen("fitness", "健身", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "习惯", Icons.Default.SelfImprovement)
     object Countdowns : Screen("countdowns", "倒数", Icons.Default.HourglassBottom)
+    object Reminders : Screen("reminders", "提醒", Icons.Default.NotificationsActive)
 
     companion object {
         fun fromRoute(route: String): Screen {
@@ -102,6 +104,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
                 "fitness" -> Fitness
                 "habits" -> Habits
                 "countdowns" -> Countdowns
+                "reminders" -> Reminders
                 "goals" -> Goals
                 "expenses" -> Expenses
                 "daily_report" -> DailyReport
@@ -1051,6 +1054,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
+                            Screen.Reminders -> RemindersScreen(
+                                reminderDao = db.reminderDao(),
+                                onNavigateBack = { navigateToScreen(Screen.Workbench, -1) }
+                            )
+
                             Screen.Workbench -> WorkbenchScreen(
                                 onNavigateToSettings = { navigateToScreen(Screen.Settings, 1) },
                                 onNavigateToGoals = { navigateToScreen(Screen.Goals, 1) },
@@ -1060,6 +1068,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToSummary = { navigateToScreen(Screen.Summary, 1) },
                                 onNavigateToHabits = { navigateToScreen(Screen.Habits, 1) },
                                 onNavigateToCountdowns = { navigateToScreen(Screen.Countdowns, 1) },
+                                onNavigateToReminders = { navigateToScreen(Screen.Reminders, 1) },
                                 onNavigateToTutorial = { navigateToScreen(Screen.Tutorial, 1) },
                                 onTriggerAudit = {
                                     val currentList = runBlockingOrCachedSchedules()
@@ -1273,6 +1282,16 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch {
                                         db.expenseDao().insertOrUpdate(expense)
                                         Toast.makeText(this@MainActivity, "已记录支出 ￥${expense.amount}", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onSaveReminder = { reminder ->
+                                    lifecycleScope.launch {
+                                        db.reminderDao().insertOrUpdate(reminder)
+                                        com.renly.rmf.domain.service.ScheduleReminderManager.scheduleDirectReminder(this@MainActivity, reminder)
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleReminder(this@MainActivity, reminder)
+                                        }
+                                        Toast.makeText(this@MainActivity, "✓ 事件提醒已设定", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             )

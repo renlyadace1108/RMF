@@ -494,6 +494,12 @@ fun TimetableScreen(
                 onDelete = {
                     onDeleteCourse(course.id)
                     selectedCourseDetail = null
+                },
+                onUpdateReminder = { newMins ->
+                    val nowStr = java.time.LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    val updated = course.copy(reminderMinutes = newMins, updatedAt = nowStr)
+                    onAddCourse(updated)
+                    selectedCourseDetail = updated
                 }
             )
         }
@@ -849,8 +855,11 @@ fun CourseCard(
 fun CourseDetailDialog(
     course: CourseEntity,
     onDismiss: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onUpdateReminder: (Int) -> Unit = {}
 ) {
+    var reminderMins by remember(course.reminderMinutes) { mutableIntStateOf(course.reminderMinutes) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
@@ -879,10 +888,35 @@ fun CourseDetailDialog(
                 if (course.isCustomTime == 1) {
                     Text("自定义时间: ${course.customStartTime} - ${course.customEndTime}", fontSize = 13.sp, color = DopamineCyan)
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("🔔 上课提醒时间 (实时活动胶囊倒计时):", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val reminderOptions = listOf(
+                        15 to "提前15分",
+                        10 to "提前10分",
+                        5 to "提前5分",
+                        0 to "准时",
+                        -1 to "关闭"
+                    )
+                    reminderOptions.forEach { (mins, label) ->
+                        FilterChip(
+                            selected = reminderMins == mins,
+                            onClick = {
+                                reminderMins = mins
+                                onUpdateReminder(mins)
+                            },
+                            label = { Text(label, fontSize = 10.5.sp) }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭", color = DopamineCyan, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text("完成", color = DopamineCyan, fontWeight = FontWeight.Bold) }
         }
     )
 }
@@ -1455,6 +1489,7 @@ fun AddCourseDialog(
     var endWeek by remember(defaultEndWeek) { mutableIntStateOf(defaultEndWeek) }
     var weekType by remember { mutableStateOf("ALL") }
     var colorHex by remember { mutableStateOf("#38BDF8") }
+    var reminderMinutes by remember { mutableIntStateOf(15) }
 
     val daysOfWeek = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
@@ -1559,6 +1594,28 @@ fun AddCourseDialog(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Text("🔔 上课提醒时间 (实时活动胶囊倒计时):", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val reminderOptions = listOf(
+                        15 to "提前15分",
+                        10 to "提前10分",
+                        5 to "提前5分",
+                        0 to "准时",
+                        -1 to "关闭"
+                    )
+                    reminderOptions.forEach { (mins, label) ->
+                        FilterChip(
+                            selected = reminderMinutes == mins,
+                            onClick = { reminderMinutes = mins },
+                            label = { Text(label, fontSize = 10.5.sp) }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1577,6 +1634,7 @@ fun AddCourseDialog(
                             endWeek = endWeek,
                             weekType = weekType,
                             colorHex = colorHex,
+                            reminderMinutes = reminderMinutes,
                             createdAt = nowStr,
                             updatedAt = nowStr
                         )

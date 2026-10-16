@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
+import com.renly.rmf.data.local.entity.ReminderEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -265,6 +266,139 @@ object SystemCalendarSyncService {
 
         updateLastSyncTime(context)
         return CalendarSyncResult.Success("已成功同步 $synced 项日程至手机系统日历！", synced)
+    }
+
+    /**
+     * 查找系统中属于指定 reminderId 的日历事件 ID
+     */
+    fun findEventIdForReminder(context: Context, calendarId: Long, reminderId: String): Long? {
+        val cr = context.contentResolver
+        val uri = CalendarContract.Events.CONTENT_URI
+        val projection = arrayOf(CalendarContract.Events._ID)
+        val selection = "(${CalendarContract.Events.CALENDAR_ID} = ?) AND (${CalendarContract.Events.SYNC_DATA2} = ? OR ${CalendarContract.Events.DESCRIPTION} LIKE ?)"
+        val selectionArgs = arrayOf(calendarId.toString(), reminderId, "%[RMF_REMINDER_ID:$reminderId]%")
+        try {
+            cr.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getLong(cursor.getColumnIndexOrThrow(CalendarContract.Events._ID))
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    /**
+     * 将单条自定义提醒同步/更新至系统原生日历与系统通知
+     */
+    fun syncSingleReminder(context: Context, reminder: ReminderEntity): Boolean {
+        if (!hasCalendarPermissions(context)) return false
+        if (reminder.remindTime.isBlank()) return false
+        if (reminder.isDeleted == 1 || reminder.isCompleted == 1) {
+            deleteReminderEvent(context, reminder.id)
+            return true
+        }
+
+        val calendarId = getAvailableCalendarId(context) ?: return false
+
+        return try {
+            val startEpoch = parseIsoToEpochMillis(reminder.remindTime)
+            if (startEpoch <= 0) return false
+            val endEpoch = startEpoch + 15 * 60 * 1000L
+
+            val cr = context.contentResolver
+            val existingEventId = findEventIdForReminder(context, calendarId, reminder.id)
+
+            val cleanDesc = buildString {
+                append("🔔 RMF 事件提醒\n")
+                if (reminder.content.isNotBlank()) append(reminder.content).append("\n")
+                if (reminder.category.isNotBlank()) append("🏷️ 分类: ").append(reminder.category).append("\n")
+                append("\n[RMF_REMINDER_ID:${reminder.id}]")
+            }
+
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.CALENDAR_ID, calendarId)
+                put(CalendarContract.Events.TITLE, "🔔 " + reminder.title)
+                put(CalendarContract.Events.DESCRIPTION, cleanDesc)
+                put(CalendarContract.Events.DTSTART, startEpoch)
+                put(CalendarContract.Events.DTEND, endEpoch)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                put(CalendarContract.Events.SYNC_DATA2, reminder.id)
+                put(CalendarContract.Events.STATUS, CalendarContract.Events.STATUS_CONFIRMED)
+                put(CalendarContract.Events.HAS_ALARM, if (reminder.advanceMinutes >= 0) 1 else 0)
+            }
+
+            val eventId: Long = if (existingEventId != null) {
+                val eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingEventId)
+                cr.update(eventUri, values, null, null)
+                existingEventId
+            } else {
+                val insertUri = cr.insert(CalendarContract.Events.CONTENT_URI, values) ?: return false
+                insertUri.lastPathSegment?.toLongOrNull() ?: return false
+            }
+
+            // 更新系统闹钟提醒 (CalendarContract.Reminders)
+            val remUri = CalendarContract.Reminders.CONTENT_URI
+            cr.delete(remUri, "${CalendarContract.Reminders.EVENT_ID} = ?", arrayOf(eventId.toString()))
+            if (reminder.advanceMinutes >= 0) {
+                val remValues = ContentValues().apply {
+                    put(CalendarContract.Reminders.EVENT_ID, eventId)
+                    put(CalendarContract.Reminders.MINUTES, reminder.advanceMinutes)
+                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                }
+                cr.insert(remUri, remValues)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 从系统日历中删除指定提醒事件
+     */
+    fun deleteReminderEvent(context: Context, reminderId: String): Boolean {
+        if (!hasCalendarPermissions(context)) return false
+        val calendarId = getAvailableCalendarId(context) ?: return false
+        return try {
+            val existingEventId = findEventIdForReminder(context, calendarId, reminderId)
+            if (existingEventId != null) {
+                val eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingEventId)
+                context.contentResolver.delete(eventUri, null, null) > 0
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 全量同步所有未完成、未删除的提醒至系统日历
+     */
+    fun syncAllReminders(context: Context, reminders: List<ReminderEntity>): CalendarSyncResult {
+        if (!hasCalendarPermissions(context)) {
+            return CalendarSyncResult.Error("未获取系统日历读写权限，请在权限申请弹窗中允许")
+        }
+        val calendarId = getAvailableCalendarId(context)
+            ?: return CalendarSyncResult.Error("未检测到手机系统可用日历，请确认手机自带日历已开启")
+
+        val validReminders = reminders.filter {
+            it.isDeleted == 0 && it.isCompleted == 0 && it.remindTime.isNotBlank()
+        }
+
+        if (validReminders.isEmpty()) {
+            return CalendarSyncResult.Success("暂无可同步的未完成提醒", 0)
+        }
+
+        var synced = 0
+        for (item in validReminders) {
+            if (syncSingleReminder(context, item)) {
+                synced++
+            }
+        }
+
+        updateLastSyncTime(context)
+        return CalendarSyncResult.Success("已成功同步 $synced 项事件提醒至系统软件与日历！", synced)
     }
 
     private fun parseIsoToEpochMillis(isoStr: String): Long {

@@ -12,14 +12,68 @@ import androidx.core.app.NotificationCompat
 import com.renly.rmf.MainActivity
 import com.renly.rmf.R
 import com.renly.rmf.RmfApplication
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 class ScheduleAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        val intentAction = intent.action
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // 处理自定义事件提醒的交互动作 (完成 / 稍后提醒)
+        if (intentAction == ACTION_COMPLETE_REMINDER) {
+            val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
+            val notifId = intent.getIntExtra(EXTRA_ID, 1001)
+            manager.cancel(notifId)
+
+            val app = context.applicationContext as? RmfApplication ?: return
+            CoroutineScope(Dispatchers.IO).launch {
+                val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
+                SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
+            }
+            return
+        }
+
+        if (intentAction == ACTION_SNOOZE_REMINDER) {
+            val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
+            val notifId = intent.getIntExtra(EXTRA_ID, 1001)
+            manager.cancel(notifId)
+
+            val app = context.applicationContext as? RmfApplication ?: return
+            CoroutineScope(Dispatchers.IO).launch {
+                val reminder = app.database.reminderDao().getReminderById(reminderId)
+                if (reminder != null) {
+                    val snoozedTime = LocalDateTime.now().plusMinutes(10)
+                    val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    app.database.reminderDao().updateRemindTime(reminderId, snoozedIso, 0, nowStr)
+
+                    val updatedReminder = reminder.copy(
+                        remindTime = snoozedIso,
+                        advanceMinutes = 0,
+                        updatedAt = nowStr
+                    )
+                    ScheduleReminderManager.scheduleDirectReminder(context, updatedReminder)
+                    if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                        SystemCalendarSyncService.syncSingleReminder(context, updatedReminder)
+                    }
+                }
+            }
+            return
+        }
+
+        // 常规提醒分发 (课程 / 日程 / 单点事件提醒)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "日程时间块"
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "即将开始，请准备进入专注状态"
         val notificationId = intent.getIntExtra(EXTRA_ID, 1001)
         val isCourse = intent.getBooleanExtra(EXTRA_IS_COURSE, false)
+        val isDirectReminder = intent.getBooleanExtra(EXTRA_IS_DIRECT_REMINDER, false)
+        val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: ""
         val courseLocation = intent.getStringExtra(EXTRA_COURSE_LOCATION) ?: ""
         val courseTeacher = intent.getStringExtra(EXTRA_COURSE_TEACHER) ?: ""
         val courseStartTimeMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
@@ -67,10 +121,18 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             .setCategory(if (isCourse) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
+            .setOngoing(true) // 借道实时活动常驻胶囊展示
             .setContentIntent(pendingIntent)
+
         val brandLabel = FluidCloudHelper.getSystemBrandLabel()
         builder.setFullScreenIntent(pendingIntent, reminderType != ReminderType.NONE)
-        builder.setSubText(if (isCourse) "$brandLabel · 上课提醒" else "$brandLabel · 日程提醒")
+        builder.setSubText(
+            when {
+                isCourse -> "$brandLabel · 上课提醒"
+                isDirectReminder -> "$brandLabel · 事件提醒"
+                else -> "$brandLabel · 日程提醒"
+            }
+        )
 
         // 精确配置声音与震动规则
         when (reminderType) {
@@ -99,8 +161,65 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val isLiveUpdateMode = FluidCloudHelper.isPromotedLiveUpdateSupported(context)
         FluidCloudHelper.applyPromotedOngoing(builder)
 
-        if (isCourse) {
-            // 2. 快捷一键进入听课专注 (FocusLiveService)
+        if (isDirectReminder) {
+            // ==========================================
+            // 自定义事件提醒模式 (实时活动倒计时 + 无图标按钮)
+            // ==========================================
+            val completeIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                this.action = ACTION_COMPLETE_REMINDER
+                putExtra(EXTRA_REMINDER_ID, reminderId)
+                putExtra(EXTRA_ID, notificationId)
+            }
+            val completePendingIntent = PendingIntent.getBroadcast(
+                context,
+                notificationId + 31,
+                completeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val snoozeIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                this.action = ACTION_SNOOZE_REMINDER
+                putExtra(EXTRA_REMINDER_ID, reminderId)
+                putExtra(EXTRA_ID, notificationId)
+            }
+            val snoozePendingIntent = PendingIntent.getBroadcast(
+                context,
+                notificationId + 32,
+                snoozeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // 按钮不带图标 (icon=0)，图标在右上角小图标展示
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, "完成", completePendingIntent).build()
+            )
+            builder.addAction(
+                NotificationCompat.Action.Builder(0, "稍后提醒 (+10分)", snoozePendingIntent).build()
+            )
+
+            builder.setContentTitle(title)
+                .setContentText(message)
+
+            val targetMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
+            val remMillis = if (targetMillis > System.currentTimeMillis()) targetMillis - System.currentTimeMillis() else 0L
+            if (remMillis > 0) {
+                builder.setUsesChronometer(true)
+                builder.setWhen(System.currentTimeMillis() + remMillis)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(true)
+                }
+            }
+
+            builder.setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle("🔔 $title")
+                    .setSummaryText(brandLabel)
+                    .bigText(message)
+            )
+        } else if (isCourse) {
+            // ==========================================
+            // 课程提醒模式 (倒计时 + 实时活动 + 无图标按钮)
+            // ==========================================
             val focusIntent = Intent(context, FocusLiveService::class.java).apply {
                 action = FocusLiveService.ACTION_START
                 putExtra(FocusLiveService.EXTRA_TITLE, "听课专注: $title")
@@ -122,24 +241,23 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 )
             }
 
-            // 计算倒计时 millis
             val remainingMillis = if (courseStartTimeMillis > System.currentTimeMillis()) {
                 courseStartTimeMillis - System.currentTimeMillis()
             } else {
                 0L
             }
 
-            // 原生 Actions
+            // 按钮不带图标 (icon=0)
             builder.addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_logo,
+                    0,
                     "开启专注",
                     focusPendingIntent
                 ).build()
             )
             builder.addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_logo,
+                    0,
                     "查看详情",
                     pendingIntent
                 ).build()
@@ -169,7 +287,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                         .bigText(detailStr.toString())
                 )
             } else {
-                // 自定义 RemoteViews（针对未开放 Live Updates 权限的设备）
                 val capsuleView = RemoteViews(context.packageName, R.layout.notification_fluid_cloud_course_capsule).apply {
                     setTextViewText(R.id.fluid_course_capsule_title, title)
                     val locText = if (courseLocation.isNotBlank()) courseLocation else "即将开课"
@@ -223,7 +340,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             }
         } else {
-            // 通用日程
+            // ==========================================
+            // 通用日程时间块提醒 (倒计时 + 实时活动 + 无图标按钮)
+            // ==========================================
             val startMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
             val remMillis = if (startMillis > System.currentTimeMillis()) startMillis - System.currentTimeMillis() else 0L
 
@@ -248,16 +367,17 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 )
             }
 
+            // 按钮不带图标 (icon=0)
             builder.addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_logo,
+                    0,
                     "开启专注",
                     focusPendingIntent
                 ).build()
             )
             builder.addAction(
                 NotificationCompat.Action.Builder(
-                    R.drawable.ic_logo,
+                    0,
                     "查看日程",
                     pendingIntent
                 ).build()
@@ -332,15 +452,19 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
 
         val notification = builder.build()
         FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
     }
 
     companion object {
+        const val ACTION_COMPLETE_REMINDER = "com.renly.rmf.ACTION_COMPLETE_REMINDER"
+        const val ACTION_SNOOZE_REMINDER = "com.renly.rmf.ACTION_SNOOZE_REMINDER"
+
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_MESSAGE = "extra_message"
         const val EXTRA_ID = "extra_id"
         const val EXTRA_IS_COURSE = "extra_is_course"
+        const val EXTRA_IS_DIRECT_REMINDER = "extra_is_direct_reminder"
+        const val EXTRA_REMINDER_ID = "extra_reminder_id"
         const val EXTRA_COURSE_LOCATION = "extra_course_location"
         const val EXTRA_COURSE_TEACHER = "extra_course_teacher"
         const val EXTRA_COURSE_START_MILLIS = "extra_course_start_millis"
