@@ -693,67 +693,11 @@ fun SettingsScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "可自选是否把「健身」加入底部快捷栏，随时增减个性化选项",
+                        text = "点击下方模块勾选或取消，随心定制底栏快捷入口",
                         fontSize = 11.sp,
                         color = TextSecondary,
                         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                     )
-
-                    // 快捷预设按钮组
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Surface(
-                            onClick = {
-                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "workbench"))
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("经典 5 项", fontSize = 11.sp, color = TextSecondary)
-                            }
-                        }
-
-                        Surface(
-                            onClick = {
-                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "focus", "fitness", "workbench"))
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = DopamineCyan.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("🏋️ 健身专属 5 项", fontSize = 11.sp, color = DopamineCyan, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Surface(
-                            onClick = {
-                                onEnabledNavRoutesChange(listOf("schedule", "timetable", "study", "focus", "fitness", "settings"))
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("全能 6 项", fontSize = 11.sp, color = TextSecondary)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
 
                     // 所有可选模块列表（两列排列）
                     val allItems = NavigationPreferences.ALL_AVAILABLE_NAV_ITEMS

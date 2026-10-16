@@ -55,8 +55,8 @@ object NavigationPreferences {
             return DEFAULT_ENABLED_ROUTES
         }
         val list = raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
-        val migratedList = list.map { if (it == "settings") "workbench" else it }
-        return if (migratedList.isEmpty()) DEFAULT_ENABLED_ROUTES else migratedList
+        val validList = list.filter { r -> ALL_AVAILABLE_NAV_ITEMS.any { it.route == r } }
+        return if (validList.isEmpty()) DEFAULT_ENABLED_ROUTES else validList
     }
 
     fun setEnabledRoutes(context: Context, routes: List<String>) {
@@ -67,8 +67,7 @@ object NavigationPreferences {
 
     fun getDefaultHomeRoute(context: Context): String {
         val rawRoute = getPrefs(context).getString(KEY_DEFAULT_HOME_ROUTE, DEFAULT_HOME_ROUTE) ?: DEFAULT_HOME_ROUTE
-        val route = if (rawRoute == "settings") "workbench" else rawRoute
-        return if (ALL_AVAILABLE_NAV_ITEMS.any { it.route == route }) route else DEFAULT_HOME_ROUTE
+        return if (ALL_AVAILABLE_NAV_ITEMS.any { it.route == rawRoute }) rawRoute else DEFAULT_HOME_ROUTE
     }
 
     fun setDefaultHomeRoute(context: Context, route: String) {

@@ -446,6 +446,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // 底栏配置变动时，安全同步当前 pager 页码，严防索引越界闪退并保持当前页面状态无缝对接
+                LaunchedEffect(safeNavScreens) {
+                    if (safeNavScreens.isNotEmpty()) {
+                        val targetIdx = safeNavScreens.indexOf(currentScreen)
+                        if (targetIdx != -1) {
+                            if (pagerState.currentPage != targetIdx) {
+                                pagerState.scrollToPage(targetIdx)
+                            }
+                        } else {
+                            val clamped = pagerState.currentPage.coerceIn(0, safeNavScreens.size - 1)
+                            if (pagerState.currentPage != clamped) {
+                                pagerState.scrollToPage(clamped)
+                            }
+                            if (currentScreen != Screen.Settings) {
+                                currentScreen = safeNavScreens.getOrNull(clamped) ?: Screen.Schedule
+                            }
+                        }
+                    }
+                }
+
                 // 核心统一导航调度函数
                 val navigateToScreen: (Screen, Int?) -> Unit = { targetScreen, _ ->
                     val targetIdx = safeNavScreens.indexOf(targetScreen)
@@ -538,7 +558,12 @@ class MainActivity : ComponentActivity() {
                                                 if (currentScreen == Screen.Settings) {
                                                     com.renly.rmf.util.HapticHelper.performQuadrantMoved(this@MainActivity)
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    navigateToScreen(lastScreenBeforeSettings, -1)
+                                                    val fallback = if (safeNavScreens.contains(lastScreenBeforeSettings)) {
+                                                        lastScreenBeforeSettings
+                                                    } else {
+                                                        safeNavScreens.firstOrNull() ?: Screen.Schedule
+                                                    }
+                                                    navigateToScreen(fallback, -1)
                                                 }
                                             }
                                         }
@@ -621,8 +646,13 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     val isInMainPager = safeNavScreens.contains(currentScreen)
 
-                    BackHandler(enabled = !isInMainPager) {
-                        currentScreen = lastScreenBeforeSettings
+                    BackHandler(enabled = !isInMainPager || currentScreen == Screen.Settings) {
+                        val fallback = if (safeNavScreens.contains(lastScreenBeforeSettings)) {
+                            lastScreenBeforeSettings
+                        } else {
+                            safeNavScreens.firstOrNull() ?: Screen.Schedule
+                        }
+                        navigateToScreen(fallback, -1)
                     }
 
                     val renderScreenContent: @Composable (Screen) -> Unit = { screen ->
@@ -1110,7 +1140,14 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Settings -> SettingsScreen(
-                                onBack = { navigateToScreen(lastScreenBeforeSettings, -1) },
+                                onBack = {
+                                    val fallback = if (safeNavScreens.contains(lastScreenBeforeSettings)) {
+                                        lastScreenBeforeSettings
+                                    } else {
+                                        safeNavScreens.firstOrNull() ?: Screen.Schedule
+                                    }
+                                    navigateToScreen(fallback, -1)
+                                },
                                 currentThemeMode = currentThemeMode,
                                 onThemeModeChange = { newMode ->
                                     currentThemeMode = newMode
@@ -1224,7 +1261,7 @@ class MainActivity : ComponentActivity() {
                                     beyondViewportPageCount = 1,
                                     key = { page -> safeNavScreens.getOrNull(page)?.route ?: page }
                                 ) { page ->
-                                    val screen = safeNavScreens[page]
+                                    val screen = safeNavScreens.getOrNull(page) ?: safeNavScreens.firstOrNull() ?: Screen.Schedule
                                     saveableStateHolder.SaveableStateProvider(screen.route) {
                                         renderScreenContent(screen)
                                     }
