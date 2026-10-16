@@ -29,7 +29,7 @@ import com.renly.rmf.data.local.entity.*
         FocusRecordEntity::class,
         ReminderEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -224,6 +224,7 @@ abstract class RmfDatabase : RoomDatabase() {
                     ColSpec("completed_hours", "REAL", true, "0.0", "0.0"),
                     ColSpec("current_checkpoint", "TEXT", true, null, "''"),
                     ColSpec("notes", "TEXT", true, null, "''"),
+                    ColSpec("checkpoints_json", "TEXT", true, "'[]'", "'[]'"),
                     ColSpec("is_deleted", "INTEGER", true, "0", "0"),
                     ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
                     ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
@@ -490,6 +491,12 @@ abstract class RmfDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                ensureLosslessSchema(db)
+            }
+        }
+
         @Volatile
         private var INSTANCE: RmfDatabase? = null
 
@@ -544,7 +551,7 @@ abstract class RmfDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)

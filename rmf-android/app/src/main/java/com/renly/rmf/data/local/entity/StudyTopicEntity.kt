@@ -4,7 +4,19 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.util.UUID
+
+/**
+ * 学习专题任务点/检查点条目 (如具体章节、课时、任务点)
+ */
+data class StudyTaskPoint(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val isCompleted: Boolean = false,
+    val completedAt: String? = null
+)
 
 @Entity(
     tableName = "study_topics",
@@ -21,7 +33,7 @@ data class StudyTopicEntity(
     val title: String,
 
     @ColumnInfo(name = "category", defaultValue = "'技术栈'")
-    val category: String = "技术栈", // 技术栈, 计算机基础, 外语, 读书精读, 资格考证, 兴趣
+    val category: String = "技术栈", // 技术栈, 计算机基础, 外语, 读书精读, 资格考证, 兴趣, 学科课程
 
     @ColumnInfo(name = "status", defaultValue = "'IN_PROGRESS'")
     val status: String = "IN_PROGRESS", // NOT_STARTED, IN_PROGRESS, COMPLETED
@@ -30,7 +42,7 @@ data class StudyTopicEntity(
     val progressPercent: Int = 0,
 
     @ColumnInfo(name = "progress_type", defaultValue = "'HOURS'")
-    val progressType: String = "HOURS", // HOURS (时长), LESSONS (节数), PAGES (页数), CUSTOM (自定义单位)
+    val progressType: String = "HOURS", // HOURS (时长), LESSONS (节数/讲), PAGES (页数), CUSTOM (自定义单位)
 
     @ColumnInfo(name = "custom_unit", defaultValue = "''")
     val customUnit: String = "", // 如 "题", "词", "讲", "章"
@@ -47,11 +59,14 @@ data class StudyTopicEntity(
     @ColumnInfo(name = "completed_hours", defaultValue = "0.0")
     val completedHours: Double = 0.0,
 
-    @ColumnInfo(name = "current_checkpoint")
+    @ColumnInfo(name = "current_checkpoint", defaultValue = "''")
     val currentCheckpoint: String = "",
 
-    @ColumnInfo(name = "notes")
+    @ColumnInfo(name = "notes", defaultValue = "''")
     val notes: String = "",
+
+    @ColumnInfo(name = "checkpoints_json", defaultValue = "'[]'")
+    val checkpointsJson: String = "[]",
 
     @ColumnInfo(name = "is_deleted", defaultValue = "0")
     val isDeleted: Int = 0,
@@ -62,3 +77,19 @@ data class StudyTopicEntity(
     @ColumnInfo(name = "updated_at")
     val updatedAt: String
 )
+
+private val gson = Gson()
+
+fun StudyTopicEntity.getTaskPoints(): List<StudyTaskPoint> {
+    if (checkpointsJson.isBlank() || checkpointsJson.trim() == "[]") return emptyList()
+    return try {
+        val type = object : TypeToken<List<StudyTaskPoint>>() {}.type
+        gson.fromJson(checkpointsJson, type) ?: emptyList()
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+fun List<StudyTaskPoint>.toJson(): String {
+    return gson.toJson(this)
+}

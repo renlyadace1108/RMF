@@ -18,6 +18,9 @@ interface StudyTopicDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(topic: StudyTopicEntity)
 
+    @Query("UPDATE study_topics SET completed_value = :completedValue, progress_percent = :percent, current_checkpoint = :currentCheckpoint, checkpoints_json = :checkpointsJson, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateProgressWithCheckpoints(id: String, completedValue: Double, percent: Int, currentCheckpoint: String, checkpointsJson: String, updatedAt: String)
+
     @Query("UPDATE study_topics SET completed_value = :completedValue, progress_percent = :percent, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateProgress(id: String, completedValue: Double, percent: Int, updatedAt: String)
 

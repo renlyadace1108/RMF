@@ -848,9 +848,21 @@ class MainActivity : ComponentActivity() {
 
                             Screen.Study -> StudyScreen(
                                 topicsFlow = db.studyTopicDao().getAllActiveTopics(),
+                                coursesFlow = db.courseDao().getAllActiveCourses(),
                                 onAddTopic = { topic ->
                                     lifecycleScope.launch {
                                         db.studyTopicDao().insertOrUpdate(topic)
+                                    }
+                                },
+                                onUpdateTopic = { topic ->
+                                    lifecycleScope.launch {
+                                        db.studyTopicDao().insertOrUpdate(topic)
+                                    }
+                                },
+                                onDeleteTopic = { topicId ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        db.studyTopicDao().softDelete(topicId, nowStr)
                                     }
                                 },
                                 onUpdateProgress = { topic, addedVal ->
