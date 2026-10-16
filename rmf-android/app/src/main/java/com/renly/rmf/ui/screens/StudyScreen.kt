@@ -184,7 +184,7 @@ fun StudyScreen(
                         .fillMaxWidth()
                         .padding(bottom = 10.dp)
                 ) {
-                    items(categories) { (key, label) ->
+                    items(categories, key = { it.first }) { (key, label) ->
                         val isSelected = selectedCategoryFilter == key
                         Surface(
                             onClick = {
@@ -316,8 +316,8 @@ fun StudyTopicCard(
     }
 
     val taskPoints = remember(topic.checkpointsJson) { topic.getTaskPoints() }
-    val completedPointsCount = taskPoints.count { it.isCompleted }
-    val nextPendingPoint = taskPoints.firstOrNull { !it.isCompleted }
+    val completedPointsCount = remember(taskPoints) { taskPoints.count { it.isCompleted } }
+    val nextPendingPoint = remember(taskPoints) { taskPoints.firstOrNull { !it.isCompleted } }
 
     Surface(
         onClick = onCheckInClick,
@@ -569,7 +569,7 @@ fun AddStudyTopicDialog(
                 if (selectedTab == 0 && courses.isNotEmpty()) {
                     Text("选择目标学期课程:", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(courses) { course ->
+                        items(courses, key = { it.id }) { course ->
                             val isSelected = title == course.name
                             Surface(
                                 onClick = {

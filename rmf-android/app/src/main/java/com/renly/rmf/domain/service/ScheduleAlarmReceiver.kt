@@ -31,10 +31,15 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             manager.cancel(notifId)
 
             val app = context.applicationContext as? RmfApplication ?: return
+            val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
-                val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
-                SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
+                try {
+                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
+                    SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
+                } finally {
+                    pendingResult.finish()
+                }
             }
             return
         }
@@ -45,23 +50,28 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             manager.cancel(notifId)
 
             val app = context.applicationContext as? RmfApplication ?: return
+            val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
-                val reminder = app.database.reminderDao().getReminderById(reminderId)
-                if (reminder != null) {
-                    val snoozedTime = LocalDateTime.now().plusMinutes(10)
-                    val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                    app.database.reminderDao().updateRemindTime(reminderId, snoozedIso, 0, nowStr)
+                try {
+                    val reminder = app.database.reminderDao().getReminderById(reminderId)
+                    if (reminder != null) {
+                        val snoozedTime = LocalDateTime.now().plusMinutes(10)
+                        val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        app.database.reminderDao().updateRemindTime(reminderId, snoozedIso, 0, nowStr)
 
-                    val updatedReminder = reminder.copy(
-                        remindTime = snoozedIso,
-                        advanceMinutes = 0,
-                        updatedAt = nowStr
-                    )
-                    ScheduleReminderManager.scheduleDirectReminder(context, updatedReminder)
-                    if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
-                        SystemCalendarSyncService.syncSingleReminder(context, updatedReminder)
+                        val updatedReminder = reminder.copy(
+                            remindTime = snoozedIso,
+                            advanceMinutes = 0,
+                            updatedAt = nowStr
+                        )
+                        ScheduleReminderManager.scheduleDirectReminder(context, updatedReminder)
+                        if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                            SystemCalendarSyncService.syncSingleReminder(context, updatedReminder)
+                        }
                     }
+                } finally {
+                    pendingResult.finish()
                 }
             }
             return
