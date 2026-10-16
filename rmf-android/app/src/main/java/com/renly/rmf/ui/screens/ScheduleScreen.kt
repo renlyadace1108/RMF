@@ -13,6 +13,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
@@ -22,6 +28,8 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
@@ -113,6 +121,10 @@ fun ScheduleScreen(
     val tagColorMap = remember(availableTags, defaultAccent) {
         availableTags.associate { it.name to parseHexColor(it.colorHex, defaultAccent) }
     }
+
+    val context = LocalContext.current
+    val hapticFeedback = LocalHapticFeedback.current
+    var isTableLocked by rememberSaveable { mutableStateOf(true) }
 
     var currentViewMode by remember { mutableStateOf(ScheduleViewMode.DAY_GRID) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -361,23 +373,38 @@ fun ScheduleScreen(
                             selectedDate = selectedDate,
                             availableTags = availableTags,
                             tagColorMap = tagColorMap,
+                            isLocked = isTableLocked,
                             onSelectDate = { selectedDate = it },
                             onItemClick = { detailItem = it },
                             onScheduleBacklog = { item, dt ->
-                                val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
-                                val endStr = dt.plusMinutes(item.estimatedMinutes.toLong()).format(DateTimeFormatter.ISO_DATE_TIME)
-                                val updated = item.copy(
-                                    status = "PENDING",
-                                    startTime = startStr,
-                                    endTime = endStr,
-                                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                )
-                                onUpdateSchedule(updated)
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val endStr = dt.plusMinutes(item.estimatedMinutes.toLong()).format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val updated = item.copy(
+                                        status = "PENDING",
+                                        startTime = startStr,
+                                        endTime = endStr,
+                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                    )
+                                    onUpdateSchedule(updated)
+                                }
                             },
                             onAddScheduleWithRange = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
-                                onAddSchedule(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onAddSchedule(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
+                                }
                             },
-                            onUpdateSchedule = onUpdateSchedule
+                            onUpdateSchedule = { updated ->
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onUpdateSchedule(updated)
+                                }
+                            }
                         )
                     }
 
@@ -388,30 +415,49 @@ fun ScheduleScreen(
                             selectedDate = selectedDate,
                             availableTags = availableTags,
                             tagColorMap = tagColorMap,
+                            isLocked = isTableLocked,
                             onSelectDate = { selectedDate = it },
                             onItemClick = { detailItem = it },
                             onScheduleBacklog = { item, dt ->
-                                val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
-                                val endStr = dt.plusMinutes(item.estimatedMinutes.toLong()).format(DateTimeFormatter.ISO_DATE_TIME)
-                                val updated = item.copy(
-                                    status = "PENDING",
-                                    startTime = startStr,
-                                    endTime = endStr,
-                                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                )
-                                onUpdateSchedule(updated)
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val endStr = dt.plusMinutes(item.estimatedMinutes.toLong()).format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val updated = item.copy(
+                                        status = "PENDING",
+                                        startTime = startStr,
+                                        endTime = endStr,
+                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                    )
+                                    onUpdateSchedule(updated)
+                                }
                             },
                             onAddNewScheduleAtHour = { hour ->
-                                val dt = selectedDate.atTime(hour, 0)
-                                val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
-                                val endStr = dt.plusMinutes(45).format(DateTimeFormatter.ISO_DATE_TIME)
-                                val defaultCat = availableTags.firstOrNull()?.name ?: "工作"
-                                onAddSchedule("新任务", "DEEP_WORK", defaultCat, 45, startStr, endStr, 10, ReminderType.ALL.code)
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val dt = selectedDate.atTime(hour, 0)
+                                    val startStr = dt.format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val endStr = dt.plusMinutes(45).format(DateTimeFormatter.ISO_DATE_TIME)
+                                    val defaultCat = availableTags.firstOrNull()?.name ?: "工作"
+                                    onAddSchedule("新任务", "DEEP_WORK", defaultCat, 45, startStr, endStr, 10, ReminderType.ALL.code)
+                                }
                             },
                             onAddScheduleWithRange = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
-                                onAddSchedule(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onAddSchedule(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
+                                }
                             },
-                            onUpdateSchedule = onUpdateSchedule
+                            onUpdateSchedule = { updated ->
+                                if (isTableLocked) {
+                                    Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    onUpdateSchedule(updated)
+                                }
+                            }
                         )
                     }
 
@@ -710,22 +756,80 @@ fun ScheduleScreen(
     }
 }
 
-        // 悬浮新建日程 FAB (贴合右下角，不挤占日程网格纵向高度)
-        FloatingActionButton(
-            onClick = {
-                defaultQuadrantForNewSchedule = "Q2"
-                showAddDialog = true
-            },
-            containerColor = DopamineBlue,
-            contentColor = if (LocalAppColors.current.isDark) DarkBg else Color.White,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+        // 悬浮防误触锁定/解锁与新建日程 FAB
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 12.dp, end = 12.dp)
-                .size(46.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "新建日程", modifier = Modifier.size(22.dp))
+            // 当处于解锁状态时，上方提供精致轻巧的重新锁定按钮
+            AnimatedVisibility(
+                visible = !isTableLocked,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Surface(
+                    onClick = {
+                        isTableLocked = true
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        Toast.makeText(context, "🔒 日常表已重新锁定防误触", Toast.LENGTH_SHORT).show()
+                    },
+                    shape = CircleShape,
+                    color = DarkCard,
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.85f)),
+                    shadowElevation = 3.dp,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.LockOpen,
+                            contentDescription = "重新锁定防误触",
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+            }
+
+            if (!isTableLocked) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // 主悬浮按钮：锁定状态下绘制小锁，点击直接解锁；解锁后变为加号，点击新建日程
+            FloatingActionButton(
+                onClick = {
+                    if (isTableLocked) {
+                        isTableLocked = false
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        Toast.makeText(context, "🔓 日常表已解锁，可正常编辑与排期", Toast.LENGTH_SHORT).show()
+                    } else {
+                        defaultQuadrantForNewSchedule = "Q2"
+                        showAddDialog = true
+                    }
+                },
+                containerColor = if (isTableLocked) Color(0xFFF59E0B) else DopamineBlue,
+                contentColor = if (isTableLocked) Color.White else (if (LocalAppColors.current.isDark) DarkBg else Color.White),
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                modifier = Modifier.size(46.dp)
+            ) {
+                Crossfade(targetState = isTableLocked, label = "LockAddFabCrossfade") { locked ->
+                    if (locked) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "点击解锁日常表",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "新建日程",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
         }
 
         // 新建日程弹窗 (AddScheduleDialog)
@@ -831,18 +935,31 @@ fun ScheduleScreen(
             ScheduleDetailModal(
                 item = item,
                 tagColorMap = tagColorMap,
+                isLocked = isTableLocked,
                 onToggleStatus = {
-                    onToggleStatus(item)
-                    detailItem = null
+                    if (isTableLocked) {
+                        Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onToggleStatus(item)
+                        detailItem = null
+                    }
                 },
                 onEdit = {
-                    editingSchedule = item
-                    detailItem = null
-                    showEditDialog = true
+                    if (isTableLocked) {
+                        Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                    } else {
+                        editingSchedule = item
+                        detailItem = null
+                        showEditDialog = true
+                    }
                 },
                 onDelete = {
-                    onDeleteSchedule(item.id)
-                    detailItem = null
+                    if (isTableLocked) {
+                        Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onDeleteSchedule(item.id)
+                        detailItem = null
+                    }
                 },
                 onNavigateToFitness = onNavigateToFitness,
                 onDismiss = { detailItem = null }
@@ -1169,6 +1286,7 @@ fun ScheduleWeekGridView(
     selectedDate: LocalDate,
     availableTags: List<ScheduleTagEntity> = emptyList(),
     tagColorMap: Map<String, Color> = emptyMap(),
+    isLocked: Boolean = false,
     onSelectDate: (LocalDate) -> Unit,
     onItemClick: (ScheduleEntity) -> Unit,
     onScheduleBacklog: (ScheduleEntity, LocalDateTime) -> Unit = { _, _ -> },
@@ -1204,36 +1322,40 @@ fun ScheduleWeekGridView(
     var isBacklogExpanded by remember { mutableStateOf(false) }
 
     val executeDropWeek: (ScheduleEntity) -> Unit = { item ->
-        val currentScroll = verticalScrollState.value
-        val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
-        val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
-        if (dropGlobalY >= weekGridRootY) {
-            val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
-            val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
-            val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
-            val targetDay = weekDates[colW]
+        if (isLocked) {
+            Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+        } else {
+            val currentScroll = verticalScrollState.value
+            val dropGlobalY = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.y else (backlogChipRootY + backlogDragOffsetY)
+            val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
+            if (dropGlobalY >= weekGridRootY) {
+                val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
+                val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
+                val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
+                val targetDay = weekDates[colW]
 
-            val relDp = relativeY / density.density
-            val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
-            val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
-            val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
-            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
-            val dropHour = snappedMinutes / 60
-            val dropMinute = snappedMinutes % 60
-            val targetDt = targetDay.atTime(dropHour, dropMinute)
+                val relDp = relativeY / density.density
+                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
+                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+                val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
+                val dropHour = snappedMinutes / 60
+                val dropMinute = snappedMinutes % 60
+                val targetDt = targetDay.atTime(dropHour, dropMinute)
 
-            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-            onScheduleBacklog(item, targetDt)
-            val weekdayName = when (targetDay.dayOfWeek) {
-                DayOfWeek.MONDAY -> "周一"
-                DayOfWeek.TUESDAY -> "周二"
-                DayOfWeek.WEDNESDAY -> "周三"
-                DayOfWeek.THURSDAY -> "周四"
-                DayOfWeek.FRIDAY -> "周五"
-                DayOfWeek.SATURDAY -> "周六"
-                DayOfWeek.SUNDAY -> "周日"
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                onScheduleBacklog(item, targetDt)
+                val weekdayName = when (targetDay.dayOfWeek) {
+                    DayOfWeek.MONDAY -> "周一"
+                    DayOfWeek.TUESDAY -> "周二"
+                    DayOfWeek.WEDNESDAY -> "周三"
+                    DayOfWeek.THURSDAY -> "周四"
+                    DayOfWeek.FRIDAY -> "周五"
+                    DayOfWeek.SATURDAY -> "周六"
+                    DayOfWeek.SUNDAY -> "周日"
+                }
+                Toast.makeText(context, "已排期: ${item.title} 至 $weekdayName %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
             }
-            Toast.makeText(context, "已排期: ${item.title} 至 $weekdayName %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
         }
         draggingBacklogItem = null
         backlogDragTouchInRoot = Offset.Zero
@@ -1468,6 +1590,33 @@ fun ScheduleWeekGridView(
 
         Spacer(modifier = Modifier.height(2.dp))
 
+        // 快捷操作提示条
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = if (isLocked) Color(0xFFF59E0B).copy(alpha = 0.12f) else DarkCard.copy(alpha = 0.6f),
+            border = if (isLocked) BorderStroke(0.8.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)) else null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+            ) {
+                Text(if (isLocked) "🔒" else "💡", fontSize = 9.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁即可编辑排期" else "长按框选 · 拖拽排期 · 双指捏合缩放",
+                    fontSize = 8.5.sp,
+                    color = if (isLocked) Color(0xFFF59E0B) else TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(1.dp))
+
         // 7 列自适应全屏网格容器 (BoxWithConstraints 动态自适应手机宽度)
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalWidth = maxWidth
@@ -1589,53 +1738,55 @@ fun ScheduleWeekGridView(
                                 modifier = Modifier
                                     .width(weekGridWidth)
                                     .height(hourHeight * 24)
-                                    .pointerInput(Unit) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = { offset ->
-                                                isDragSelecting = true
-                                                dragSelectStartOffset = offset
-                                                dragSelectCurrentOffset = offset
-                                            },
-                                            onDrag = { change, dragAmount ->
-                                                change.consume()
-                                                dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
-                                            },
-                                            onDragEnd = {
-                                                if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                                                    val start = dragSelectStartOffset!!
-                                                    val curr = dragSelectCurrentOffset!!
-                                                    val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                                    val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                                    val heightPx = maxY - minY
-                                                    if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
-                                                        val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
-                                                        val targetDate = weekDates[colIdx]
+                                    .pointerInput(isLocked) {
+                                        if (!isLocked) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = { offset ->
+                                                    isDragSelecting = true
+                                                    dragSelectStartOffset = offset
+                                                    dragSelectCurrentOffset = offset
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
+                                                },
+                                                onDragEnd = {
+                                                    if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
+                                                        val start = dragSelectStartOffset!!
+                                                        val curr = dragSelectCurrentOffset!!
+                                                        val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
+                                                        val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
+                                                        val heightPx = maxY - minY
+                                                        if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
+                                                            val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
+                                                            val targetDate = weekDates[colIdx]
 
-                                                        val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                        val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                        val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                                                        val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
+                                                            val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
+                                                            val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
+                                                            val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
+                                                            val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
 
-                                                        dragSelectedRange = DragRangeData(
-                                                            date = targetDate,
-                                                            startHour = sSnapped / 60,
-                                                            startMinute = sSnapped % 60,
-                                                            endHour = eSnapped / 60,
-                                                            endMinute = eSnapped % 60,
-                                                            durationMinutes = eSnapped - sSnapped
-                                                        )
+                                                            dragSelectedRange = DragRangeData(
+                                                                date = targetDate,
+                                                                startHour = sSnapped / 60,
+                                                                startMinute = sSnapped % 60,
+                                                                endHour = eSnapped / 60,
+                                                                endMinute = eSnapped % 60,
+                                                                durationMinutes = eSnapped - sSnapped
+                                                            )
+                                                        }
                                                     }
+                                                    isDragSelecting = false
+                                                    dragSelectStartOffset = null
+                                                    dragSelectCurrentOffset = null
+                                                },
+                                                onDragCancel = {
+                                                    isDragSelecting = false
+                                                    dragSelectStartOffset = null
+                                                    dragSelectCurrentOffset = null
                                                 }
-                                                isDragSelecting = false
-                                                dragSelectStartOffset = null
-                                                dragSelectCurrentOffset = null
-                                            },
-                                            onDragCancel = {
-                                                isDragSelecting = false
-                                                dragSelectStartOffset = null
-                                                dragSelectCurrentOffset = null
-                                            }
-                                        )
+                                            )
+                                        }
                                     }
                             ) {
                                 // 今日高亮柔和背景列
@@ -1818,40 +1969,42 @@ fun ScheduleWeekGridView(
                                                     .offset(x = dayColWidth * dayIndex + 1.dp, y = topY.dp)
                                                     .width(dayColWidth - 2.dp)
                                                     .height(blockH.dp)
-                                                    .pointerInput(item.id + "_week_move") {
-                                                        detectDragGesturesAfterLongPress(
-                                                            onDragStart = {
-                                                                movingScheduleItem = item
-                                                                movingDragDeltaY = 0f
-                                                                movingOriginalTopDp = topY
-                                                            },
-                                                            onDrag = { change, dragAmount ->
-                                                                change.consume()
-                                                                movingDragDeltaY += dragAmount.y
-                                                            },
-                                                            onDragEnd = {
-                                                                if (movingScheduleItem != null) {
-                                                                    val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                                    val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
-                                                                    val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
-                                                                    val curDate = startDt.toLocalDate()
-                                                                    val newStart = curDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
-                                                                    val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
-                                                                    val updated = item.copy(
-                                                                        startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                        endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                                                    )
-                                                                    onUpdateSchedule(updated)
+                                                    .pointerInput(item.id + "_week_move", isLocked) {
+                                                        if (!isLocked) {
+                                                            detectDragGesturesAfterLongPress(
+                                                                onDragStart = {
+                                                                    movingScheduleItem = item
+                                                                    movingDragDeltaY = 0f
+                                                                    movingOriginalTopDp = topY
+                                                                },
+                                                                onDrag = { change, dragAmount ->
+                                                                    change.consume()
+                                                                    movingDragDeltaY += dragAmount.y
+                                                                },
+                                                                onDragEnd = {
+                                                                    if (movingScheduleItem != null) {
+                                                                        val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
+                                                                        val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
+                                                                        val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
+                                                                        val curDate = startDt.toLocalDate()
+                                                                        val newStart = curDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
+                                                                        val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
+                                                                        val updated = item.copy(
+                                                                            startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                            endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                        )
+                                                                        onUpdateSchedule(updated)
+                                                                        movingScheduleItem = null
+                                                                        movingDragDeltaY = 0f
+                                                                    }
+                                                                },
+                                                                onDragCancel = {
                                                                     movingScheduleItem = null
                                                                     movingDragDeltaY = 0f
                                                                 }
-                                                            },
-                                                            onDragCancel = {
-                                                                movingScheduleItem = null
-                                                                movingDragDeltaY = 0f
-                                                            }
-                                                        )
+                                                            )
+                                                        }
                                                     }
                                             ) {
                                                 Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)) {
@@ -1981,6 +2134,7 @@ fun ScheduleDayGridView(
     selectedDate: LocalDate,
     availableTags: List<ScheduleTagEntity> = emptyList(),
     tagColorMap: Map<String, Color> = emptyMap(),
+    isLocked: Boolean = false,
     onSelectDate: (LocalDate) -> Unit,
     onItemClick: (ScheduleEntity) -> Unit,
     onScheduleBacklog: (ScheduleEntity, LocalDateTime) -> Unit = { _, _ -> },
@@ -2019,22 +2173,26 @@ fun ScheduleDayGridView(
     var clickedHourForBacklog by remember { mutableIntStateOf(-1) }
 
     val executeDropDay: (ScheduleEntity) -> Unit = { item ->
-        val currentScroll = verticalScrollState.value
-        val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
-        if (dropGlobalY >= timelineYInRoot) {
-            val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
-            val relDp = relativeY / density.density
-            val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
-            val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
-            val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
-            val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
-            val dropHour = snappedMinutes / 60
-            val dropMinute = snappedMinutes % 60
-            val targetDt = selectedDate.atTime(dropHour, dropMinute)
+        if (isLocked) {
+            Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+        } else {
+            val currentScroll = verticalScrollState.value
+            val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
+            if (dropGlobalY >= timelineYInRoot) {
+                val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
+                val relDp = relativeY / density.density
+                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
+                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                val totalMinutes = ((blockTopDp / hourHeightDpValue) * 60f).roundToInt()
+                val snappedMinutes = ((totalMinutes / 15) * 15).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
+                val dropHour = snappedMinutes / 60
+                val dropMinute = snappedMinutes % 60
+                val targetDt = selectedDate.atTime(dropHour, dropMinute)
 
-            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-            onScheduleBacklog(item, targetDt)
-            Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                onScheduleBacklog(item, targetDt)
+                Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+            }
         }
         draggingItem = null
         dayDragTouchInRoot = Offset.Zero
@@ -2209,7 +2367,11 @@ fun ScheduleDayGridView(
                                                             change.consume()
                                                             executeDropDay(item)
                                                         } else {
-                                                            quickScheduleTargetItem = item
+                                                            if (isLocked) {
+                                                                Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                quickScheduleTargetItem = item
+                                                            }
                                                         }
                                                         break
                                                     }
@@ -2268,7 +2430,8 @@ fun ScheduleDayGridView(
         // 快捷操作提示条
         Surface(
             shape = RoundedCornerShape(6.dp),
-            color = DarkCard.copy(alpha = 0.6f),
+            color = if (isLocked) Color(0xFFF59E0B).copy(alpha = 0.12f) else DarkCard.copy(alpha = 0.6f),
+            border = if (isLocked) BorderStroke(0.8.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)) else null,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 1.dp)
@@ -2277,12 +2440,12 @@ fun ScheduleDayGridView(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
             ) {
-                Text("💡", fontSize = 9.sp)
+                Text(if (isLocked) "🔒" else "💡", fontSize = 9.sp)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "长按框选 · 拖拽移时 · 拉伸时长 · 双指捏合缩放",
+                    text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁即可编辑排期" else "长按框选 · 拖拽移时 · 拉伸时长 · 双指捏合缩放",
                     fontSize = 8.5.sp,
-                    color = TextMuted,
+                    color = if (isLocked) Color(0xFFF59E0B) else TextMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -2345,50 +2508,52 @@ fun ScheduleDayGridView(
                         modifier = Modifier
                             .weight(1f)
                             .height(hourHeight * 24)
-                            .pointerInput(Unit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { offset ->
-                                        isDragSelecting = true
-                                        dragSelectStartOffset = offset
-                                        dragSelectCurrentOffset = offset
-                                    },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
-                                    },
-                                    onDragEnd = {
-                                        if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                                            val start = dragSelectStartOffset!!
-                                            val curr = dragSelectCurrentOffset!!
-                                            val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                            val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                            val heightPx = maxY - minY
-                                            if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
-                                                val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                                                val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
+                            .pointerInput(isLocked) {
+                                if (!isLocked) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { offset ->
+                                            isDragSelecting = true
+                                            dragSelectStartOffset = offset
+                                            dragSelectCurrentOffset = offset
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
+                                        },
+                                        onDragEnd = {
+                                            if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
+                                                val start = dragSelectStartOffset!!
+                                                val curr = dragSelectCurrentOffset!!
+                                                val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
+                                                val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
+                                                val heightPx = maxY - minY
+                                                if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
+                                                    val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
+                                                    val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
+                                                    val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
+                                                    val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
 
-                                                dragSelectedRange = DragRangeData(
-                                                    date = selectedDate,
-                                                    startHour = sSnapped / 60,
-                                                    startMinute = sSnapped % 60,
-                                                    endHour = eSnapped / 60,
-                                                    endMinute = eSnapped % 60,
-                                                    durationMinutes = eSnapped - sSnapped
-                                                )
+                                                    dragSelectedRange = DragRangeData(
+                                                        date = selectedDate,
+                                                        startHour = sSnapped / 60,
+                                                        startMinute = sSnapped % 60,
+                                                        endHour = eSnapped / 60,
+                                                        endMinute = eSnapped % 60,
+                                                        durationMinutes = eSnapped - sSnapped
+                                                    )
+                                                }
                                             }
+                                            isDragSelecting = false
+                                            dragSelectStartOffset = null
+                                            dragSelectCurrentOffset = null
+                                        },
+                                        onDragCancel = {
+                                            isDragSelecting = false
+                                            dragSelectStartOffset = null
+                                            dragSelectCurrentOffset = null
                                         }
-                                        isDragSelecting = false
-                                        dragSelectStartOffset = null
-                                        dragSelectCurrentOffset = null
-                                    },
-                                    onDragCancel = {
-                                        isDragSelecting = false
-                                        dragSelectStartOffset = null
-                                        dragSelectCurrentOffset = null
-                                    }
-                                )
+                                    )
+                                }
                             }
                     ) {
                         // 每小时网格分割线与点击交互
@@ -2398,7 +2563,7 @@ fun ScheduleDayGridView(
                                     .offset(y = hourHeight * h)
                                     .fillMaxWidth()
                                     .height(hourHeight)
-                                    .clickable {
+                                    .clickable(enabled = !isLocked) {
                                         clickedHourForBacklog = h
                                     }
                             )
@@ -2588,39 +2753,41 @@ fun ScheduleDayGridView(
                                         .fillMaxWidth()
                                         .padding(horizontal = 4.dp)
                                         .height(blockH.dp)
-                                        .pointerInput(item.id + "_move") {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = {
-                                                    movingScheduleItem = item
-                                                    movingDragDeltaY = 0f
-                                                    movingOriginalTopDp = topY
-                                                },
-                                                onDrag = { change, dragAmount ->
-                                                    change.consume()
-                                                    movingDragDeltaY += dragAmount.y
-                                                },
-                                                onDragEnd = {
-                                                    if (movingScheduleItem != null) {
-                                                        val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                        val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
-                                                        val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
-                                                        val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
-                                                        val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
-                                                        val updated = item.copy(
-                                                            startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                            endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                                        )
-                                                        onUpdateSchedule(updated)
+                                        .pointerInput(item.id + "_move", isLocked) {
+                                            if (!isLocked) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = {
+                                                        movingScheduleItem = item
+                                                        movingDragDeltaY = 0f
+                                                        movingOriginalTopDp = topY
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        movingDragDeltaY += dragAmount.y
+                                                    },
+                                                    onDragEnd = {
+                                                        if (movingScheduleItem != null) {
+                                                            val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
+                                                            val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
+                                                            val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
+                                                            val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
+                                                            val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
+                                                            val updated = item.copy(
+                                                                startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                            )
+                                                            onUpdateSchedule(updated)
+                                                            movingScheduleItem = null
+                                                            movingDragDeltaY = 0f
+                                                        }
+                                                    },
+                                                    onDragCancel = {
                                                         movingScheduleItem = null
                                                         movingDragDeltaY = 0f
                                                     }
-                                                },
-                                                onDragCancel = {
-                                                    movingScheduleItem = null
-                                                    movingDragDeltaY = 0f
-                                                }
-                                            )
+                                                )
+                                            }
                                         }
                                 ) {
                                     Column(
@@ -2670,54 +2837,56 @@ fun ScheduleDayGridView(
                                             }
                                         }
 
-                                        // 底边时长调节手柄 (Drag Handle to Resize Duration)
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(14.dp)
-                                                .pointerInput(item.id + "_resize") {
-                                                    detectDragGestures(
-                                                        onDragStart = {
-                                                            resizingScheduleItem = item
-                                                            resizeDeltaY = 0f
-                                                        },
-                                                        onDrag = { change, dragAmount ->
-                                                            change.consume()
-                                                            resizeDeltaY += dragAmount.y
-                                                        },
-                                                        onDragEnd = {
-                                                            if (resizingScheduleItem != null) {
-                                                                val extraMins = ((resizeDeltaY / density.density / hourHeightDpValue * 60f) / 15 * 15).toInt()
-                                                                val newMins = (item.estimatedMinutes + extraMins).coerceIn(15, 360)
-                                                                val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
-                                                                val newEnd = curStart.plusMinutes(newMins.toLong())
-                                                                val updated = item.copy(
-                                                                    estimatedMinutes = newMins,
-                                                                    endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                                                )
-                                                                onUpdateSchedule(updated)
+                                        if (!isLocked) {
+                                            // 底边时长调节手柄 (Drag Handle to Resize Duration)
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(14.dp)
+                                                    .pointerInput(item.id + "_resize", isLocked) {
+                                                        detectDragGestures(
+                                                            onDragStart = {
+                                                                resizingScheduleItem = item
+                                                                resizeDeltaY = 0f
+                                                            },
+                                                            onDrag = { change, dragAmount ->
+                                                                change.consume()
+                                                                resizeDeltaY += dragAmount.y
+                                                            },
+                                                            onDragEnd = {
+                                                                if (resizingScheduleItem != null) {
+                                                                    val extraMins = ((resizeDeltaY / density.density / hourHeightDpValue * 60f) / 15 * 15).toInt()
+                                                                    val newMins = (item.estimatedMinutes + extraMins).coerceIn(15, 360)
+                                                                    val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
+                                                                    val newEnd = curStart.plusMinutes(newMins.toLong())
+                                                                    val updated = item.copy(
+                                                                        estimatedMinutes = newMins,
+                                                                        endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                    )
+                                                                    onUpdateSchedule(updated)
+                                                                    resizingScheduleItem = null
+                                                                    resizeDeltaY = 0f
+                                                                }
+                                                            },
+                                                            onDragCancel = {
                                                                 resizingScheduleItem = null
                                                                 resizeDeltaY = 0f
                                                             }
-                                                        },
-                                                        onDragCancel = {
-                                                            resizingScheduleItem = null
-                                                            resizeDeltaY = 0f
-                                                        }
-                                                    )
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .width(32.dp)
-                                                    .height(3.5.dp)
-                                                    .background(
-                                                        if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.7f),
-                                                        RoundedCornerShape(2.dp)
-                                                    )
-                                            )
+                                                        )
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(32.dp)
+                                                        .height(3.5.dp)
+                                                        .background(
+                                                            if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.7f),
+                                                            RoundedCornerShape(2.dp)
+                                                        )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -3689,6 +3858,7 @@ fun EditScheduleDialog(
 fun ScheduleDetailModal(
     item: ScheduleEntity,
     tagColorMap: Map<String, Color> = emptyMap(),
+    isLocked: Boolean = false,
     onToggleStatus: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -3721,19 +3891,40 @@ fun ScheduleDetailModal(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = item.title,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = item.title,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (isLocked) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFF59E0B).copy(alpha = 0.15f),
+                            border = BorderStroke(0.8.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🔒 锁定防误触",
+                                fontSize = 10.sp,
+                                color = Color(0xFFF59E0B),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Row {
                     IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "编辑", tint = DopamineBlue, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "编辑", tint = if (isLocked) DopamineBlue.copy(alpha = 0.5f) else DopamineBlue, modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "删除", tint = DopamineRed, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.DeleteOutline, contentDescription = "删除", tint = if (isLocked) DopamineRed.copy(alpha = 0.5f) else DopamineRed, modifier = Modifier.size(18.dp))
                     }
                 }
             }
