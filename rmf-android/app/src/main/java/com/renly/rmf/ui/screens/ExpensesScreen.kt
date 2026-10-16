@@ -2126,7 +2126,7 @@ fun ManageExpenseCategoriesDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(customList) { item ->
+                        items(customList, key = { it.name }) { item ->
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = DarkCard,

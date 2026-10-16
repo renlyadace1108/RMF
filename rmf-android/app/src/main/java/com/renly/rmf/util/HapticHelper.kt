@@ -14,18 +14,30 @@ object HapticHelper {
     private const val PREFS_NAME = "rmf_haptic_preferences"
     private const val KEY_HAPTIC_ENABLED = "haptic_feedback_enabled"
 
+    @Volatile
+    private var cachedHapticEnabled: Boolean? = null
+
+    @Volatile
+    private var cachedVibrator: Vibrator? = null
+    @Volatile
+    private var vibratorInitialized = false
+
     /**
      * 查询是否启用了全局操作触感反馈（震动）
      */
     fun isHapticEnabled(context: Context): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cachedHapticEnabled?.let { return it }
+        val enabled = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_HAPTIC_ENABLED, true)
+        cachedHapticEnabled = enabled
+        return enabled
     }
 
     /**
      * 设置是否启用全局操作触感反馈（震动）
      */
     fun setHapticEnabled(context: Context, enabled: Boolean) {
+        cachedHapticEnabled = enabled
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_HAPTIC_ENABLED, enabled)
@@ -33,16 +45,23 @@ object HapticHelper {
     }
 
     private fun getVibrator(context: Context): Vibrator? {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                manager?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibratorInitialized) return cachedVibrator
+        synchronized(this) {
+            if (vibratorInitialized) return cachedVibrator
+            cachedVibrator = try {
+                val appCtx = context.applicationContext
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val manager = appCtx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                    manager?.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    appCtx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                }
+            } catch (_: Exception) {
+                null
             }
-        } catch (_: Exception) {
-            null
+            vibratorInitialized = true
+            return cachedVibrator
         }
     }
 

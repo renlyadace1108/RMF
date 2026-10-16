@@ -1385,8 +1385,6 @@ fun SettingsScreen(
                     mutableStateOf(com.renly.rmf.domain.service.BackgroundResidencyHelper.isBatteryOptimizationIgnored(notifContext))
                 }
                 val isLiveSupported = com.renly.rmf.domain.service.FluidCloudHelper.isPromotedLiveUpdateSupported(notifContext)
-                val isColorOs16 = com.renly.rmf.domain.service.FluidCloudHelper.isColorOs16OrHigher()
-                val isXiaomi = com.renly.rmf.domain.service.FluidCloudHelper.isXiaomiOrHyperOs()
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),

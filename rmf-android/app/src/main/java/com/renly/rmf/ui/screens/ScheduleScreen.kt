@@ -4777,7 +4777,7 @@ fun ManageScheduleTagsDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(tags) { tag ->
+                        items(tags, key = { it.id }) { tag ->
                             val tagColor = parseHexColor(tag.colorHex, DopamineBlue)
                             Surface(
                                 shape = RoundedCornerShape(8.dp),

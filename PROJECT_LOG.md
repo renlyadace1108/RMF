@@ -34,6 +34,28 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 15:45] - 全面性能排查优化与公测正式版本发布 (v1.5.0.16 / Code 1050016)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“检查一遍性能，优化代码，然后发布公测版本，不能有任何问题”
+* **核心排查与性能调优清单**：
+  1. **触感引擎内存级零开销缓存 (`HapticHelper.kt`)**：
+     - 在 120Hz 极速滑屏、翻页穿梭及点击中，高频调用 `isHapticEnabled` 会频繁触发 SharedPreferences 映射与 XML 磁盘查询，造成细微主线程抖动。
+     - 引入 `@Volatile private var cachedHapticEnabled: Boolean?` 内存缓存，在修改设置时同步更新内存，彻底消除高帧率手势下的磁盘 I/O 检查。
+     - 对 `Vibrator` 系统服务实例增加线程安全的懒加载与单例缓存，避免每次微震都触发 `getSystemService` 的 JNI 反射与跨进程通信成本。
+  2. **列表滑动与重组性能压制 (LazyColumn / LazyRow Key 补齐)**：
+     - 在 `FocusScreen.kt`（活跃日程选择 `activeSchedules`、专注历史流水 `records`）、`FitnessScreen.kt`（历史健身计划 `recentPlans`）、`TimetableScreen.kt`（课表导入预览 `initialCourses`、课程筛选 `courses`）、`ScheduleScreen.kt`（标签管理列表 `tags`）、`ExpensesScreen.kt`（自定义分类管理 `customList`）中全面补齐稳定唯一的 `key = { it.id }` / `key = { it.name }`。
+     - 使得列表项增删、移动或过滤时仅触发局部位移，杜绝全部项级无序重组与 Measure/Layout 丢帧。
+  3. **去除无用反射与局部变量**：
+     - 清理 `SettingsScreen.kt` 中未使用的 `isColorOs16` 与 `isXiaomi` 局部探测调用，避免每次重组都读取系统底层 Build 属性。
+  4. **严格合规检验**：
+     - 确认无任何违规 OEM 品牌名直接外露在可见 UI 中，所有系统交互均遵循标准化“胶囊通知”与“实时活动”。
+     - 确认 Room WAL 模式与 8MB 缓存生效，静默音频保持 `AudioTrack.MODE_STATIC` 硬件零 CPU 环回。
+  5. **版本升级与签名发布**：
+     - 升级 Android `versionCode = 1050016`，`versionName = "1.5.0.16"`。
+     - 成功通过 `assembleRelease` 编译与 `lintVitalRelease` 严格语法树检查。
+     - 经由 `apksigner.bat verify --verbose` 校验（Scheme v2: true）与 `zipalign -c -v 4` 对齐测试 100% 验证通过。
+     - 发布产物输出至：`release/app-release.apk` 与 `release/RMF-Android-v1.5.0.16-Beta.apk` (约 14.07 MB)。
+
 ### [2026-10-16 15:05] - 修复 SettingsScreen.kt 中 DopamineEmerald 未解析的编译错误 (v1.5.0.15 / Code 1050015)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **问题现象**：Android Studio 报错 5 处：`Unresolved reference 'DopamineEmerald' in SettingsScreen.kt (:959, :979, :980, :985, :1010)`。

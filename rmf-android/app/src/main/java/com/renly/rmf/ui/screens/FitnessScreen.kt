@@ -789,7 +789,7 @@ fun FitnessScreen(
                     Text("暂无历史记录，开启今日健身吧！", fontSize = 13.sp, color = TextSecondary)
                 }
             } else {
-                items(recentPlans) { plan ->
+                items(recentPlans, key = { it.id }) { plan ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(1.dp, DarkBorder),

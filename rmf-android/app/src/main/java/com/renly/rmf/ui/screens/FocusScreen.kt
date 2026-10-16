@@ -740,7 +740,7 @@ fun FocusScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp)
                     ) {
-                        items(activeSchedules) { schedule ->
+                        items(activeSchedules, key = { it.id }) { schedule ->
                             val isSelected = schedule.id == boundScheduleId
                             Surface(
                                 onClick = {
@@ -1140,7 +1140,7 @@ fun FocusHistoryAndAnalysisDialog(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth().height(360.dp)
                         ) {
-                            items(records) { item ->
+                            items(records, key = { it.id }) { item ->
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = DarkSurface,

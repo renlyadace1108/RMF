@@ -658,7 +658,7 @@ fun AiTimetableImportPreviewDialog(
                         .heightIn(max = 380.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(initialCourses) { course ->
+                    items(initialCourses, key = { it.id }) { course ->
                         val isChecked = selectedIds.contains(course.id)
                         val color = try {
                             Color(android.graphics.Color.parseColor(course.colorHex))
@@ -940,7 +940,7 @@ fun CourseAdjustmentDialog(
                 if (courses.isNotEmpty()) {
                     Text("选择目标课程:", fontSize = 12.sp, color = TextSecondary)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(courses) { c ->
+                        items(courses, key = { it.id }) { c ->
                             FilterChip(
                                 selected = selectedCourseId == c.id,
                                 onClick = { selectedCourseId = c.id },
