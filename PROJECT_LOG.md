@@ -34,6 +34,14 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 15:05] - 修复 SettingsScreen.kt 中 DopamineEmerald 未解析的编译错误 (v1.5.0.15 / Code 1050015)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **问题现象**：Android Studio 报错 5 处：`Unresolved reference 'DopamineEmerald' in SettingsScreen.kt (:959, :979, :980, :985, :1010)`。
+* **根因定位与修复**：
+  - 在主题色彩系统 `Color.kt` 中，绿色主题色名为 `DopamineGreen`。在 `SettingsScreen.kt` 触感震动设置卡片中误引用为 `DopamineEmerald`。
+  - 在 `Color.kt` 中补充导出别名 `val DopamineEmerald: Color @Composable get() = LocalAppColors.current.dopamineGreen`，同时在 `SettingsScreen.kt` 将所有引用规范对齐为 `DopamineGreen`，确保双向兼容与 100% 编译通过。
+  - 版本升级：Android `versionCode = 1050015`，`versionName = "1.5.0.15"`。
+
 ### [2026-10-16 14:42] - 交互质感调优：强化设置界面自下而上展开与向下拉回收起动效 (v1.5.0.14 / Code 1050014)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“让设置界面从下往上展开，而不是左右”

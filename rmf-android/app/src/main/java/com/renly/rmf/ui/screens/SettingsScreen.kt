@@ -956,7 +956,7 @@ fun SettingsScreen(
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = DarkCard,
-            border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.5f) else DarkBorder),
+            border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineGreen.copy(alpha = 0.5f) else DarkBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -976,13 +976,13 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.15f) else TextMuted.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineEmerald.copy(alpha = 0.4f) else DarkBorder)
+                                color = if (isHapticFeedbackEnabled) DopamineGreen.copy(alpha = 0.15f) else TextMuted.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, if (isHapticFeedbackEnabled) DopamineGreen.copy(alpha = 0.4f) else DarkBorder)
                             ) {
                                 Text(
                                     text = if (isHapticFeedbackEnabled) "已开启" else "已静音",
                                     fontSize = 10.5.sp,
-                                    color = if (isHapticFeedbackEnabled) DopamineEmerald else TextMuted,
+                                    color = if (isHapticFeedbackEnabled) DopamineGreen else TextMuted,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -1007,7 +1007,7 @@ fun SettingsScreen(
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = DopamineEmerald,
+                            checkedTrackColor = DopamineGreen,
                             uncheckedThumbColor = TextMuted,
                             uncheckedTrackColor = DarkSurface
                         )
