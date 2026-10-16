@@ -55,6 +55,10 @@ class FocusLiveService : Service() {
             ACTION_RESUME -> resumeFocusSession()
             ACTION_STOP -> stopFocusSession()
             ACTION_FINISH -> onFocusCompleted()
+            ACTION_RECORD_INTERRUPTION -> {
+                sessionInterruptionCount++
+                _interruptionCount.value = sessionInterruptionCount
+            }
         }
         return START_NOT_STICKY
     }
@@ -63,6 +67,7 @@ class FocusLiveService : Service() {
     private var sessionStartTimeIso: String = ""
     private var sessionScheduleId: String? = null
     private var sessionCategory: String = "WORK"
+    private var sessionInterruptionCount: Int = 0
 
     private fun startFocusSession(title: String, seconds: Int, scheduleId: String? = null, category: String = "WORK") {
         _currentTaskTitle.value = title
@@ -72,6 +77,8 @@ class FocusLiveService : Service() {
         sessionStartTimeIso = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
         sessionScheduleId = scheduleId
         sessionCategory = category
+        sessionInterruptionCount = 0
+        _interruptionCount.value = 0
         targetEndTimeRealtime = SystemClock.elapsedRealtime() + (seconds * 1000L)
 
         scheduleFinishAlarm(seconds)
@@ -91,11 +98,30 @@ class FocusLiveService : Service() {
     }
 
     private fun pauseFocusSession() {
+        if (!_isRunning.value) return
         cancelFinishAlarm()
         val remaining = maxOf(0, ((targetEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000).toInt())
         _remainingSeconds.value = remaining
         _isRunning.value = false
         timerJob?.cancel()
+
+        sessionInterruptionCount++
+        _interruptionCount.value = sessionInterruptionCount
+
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val db = com.renly.rmf.data.local.RmfDatabase.getInstance(applicationContext)
+                val nowIso = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
+                val interruption = com.renly.rmf.data.local.entity.InterruptionEntity(
+                    scheduleId = sessionScheduleId,
+                    type = "INTERNAL",
+                    durationSeconds = 60,
+                    timestamp = nowIso,
+                    note = "专注暂停打断"
+                )
+                db.interruptionDao().insert(interruption)
+            } catch (_: Exception) {}
+        }
 
         val notification = buildFluidCloudNotification()
         val manager = getSystemService(NotificationManager::class.java)
@@ -118,12 +144,15 @@ class FocusLiveService : Service() {
     private fun stopFocusSession() {
         cancelFinishAlarm()
         val elapsedSeconds = maxOf(0, _initialTotalSeconds.value - _remainingSeconds.value)
+        val count = sessionInterruptionCount
         if (elapsedSeconds >= 60) {
-            saveRecordToDb(elapsedSeconds / 60, "INTERRUPTED")
+            saveRecordToDb(elapsedSeconds / 60, "INTERRUPTED", count)
         }
         _isRunning.value = false
         _remainingSeconds.value = _initialTotalSeconds.value
         timerJob?.cancel()
+        sessionInterruptionCount = 0
+        _interruptionCount.value = 0
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -132,19 +161,22 @@ class FocusLiveService : Service() {
     private fun onFocusCompleted() {
         cancelFinishAlarm()
         val elapsedSeconds = _initialTotalSeconds.value
+        val count = sessionInterruptionCount
         if (elapsedSeconds >= 60) {
-            saveRecordToDb(elapsedSeconds / 60, "COMPLETED")
+            saveRecordToDb(elapsedSeconds / 60, "COMPLETED", count)
         }
         _isRunning.value = false
         _remainingSeconds.value = 0
         timerJob?.cancel()
+        sessionInterruptionCount = 0
+        _interruptionCount.value = 0
 
         showCompletedNotification()
         stopForeground(STOP_FOREGROUND_DETACH)
         stopSelf()
     }
 
-    private fun saveRecordToDb(durMins: Int, status: String) {
+    private fun saveRecordToDb(durMins: Int, status: String, interruptions: Int = sessionInterruptionCount) {
         serviceScope.launch(Dispatchers.IO) {
             try {
                 val db = com.renly.rmf.data.local.RmfDatabase.getInstance(applicationContext)
@@ -156,7 +188,8 @@ class FocusLiveService : Service() {
                     durationMinutes = durMins,
                     startTime = sessionStartTimeIso.ifBlank { endTimeIso },
                     endTime = endTimeIso,
-                    status = status
+                    status = status,
+                    interruptionCount = interruptions
                 )
                 db.focusDao().insert(record)
             } catch (_: Exception) {}
@@ -414,6 +447,7 @@ class FocusLiveService : Service() {
         const val ACTION_RESUME = "com.renly.rmf.action.RESUME_FOCUS"
         const val ACTION_STOP = "com.renly.rmf.action.STOP_FOCUS"
         const val ACTION_FINISH = "com.renly.rmf.action.FINISH_FOCUS"
+        const val ACTION_RECORD_INTERRUPTION = "com.renly.rmf.action.RECORD_INTERRUPTION"
 
         const val EXTRA_TITLE = "extra_focus_title"
         const val EXTRA_SECONDS = "extra_focus_seconds"
@@ -431,6 +465,9 @@ class FocusLiveService : Service() {
 
         private val _currentTaskTitle = MutableStateFlow("深度心流")
         val currentTaskTitle: StateFlow<String> = _currentTaskTitle.asStateFlow()
+
+        private val _interruptionCount = MutableStateFlow(0)
+        val interruptionCount: StateFlow<Int> = _interruptionCount.asStateFlow()
 
         fun start(
             context: Context,
@@ -477,6 +514,13 @@ class FocusLiveService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, FocusLiveService::class.java).apply {
                 action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+
+        fun recordInterruption(context: Context) {
+            val intent = Intent(context, FocusLiveService::class.java).apply {
+                action = ACTION_RECORD_INTERRUPTION
             }
             context.startService(intent)
         }

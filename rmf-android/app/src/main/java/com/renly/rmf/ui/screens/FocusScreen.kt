@@ -79,6 +79,7 @@ fun FocusScreen(
     val liveSeconds by FocusLiveService.remainingSeconds.collectAsState()
     val initialSeconds by FocusLiveService.initialTotalSeconds.collectAsState()
     val liveTitle by FocusLiveService.currentTaskTitle.collectAsState()
+    val sessionInterruptions by FocusLiveService.interruptionCount.collectAsState()
 
     val allSchedules by schedulesFlow.collectAsState(initial = emptyList())
     val activeSchedules = remember(allSchedules) {
@@ -136,15 +137,20 @@ fun FocusScreen(
             onTogglePlay = {
                 if (isRunning) {
                     FocusLiveService.pause(context)
+                    Toast.makeText(context, "⏸️ 专注已暂停 · 已自动记录 1 次心流打断", Toast.LENGTH_SHORT).show()
                 } else {
-                    val title = boundSchedule?.title ?: "深度专注"
-                    FocusLiveService.start(
-                        context = context,
-                        title = title,
-                        seconds = currentRemainingSeconds,
-                        scheduleId = boundSchedule?.id,
-                        category = boundSchedule?.category ?: "WORK"
-                    )
+                    if (isPausedMidSession) {
+                        FocusLiveService.resume(context)
+                    } else {
+                        val title = boundSchedule?.title ?: "深度专注"
+                        FocusLiveService.start(
+                            context = context,
+                            title = title,
+                            seconds = currentRemainingSeconds,
+                            scheduleId = boundSchedule?.id,
+                            category = boundSchedule?.category ?: "WORK"
+                        )
+                    }
                 }
             },
             onReset = {
@@ -598,7 +604,7 @@ fun FocusScreen(
         ) {
             FilledIconButton(
                 onClick = {
-                    if (isRunning && boundSchedule != null) {
+                    if ((isRunning || isPausedMidSession) && boundSchedule != null) {
                         val elapsedSeconds = maxOf(0, initialSeconds - liveSeconds)
                         if (elapsedSeconds >= 60) {
                             val addedMins = elapsedSeconds / 60
@@ -621,16 +627,20 @@ fun FocusScreen(
                 onClick = {
                     if (isRunning) {
                         FocusLiveService.pause(context)
+                        Toast.makeText(context, "⏸️ 专注已暂停 · 已自动记录 1 次心流打断", Toast.LENGTH_SHORT).show()
                     } else {
-                        val title = boundSchedule?.title ?: "深度专注"
-                        val secs = if (isPausedMidSession) liveSeconds else configuredTotalSeconds
-                        FocusLiveService.start(
-                            context = context,
-                            title = title,
-                            seconds = secs,
-                            scheduleId = boundSchedule?.id,
-                            category = boundSchedule?.category ?: "WORK"
-                        )
+                        if (isPausedMidSession) {
+                            FocusLiveService.resume(context)
+                        } else {
+                            val title = boundSchedule?.title ?: "深度专注"
+                            FocusLiveService.start(
+                                context = context,
+                                title = title,
+                                seconds = configuredTotalSeconds,
+                                scheduleId = boundSchedule?.id,
+                                category = boundSchedule?.category ?: "WORK"
+                            )
+                        }
                     }
                 },
                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -657,7 +667,11 @@ fun FocusScreen(
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth().height(42.dp)
         ) {
-            Text("⚡ 记录一次心流打断", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = if (sessionInterruptions > 0) "⚡ 记录一次心流打断 (本轮已打断 ${sessionInterruptions} 次)" else "⚡ 记录一次心流打断",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -847,12 +861,16 @@ fun FocusScreen(
             onDismiss = { showInterruptionDialog = false },
             onConfirm = { type, note ->
                 val entity = InterruptionEntity(
+                    scheduleId = boundSchedule?.id,
                     type = type,
                     durationSeconds = 60,
                     timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
                     note = note
                 )
                 onRecordInterruption(entity)
+                if (isRunning || isPausedMidSession) {
+                    FocusLiveService.recordInterruption(context)
+                }
                 showInterruptionDialog = false
             }
         )

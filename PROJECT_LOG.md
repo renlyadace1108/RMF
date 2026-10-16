@@ -34,6 +34,21 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 09:40] - 专注暂停自动记录心流打断与打断统计联动 (v1.5.0.6 / Code 1050006)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“暂停的时候自动记录一次打断”
+* **核心改进**：
+  1. **全链路暂停自动记录打断 ([`FocusLiveService.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/domain/service/FocusLiveService.kt))**：
+     - 在 `FocusLiveService.pauseFocusSession()` 内部引入心流打断自记录机制：一旦计时器发生暂停（无论触发自应用主界面、画中画胶囊、还是通知栏快捷控制），立即向 Room 数据库 `db.interruptionDao()` 异步写入一条内部打断记录（`type = "INTERNAL"`，`note = "专注暂停打断"`，自动关联当前绑定的 `scheduleId` 与实时 ISO 时间戳）。
+     - 服务内部维护 `sessionInterruptionCount` 并在 `interruptionCount: StateFlow<Int>` 实时对外暴露，打断计数即时同步。
+     - 在 `stopFocusSession()` 和 `onFocusCompleted()` 中将当次会话的真实打断次数准确写入 `FocusRecordEntity.interruptionCount`，确保专注历史分析与多维图表统计无缝闭环。
+  2. **界面交互与打断感知提升 ([`FocusScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/FocusScreen.kt))**：
+     - 点击主界面或 PiP 画中画的暂停按钮时，弹出友好浮动提示 `⏸️ 专注已暂停 · 已自动记录 1 次心流打断`。
+     - “⚡ 记录一次心流打断”按钮动态展示当前轮次累计打断次数（例如 `⚡ 记录一次心流打断 (本轮已打断 1 次)`），让心流被打断的反馈清晰可见。
+     - 手动打断弹窗 (`RecordInterruptionDialog`) 支持自动带入绑定的 `scheduleId`，并同步递增当次会话打断计数器。
+     - 优化暂停后点击播放直接调用 `resumeFocusSession()`，无损承接既有时长与打断数据。
+  3. **版本升级**：Android `versionCode` 升级至 `1050006`，`versionName` 升级至 `1.5.0.6`。
+
 ### [2026-10-16 09:30] - 清单流日程卡片时间前补充完整日期展示 (v1.5.0.5 / Code 1050005)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“清单这里把日期加上，就在那个时间前面”
