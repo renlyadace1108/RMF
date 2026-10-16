@@ -79,7 +79,7 @@ abstract class RmfDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "rmf.db"
-        private const val CURRENT_DB_VERSION = 8
+        private const val CURRENT_DB_VERSION = 9
 
         private data class ColSpec(
             val name: String,
@@ -222,8 +222,8 @@ abstract class RmfDatabase : RoomDatabase() {
                     ColSpec("completed_value", "REAL", true, "0.0", "0.0"),
                     ColSpec("target_hours", "REAL", true, "10.0", "10.0"),
                     ColSpec("completed_hours", "REAL", true, "0.0", "0.0"),
-                    ColSpec("current_checkpoint", "TEXT", true, null, "''"),
-                    ColSpec("notes", "TEXT", true, null, "''"),
+                    ColSpec("current_checkpoint", "TEXT", true, "''", "''"),
+                    ColSpec("notes", "TEXT", true, "''", "''"),
                     ColSpec("checkpoints_json", "TEXT", true, "'[]'", "'[]'"),
                     ColSpec("is_deleted", "INTEGER", true, "0", "0"),
                     ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
@@ -528,7 +528,8 @@ abstract class RmfDatabase : RoomDatabase() {
                 try {
                     // 主动触发连接打开与 Room Schema 校验；若因旧版哈希或跨端表结构差异报错，则立即强制自愈重试
                     instance.openHelper.writableDatabase
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    android.util.Log.w("RmfDatabase", "First Room database open attempt failed, retrying after force heal: ${e.message}", e)
                     try {
                         instance.close()
                     } catch (_: Exception) {}
@@ -536,7 +537,9 @@ abstract class RmfDatabase : RoomDatabase() {
                     instance = buildRoomDatabase(appCtx)
                     try {
                         instance.openHelper.writableDatabase
-                    } catch (_: Exception) {}
+                    } catch (e2: Exception) {
+                        android.util.Log.e("RmfDatabase", "Second Room database open attempt failed: ${e2.message}", e2)
+                    }
                 }
 
                 INSTANCE = instance

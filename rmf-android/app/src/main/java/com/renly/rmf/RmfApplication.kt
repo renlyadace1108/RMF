@@ -16,6 +16,18 @@ class RmfApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                android.util.Log.e("RMF_CRASH", "Uncaught exception on thread: ${thread.name}", throwable)
+                val crashFile = java.io.File(filesDir, "latest_crash.log")
+                val sw = java.io.StringWriter()
+                val pw = java.io.PrintWriter(sw)
+                throwable.printStackTrace(pw)
+                crashFile.writeText("Time: ${java.time.LocalDateTime.now()}\nThread: ${thread.name}\n\n$sw")
+            } catch (_: Exception) {}
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
         createNotificationChannels()
         // 执行无损升级自动安全快照备份（启动与版本迭代安全屏障）
         com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(this)
