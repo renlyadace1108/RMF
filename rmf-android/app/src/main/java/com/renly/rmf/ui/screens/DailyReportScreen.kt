@@ -52,9 +52,9 @@ fun DailyReportScreen(
     var reflectionText by remember { mutableStateOf("") }
     var isGeneratingAi by remember { mutableStateOf(false) }
 
-    val completedTasks = schedules.filter { it.status == "COMPLETED" }
+    val completedTasks = remember(schedules) { schedules.filter { it.status == "COMPLETED" } }
     val totalTasks = schedules.size
-    val completionRate = if (totalTasks > 0) (completedTasks.size * 100 / totalTasks) else 0
+    val completionRate = remember(completedTasks, totalTasks) { if (totalTasks > 0) (completedTasks.size * 100 / totalTasks) else 0 }
 
     // 本地默认模板
     fun generateLocalDraft() {

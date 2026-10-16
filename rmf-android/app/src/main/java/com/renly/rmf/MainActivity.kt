@@ -9,6 +9,10 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import kotlinx.coroutines.Job
@@ -404,6 +408,12 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<Screen>(Screen.fromRoute(com.renly.rmf.domain.service.NavigationPreferences.getDefaultHomeRoute(this@MainActivity)))
                 }
                 var previousScreen by remember { mutableStateOf<Screen>(currentScreen) }
+                LaunchedEffect(currentScreen) {
+                    if (previousScreen != currentScreen) {
+                        kotlinx.coroutines.delay(300)
+                        previousScreen = currentScreen
+                    }
+                }
                 var slideDirection by remember { mutableIntStateOf(1) } // 1: forward (right to left), -1: backward (left to right)
                 var lastScreenBeforeSettings by remember { mutableStateOf<Screen>(currentScreen) }
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
@@ -522,7 +532,7 @@ class MainActivity : ComponentActivity() {
 
                             Surface(
                                 color = DarkSurface,
-                                border = BorderStroke(1.dp, DarkBorder),
+                                border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.75f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .draggable(
@@ -550,31 +560,69 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                             ) {
-                                NavigationBar(
-                                    containerColor = DarkSurface,
-                                    tonalElevation = 0.dp
-                                ) {
-                                    safeNavScreens.forEach { screen ->
-                                        val isSelected = currentScreen == screen
-                                        NavigationBarItem(
-                                            selected = isSelected,
-                                            onClick = { navigateToScreen(screen, null) },
-                                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                                            label = {
-                                                Text(
-                                                    screen.title,
-                                                    fontSize = if (safeNavScreens.size > 5) 10.sp else 11.5.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = DopamineBlue,
-                                                selectedTextColor = DopamineBlue,
-                                                unselectedIconColor = TextMuted,
-                                                unselectedTextColor = TextMuted,
-                                                indicatorColor = DopamineBlue.copy(alpha = 0.15f)
-                                            )
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // 顶部微光手势质感指示条 (Subtle gesture pill indicator)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(28.dp)
+                                                .height(2.5.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(Color.White.copy(alpha = 0.18f))
                                         )
+                                    }
+
+                                    NavigationBar(
+                                        containerColor = Color.Transparent,
+                                        tonalElevation = 0.dp
+                                    ) {
+                                        safeNavScreens.forEach { screen ->
+                                            val isSelected = currentScreen == screen
+                                            val iconScale by animateFloatAsState(
+                                                targetValue = if (isSelected) 1.10f else 1.0f,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                    stiffness = Spring.StiffnessLow
+                                                ),
+                                                label = "navIconScale_${screen.route}"
+                                            )
+                                            NavigationBarItem(
+                                                selected = isSelected,
+                                                onClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    navigateToScreen(screen, null)
+                                                },
+                                                icon = {
+                                                    Icon(
+                                                        screen.icon,
+                                                        contentDescription = screen.title,
+                                                        modifier = Modifier.graphicsLayer {
+                                                            scaleX = iconScale
+                                                            scaleY = iconScale
+                                                        }
+                                                    )
+                                                },
+                                                label = {
+                                                    Text(
+                                                        screen.title,
+                                                        fontSize = if (safeNavScreens.size > 5) 10.sp else 11.5.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                },
+                                                colors = NavigationBarItemDefaults.colors(
+                                                    selectedIconColor = DopamineBlue,
+                                                    selectedTextColor = DopamineBlue,
+                                                    unselectedIconColor = TextMuted,
+                                                    unselectedTextColor = TextMuted,
+                                                    indicatorColor = DopamineBlue.copy(alpha = 0.16f)
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -731,73 +779,19 @@ class MainActivity : ComponentActivity() {
                                     val isAdjacent = (activeAdjacentScreen == screen && (isHandDragging || isDragSettling))
                                     val isPrev = (previousScreen == screen && previousScreen != currentScreen)
 
-                                    // 模块间左右平滑切换动效 (Material 3 Emphasized Decelerate 规范)
-                                    val animProgress by androidx.compose.animation.core.animateFloatAsState(
-                                        targetValue = if (isActive) 1f else 0f,
-                                        animationSpec = if (skipTransitionAnim) androidx.compose.animation.core.snap() else androidx.compose.animation.core.tween(
-                                            durationMillis = 320,
-                                            easing = androidx.compose.animation.core.CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
-                                        ),
-                                        label = "screenAnim_${screen.route}"
-                                    )
-
-                                    val shouldRender = ((isHandDragging || isDragSettling) && (isActive || isAdjacent)) ||
-                                                       (!isHandDragging && !isDragSettling && (isActive || (isPrev && animProgress > 0.01f)))
-
                                     key(screen.route) {
                                         saveableStateHolder.SaveableStateProvider(screen.route) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .then(
-                                                        if (shouldRender) {
-                                                            Modifier.graphicsLayer {
-                                                                if (isHandDragging || isDragSettling) {
-                                                                    val currentOffset = dragOffsetX
-                                                                    val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
-                                                                    if (isActive) {
-                                                                        translationX = currentOffset
-                                                                        alpha = 1f - dragFraction * 0.22f
-                                                                        scaleX = 1f - dragFraction * 0.03f
-                                                                        scaleY = 1f - dragFraction * 0.03f
-                                                                    } else if (isAdjacent) {
-                                                                        val base = if (currentOffset < 0f) screenWidth else -screenWidth
-                                                                        translationX = base + currentOffset
-                                                                        alpha = 0.80f + dragFraction * 0.20f
-                                                                        scaleX = 0.97f + dragFraction * 0.03f
-                                                                        scaleY = 0.97f + dragFraction * 0.03f
-                                                                    } else {
-                                                                        translationX = 100000f
-                                                                        alpha = 0f
-                                                                    }
-                                                                } else if (isActive) {
-                                                                    val progress = animProgress
-                                                                    translationX = (1f - progress) * (slideDirection * screenWidth)
-                                                                    alpha = progress.coerceIn(0f, 1f)
-                                                                    val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
-                                                                    scaleX = s
-                                                                    scaleY = s
-                                                                } else if (isPrev && animProgress > 0.01f) {
-                                                                    val progress = animProgress
-                                                                    translationX = (progress - 1f) * (slideDirection * (screenWidth * 0.28f))
-                                                                    alpha = progress.coerceIn(0f, 1f)
-                                                                    val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
-                                                                    scaleX = s
-                                                                    scaleY = s
-                                                                } else {
-                                                                    translationX = 100000f
-                                                                    alpha = 0f
-                                                                }
-                                                            }
-                                                        } else {
-                                                            Modifier
-                                                                .graphicsLayer {
-                                                                    alpha = 0f
-                                                                    translationX = 100000f
-                                                                }
-                                                                .clearAndSetSemantics { }
-                                                        }
-                                                    )
+                                            ScreenLayerSlot(
+                                                screen = screen,
+                                                isActive = isActive,
+                                                isAdjacent = isAdjacent,
+                                                isPrev = isPrev,
+                                                isHandDragging = isHandDragging,
+                                                isDragSettling = isDragSettling,
+                                                slideDirection = slideDirection,
+                                                screenWidth = screenWidth,
+                                                dragOffsetProvider = { dragOffsetX },
+                                                skipTransitionAnim = skipTransitionAnim
                                             ) {
                                                 when (screen) {
                             Screen.Schedule -> ScheduleScreen(
@@ -1633,6 +1627,100 @@ fun AppSplashScreen(
                 color = TextMuted
             )
         }
+    }
+}
+
+/**
+ * 极速硬件加速屏幕容器 (ScreenLayerSlot)
+ * 将位移动画与拖拽偏移量完全隔离在 RenderNode 的 graphicsLayer 绘制阶段，
+ * 彻底消除切换动画与手势拖拽过程中的 Composable 树冗余重组，实现纯正原生 120Hz 满帧流体级体验。
+ */
+@Composable
+private fun ScreenLayerSlot(
+    screen: Screen,
+    isActive: Boolean,
+    isAdjacent: Boolean,
+    isPrev: Boolean,
+    isHandDragging: Boolean,
+    isDragSettling: Boolean,
+    slideDirection: Int,
+    screenWidth: Float,
+    dragOffsetProvider: () -> Float,
+    skipTransitionAnim: Boolean,
+    content: @Composable () -> Unit
+) {
+    val animProgress = remember { androidx.compose.animation.core.Animatable(if (isActive) 1f else 0f) }
+
+    LaunchedEffect(isActive, skipTransitionAnim) {
+        if (skipTransitionAnim) {
+            animProgress.snapTo(if (isActive) 1f else 0f)
+        } else {
+            animProgress.animateTo(
+                targetValue = if (isActive) 1f else 0f,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 280,
+                    easing = androidx.compose.animation.core.CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
+                )
+            )
+        }
+    }
+
+    val shouldRender = isActive || (isAdjacent && (isHandDragging || isDragSettling)) || isPrev
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (shouldRender) {
+                    Modifier.graphicsLayer {
+                        if (isHandDragging || isDragSettling) {
+                            val currentOffset = dragOffsetProvider()
+                            val dragFraction = (kotlin.math.abs(currentOffset) / screenWidth).coerceIn(0f, 1f)
+                            if (isActive) {
+                                translationX = currentOffset
+                                alpha = 1f - dragFraction * 0.22f
+                                scaleX = 1f - dragFraction * 0.03f
+                                scaleY = 1f - dragFraction * 0.03f
+                            } else if (isAdjacent) {
+                                val base = if (currentOffset < 0f) screenWidth else -screenWidth
+                                translationX = base + currentOffset
+                                alpha = 0.80f + dragFraction * 0.20f
+                                scaleX = 0.97f + dragFraction * 0.03f
+                                scaleY = 0.97f + dragFraction * 0.03f
+                            } else {
+                                translationX = 100000f
+                                alpha = 0f
+                            }
+                        } else if (isActive) {
+                            val progress = animProgress.value
+                            translationX = (1f - progress) * (slideDirection * screenWidth)
+                            alpha = progress.coerceIn(0f, 1f)
+                            val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
+                            scaleX = s
+                            scaleY = s
+                        } else if (isPrev) {
+                            val progress = animProgress.value
+                            translationX = (progress - 1f) * (slideDirection * (screenWidth * 0.28f))
+                            alpha = progress.coerceIn(0f, 1f)
+                            val s = 0.96f + 0.04f * progress.coerceIn(0f, 1f)
+                            scaleX = s
+                            scaleY = s
+                        } else {
+                            translationX = 100000f
+                            alpha = 0f
+                        }
+                    }
+                } else {
+                    Modifier
+                        .graphicsLayer {
+                            alpha = 0f
+                            translationX = 100000f
+                        }
+                        .clearAndSetSemantics { }
+                }
+            )
+    ) {
+        content()
     }
 }
 

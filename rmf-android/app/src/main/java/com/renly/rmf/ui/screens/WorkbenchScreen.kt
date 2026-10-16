@@ -106,64 +106,71 @@ fun WorkbenchScreen(
             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
         )
 
-        val functionalCards = listOf(
-            FunctionalItem(
-                title = "目标金字塔",
-                subtitle = "OKR与北极星目标追踪",
-                icon = Icons.Default.Flag,
-                color = DopaminePurple,
-                onClick = onNavigateToGoals
-            ),
-            FunctionalItem(
-                title = "日常记账",
-                subtitle = "多维收支账本与月度报表",
-                icon = Icons.Default.AccountBalanceWallet,
-                color = DopamineAmber,
-                onClick = onNavigateToExpenses
-            ),
-            FunctionalItem(
-                title = "每日健身",
-                subtitle = "动作库、肌群计划与训练",
-                icon = Icons.Default.FitnessCenter,
-                color = DopamineGreen,
-                onClick = onNavigateToFitness
-            ),
-            FunctionalItem(
-                title = "每日复盘",
-                subtitle = "反思成就与智能复盘",
-                icon = Icons.Default.AutoAwesome,
-                color = DopamineOrange,
-                onClick = onNavigateToDailyReport
-            ),
-            FunctionalItem(
-                title = "效能统计",
-                subtitle = "全周期时间与打断透视",
-                icon = Icons.Default.Insights,
-                color = DopamineCyan,
-                onClick = onNavigateToSummary
-            ),
-            FunctionalItem(
-                title = "习惯打卡",
-                subtitle = "习惯连续 Streak 追踪",
-                icon = Icons.Default.SelfImprovement,
-                color = DopamineGreen,
-                onClick = onNavigateToHabits
-            ),
-            FunctionalItem(
-                title = "倒数纪念日",
-                subtitle = "重要里程碑与考试倒数",
-                icon = Icons.Default.HourglassBottom,
-                color = DopaminePurple,
-                onClick = onNavigateToCountdowns
-            ),
-            FunctionalItem(
-                title = "使用教程",
-                subtitle = "全功能操作指南与快捷键",
-                icon = Icons.Default.MenuBook,
-                color = DopamineBlue,
-                onClick = onNavigateToTutorial
+        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+        val functionalCards = remember(
+            onNavigateToGoals, onNavigateToExpenses, onNavigateToFitness,
+            onNavigateToDailyReport, onNavigateToSummary, onNavigateToHabits,
+            onNavigateToCountdowns, onNavigateToTutorial
+        ) {
+            listOf(
+                FunctionalItem(
+                    title = "目标金字塔",
+                    subtitle = "OKR与北极星目标追踪",
+                    icon = Icons.Default.Flag,
+                    color = DopaminePurple,
+                    onClick = onNavigateToGoals
+                ),
+                FunctionalItem(
+                    title = "日常记账",
+                    subtitle = "多维收支账本与月度报表",
+                    icon = Icons.Default.AccountBalanceWallet,
+                    color = DopamineAmber,
+                    onClick = onNavigateToExpenses
+                ),
+                FunctionalItem(
+                    title = "每日健身",
+                    subtitle = "动作库、肌群计划与训练",
+                    icon = Icons.Default.FitnessCenter,
+                    color = DopamineGreen,
+                    onClick = onNavigateToFitness
+                ),
+                FunctionalItem(
+                    title = "每日复盘",
+                    subtitle = "反思成就与智能复盘",
+                    icon = Icons.Default.AutoAwesome,
+                    color = DopamineOrange,
+                    onClick = onNavigateToDailyReport
+                ),
+                FunctionalItem(
+                    title = "效能统计",
+                    subtitle = "全周期时间与打断透视",
+                    icon = Icons.Default.Insights,
+                    color = DopamineCyan,
+                    onClick = onNavigateToSummary
+                ),
+                FunctionalItem(
+                    title = "习惯打卡",
+                    subtitle = "习惯连续 Streak 追踪",
+                    icon = Icons.Default.SelfImprovement,
+                    color = DopamineGreen,
+                    onClick = onNavigateToHabits
+                ),
+                FunctionalItem(
+                    title = "倒数纪念日",
+                    subtitle = "重要里程碑与考试倒数",
+                    icon = Icons.Default.HourglassBottom,
+                    color = DopaminePurple,
+                    onClick = onNavigateToCountdowns
+                ),
+                FunctionalItem(
+                    title = "使用教程",
+                    subtitle = "全功能操作指南与快捷键",
+                    icon = Icons.Default.MenuBook,
+                    color = DopamineBlue,
+                    onClick = onNavigateToTutorial
+                )
             )
-        )
+        }
 
         functionalCards.chunked(2).forEach { rowItems ->
             Row(
@@ -175,19 +182,25 @@ fun WorkbenchScreen(
                 rowItems.forEach { item ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, item.color.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, item.color.copy(alpha = 0.28f)),
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { item.onClick() }
+                            .clickable {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                item.onClick()
+                            }
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 11.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
-                                shape = CircleShape,
-                                color = item.color.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = item.color.copy(alpha = 0.14f),
+                                border = BorderStroke(0.5.dp, item.color.copy(alpha = 0.35f)),
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -199,8 +212,8 @@ fun WorkbenchScreen(
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
+                            Spacer(modifier = Modifier.width(9.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = item.title,
                                     fontSize = 13.sp,
@@ -211,7 +224,8 @@ fun WorkbenchScreen(
                                     text = item.subtitle,
                                     fontSize = 10.5.sp,
                                     color = TextMuted,
-                                    maxLines = 1
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }

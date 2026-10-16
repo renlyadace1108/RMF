@@ -33,11 +33,11 @@ data class AppColors(
 // ----------------------------------------------------
 val DarkPalette = AppColors(
     bg = Color(0xFF090B0E),               // 深邃极光黑底
-    surface = Color(0xFF11141A),          // 微抬升表面底色
-    card = Color(0xFF171B22),             // 悬浮磨砂质感卡片底色
-    cardHover = Color(0xFF1F242D),        // 交互高亮状态
-    border = Color(0xFF262C36),           // 柔和微光勾边
-    textPrimary = Color(0xFFF1F5F9),      // 纯净主标题与核心文字
+    surface = Color(0xFF11141B),          // 微抬升表面底色 (深邃钛金黑)
+    card = Color(0xFF161A23),             // 悬浮磨砂质感卡片底色 (高级石墨灰)
+    cardHover = Color(0xFF1F2532),        // 交互高亮状态
+    border = Color(0xFF262E3C),           // 柔和微光勾边 (冷灰钛合金微边框)
+    textPrimary = Color(0xFFF8FAFC),      // 纯净高对比主标题
     textSecondary = Color(0xFF94A3B8),    // 柔和副标题与提示文字
     textMuted = Color(0xFF64748B),        // 弱化辅助信息与时间标签
     dopamineBlue = Color(0xFF38BDF8),
@@ -164,4 +164,54 @@ val CardGlowBorder = Brush.verticalGradient(
 
 val FocusPulseGradient = Brush.radialGradient(
     colors = listOf(Color(0x4038BDF8), Color(0x00090B0E))
+)
+
+val DarkCardGradient: Brush
+    @Composable
+    get() {
+        val colors = LocalAppColors.current
+        return if (colors.isDark) {
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF191E28),
+                    Color(0xFF13171F)
+                )
+            )
+        } else {
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF8FAFC)
+                )
+            )
+        }
+    }
+
+val DarkSurfaceGradient: Brush
+    @Composable
+    get() {
+        val colors = LocalAppColors.current
+        return if (colors.isDark) {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFF141822),
+                    Color(0xFF0F1218)
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF1F5F9)
+                )
+            )
+        }
+    }
+
+val SpecularEdgeHighlight: Brush = Brush.verticalGradient(
+    listOf(
+        Color(0x22FFFFFF),
+        Color(0x05FFFFFF),
+        Color(0x00FFFFFF)
+    )
 )

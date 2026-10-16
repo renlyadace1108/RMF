@@ -1293,9 +1293,13 @@ fun ScheduleWeekGridView(
     onAddScheduleWithRange: (String, String, String, Int, String, String, Int, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onUpdateSchedule: (ScheduleEntity) -> Unit = {}
 ) {
-    val currentWeekMonday = selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val weekDates = (0..6).map { currentWeekMonday.plusDays(it.toLong()) }
-    val sunday = weekDates.last()
+    val currentWeekMonday = remember(selectedDate) {
+        selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    }
+    val weekDates = remember(currentWeekMonday) {
+        (0..6).map { currentWeekMonday.plusDays(it.toLong()) }
+    }
+    val sunday = remember(weekDates) { weekDates.last() }
 
     // 日/周视图缩放支持 (Zoom Scale State: 0.7x ~ 2.5x)
     var weekZoomFactor by rememberSaveable { mutableFloatStateOf(1.0f) }
@@ -2153,9 +2157,11 @@ fun ScheduleDayGridView(
     val verticalScrollState = rememberScrollState()
     val density = LocalDensity.current
 
-    val daySchedules = schedules.filter { item ->
-        val dt = parseDateTime(item.startTime)
-        dt?.toLocalDate() == selectedDate
+    val daySchedules = remember(schedules, selectedDate) {
+        schedules.filter { item ->
+            val dt = parseDateTime(item.startTime)
+            dt?.toLocalDate() == selectedDate
+        }
     }
 
     val hapticFeedback = LocalHapticFeedback.current
@@ -4055,63 +4061,99 @@ fun ScheduleItemCard(
     onToggleStatus: () -> Unit,
     onClickCard: () -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
     val isCompleted = item.status == "COMPLETED"
-    val accentColor = tagColorMap[item.category] ?: when (item.workType) {
-        "DEEP_WORK" -> DopamineBlue
-        "SHALLOW_WORK" -> DopamineAmber
-        "REST_BUFFER" -> DopamineGreen
-        else -> DopaminePurple
+    val accentColor = remember(item.category, item.workType, tagColorMap) {
+        tagColorMap[item.category] ?: when (item.workType) {
+            "DEEP_WORK" -> DopamineBlue
+            "SHALLOW_WORK" -> DopamineAmber
+            "REST_BUFFER" -> DopamineGreen
+            else -> DopaminePurple
+        }
     }
 
-    val timeRangeStr = try {
-        val s = parseDateTime(item.startTime)
-        val e = parseDateTime(item.endTime)
-        if (s != null && e != null) {
-            val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
-            val dateStr = s.format(DateTimeFormatter.ofPattern(datePattern))
-            if (s.toLocalDate() == e.toLocalDate()) {
-                "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+    val timeRangeStr = remember(item.startTime, item.endTime) {
+        try {
+            val s = parseDateTime(item.startTime)
+            val e = parseDateTime(item.endTime)
+            if (s != null && e != null) {
+                val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
+                val dateStr = s.format(DateTimeFormatter.ofPattern(datePattern))
+                if (s.toLocalDate() == e.toLocalDate()) {
+                    "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                } else {
+                    val endDatePattern = if (e.year != s.year) "yyyy年M月d日" else "M月d日"
+                    val endDateStr = e.format(DateTimeFormatter.ofPattern(endDatePattern))
+                    "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - $endDateStr ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                }
+            } else if (s != null) {
+                val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
+                "${s.format(DateTimeFormatter.ofPattern(datePattern))} ${s.format(DateTimeFormatter.ofPattern("HH:mm"))}"
             } else {
-                val endDatePattern = if (e.year != s.year) "yyyy年M月d日" else "M月d日"
-                val endDateStr = e.format(DateTimeFormatter.ofPattern(endDatePattern))
-                "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - $endDateStr ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                ""
             }
-        } else if (s != null) {
-            val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
-            "${s.format(DateTimeFormatter.ofPattern(datePattern))} ${s.format(DateTimeFormatter.ofPattern("HH:mm"))}"
-        } else {
+        } catch (_: Exception) {
             ""
         }
-    } catch (_: Exception) {
-        ""
     }
 
+    val checkScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isCompleted) 1.12f else 1.0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "itemCheckScale"
+    )
+
     Surface(
-        onClick = onClickCard,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onClickCard()
+        },
         shape = RoundedCornerShape(14.dp),
-        color = if (isCompleted) DarkSurface.copy(alpha = 0.6f) else DarkCard,
-        border = BorderStroke(1.dp, if (isCompleted) Color.Transparent else DarkBorder),
+        color = if (isCompleted) DarkSurface.copy(alpha = 0.55f) else DarkCard,
+        border = BorderStroke(1.dp, if (isCompleted) DarkBorder.copy(alpha = 0.35f) else DarkBorder.copy(alpha = 0.8f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(horizontal = 12.dp, vertical = 13.dp)
         ) {
+            // 垂直分类指示条 (Left Category Indicator)
+            Box(
+                modifier = Modifier
+                    .width(3.5.dp)
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (isCompleted) accentColor.copy(alpha = 0.35f) else accentColor)
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
             IconButton(
-                onClick = onToggleStatus,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onToggleStatus()
+                },
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = if (isCompleted) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                     contentDescription = "完成状态",
                     tint = if (isCompleted) DopamineGreen else TextMuted,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier
+                        .size(22.dp)
+                        .graphicsLayer {
+                            scaleX = checkScale
+                            scaleY = checkScale
+                        }
                 )
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -4119,7 +4161,8 @@ fun ScheduleItemCard(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
-                    color = if (isCompleted) TextMuted else TextPrimary
+                    color = if (isCompleted) TextMuted else TextPrimary,
+                    letterSpacing = (-0.2).sp
                 )
 
                 if (timeRangeStr.isNotBlank()) {
@@ -4127,17 +4170,25 @@ fun ScheduleItemCard(
                         text = "⏱️ $timeRangeStr · ${item.estimatedMinutes}分钟",
                         fontSize = 12.sp,
                         color = TextSecondary,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
 
                 if (item.dod.isNotBlank()) {
-                    Text(
-                        text = "验收标准: ${item.dod}",
-                        fontSize = 11.5.sp,
-                        color = DopamineBlue.copy(alpha = 0.8f),
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    Surface(
+                        color = DopamineBlue.copy(alpha = 0.10f),
+                        border = BorderStroke(0.5.dp, DopamineBlue.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text(
+                            text = "验收标准: ${item.dod}",
+                            fontSize = 11.sp,
+                            color = DopamineBlue,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 // 子任务 Checklist 进度条

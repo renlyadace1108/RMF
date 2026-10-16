@@ -41,6 +41,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.entity.FocusRecordEntity
@@ -378,19 +382,53 @@ fun FocusScreen(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(260.dp)
         ) {
-            CircularProgressIndicator(
-                progress = { 1f },
-                color = DarkSurface,
-                strokeWidth = 10.dp,
-                modifier = Modifier.fillMaxSize()
-            )
+            val trackColor = DarkSurface
+            val activeColor1 = if (isRunning) DopamineCyan else DopamineAmber
+            val activeColor2 = if (isRunning) DopamineBlue else DopamineOrange
+            val activeColor3 = if (isRunning) DopaminePurple else DopamineRed
 
-            CircularProgressIndicator(
-                progress = { progress },
-                color = if (isRunning) DopamineBlue else DopamineAmber,
-                strokeWidth = 10.dp,
-                modifier = Modifier.fillMaxSize()
-            )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeW = 11.dp.toPx()
+                val diameter = size.minDimension - strokeW
+                val radius = diameter / 2f
+                val centerOffset = Offset(size.width / 2f, size.height / 2f)
+
+                // 1. 底层钛金轨道 (Titanium Base Ring)
+                drawCircle(
+                    color = trackColor,
+                    radius = radius,
+                    center = centerOffset,
+                    style = Stroke(width = strokeW)
+                )
+
+                // 2. 轨道内侧微光边缘 (Subtle inner specular edge)
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.04f),
+                    radius = radius - strokeW / 2f,
+                    center = centerOffset,
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                // 3. 动态高质感多色霓虹渐变弧 (Luminous Gradient Progress Arc)
+                if (progress > 0.001f) {
+                    val sweepBrush = Brush.sweepGradient(
+                        0.0f to activeColor1,
+                        0.5f to activeColor2,
+                        1.0f to activeColor3,
+                        center = centerOffset
+                    )
+                    drawArc(
+                        brush = sweepBrush,
+                        startAngle = -90f,
+                        sweepAngle = (progress.coerceIn(0f, 1f) * 360f),
+                        useCenter = false,
+                        style = Stroke(
+                            width = strokeW,
+                            cap = StrokeCap.Round
+                        )
+                    )
+                }
+            }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (isRunning || isPausedMidSession) {
@@ -399,7 +437,8 @@ fun FocusScreen(
                         fontSize = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary,
-                        letterSpacing = (-0.5).sp
+                        letterSpacing = (-0.5).sp,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
                     )
                 } else {
                     // 顶部 时 / 分 / 秒 清晰标签

@@ -768,17 +768,23 @@ fun CourseCard(
     course: CourseEntity,
     onClick: () -> Unit = {}
 ) {
-    val courseColor = try {
-        Color(android.graphics.Color.parseColor(course.colorHex))
-    } catch (_: Exception) {
-        DopamineBlue
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val courseColor = remember(course.colorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(course.colorHex))
+        } catch (_: Exception) {
+            DopamineBlue
+        }
     }
 
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+            onClick()
+        },
         shape = RoundedCornerShape(14.dp),
         color = DarkCard,
-        border = BorderStroke(1.dp, DarkBorder),
+        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.75f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
