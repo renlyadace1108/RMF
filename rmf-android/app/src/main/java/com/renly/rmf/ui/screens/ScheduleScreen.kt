@@ -4064,9 +4064,24 @@ fun ScheduleItemCard(
     }
 
     val timeRangeStr = try {
-        val s = LocalDateTime.parse(item.startTime, DateTimeFormatter.ISO_DATE_TIME)
-        val e = LocalDateTime.parse(item.endTime, DateTimeFormatter.ISO_DATE_TIME)
-        "${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+        val s = parseDateTime(item.startTime)
+        val e = parseDateTime(item.endTime)
+        if (s != null && e != null) {
+            val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
+            val dateStr = s.format(DateTimeFormatter.ofPattern(datePattern))
+            if (s.toLocalDate() == e.toLocalDate()) {
+                "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+            } else {
+                val endDatePattern = if (e.year != s.year) "yyyy年M月d日" else "M月d日"
+                val endDateStr = e.format(DateTimeFormatter.ofPattern(endDatePattern))
+                "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - $endDateStr ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+            }
+        } else if (s != null) {
+            val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
+            "${s.format(DateTimeFormatter.ofPattern(datePattern))} ${s.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+        } else {
+            ""
+        }
     } catch (_: Exception) {
         ""
     }
