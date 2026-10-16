@@ -34,6 +34,18 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 13:28] - 修复 Compose 编译报错：分离 remember 闭包内 @Composable 色彩令牌取值 (v1.5.0.10 / Code 1050010)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **问题背景**：上个版本为提升列表与卡片性能，在 `remember` 内部封装了卡片背景色与主题色运算，但因 `Color.kt` 中 `DopamineBlue` 等多巴胺颜色与主题色通过 `@Composable get() = LocalAppColors.current.xxx` 实现，导致 Kotlin Compose 编译器报 13 处 `@Composable invocations can only happen from the context of a @Composable function` 致命错误（`ScheduleScreen.kt` 4 处，`TimetableScreen.kt` 1 处，`WorkbenchScreen.kt` 8 处）。
+* **修复细节**：
+  1. **日常日程卡片 ([`ScheduleScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/ScheduleScreen.kt))**：
+     - 去除 `accentColor` 外层不必要的 `remember` 包装，由于 4 分支字符串匹配与直接引用赋值耗时不足 1 纳秒且零堆内存分配，直接在 `@Composable` 上下文中进行色彩求值，完美修复 4 处报错。
+  2. **课程表卡片 ([`TimetableScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/TimetableScreen.kt))**：
+     - 在 `@Composable` 作用域提取回退默认色 `val defaultCourseColor = DopamineBlue`，再作为不可变参数传入 `remember(course.colorHex, defaultCourseColor)` 闭包，彻底规避异常降级时的非法 Composable 展开，修复 1 处报错。
+  3. **工作台矩阵功能卡片 ([`WorkbenchScreen.kt`](file:///c:/Users/Renly/Desktop/RMF/rmf-android/app/src/main/java/com/renly/rmf/ui/screens/WorkbenchScreen.kt))**：
+     - 在 `@Composable` 作用域提取 `val appColors = LocalAppColors.current`，将 `appColors` 注入 `remember(..., appColors)`，并在闭包内使用其字段属性 `appColors.dopamineXxx` 代替全局 getter，既保留了功能列表在重组过程中的记忆缓存，又彻底修复了全部 8 处非法调用报错。
+  4. **版本升级**：Android `versionCode` 升级至 `1050010`，`versionName` 升级至 `1.5.0.10`。
+
 ### [2026-10-16 13:20] - 全域 UI 流畅度与顶级高级质感重构 (v1.5.0.9 / Code 1050009)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“优化一下UI，我需要他极其流畅，还要有质感、高级感。性能必须是优先考虑项”

@@ -107,66 +107,67 @@ fun WorkbenchScreen(
         )
 
         val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+        val appColors = LocalAppColors.current
         val functionalCards = remember(
             onNavigateToGoals, onNavigateToExpenses, onNavigateToFitness,
             onNavigateToDailyReport, onNavigateToSummary, onNavigateToHabits,
-            onNavigateToCountdowns, onNavigateToTutorial
+            onNavigateToCountdowns, onNavigateToTutorial, appColors
         ) {
             listOf(
                 FunctionalItem(
                     title = "目标金字塔",
                     subtitle = "OKR与北极星目标追踪",
                     icon = Icons.Default.Flag,
-                    color = DopaminePurple,
+                    color = appColors.dopaminePurple,
                     onClick = onNavigateToGoals
                 ),
                 FunctionalItem(
                     title = "日常记账",
                     subtitle = "多维收支账本与月度报表",
                     icon = Icons.Default.AccountBalanceWallet,
-                    color = DopamineAmber,
+                    color = appColors.dopamineAmber,
                     onClick = onNavigateToExpenses
                 ),
                 FunctionalItem(
                     title = "每日健身",
                     subtitle = "动作库、肌群计划与训练",
                     icon = Icons.Default.FitnessCenter,
-                    color = DopamineGreen,
+                    color = appColors.dopamineGreen,
                     onClick = onNavigateToFitness
                 ),
                 FunctionalItem(
                     title = "每日复盘",
                     subtitle = "反思成就与智能复盘",
                     icon = Icons.Default.AutoAwesome,
-                    color = DopamineOrange,
+                    color = appColors.dopamineOrange,
                     onClick = onNavigateToDailyReport
                 ),
                 FunctionalItem(
                     title = "效能统计",
                     subtitle = "全周期时间与打断透视",
                     icon = Icons.Default.Insights,
-                    color = DopamineCyan,
+                    color = appColors.dopamineCyan,
                     onClick = onNavigateToSummary
                 ),
                 FunctionalItem(
                     title = "习惯打卡",
                     subtitle = "习惯连续 Streak 追踪",
                     icon = Icons.Default.SelfImprovement,
-                    color = DopamineGreen,
+                    color = appColors.dopamineGreen,
                     onClick = onNavigateToHabits
                 ),
                 FunctionalItem(
                     title = "倒数纪念日",
                     subtitle = "重要里程碑与考试倒数",
                     icon = Icons.Default.HourglassBottom,
-                    color = DopaminePurple,
+                    color = appColors.dopaminePurple,
                     onClick = onNavigateToCountdowns
                 ),
                 FunctionalItem(
                     title = "使用教程",
                     subtitle = "全功能操作指南与快捷键",
                     icon = Icons.Default.MenuBook,
-                    color = DopamineBlue,
+                    color = appColors.dopamineBlue,
                     onClick = onNavigateToTutorial
                 )
             )

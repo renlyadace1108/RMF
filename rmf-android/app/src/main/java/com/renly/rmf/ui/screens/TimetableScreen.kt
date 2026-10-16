@@ -769,11 +769,12 @@ fun CourseCard(
     onClick: () -> Unit = {}
 ) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    val courseColor = remember(course.colorHex) {
+    val defaultCourseColor = DopamineBlue
+    val courseColor = remember(course.colorHex, defaultCourseColor) {
         try {
             Color(android.graphics.Color.parseColor(course.colorHex))
         } catch (_: Exception) {
-            DopamineBlue
+            defaultCourseColor
         }
     }
 

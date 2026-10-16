@@ -4063,13 +4063,11 @@ fun ScheduleItemCard(
 ) {
     val haptic = LocalHapticFeedback.current
     val isCompleted = item.status == "COMPLETED"
-    val accentColor = remember(item.category, item.workType, tagColorMap) {
-        tagColorMap[item.category] ?: when (item.workType) {
-            "DEEP_WORK" -> DopamineBlue
-            "SHALLOW_WORK" -> DopamineAmber
-            "REST_BUFFER" -> DopamineGreen
-            else -> DopaminePurple
-        }
+    val accentColor = tagColorMap[item.category] ?: when (item.workType) {
+        "DEEP_WORK" -> DopamineBlue
+        "SHALLOW_WORK" -> DopamineAmber
+        "REST_BUFFER" -> DopamineGreen
+        else -> DopaminePurple
     }
 
     val timeRangeStr = remember(item.startTime, item.endTime) {
