@@ -13,8 +13,8 @@ android {
         applicationId = "com.renly.rmf"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1050013
-        versionName = "1.5.0.13"
+        versionCode = 1050014
+        versionName = "1.5.0.14"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

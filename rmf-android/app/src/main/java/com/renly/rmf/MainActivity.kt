@@ -8,10 +8,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
@@ -1209,7 +1209,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                                // 2. 二级子页面或系统设置平滑覆盖层 (垂直上拉拉出、下拉收回)
+                                // 2. 二级子页面或系统设置平滑覆盖层 (从下往上优雅展开、向下拉回收起)
                                 AnimatedVisibility(
                                     visible = !isInMainPager,
                                     enter = slideInVertically(
@@ -1218,9 +1218,21 @@ class MainActivity : ComponentActivity() {
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
                                         )
-                                    ) + fadeIn(animationSpec = tween(200)),
+                                    ) + expandVertically(
+                                        expandFrom = Alignment.Bottom,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(220)),
                                     exit = slideOutVertically(
                                         targetOffsetY = { fullHeight -> fullHeight },
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + shrinkVertically(
+                                        shrinkTowards = Alignment.Bottom,
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow

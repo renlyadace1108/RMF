@@ -34,6 +34,15 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-16 14:42] - 交互质感调优：强化设置界面自下而上展开与向下拉回收起动效 (v1.5.0.14 / Code 1050014)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“让设置界面从下往上展开，而不是左右”
+* **动效升级与微调**：
+  - 彻底清理遗留的水平滑动依赖（剔除 `slideInHorizontally` / `slideOutHorizontally`）。
+  - 将二级覆盖层（系统设置等）`AnimatedVisibility` 的进入动画升级为 `slideInVertically(initialOffsetY = { fullHeight }) + expandVertically(expandFrom = Alignment.Bottom) + fadeIn(tween(220))`，实现真正意义上自屏幕底部自下而上展开的抽屉展开质感（Bottom-Up Expansion）。
+  - 退出动画升级为 `slideOutVertically(targetOffsetY = { fullHeight }) + shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(tween(180))`，与下拉收回手势精准同步，平滑收缩沉降至底部。
+  - 版本升级：Android `versionCode = 1050014`，`versionName = "1.5.0.14"`。
+
 ### [2026-10-16 14:32] - 交互质感升级：底栏上拉拉出/下拉收回设置、全屏切页与操作触感震动反馈 (v1.5.0.13 / Code 1050013)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“改一下吧，底部栏上拉拉出设置界面，下拉收回。整个界面左滑右滑可以切换页面，设置里面加一个操作的触感反馈，就是震动。翻页这些可以支持触感”
