@@ -30,6 +30,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalView
+import com.renly.rmf.util.HapticHelper
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,7 +72,7 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FocusScreen(
     isInPip: Boolean = false,
@@ -77,6 +83,7 @@ fun FocusScreen(
     onEnterPiP: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
 
     val liveRunning by FocusLiveService.isRunning.collectAsState()
@@ -102,19 +109,36 @@ fun FocusScreen(
     var selectedSeconds by remember { mutableIntStateOf(0) }
     var presets by remember { mutableStateOf(FocusPreferences.getPresets(context)) }
 
+    val isRunning = liveRunning
+    val isPausedMidSession = !isRunning && liveSeconds > 0 && liveSeconds < initialSeconds
+
     fun applyPresetMinutes(totalMins: Int) {
+        if (isPausedMidSession) {
+            FocusLiveService.stop(context)
+        }
         selectedHours = (totalMins / 60).coerceIn(0, 12)
         selectedMinutes = (totalMins % 60).coerceIn(0, 59)
         selectedSeconds = 0
     }
 
+    fun adjustMinutes(deltaMins: Int) {
+        if (isPausedMidSession) {
+            FocusLiveService.stop(context)
+        }
+        val currentTotal = selectedHours * 60 + selectedMinutes
+        val newTotal = (currentTotal + deltaMins).coerceIn(1, 12 * 60)
+        selectedHours = (newTotal / 60).coerceIn(0, 12)
+        selectedMinutes = (newTotal % 60).coerceIn(0, 59)
+        selectedSeconds = 0
+    }
+
     var showAddPresetDialog by remember { mutableStateOf(false) }
+    var showDirectTimeDialog by remember { mutableStateOf(false) }
+    var presetToDelete by remember { mutableStateOf<FocusPreset?>(null) }
     var showEventPickerModal by remember { mutableStateOf(false) }
     var showInterruptionDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
 
-    val isRunning = liveRunning
-    val isPausedMidSession = !isRunning && liveSeconds > 0 && liveSeconds < initialSeconds
     val configuredTotalSeconds = (selectedHours * 3600 + selectedMinutes * 60 + selectedSeconds).coerceAtLeast(1)
     val currentRemainingSeconds = if (isRunning || isPausedMidSession) liveSeconds else configuredTotalSeconds
     val maxSeconds = if (isRunning || isPausedMidSession) maxOf(1, initialSeconds) else maxOf(1, configuredTotalSeconds)
@@ -438,12 +462,19 @@ fun FocusScreen(
                         fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary,
                         letterSpacing = (-0.5).sp,
-                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                        modifier = Modifier.clickable(enabled = isPausedMidSession) {
+                            FocusLiveService.stop(context)
+                            showDirectTimeDialog = true
+                        }
                     )
                 } else {
-                    // 顶部 时 / 分 / 秒 清晰标签
+                    // 顶部 时 / 分 / 秒 清晰标签 (点击可直接呼出精准调时弹窗)
                     Row(
-                        modifier = Modifier.width(188.dp),
+                        modifier = Modifier
+                            .width(188.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { showDirectTimeDialog = true },
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -553,8 +584,8 @@ fun FocusScreen(
                     Text(
                         text = when {
                             isRunning -> "● 深度心流中"
-                            isPausedMidSession -> "⏸ 已暂停"
-                            else -> "↕ 滑动时·分·秒调时"
+                            isPausedMidSession -> "⏸ 已暂停 (点击重置并调时)"
+                            else -> "↕ 滑动滚轮 · 点击精准调时"
                         },
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -563,13 +594,85 @@ fun FocusScreen(
                             isPausedMidSession -> DopamineAmber
                             else -> TextSecondary
                         },
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                        modifier = Modifier
+                            .clickable(enabled = !isRunning) {
+                                if (isPausedMidSession) {
+                                    FocusLiveService.stop(context)
+                                }
+                                showDirectTimeDialog = true
+                            }
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 快捷微调时长工具条 ([-15m] [-5m] [-1m] [+1m] [+5m] [+15m] [✏️精准调时])
+        if (!isRunning) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(-15, -5, -1, 1, 5, 15).forEach { delta ->
+                    Surface(
+                        onClick = {
+                            adjustMinutes(delta)
+                            HapticHelper.performLightClick(context)
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = DarkCard,
+                        border = BorderStroke(1.dp, if (delta > 0) DopamineCyan.copy(alpha = 0.35f) else DarkBorder),
+                        modifier = Modifier
+                            .height(32.dp)
+                            .padding(horizontal = 3.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
+                            Text(
+                                text = if (delta > 0) "+${delta}m" else "${delta}m",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (delta > 0) DopamineCyan else TextSecondary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Surface(
+                    onClick = {
+                        if (isPausedMidSession) {
+                            FocusLiveService.stop(context)
+                        }
+                        showDirectTimeDialog = true
+                        HapticHelper.performLightClick(context)
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopamineBlue.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = DopamineBlue, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("精准输入", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DopamineBlue)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         // 4. 🎛️ 专注预设选择与管理区 (预设 + 自定义预设)
         if (!isRunning) {
@@ -601,19 +704,28 @@ fun FocusScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(presets) { preset ->
+                    items(presets, key = { it.id }) { preset ->
                         val isSelected = (selectedHours * 60 + selectedMinutes == preset.minutes && selectedSeconds == 0)
+                        val isCustom = preset.id.startsWith("preset_")
                         Surface(
-                            onClick = {
-                                if (isPausedMidSession) {
-                                    FocusLiveService.stop(context)
-                                }
-                                applyPresetMinutes(preset.minutes)
-                            },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkCard,
                             border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
-                            modifier = Modifier.height(38.dp)
+                            modifier = Modifier
+                                .height(38.dp)
+                                .combinedClickable(
+                                    onClick = {
+                                        applyPresetMinutes(preset.minutes)
+                                        HapticHelper.performLightClick(context)
+                                        Toast.makeText(context, "已切换为：${preset.name} (${preset.minutes}分钟)", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onLongClick = {
+                                        if (isCustom) {
+                                            presetToDelete = preset
+                                            HapticHelper.performLightClick(context)
+                                        }
+                                    }
+                                )
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -627,6 +739,20 @@ fun FocusScreen(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) DopamineCyan else TextPrimary
                                 )
+                                if (isCustom) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { presetToDelete = preset },
+                                        modifier = Modifier.size(18.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "删除预设",
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -888,6 +1014,195 @@ fun FocusScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddPresetDialog = false }) { Text("取消", color = TextSecondary) }
+            }
+        )
+    }
+
+    // 弹窗 2.1: 精准设定专注时长弹窗
+    if (showDirectTimeDialog) {
+        var inputHours by remember { mutableIntStateOf(selectedHours) }
+        var inputMinutes by remember { mutableIntStateOf(selectedMinutes) }
+        var inputSeconds by remember { mutableIntStateOf(selectedSeconds) }
+
+        AlertDialog(
+            onDismissRequest = { showDirectTimeDialog = false },
+            containerColor = DarkCard,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("⏱️ 精准设定专注时长", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // 当前选定预览
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        ) {
+                            Text("设定时长预览", fontSize = 11.sp, color = TextSecondary)
+                            Text(
+                                text = "%02d:%02d:%02d".format(inputHours, inputMinutes, inputSeconds),
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = DopamineCyan,
+                                letterSpacing = (-0.5).sp,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                            )
+                            val totalM = inputHours * 60 + inputMinutes
+                            Text("合计共 $totalM 分钟", fontSize = 11.5.sp, color = TextMuted)
+                        }
+                    }
+
+                    // 常用时长一键填充
+                    Text("常用推荐时长:", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(10, 15, 20, 25, 30, 45, 60, 90, 120).forEach { mins ->
+                            val isChipSelected = (inputHours * 60 + inputMinutes == mins && inputSeconds == 0)
+                            Surface(
+                                onClick = {
+                                    inputHours = mins / 60
+                                    inputMinutes = mins % 60
+                                    inputSeconds = 0
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isChipSelected) DopamineCyan.copy(alpha = 0.2f) else DarkSurface,
+                                border = BorderStroke(1.dp, if (isChipSelected) DopamineCyan else DarkBorder),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("${mins}m", fontSize = 11.sp, color = if (isChipSelected) DopamineCyan else TextPrimary)
+                                }
+                            }
+                        }
+                    }
+
+                    // 小时与分钟微调滑块与加减按钮
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("小时: $inputHours 小时", fontSize = 12.5.sp, color = TextPrimary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = { if (inputHours > 0) inputHours-- }, modifier = Modifier.size(28.dp)) {
+                                    Text("－", color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                                IconButton(onClick = { if (inputHours < 12) inputHours++ }, modifier = Modifier.size(28.dp)) {
+                                    Text("＋", color = DopamineCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Slider(
+                            value = inputHours.toFloat(),
+                            onValueChange = { inputHours = it.toInt() },
+                            valueRange = 0f..12f,
+                            steps = 11,
+                            colors = SliderDefaults.colors(
+                                thumbColor = DopamineCyan,
+                                activeTrackColor = DopamineCyan,
+                                inactiveTrackColor = DarkSurface
+                            )
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("分钟: $inputMinutes 分钟", fontSize = 12.5.sp, color = TextPrimary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = { if (inputMinutes > 0) inputMinutes-- }, modifier = Modifier.size(28.dp)) {
+                                    Text("－", color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                                IconButton(onClick = { if (inputMinutes < 59) inputMinutes++ }, modifier = Modifier.size(28.dp)) {
+                                    Text("＋", color = DopamineCyan, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Slider(
+                            value = inputMinutes.toFloat(),
+                            onValueChange = { inputMinutes = it.toInt() },
+                            valueRange = 0f..59f,
+                            steps = 58,
+                            colors = SliderDefaults.colors(
+                                thumbColor = DopamineCyan,
+                                activeTrackColor = DopamineCyan,
+                                inactiveTrackColor = DarkSurface
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val total = inputHours * 3600 + inputMinutes * 60 + inputSeconds
+                        if (total <= 0) {
+                            inputMinutes = 1
+                        }
+                        selectedHours = inputHours
+                        selectedMinutes = if (inputHours == 0 && inputMinutes == 0 && inputSeconds == 0) 1 else inputMinutes
+                        selectedSeconds = inputSeconds
+                        showDirectTimeDialog = false
+                        Toast.makeText(context, "✓ 专注时长已设定为: %02d:%02d:%02d".format(selectedHours, selectedMinutes, selectedSeconds), Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan)
+                ) {
+                    Text("应用设定", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDirectTimeDialog = false }) {
+                    Text("取消", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // 弹窗 2.2: 删除自定义预设确认弹窗
+    if (presetToDelete != null) {
+        val targetPreset = presetToDelete
+        AlertDialog(
+            onDismissRequest = { presetToDelete = null },
+            containerColor = DarkCard,
+            title = { Text("删除自定义预设", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = { Text("是否确定删除自定义预设「${targetPreset?.name} (${targetPreset?.minutes}m)」？", color = TextSecondary, fontSize = 13.sp) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        targetPreset?.let { p ->
+                            FocusPreferences.deletePreset(context, p.id)
+                            presets = FocusPreferences.getPresets(context)
+                            Toast.makeText(context, "✓ 已删除预设: ${p.name}", Toast.LENGTH_SHORT).show()
+                        }
+                        presetToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineRed)
+                ) {
+                    Text("删除", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { presetToDelete = null }) {
+                    Text("取消", color = TextSecondary)
+                }
             }
         )
     }
@@ -1430,6 +1745,7 @@ private fun DialTimeUnitWheel(
     val initialIdx = remember { values.indexOf(selectedValue).coerceAtLeast(0) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIdx)
     val flingBehavior = rememberSnapFlingBehavior(lazyListState = listState)
+    val view = LocalView.current
 
     val centerIndex by remember {
         derivedStateOf {
@@ -1445,21 +1761,47 @@ private fun DialTimeUnitWheel(
         }
     }
 
-    LaunchedEffect(centerIndex, listState.isScrollInProgress) {
-        if (listState.isScrollInProgress) {
-            val currentVal = values[centerIndex.coerceIn(0, values.lastIndex)]
-            if (currentVal != selectedValue) {
-                onValueChange(currentVal)
+    var isProgrammaticScroll by remember { mutableStateOf(false) }
+
+    // 当外部 selectedValue 改变时（例如点击预设、快捷微调按钮、弹窗精准输入）
+    // 立即通过 isProgrammaticScroll 标记驱动滚轮平滑滚动或瞬间跳转到目标项，严禁触发 onValueChange 反向截断！
+    LaunchedEffect(selectedValue) {
+        val targetIdx = values.indexOf(selectedValue)
+        if (targetIdx >= 0 && targetIdx != centerIndex) {
+            isProgrammaticScroll = true
+            try {
+                val diff = kotlin.math.abs(targetIdx - centerIndex)
+                if (diff > 8) {
+                    listState.scrollToItem(targetIdx)
+                } else {
+                    listState.animateScrollToItem(targetIdx)
+                }
+            } finally {
+                isProgrammaticScroll = false
             }
         }
     }
 
-    LaunchedEffect(selectedValue) {
-        if (!listState.isScrollInProgress) {
-            val targetIdx = values.indexOf(selectedValue)
-            if (targetIdx >= 0 && targetIdx != centerIndex) {
-                listState.animateScrollToItem(targetIdx)
+    // 只有在用户主动拖拽/甩动停止后，才派发最终落点数值
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .distinctUntilChanged()
+            .collect { isScrolling ->
+                if (!isScrolling && !isProgrammaticScroll) {
+                    val currentVal = values[centerIndex.coerceIn(0, values.lastIndex)]
+                    if (currentVal != selectedValue) {
+                        onValueChange(currentVal)
+                    }
+                }
             }
+    }
+
+    // 用户手动滚动过程中提供微触觉反馈
+    LaunchedEffect(centerIndex) {
+        if (listState.isScrollInProgress && !isProgrammaticScroll) {
+            try {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            } catch (_: Exception) {}
         }
     }
 
@@ -1476,7 +1818,11 @@ private fun DialTimeUnitWheel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(itemHeight)
-                    .clickable { onValueChange(v) },
+                    .clickable {
+                        if (v != selectedValue) {
+                            onValueChange(v)
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
