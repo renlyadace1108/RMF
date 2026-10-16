@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,8 +26,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -873,8 +879,10 @@ fun AddStudyTopicDialog(
 
 /**
  * 打卡推进弹窗
- * - 若已预设任务点：提供清单式选择/打卡，清晰展示下一章/节；
- * - 若未预设任务点：强制/推荐输入任务点名称备注 (如"完成了某某章节")，打卡后自动记录到任务点履历并更新当前进度
+ * - 每次打卡均包含明确的章节/任务点备注输入框（无论是预设课表、自定义专题还是持续多次打卡）；
+ * - 若存在未打卡的预设章节大纲，支持一键点击填入章节名称并绑定完成；
+ * - 若无预设章节或已全部打卡，支持持续输入本次攻坚的章节名（如 unit1(2)），打卡后自动沉淀到任务点履历；
+ * - 数字框采用 BasicTextField + 自定义居中容器，杜绝截断，整型默认格式化为整数。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -884,16 +892,33 @@ fun UpdateStudyProgressDialog(
     onConfirm: (StudyTopicEntity) -> Unit
 ) {
     val existingPoints = remember(topic.checkpointsJson) { topic.getTaskPoints().toMutableList() }
-    val hasPredefinedPoints = existingPoints.isNotEmpty()
+    val pendingPoints = remember(existingPoints) { existingPoints.filter { !it.isCompleted } }
+    val completedPoints = remember(existingPoints) { existingPoints.filter { it.isCompleted } }
 
-    // 若有预设任务点，默认选中第一个未完成的任务点
-    var selectedPointId by remember {
-        mutableStateOf(existingPoints.firstOrNull { !it.isCompleted }?.id)
+    val isHourType = topic.progressType == "HOURS"
+    val unitLabel = when (topic.progressType) {
+        "HOURS" -> "小时"
+        "LESSONS" -> topic.customUnit.ifBlank { "讲" }
+        "PAGES" -> "页"
+        else -> topic.customUnit.ifBlank { "讲" }
     }
 
-    // 若无预设任务点，任务点名称/章节备注输入框
-    var customCheckpointNote by remember { mutableStateOf("") }
-    var addAmountText by remember { mutableStateOf("1.0") }
+    // 默认选中的待打卡预设章节 ID (若有)
+    var selectedPointId by remember {
+        mutableStateOf(pendingPoints.firstOrNull()?.id)
+    }
+
+    // 本次打卡章节备注：若有待完成的预设章节，默认填入该章节名；否则为空让用户自由填写 (或从快速词条填入)
+    var customCheckpointNote by remember {
+        mutableStateOf(pendingPoints.firstOrNull()?.name ?: "")
+    }
+
+    // 推进数值量：非小时类型默认 1，小时类型默认 1.0
+    var addAmountText by remember {
+        mutableStateOf(if (isHourType) "1.0" else "1")
+    }
+
+    var showCompletedHistory by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -911,112 +936,92 @@ fun UpdateStudyProgressDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 场景 A: 已预先导入/指定了任务点清单
-                if (hasPredefinedPoints) {
-                    Text("请选择本次完成的任务点/章节：", fontSize = 12.5.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .verticalScroll(rememberScrollState())
+                // 1. 最近完成状态标识
+                if (topic.currentCheckpoint.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DopamineCyan.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        existingPoints.forEachIndexed { idx, point ->
-                            val isSelected = selectedPointId == point.id
-                            Surface(
-                                onClick = {
-                                    if (!point.isCompleted) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("📌", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "上次打卡: ${topic.currentCheckpoint}",
+                                fontSize = 11.5.sp,
+                                color = DopamineCyan,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                // 2. 待完成预设章节列表（如果有）
+                if (pendingPoints.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "待打卡章节大纲 (点击快速填入):",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(pendingPoints, key = { it.id }) { point ->
+                                val isSelected = selectedPointId == point.id
+                                Surface(
+                                    onClick = {
                                         selectedPointId = point.id
-                                    }
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                color = when {
-                                    point.isCompleted -> DarkSurface.copy(alpha = 0.5f)
-                                    isSelected -> DopamineGreen.copy(alpha = 0.18f)
-                                    else -> DarkSurface
-                                },
-                                border = BorderStroke(
-                                    1.dp,
-                                    when {
-                                        isSelected -> DopamineGreen
-                                        point.isCompleted -> Color.Transparent
-                                        else -> DarkBorder
-                                    }
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        customCheckpointNote = point.name
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) DopamineGreen.copy(alpha = 0.2f) else DarkSurface,
+                                    border = BorderStroke(1.dp, if (isSelected) DopamineGreen else DarkBorder),
+                                    modifier = Modifier.height(30.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = if (point.isCompleted) Icons.Default.CheckCircle else if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
-                                        contentDescription = null,
-                                        tint = if (point.isCompleted) DopamineGreen else if (isSelected) DopamineGreen else TextMuted,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(horizontal = 10.dp)
+                                    ) {
                                         Text(
-                                            text = "%02d. %s".format(idx + 1, point.name),
-                                            fontSize = 12.5.sp,
+                                            text = point.name,
+                                            fontSize = 11.5.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (point.isCompleted) TextMuted else TextPrimary,
-                                            textDecoration = if (point.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                                            color = if (isSelected) DopamineGreen else TextPrimary
                                         )
-                                        if (point.completedAt != null) {
-                                            Text(
-                                                text = "完成于 ${point.completedAt.take(16).replace("T", " ")}",
-                                                fontSize = 10.sp,
-                                                color = TextMuted
-                                            )
-                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    // 允许在此次打卡附加心得或小记
+                // 3. 核心：每次打卡都包含的章节备注输入框
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(
                         value = customCheckpointNote,
-                        onValueChange = { customCheckpointNote = it },
-                        label = { Text("本次打卡心得 / 随笔备注 (选填)") },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    // 场景 B: 未预先导入任务点，打卡时必须/建议备注打卡的任务点名称（如"完成了某某章节"）
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = DopamineCyan.copy(alpha = 0.10f),
-                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("💡", fontSize = 15.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "该专题暂无预设大纲，打卡时请备注任务点名称（如「完成了某某章节」），系统将自动归档至任务履历！",
-                                fontSize = 11.5.sp,
-                                color = TextPrimary,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-
-                    // 任务点名称 / 章节备注输入框
-                    OutlinedTextField(
-                        value = customCheckpointNote,
-                        onValueChange = { customCheckpointNote = it },
-                        label = { Text("本次打卡任务点 / 章节名称 *") },
-                        placeholder = { Text("如: 完成了第3章 程序的机器级表示 与 课后习题", fontSize = 12.sp) },
+                        onValueChange = {
+                            customCheckpointNote = it
+                            // 若用户修改了内容且不等于选中的点，则取消预设点绑定作为自定义点提交
+                            if (selectedPointId != null && pendingPoints.none { p -> p.id == selectedPointId && p.name == it }) {
+                                selectedPointId = null
+                            }
+                        },
+                        label = { Text("本次打卡章节 / 任务点备注 *") },
+                        placeholder = { Text("如: unit1 (2) 或 完成了第3章课后习题", fontSize = 12.sp) },
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 常用快速词条填充
+                    // 常用快速词条
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1026,7 +1031,8 @@ fun UpdateStudyProgressDialog(
                         listOf("第1章", "第2章", "第3章", "第4章", "第5章", "期中复习", "课后习题", "实验报告").forEach { tag ->
                             Surface(
                                 onClick = {
-                                    customCheckpointNote = if (customCheckpointNote.isBlank()) "完成了$tag" else "$customCheckpointNote $tag"
+                                    customCheckpointNote = if (customCheckpointNote.isBlank()) tag else "$customCheckpointNote $tag"
+                                    selectedPointId = null
                                 },
                                 shape = RoundedCornerShape(6.dp),
                                 color = DarkSurface,
@@ -1039,39 +1045,162 @@ fun UpdateStudyProgressDialog(
                             }
                         }
                     }
+                }
 
-                    // 推进量
+                // 4. 数字框：彻底优化居中显示与无裁剪步进
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "本次推进数量:",
+                        fontSize = 12.5.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("推进数值量:", fontSize = 12.5.sp, color = TextSecondary)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    val cur = addAmountText.toDoubleOrNull() ?: 1.0
-                                    if (cur > 0.5) addAmountText = "%.1f".format(cur - 0.5)
-                                },
-                                modifier = Modifier.size(30.dp)
-                            ) {
-                                Text("－", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                        // 减号按钮
+                        Surface(
+                            onClick = {
+                                val cur = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
+                                val step = if (isHourType) 0.5 else 1.0
+                                val next = (cur - step).coerceAtLeast(if (isHourType) 0.5 else 1.0)
+                                addAmountText = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(next)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("－", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             }
-                            OutlinedTextField(
-                                value = addAmountText,
-                                onValueChange = { addAmountText = it },
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.width(70.dp).height(44.dp)
-                            )
-                            IconButton(
-                                onClick = {
-                                    val cur = addAmountText.toDoubleOrNull() ?: 1.0
-                                    addAmountText = "%.1f".format(cur + 0.5)
-                                },
-                                modifier = Modifier.size(30.dp)
+                        }
+
+                        // 数字展示/输入框：使用 BasicTextField + 自定义容器，彻底杜绝上下文字被截断
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.6f)),
+                            modifier = Modifier.width(66.dp).height(36.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
                             ) {
+                                BasicTextField(
+                                    value = addAmountText,
+                                    onValueChange = { input ->
+                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) {
+                                            addAmountText = input
+                                        }
+                                    },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = DopamineGreen,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    cursorBrush = SolidColor(DopamineGreen)
+                                )
+                            }
+                        }
+
+                        // 加号按钮
+                        Surface(
+                            onClick = {
+                                val cur = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
+                                val step = if (isHourType) 0.5 else 1.0
+                                val next = cur + step
+                                addAmountText = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(next)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DarkBorder),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Text("＋", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DopamineGreen)
+                            }
+                        }
+
+                        // 单位
+                        Text(
+                            text = unitLabel,
+                            fontSize = 12.5.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
+                }
+
+                // 5. 已完成章节历史 (折叠展示，清晰不冗余)
+                if (completedPoints.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DarkSurface.copy(alpha = 0.5f),
+                        onClick = { showCompletedHistory = !showCompletedHistory },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "已完成章节 (${completedPoints.size} 个任务点)",
+                                fontSize = 11.5.sp,
+                                color = TextMuted
+                            )
+                            Icon(
+                                imageVector = if (showCompletedHistory) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    if (showCompletedHistory) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 130.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            completedPoints.forEachIndexed { idx, pt ->
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("✓", fontSize = 11.sp, color = DopamineGreen, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "%02d. %s".format(idx + 1, pt.name),
+                                        fontSize = 11.5.sp,
+                                        color = TextMuted,
+                                        textDecoration = TextDecoration.LineThrough,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (pt.completedAt != null) {
+                                        Text(
+                                            text = pt.completedAt.take(16).replace("T", " "),
+                                            fontSize = 10.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1082,59 +1211,42 @@ fun UpdateStudyProgressDialog(
             Button(
                 onClick = {
                     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    val noteTrimmed = customCheckpointNote.trim()
+                    val finalPointName = if (noteTrimmed.isNotBlank()) noteTrimmed else "完成阶段任务点"
 
-                    if (hasPredefinedPoints) {
-                        // 场景 A: 勾选完成预设任务点
-                        val targetPoint = existingPoints.firstOrNull { it.id == selectedPointId }
-                        if (targetPoint != null) {
-                            val updatedPoints = existingPoints.map { p ->
-                                if (p.id == targetPoint.id) p.copy(isCompleted = true, completedAt = nowStr) else p
-                            }
-                            val completedCount = updatedPoints.count { it.isCompleted }
-                            val newPercent = ((completedCount.toDouble() / topic.targetValue.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
-                            val notePrefix = if (customCheckpointNote.isNotBlank()) " (${customCheckpointNote.trim()})" else ""
-                            val updatedTopic = topic.copy(
-                                completedValue = completedCount.toDouble(),
-                                progressPercent = newPercent,
-                                currentCheckpoint = "${targetPoint.name}$notePrefix",
-                                checkpointsJson = updatedPoints.toJson(),
-                                updatedAt = nowStr
-                            )
-                            onConfirm(updatedTopic)
-                        } else {
-                            // 未选中任务点，纯加数值
-                            val addVal = addAmountText.toDoubleOrNull() ?: 1.0
-                            val newVal = topic.completedValue + addVal
-                            val newPercent = ((newVal / topic.targetValue.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
-                            val updatedTopic = topic.copy(
-                                completedValue = newVal,
-                                progressPercent = newPercent,
-                                currentCheckpoint = customCheckpointNote.ifBlank { topic.currentCheckpoint },
-                                updatedAt = nowStr
-                            )
-                            onConfirm(updatedTopic)
+                    val addVal = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
+
+                    val targetPending = existingPoints.firstOrNull { it.id == selectedPointId && !it.isCompleted }
+
+                    val updatedPoints = if (targetPending != null) {
+                        // 勾选完成了预设章节
+                        existingPoints.map { p ->
+                            if (p.id == targetPending.id) {
+                                p.copy(name = finalPointName, isCompleted = true, completedAt = nowStr)
+                            } else p
                         }
                     } else {
-                        // 场景 B: 未预设任务点，以填写的任务点名称建档并推进
-                        val addVal = addAmountText.toDoubleOrNull() ?: 1.0
-                        val pointName = customCheckpointNote.trim().ifBlank { "完成阶段任务点" }
-                        val newPoint = StudyTaskPoint(
-                            name = pointName,
+                        // 记录新完成的章节并沉淀入任务点履历
+                        existingPoints + StudyTaskPoint(
+                            name = finalPointName,
                             isCompleted = true,
                             completedAt = nowStr
                         )
-                        val updatedPoints = existingPoints + newPoint
-                        val newVal = topic.completedValue + addVal
-                        val newPercent = ((newVal / topic.targetValue.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
-                        val updatedTopic = topic.copy(
-                            completedValue = newVal,
-                            progressPercent = newPercent,
-                            currentCheckpoint = pointName,
-                            checkpointsJson = updatedPoints.toJson(),
-                            updatedAt = nowStr
-                        )
-                        onConfirm(updatedTopic)
                     }
+
+                    val newCompleted = topic.completedValue + addVal
+                    val newTarget = maxOf(topic.targetValue, updatedPoints.size.toDouble())
+                    val newPercent = ((newCompleted / newTarget.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
+
+                    val updatedTopic = topic.copy(
+                        completedValue = newCompleted,
+                        targetValue = newTarget,
+                        progressPercent = newPercent,
+                        currentCheckpoint = finalPointName,
+                        checkpointsJson = updatedPoints.toJson(),
+                        updatedAt = nowStr
+                    )
+                    onConfirm(updatedTopic)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen),
                 shape = RoundedCornerShape(8.dp)
