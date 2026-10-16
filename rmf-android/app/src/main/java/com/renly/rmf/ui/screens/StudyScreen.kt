@@ -758,19 +758,47 @@ fun AddStudyTopicDialog(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // 手动添加单个任务点
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(
-                                value = newTaskPointName,
-                                onValueChange = { newTaskPointName = it },
-                                placeholder = { Text("输入单独任务点名称 (如: 第1章 绪论)", fontSize = 11.sp) },
-                                singleLine = true,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Surface(
                                 shape = RoundedCornerShape(8.dp),
+                                color = DarkSurface,
+                                border = BorderStroke(1.dp, DarkBorder),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(44.dp)
-                            )
+                                    .height(40.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.CenterStart,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 10.dp)
+                                ) {
+                                    if (newTaskPointName.isEmpty()) {
+                                        Text(
+                                            "输入单独任务点名称 (如: 第1章 绪论)",
+                                            fontSize = 11.5.sp,
+                                            color = TextMuted,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = newTaskPointName,
+                                        onValueChange = { newTaskPointName = it },
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            fontSize = 12.sp,
+                                            color = TextPrimary
+                                        ),
+                                        cursorBrush = SolidColor(DopamineGreen),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.width(6.dp))
-                            FilledIconButton(
+                            Surface(
                                 onClick = {
                                     if (newTaskPointName.isNotBlank()) {
                                         taskPoints = taskPoints + StudyTaskPoint(name = newTaskPointName.trim())
@@ -778,10 +806,18 @@ fun AddStudyTopicDialog(
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = DopamineGreen),
-                                modifier = Modifier.size(36.dp)
+                                color = DopamineGreen,
+                                modifier = Modifier.height(40.dp)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = "添加", tint = DarkBg, modifier = Modifier.size(18.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(horizontal = 12.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "添加", tint = DarkBg, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("添加", color = DarkBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
@@ -1400,17 +1436,47 @@ fun StudyTopicDetailDialog(
                 }
 
                 // 追加新任务点
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = newPointName,
-                        onValueChange = { newPointName = it },
-                        placeholder = { Text("追加新任务点/章节名称", fontSize = 11.5.sp) },
-                        singleLine = true,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f).height(44.dp)
-                    )
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.CenterStart,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp)
+                        ) {
+                            if (newPointName.isEmpty()) {
+                                Text(
+                                    "追加新任务点/章节名称",
+                                    fontSize = 11.5.sp,
+                                    color = TextMuted,
+                                    maxLines = 1
+                                )
+                            }
+                            BasicTextField(
+                                value = newPointName,
+                                onValueChange = { newPointName = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 12.sp,
+                                    color = TextPrimary
+                                ),
+                                cursorBrush = SolidColor(DopamineGreen),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Button(
+                    Surface(
                         onClick = {
                             if (newPointName.isNotBlank()) {
                                 val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
@@ -1425,12 +1491,19 @@ fun StudyTopicDetailDialog(
                                 newPointName = ""
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(34.dp)
+                        color = DopamineGreen,
+                        modifier = Modifier.height(40.dp)
                     ) {
-                        Text("追加", color = DarkBg, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "追加", tint = DarkBg, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("追加", color = DarkBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
