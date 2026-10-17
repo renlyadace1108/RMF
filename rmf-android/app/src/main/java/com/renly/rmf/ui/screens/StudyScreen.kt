@@ -949,11 +949,6 @@ fun UpdateStudyProgressDialog(
         mutableStateOf(pendingPoints.firstOrNull()?.name ?: "")
     }
 
-    // 推进数值量：非小时类型默认 1，小时类型默认 1.0
-    var addAmountText by remember {
-        mutableStateOf(if (isHourType) "1.0" else "1")
-    }
-
     var showCompletedHistory by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -1083,98 +1078,37 @@ fun UpdateStudyProgressDialog(
                     }
                 }
 
-                // 4. 数字框：彻底优化居中显示与无裁剪步进
+                // 4. 一次打卡只允许推进一个任务点
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "本次推进数量:",
+                        text = "本次推进:",
                         fontSize = 12.5.sp,
                         color = TextSecondary,
                         fontWeight = FontWeight.Medium
                     )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DopamineGreen.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.35f))
                     ) {
-                        // 减号按钮
-                        Surface(
-                            onClick = {
-                                val cur = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
-                                val step = if (isHourType) 0.5 else 1.0
-                                val next = (cur - step).coerceAtLeast(if (isHourType) 0.5 else 1.0)
-                                addAmountText = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(next)
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier.size(36.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("－", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            }
+                            Text("🎯", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "+1 $unitLabel (推进1个任务点)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DopamineGreen
+                            )
                         }
-
-                        // 数字展示/输入框：使用 BasicTextField + 自定义容器，彻底杜绝上下文字被截断
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.6f)),
-                            modifier = Modifier.width(66.dp).height(36.dp)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                BasicTextField(
-                                    value = addAmountText,
-                                    onValueChange = { input ->
-                                        if (input.isEmpty() || input.matches(Regex("""^\d*\.?\d*$"""))) {
-                                            addAmountText = input
-                                        }
-                                    },
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = DopamineGreen,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    cursorBrush = SolidColor(DopamineGreen)
-                                )
-                            }
-                        }
-
-                        // 加号按钮
-                        Surface(
-                            onClick = {
-                                val cur = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
-                                val step = if (isHourType) 0.5 else 1.0
-                                val next = cur + step
-                                addAmountText = if (next % 1.0 == 0.0) next.toInt().toString() else "%.1f".format(next)
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("＋", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = DopamineGreen)
-                            }
-                        }
-
-                        // 单位
-                        Text(
-                            text = unitLabel,
-                            fontSize = 12.5.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
                     }
                 }
 
@@ -1250,9 +1184,9 @@ fun UpdateStudyProgressDialog(
                     val noteTrimmed = customCheckpointNote.trim()
                     val finalPointName = if (noteTrimmed.isNotBlank()) noteTrimmed else "完成阶段任务点"
 
-                    val addVal = addAmountText.toDoubleOrNull() ?: if (isHourType) 1.0 else 1.0
-
                     val targetPending = existingPoints.firstOrNull { it.id == selectedPointId && !it.isCompleted }
+                        ?: existingPoints.firstOrNull { it.name == noteTrimmed && !it.isCompleted }
+                        ?: pendingPoints.firstOrNull()
 
                     val updatedPoints = if (targetPending != null) {
                         // 勾选完成了预设章节
@@ -1270,8 +1204,8 @@ fun UpdateStudyProgressDialog(
                         )
                     }
 
-                    val newCompleted = topic.completedValue + addVal
-                    val newTarget = maxOf(topic.targetValue, updatedPoints.size.toDouble())
+                    val newCompleted = topic.completedValue + 1.0
+                    val newTarget = maxOf(topic.targetValue, updatedPoints.size.toDouble(), newCompleted)
                     val newPercent = ((newCompleted / newTarget.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
 
                     val updatedTopic = topic.copy(
