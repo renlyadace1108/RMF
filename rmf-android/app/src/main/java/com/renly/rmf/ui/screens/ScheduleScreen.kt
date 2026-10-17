@@ -45,12 +45,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -473,6 +475,7 @@ fun ScheduleScreen(
                             backlogItems = backlogSchedules,
                             timeMarkers = timeMarkers,
                             onMarkerClick = { showTimeMarkerDialog = true },
+                            onUpdateTimeMarker = onUpdateTimeMarker,
                             selectedDate = selectedDate,
                             availableTags = availableTags,
                             tagColorMap = tagColorMap,
@@ -2368,6 +2371,7 @@ fun ScheduleDayGridView(
     backlogItems: List<ScheduleEntity> = emptyList(),
     timeMarkers: List<TimeMarkerEntity> = emptyList(),
     onMarkerClick: (TimeMarkerEntity) -> Unit = {},
+    onUpdateTimeMarker: (TimeMarkerEntity) -> Unit = {},
     selectedDate: LocalDate,
     availableTags: List<ScheduleTagEntity> = emptyList(),
     tagColorMap: Map<String, Color> = emptyMap(),
@@ -2455,6 +2459,11 @@ fun ScheduleDayGridView(
     var movingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var movingDragDeltaY by remember { mutableFloatStateOf(0f) }
     var movingOriginalTopDp by remember { mutableFloatStateOf(0f) }
+
+    // 真实时间标记长按拖拽移时 (Drag-to-move time marker)
+    var movingMarkerItem by remember { mutableStateOf<TimeMarkerEntity?>(null) }
+    var movingMarkerDragDeltaY by remember { mutableFloatStateOf(0f) }
+    var movingMarkerOriginalTopDp by remember { mutableFloatStateOf(0f) }
 
     // 已有日程卡片底边拖拽调整时长 (Drag-to-resize duration)
     var resizingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
@@ -2689,7 +2698,7 @@ fun ScheduleDayGridView(
                 Text(if (isLocked) "🔒" else "💡", fontSize = 9.sp)
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁即可编辑排期" else "长按框选 · 拖拽移时 · 拉伸时长 · 双指捏合缩放",
+                    text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁即可编辑排期" else "长按框选 · 拖拽日程/标记移时 · 拉伸时长 · 双指捏合缩放",
                     fontSize = 8.5.sp,
                     color = if (isLocked) Color(0xFFF59E0B) else TextMuted,
                     maxLines = 1,
@@ -3123,16 +3132,88 @@ fun ScheduleDayGridView(
                                     DopamineCyan
                                 }
 
+                                val isMovingThis = movingMarkerItem?.id == marker.id
+
                                 Surface(
-                                    onClick = { onMarkerClick(marker) },
                                     shape = RoundedCornerShape(8.dp),
-                                    color = markerColor.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.2.dp, markerColor.copy(alpha = 0.5f)),
+                                    color = markerColor.copy(alpha = if (isMovingThis) 0.05f else 0.12f),
+                                    border = BorderStroke(
+                                        if (isMovingThis) 2.dp else 1.2.dp,
+                                        markerColor.copy(alpha = if (isMovingThis) 0.9f else 0.5f)
+                                    ),
                                     modifier = Modifier
                                         .offset(y = topY.dp)
                                         .fillMaxWidth()
                                         .padding(horizontal = 2.dp)
                                         .height(blockH.dp)
+                                        .zIndex(if (isMovingThis) 20f else 5f)
+                                        .pointerInput(marker.id + "_move", isLocked) {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                if (isLocked) {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent()
+                                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                        if (change.changedToUp()) {
+                                                            change.consume()
+                                                            onMarkerClick(marker)
+                                                            break
+                                                        }
+                                                    }
+                                                } else {
+                                                    val drag = awaitLongPressOrCancellation(down.id)
+                                                    if (drag != null) {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        movingMarkerItem = marker
+                                                        movingMarkerDragDeltaY = 0f
+                                                        movingMarkerOriginalTopDp = topY
+                                                        drag.consume()
+
+                                                        while (true) {
+                                                            val event = awaitPointerEvent()
+                                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                            if (change.changedToUp()) {
+                                                                change.consume()
+                                                                if (movingMarkerItem != null) {
+                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
+                                                                    val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                                    val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - durationM)
+                                                                    val targetStartHour = targetMinSnapped / 60
+                                                                    val targetStartMin = targetMinSnapped % 60
+                                                                    val targetEndMinTotal = targetMinSnapped + durationM
+                                                                    val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
+                                                                    val targetEndMin = targetEndMinTotal % 60
+
+                                                                    val newStart = selectedDate.atTime(targetStartHour, targetStartMin)
+                                                                    val newEnd = selectedDate.atTime(targetEndHour, targetEndMin)
+                                                                    val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                                                    val updated = marker.copy(
+                                                                        date = dateStr,
+                                                                        startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                        endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                    )
+                                                                    onUpdateTimeMarker(updated)
+                                                                    Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d ~ %02d:%02d".format(targetStartHour, targetStartMin, targetEndHour, targetEndMin), Toast.LENGTH_SHORT).show()
+                                                                    movingMarkerItem = null
+                                                                    movingMarkerDragDeltaY = 0f
+                                                                }
+                                                                break
+                                                            }
+                                                            val dragDelta = change.position - change.previousPosition
+                                                            change.consume()
+                                                            movingMarkerDragDeltaY += dragDelta.y
+                                                        }
+                                                    } else {
+                                                        val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                                                        if (up != null && up.changedToUp()) {
+                                                            up.consume()
+                                                            onMarkerClick(marker)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -3429,40 +3510,116 @@ fun ScheduleDayGridView(
                                     DopamineAmber
                                 }
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                val isMovingThis = movingMarkerItem?.id == marker.id
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.Transparent,
                                     modifier = Modifier
                                         .offset(y = (topY - 11).dp)
                                         .fillMaxWidth()
-                                        .clickable { onMarkerClick(marker) }
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = markerColor,
-                                        shadowElevation = 3.dp,
-                                        modifier = Modifier.height(20.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 6.dp)
-                                        ) {
-                                            Text(marker.icon, fontSize = 10.sp)
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(
-                                                text = "${marker.name} %02d:%02d".format(sDt.hour, sDt.minute),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.Black
-                                            )
-                                        }
-                                    }
+                                        .height(24.dp)
+                                        .zIndex(if (isMovingThis) 22f else 8f)
+                                        .pointerInput(marker.id + "_move", isLocked) {
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                if (isLocked) {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent()
+                                                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                        if (change.changedToUp()) {
+                                                            change.consume()
+                                                            onMarkerClick(marker)
+                                                            break
+                                                        }
+                                                    }
+                                                } else {
+                                                    val drag = awaitLongPressOrCancellation(down.id)
+                                                    if (drag != null) {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        movingMarkerItem = marker
+                                                        movingMarkerDragDeltaY = 0f
+                                                        movingMarkerOriginalTopDp = topY
+                                                        drag.consume()
 
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(1.6.dp)
-                                            .background(markerColor.copy(alpha = 0.75f))
-                                    )
+                                                        while (true) {
+                                                            val event = awaitPointerEvent()
+                                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                            if (change.changedToUp()) {
+                                                                change.consume()
+                                                                if (movingMarkerItem != null) {
+                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.8f * hourHeightDpValue)
+                                                                    val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                                    val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                                    val targetHour = targetMinSnapped / 60
+                                                                    val targetMinute = targetMinSnapped % 60
+                                                                    val newStart = selectedDate.atTime(targetHour, targetMinute)
+                                                                    val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                                                    val updated = marker.copy(
+                                                                        date = dateStr,
+                                                                        startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                    )
+                                                                    onUpdateTimeMarker(updated)
+                                                                    Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d".format(targetHour, targetMinute), Toast.LENGTH_SHORT).show()
+                                                                    movingMarkerItem = null
+                                                                    movingMarkerDragDeltaY = 0f
+                                                                }
+                                                                break
+                                                            }
+                                                            val dragDelta = change.position - change.previousPosition
+                                                            change.consume()
+                                                            movingMarkerDragDeltaY += dragDelta.y
+                                                        }
+                                                    } else {
+                                                        val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                                                        if (up != null && up.changedToUp()) {
+                                                            up.consume()
+                                                            onMarkerClick(marker)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .height(20.dp)
+                                                .shadow(if (isMovingThis) 0.dp else 3.dp, RoundedCornerShape(10.dp))
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isMovingThis) markerColor.copy(alpha = 0.35f) else markerColor)
+                                                .then(
+                                                    if (isMovingThis) Modifier.border(1.dp, markerColor, RoundedCornerShape(10.dp))
+                                                    else Modifier
+                                                )
+                                                .padding(horizontal = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(marker.icon, fontSize = 10.sp)
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text(
+                                                    text = "${marker.name} %02d:%02d".format(sDt.hour, sDt.minute),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(if (isMovingThis) 1.dp else 1.6.dp)
+                                                .background(markerColor.copy(alpha = if (isMovingThis) 0.35f else 0.75f))
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -3490,6 +3647,7 @@ fun ScheduleDayGridView(
                                     .fillMaxWidth()
                                     .padding(horizontal = 4.dp)
                                     .height(previewHeightDp.dp)
+                                    .zIndex(30f)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -3504,6 +3662,104 @@ fun ScheduleDayGridView(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        // 真实时间标记长按拖拽移时实时预览指示虚影 (Moving Marker Hover Preview)
+                        if (movingMarkerItem != null) {
+                            val marker = movingMarkerItem!!
+                            val markerColor = try {
+                                Color(android.graphics.Color.parseColor(marker.colorHex))
+                            } catch (_: Exception) {
+                                DopamineAmber
+                            }
+                            val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.8f * hourHeightDpValue)
+                            val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+
+                            if (marker.markerType == "RANGE") {
+                                val sDt = parseDateTime(marker.startTime)
+                                val eDt = parseDateTime(marker.endTime)
+                                val origDurationM = if (sDt != null && eDt != null) {
+                                    ((eDt.hour * 60 + eDt.minute) - (sDt.hour * 60 + sDt.minute)).coerceIn(5, 1440)
+                                } else 60
+
+                                val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - origDurationM)
+                                val targetStartHour = targetMinSnapped / 60
+                                val targetStartMin = targetMinSnapped % 60
+                                val targetEndMinTotal = targetMinSnapped + origDurationM
+                                val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
+                                val targetEndMin = targetEndMinTotal % 60
+                                val previewHeightDp = (origDurationM.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(24f)
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = markerColor.copy(alpha = 0.45f),
+                                    border = BorderStroke(2.dp, markerColor),
+                                    shadowElevation = 8.dp,
+                                    modifier = Modifier
+                                        .offset(y = currentTopDp.dp)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 2.dp)
+                                        .height(previewHeightDp.dp)
+                                        .zIndex(32f)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    ) {
+                                        Text(marker.icon, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "移动至 %02d:%02d - %02d:%02d · %s (%d分)".format(
+                                                targetStartHour, targetStartMin, targetEndHour, targetEndMin, marker.name, origDurationM
+                                            ),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            } else {
+                                val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                val targetHour = targetMinSnapped / 60
+                                val targetMinute = targetMinSnapped % 60
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .offset(y = (currentTopDp - 11f).dp)
+                                        .fillMaxWidth()
+                                        .zIndex(32f)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = markerColor,
+                                        shadowElevation = 8.dp,
+                                        border = BorderStroke(1.5.dp, Color.White),
+                                        modifier = Modifier.height(24.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Text(marker.icon, fontSize = 11.sp)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "${marker.name} %02d:%02d · 松开保存".format(targetHour, targetMinute),
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(2.2.dp)
+                                            .background(markerColor)
                                     )
                                 }
                             }
