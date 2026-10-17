@@ -1,13 +1,23 @@
 package com.renly.rmf.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -62,17 +72,55 @@ fun StudyScreen(
     val topics by topicsFlow.collectAsState(initial = emptyList())
     val courses by coursesFlow.collectAsState(initial = emptyList())
 
+    val density = LocalDensity.current
+    val hapticFeedback = LocalHapticFeedback.current
+    val studyPrefs = remember { context.getSharedPreferences("study_settings_pref", Context.MODE_PRIVATE) }
+
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTopicForProgress by remember { mutableStateOf<StudyTopicEntity?>(null) }
     var selectedTopicForDetail by remember { mutableStateOf<StudyTopicEntity?>(null) }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
+    var topicToDelete by remember { mutableStateOf<StudyTopicEntity?>(null) }
+
+    // 持久化自定义排序列表
+    var customOrderList by remember {
+        val raw = studyPrefs.getString("study_topics_custom_order", "") ?: ""
+        mutableStateOf(if (raw.isBlank()) emptyList() else raw.split(","))
+    }
+
+    // 拖动排序状态
+    var draggingTopicId by remember { mutableStateOf<String?>(null) }
+    var dragDeltaY by remember { mutableFloatStateOf(0f) }
 
     val categories = remember(topics) {
         listOf("ALL" to "全部") + topics.map { it.category }.distinct().filter { it.isNotBlank() }.map { it to it }
     }
 
-    val filteredTopics = remember(topics, selectedCategoryFilter) {
-        if (selectedCategoryFilter == "ALL") topics else topics.filter { it.category == selectedCategoryFilter }
+    // 按自定义顺序排序
+    val orderedTopics = remember(topics, customOrderList) {
+        val orderMap = customOrderList.mapIndexed { index, id -> id to index }.toMap()
+        topics.sortedWith(compareBy({ orderMap[it.id] ?: Int.MAX_VALUE }, { it.createdAt }))
+    }
+
+    val filteredTopics = remember(orderedTopics, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "ALL") orderedTopics else orderedTopics.filter { it.category == selectedCategoryFilter }
+    }
+
+    val onMoveTopic: (Int, Int) -> Unit = { fromIdx, toIdx ->
+        if (fromIdx in filteredTopics.indices && toIdx in filteredTopics.indices && fromIdx != toIdx) {
+            val fromItem = filteredTopics[fromIdx]
+            val toItem = filteredTopics[toIdx]
+            val fullList = orderedTopics.toMutableList()
+            val fullFromIdx = fullList.indexOfFirst { it.id == fromItem.id }
+            val fullToIdx = fullList.indexOfFirst { it.id == toItem.id }
+            if (fullFromIdx != -1 && fullToIdx != -1) {
+                val item = fullList.removeAt(fullFromIdx)
+                fullList.add(fullToIdx, item)
+                val newOrder = fullList.map { it.id }
+                customOrderList = newOrder
+                studyPrefs.edit().putString("study_topics_custom_order", newOrder.joinToString(",")).apply()
+            }
+        }
     }
 
     Scaffold(
@@ -244,11 +292,36 @@ fun StudyScreen(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    items(filteredTopics, key = { it.id }) { topic ->
+                    itemsIndexed(filteredTopics, key = { _, it -> it.id }) { index, topic ->
+                        val isBeingDragged = draggingTopicId == topic.id
                         StudyTopicCard(
                             topic = topic,
+                            isBeingDragged = isBeingDragged,
+                            dragDeltaY = if (isBeingDragged) dragDeltaY else 0f,
                             onCheckInClick = { selectedTopicForProgress = topic },
-                            onDetailClick = { selectedTopicForDetail = topic }
+                            onDetailClick = { selectedTopicForDetail = topic },
+                            onDeleteRequest = { topicToDelete = topic },
+                            onDragHandleStart = {
+                                draggingTopicId = topic.id
+                                dragDeltaY = 0f
+                            },
+                            onDragHandleMove = { deltaY ->
+                                dragDeltaY += deltaY
+                                val threshold = 120f * density.density
+                                if (dragDeltaY > threshold && index < filteredTopics.size - 1) {
+                                    onMoveTopic(index, index + 1)
+                                    dragDeltaY -= threshold
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                } else if (dragDeltaY < -threshold && index > 0) {
+                                    onMoveTopic(index, index - 1)
+                                    dragDeltaY += threshold
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            },
+                            onDragHandleEnd = {
+                                draggingTopicId = null
+                                dragDeltaY = 0f
+                            }
                         )
                     }
                     item {
@@ -301,18 +374,78 @@ fun StudyScreen(
                 }
             )
         }
+
+        // 弹窗 4: 删除学习任务确认弹窗
+        topicToDelete?.let { topic ->
+            AlertDialog(
+                onDismissRequest = { topicToDelete = null },
+                containerColor = DarkCard,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🗑️", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("删除学习任务", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "确定要删除学习任务「${topic.title}」吗？",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "删除后，该任务的累计学习进度、打卡记录及任务点清单将被一并清除，此操作不可撤销。",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onDeleteTopic(topic.id)
+                            customOrderList = customOrderList.filter { it != topic.id }
+                            studyPrefs.edit().putString("study_topics_custom_order", customOrderList.joinToString(",")).apply()
+                            topicToDelete = null
+                            HapticHelper.performQuadrantMoved(context)
+                            Toast.makeText(context, "已删除「${topic.title}」", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineRed),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("确认删除", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { topicToDelete = null }) {
+                        Text("取消", color = TextSecondary)
+                    }
+                }
+            )
+        }
     }
 }
 
 /**
- * 学习专题卡片
+ * 学习专题卡片 (支持拖动排序与长按删除)
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun StudyTopicCard(
     topic: StudyTopicEntity,
+    isBeingDragged: Boolean = false,
+    dragDeltaY: Float = 0f,
     onCheckInClick: () -> Unit,
-    onDetailClick: () -> Unit
+    onDetailClick: () -> Unit,
+    onDeleteRequest: () -> Unit = {},
+    onDragHandleStart: () -> Unit = {},
+    onDragHandleMove: (Float) -> Unit = {},
+    onDragHandleEnd: () -> Unit = {}
 ) {
+    val hapticFeedback = LocalHapticFeedback.current
     val progress = (topic.completedValue / topic.targetValue.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f)
     val unitLabel = when (topic.progressType) {
         "HOURS" -> "小时"
@@ -326,18 +459,37 @@ fun StudyTopicCard(
     val nextPendingPoint = remember(taskPoints) { taskPoints.firstOrNull { !it.isCompleted } }
 
     Surface(
-        onClick = onCheckInClick,
         shape = RoundedCornerShape(14.dp),
         color = DarkCard,
-        border = BorderStroke(1.dp, DarkBorder),
-        modifier = Modifier.fillMaxWidth()
+        border = BorderStroke(
+            width = if (isBeingDragged) 1.5.dp else 1.dp,
+            color = if (isBeingDragged) DopamineGreen else DarkBorder
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(if (isBeingDragged) 10f else 0f)
+            .graphicsLayer {
+                translationY = dragDeltaY
+                if (isBeingDragged) {
+                    scaleX = 1.02f
+                    scaleY = 1.02f
+                    shadowElevation = 16f
+                }
+            }
+            .combinedClickable(
+                onClick = onCheckInClick,
+                onLongClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onDeleteRequest()
+                }
+            )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // 顶部标题与分类
+            // 顶部标题与分类 & 拖动手柄
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -363,6 +515,46 @@ fun StudyTopicCard(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 拖动排序手柄 (三横线)
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isBeingDragged) DopamineGreen.copy(alpha = 0.25f) else DarkSurface)
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDragHandleStart()
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    onDragHandleMove(dragAmount.y)
+                                },
+                                onDragEnd = { onDragHandleEnd() },
+                                onDragCancel = { onDragHandleEnd() }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        repeat(3) {
+                            Box(
+                                modifier = Modifier
+                                    .width(14.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(if (isBeingDragged) DopamineGreen else TextMuted)
+                            )
+                        }
+                    }
                 }
             }
 
