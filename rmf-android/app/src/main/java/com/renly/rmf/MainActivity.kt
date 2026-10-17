@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -92,6 +93,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Habits : Screen("habits", "习惯", Icons.Default.SelfImprovement)
     object Countdowns : Screen("countdowns", "倒数", Icons.Default.HourglassBottom)
     object Reminders : Screen("reminders", "提醒", Icons.Default.NotificationsActive)
+    object Notes : Screen("notes", "随记", Icons.Default.EditNote)
 
     companion object {
         fun fromRoute(route: String): Screen {
@@ -105,6 +107,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
                 "habits" -> Habits
                 "countdowns" -> Countdowns
                 "reminders" -> Reminders
+                "notes" -> Notes
                 "goals" -> Goals
                 "expenses" -> Expenses
                 "daily_report" -> DailyReport
@@ -660,6 +663,24 @@ class MainActivity : ComponentActivity() {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
                                 tagsFlow = db.syncDao().getAllTags(),
+                                timeMarkersFlow = db.timeMarkerDao().getAllActiveMarkers(),
+                                onAddTimeMarker = { marker ->
+                                    lifecycleScope.launch {
+                                        db.timeMarkerDao().insertOrUpdate(marker)
+                                    }
+                                },
+                                onUpdateTimeMarker = { marker ->
+                                    lifecycleScope.launch {
+                                        db.timeMarkerDao().insertOrUpdate(marker)
+                                    }
+                                },
+                                onDeleteTimeMarker = { id ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        db.timeMarkerDao().softDelete(id, nowStr)
+                                    }
+                                },
+                                onNavigateToNotes = { navigateToScreen(Screen.Notes, 1) },
                                 onToggleStatus = { schedule ->
                                     lifecycleScope.launch {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
@@ -982,6 +1003,7 @@ class MainActivity : ComponentActivity() {
                                     dailyReportDate.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                                     dailyReportDate.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
                                 ),
+                                todayMarkersFlow = db.timeMarkerDao().getMarkersByDate(dailyReportDate.toString()),
                                 onSaveReport = { report ->
                                     lifecycleScope.launch {
                                         db.dailyReportDao().insertOrUpdate(report)
@@ -1101,6 +1123,64 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = { navigateToScreen(Screen.Workbench, -1) }
                             )
 
+                            Screen.Notes -> NotesScreen(
+                                notesFlow = db.noteDao().getAllActiveNotes(),
+                                onAddNote = { title, content, category, colorHex, isPinned ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val entity = com.renly.rmf.data.local.entity.NoteEntity(
+                                            title = title,
+                                            content = content,
+                                            category = category,
+                                            colorHex = colorHex,
+                                            isPinned = if (isPinned) 1 else 0,
+                                            createdAt = nowStr,
+                                            updatedAt = nowStr
+                                        )
+                                        db.noteDao().insertOrUpdate(entity)
+                                    }
+                                },
+                                onUpdateNote = { note ->
+                                    lifecycleScope.launch {
+                                        db.noteDao().insertOrUpdate(note)
+                                    }
+                                },
+                                onDeleteNote = { id ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        db.noteDao().softDelete(id, nowStr)
+                                    }
+                                },
+                                onTogglePin = { note ->
+                                    lifecycleScope.launch {
+                                        val newPin = if (note.isPinned == 1) 0 else 1
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        db.noteDao().togglePin(note.id, newPin, nowStr)
+                                    }
+                                },
+                                onConvertToSchedule = { title, content ->
+                                    lifecycleScope.launch {
+                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val entity = ScheduleEntity(
+                                            title = title,
+                                            description = content,
+                                            workType = "DEEP_WORK",
+                                            category = "工作",
+                                            status = "BACKLOG",
+                                            estimatedMinutes = 30,
+                                            startTime = "",
+                                            endTime = "",
+                                            eisenhowerQuadrant = "Q2",
+                                            createdAt = nowStr,
+                                            updatedAt = nowStr
+                                        )
+                                        db.scheduleDao().insertOrUpdate(entity)
+                                        Toast.makeText(this@MainActivity, "✓ 已添加至待办任务箱", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onBack = { navigateToScreen(Screen.Workbench, -1) }
+                            )
+
                             Screen.Workbench -> WorkbenchScreen(
                                 onNavigateToSettings = { navigateToScreen(Screen.Settings, 1) },
                                 onNavigateToGoals = { navigateToScreen(Screen.Goals, 1) },
@@ -1111,6 +1191,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToHabits = { navigateToScreen(Screen.Habits, 1) },
                                 onNavigateToCountdowns = { navigateToScreen(Screen.Countdowns, 1) },
                                 onNavigateToReminders = { navigateToScreen(Screen.Reminders, 1) },
+                                onNavigateToNotes = { navigateToScreen(Screen.Notes, 1) },
                                 onNavigateToTutorial = { navigateToScreen(Screen.Tutorial, 1) },
                                 onTriggerAudit = {
                                     val currentList = runBlockingOrCachedSchedules()
@@ -1123,6 +1204,13 @@ class MainActivity : ComponentActivity() {
                                         val interruptions = db.interruptionDao().getAllRawInterruptions()
                                         val topics = db.studyTopicDao().getAllRawTopics().filter { it.isDeleted == 0 }
                                         val studySum = topics.joinToString { "${it.title}: ${it.progressPercent}%" }
+                                        val todayStr = java.time.LocalDate.now().toString()
+                                        val timeMarkers = db.timeMarkerDao().getMarkersListByDate(todayStr)
+                                        val markersSummary = com.renly.rmf.domain.service.TimeMarkerVarianceAnalyzer.buildSummaryTextForAi(
+                                            java.time.LocalDate.now(),
+                                            schedules,
+                                            timeMarkers
+                                        )
 
                                         when (val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
                                             context = this@MainActivity,
@@ -1130,7 +1218,8 @@ class MainActivity : ComponentActivity() {
                                             totalSchedules = schedules.size,
                                             focusMinutes = completed * 30,
                                             interruptionCount = interruptions.size,
-                                            studySummary = studySum.ifBlank { "无专项更新" }
+                                            studySummary = studySum.ifBlank { "无专项更新" },
+                                            timeMarkersSummary = markersSummary
                                         )) {
                                             is com.renly.rmf.domain.service.AiResult.Success -> callback(res.data)
                                             is com.renly.rmf.domain.service.AiResult.Error -> callback("生成失败: ${res.errorMessage}")
@@ -1185,13 +1274,20 @@ class MainActivity : ComponentActivity() {
                                     Toast.makeText(this@MainActivity, "已设为冷启动默认主页", Toast.LENGTH_SHORT).show()
                                 },
                                 syncDao = db.syncDao(),
-                                onTriggerAiReview = { _, callback ->
+                                 onTriggerAiReview = { _, callback ->
                                     lifecycleScope.launch {
                                         val schedules = db.scheduleDao().getAllRawSchedules().filter { it.isDeleted == 0 }
                                         val completed = schedules.count { it.status == "COMPLETED" }
                                         val interruptions = db.interruptionDao().getAllRawInterruptions()
                                         val topics = db.studyTopicDao().getAllRawTopics().filter { it.isDeleted == 0 }
                                         val studySum = topics.joinToString { "${it.title}: ${it.progressPercent}%" }
+                                        val todayStr = java.time.LocalDate.now().toString()
+                                        val timeMarkers = db.timeMarkerDao().getMarkersListByDate(todayStr)
+                                        val markersSummary = com.renly.rmf.domain.service.TimeMarkerVarianceAnalyzer.buildSummaryTextForAi(
+                                            java.time.LocalDate.now(),
+                                            schedules,
+                                            timeMarkers
+                                        )
 
                                         when (val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
                                             context = this@MainActivity,
@@ -1199,7 +1295,8 @@ class MainActivity : ComponentActivity() {
                                             totalSchedules = schedules.size,
                                             focusMinutes = completed * 30,
                                             interruptionCount = interruptions.size,
-                                            studySummary = studySum.ifBlank { "无专项更新" }
+                                            studySummary = studySum.ifBlank { "无专项更新" },
+                                            timeMarkersSummary = markersSummary
                                         )) {
                                             is com.renly.rmf.domain.service.AiResult.Success -> callback(res.data)
                                             is com.renly.rmf.domain.service.AiResult.Error -> callback("生成失败: ${res.errorMessage}")

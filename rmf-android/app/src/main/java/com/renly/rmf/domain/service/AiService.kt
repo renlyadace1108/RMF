@@ -98,7 +98,8 @@ object AiService {
         focusMinutes: Int,
         interruptionCount: Int,
         studySummary: String,
-        customNote: String = ""
+        customNote: String = "",
+        timeMarkersSummary: String = ""
     ): AiResult<String> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
@@ -110,18 +111,32 @@ object AiService {
             return@withContext AiResult.Error("请先在设置中完整配置接口地址、密钥与模型。")
         }
 
+        val markersPart = if (timeMarkersSummary.isNotBlank()) {
+            """
+            - 实际时间标记与作息执行 (真实节点/时间段):
+            $timeMarkersSummary
+            """.trimIndent()
+        } else {
+            "- 实际时间标记与作息执行: 暂无单独时间标记记录"
+        }
+
         val prompt = """
-            你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据，生成一份结构清晰、有洞察力的高质量复盘报告：
+            你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据与实际时间标记，生成一份结构清晰、有洞察力的高质量复盘报告：
             - 今日日程完成率: $completedCount / $totalSchedules
             - 专注总时长: $focusMinutes 分钟
             - 打断发生次数: $interruptionCount 次
             - 学习与技能进展: $studySummary
             - 用户今日个人心得: $customNote
+            $markersPart
+
+            分析要求：
+            1. 请重点对比用户的【计划日程】与【实际时间标记】（如起床、睡觉、午休等真实作息节点），精准指出实际执行与预期规划之间的偏差、精力波峰与波谷重叠或冲突情况；
+            2. 给出切实可行的日程排期与作息改善建议。
 
             请按以下规范输出排版精美的 Markdown 内容：
             ### 🌟 今日高光与成就盘点
-            ### ⚡ 精力与专注状态深度诊断
-            ### 🎯 明日重心与节奏优化建议
+            ### ⚡ 实际作息与预计日程偏差诊断 (重点结合时间标记与执行差异)
+            ### 🎯 明日精力节奏与日程优化建议
         """.trimIndent()
 
         return@withContext callOpenAiCompatibleApi(apiKey, baseUrl, model, prompt, null)
@@ -193,7 +208,8 @@ object AiService {
         dateStr: String,
         completedTasks: List<String>,
         pendingTasks: List<String>,
-        completionRate: Int
+        completionRate: Int,
+        timeMarkersSummary: String = ""
     ): AiResult<AiDailyReportDraft> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
@@ -217,8 +233,15 @@ object AiService {
             "今日无遗留待办事项"
         }
 
+        val markersSection = if (timeMarkersSummary.isNotBlank()) {
+            """
+            - 实际时间标记与作息执行 (真实节点/时间段与计划偏差):
+            $timeMarkersSummary
+            """.trimIndent()
+        } else ""
+
         val prompt = """
-            你是一名专业的高绩效个人效能与精力管理专家。请根据用户在 $dateStr 的执行清单数据，生成今日的复盘总结草稿。
+            你是一名专业的高绩效个人效能与精力管理专家。请根据用户在 $dateStr 的执行清单数据与实际时间标记，生成今日的复盘总结草稿。
             
             【今日执行数据】
             - 任务履约达成率: $completionRate%
@@ -226,12 +249,13 @@ object AiService {
             $completedText
             - 待推进/未完成事项:
             $pendingText
+            $markersSection
 
             【任务要求】
             请分析并提炼出以下三部分内容，输出格式必须为纯 JSON 对象，严禁带有 markdown 标记或额外废话：
             1. summary: 今日完成工作 (Done) 的条理化总结，突出重点成果。
             2. plan: 明日攻坚计划 (Plan) 的建议安排，合理承接未完事项并设立重心。
-            3. reflection: 效率反思与心得 (Reflection)，结合达成率给出客观中肯的精力节奏与心流建议。
+            3. reflection: 效率反思与心得 (Reflection)，结合达成率与时间标记（起床、就寝、午休等真实作息节点与预计日程的偏差）给出客观中肯的精力节奏与作息调整建议。
 
             【JSON 格式规范】
             {

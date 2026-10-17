@@ -32,6 +32,8 @@ import android.widget.Toast
 import com.renly.rmf.domain.service.AiPreferences
 import com.renly.rmf.domain.service.AiResult
 import com.renly.rmf.domain.service.AiService
+import com.renly.rmf.data.local.entity.TimeMarkerEntity
+import com.renly.rmf.domain.service.TimeMarkerVarianceAnalyzer
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -40,11 +42,13 @@ fun DailyReportScreen(
     currentDate: LocalDate,
     onDateChange: (LocalDate) -> Unit,
     todaySchedulesFlow: Flow<List<ScheduleEntity>>,
+    todayMarkersFlow: Flow<List<TimeMarkerEntity>>? = null,
     onSaveReport: (DailyReportEntity) -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val schedules by todaySchedulesFlow.collectAsState(initial = emptyList())
+    val markers by (todayMarkersFlow ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = emptyList())
     val clipboardManager = LocalClipboardManager.current
 
     var summaryText by remember { mutableStateOf("") }
@@ -72,7 +76,15 @@ fun DailyReportScreen(
 
         summaryText = completedSummary
         planText = pendingSummary
-        reflectionText = "今日完成率 ${completionRate}%。保持聚焦，减少打断，稳步推进北极星目标。"
+        var reflection = "今日完成率 ${completionRate}%。保持聚焦，减少打断，稳步推进北极星目标。"
+        if (markers.isNotEmpty()) {
+            val insights = TimeMarkerVarianceAnalyzer.analyzeDay(currentDate, schedules, markers)
+            val warnings = insights.filter { it.level == "WARNING" }
+            if (warnings.isNotEmpty()) {
+                reflection += "\n\n【时间标记与计划偏差】:\n" + warnings.joinToString("\n") { "• ${it.title}: ${it.detail}" }
+            }
+        }
+        reflectionText = reflection
     }
 
     // 智能自动生成日报草稿 (支持 AI 接入与本地兜底)
@@ -87,13 +99,19 @@ fun DailyReportScreen(
             isGeneratingAi = true
             val completedList = completedTasks.map { "${it.title} (${it.category})" }
             val pendingList = schedules.filter { it.status != "COMPLETED" }.map { "${it.title} (${it.category})" }
+            val markersSummary = if (markers.isNotEmpty()) {
+                TimeMarkerVarianceAnalyzer.buildSummaryTextForAi(currentDate, schedules, markers)
+            } else {
+                ""
+            }
 
             val result = AiService.generateDailyReportDraft(
                 context = context,
                 dateStr = currentDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 completedTasks = completedList,
                 pendingTasks = pendingList,
-                completionRate = completionRate
+                completionRate = completionRate,
+                timeMarkersSummary = markersSummary
             )
 
             isGeneratingAi = false

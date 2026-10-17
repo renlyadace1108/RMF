@@ -27,9 +27,11 @@ import com.renly.rmf.data.local.entity.*
         HabitEntity::class,
         CountdownEntity::class,
         FocusRecordEntity::class,
-        ReminderEntity::class
+        ReminderEntity::class,
+        NoteEntity::class,
+        TimeMarkerEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class RmfDatabase : RoomDatabase() {
@@ -47,6 +49,8 @@ abstract class RmfDatabase : RoomDatabase() {
     abstract fun countdownDao(): CountdownDao
     abstract fun focusDao(): FocusDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun noteDao(): NoteDao
+    abstract fun timeMarkerDao(): TimeMarkerDao
 
     /**
      * 清空所有测试与业务数据，保留表结构与系统偏好，对齐 Windows 端 ClearAllData
@@ -69,6 +73,8 @@ abstract class RmfDatabase : RoomDatabase() {
             db.execSQL("DELETE FROM countdowns;")
             db.execSQL("DELETE FROM focus_records;")
             db.execSQL("DELETE FROM reminders;")
+            db.execSQL("DELETE FROM notes;")
+            db.execSQL("DELETE FROM time_markers;")
             db.execSQL("DELETE FROM snapshot_metadata;")
             db.execSQL("DELETE FROM timetable_settings WHERE key LIKE 'test_%';")
             db.setTransactionSuccessful()
@@ -79,7 +85,7 @@ abstract class RmfDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "rmf.db"
-        private const val CURRENT_DB_VERSION = 9
+        private const val CURRENT_DB_VERSION = 10
 
         private data class ColSpec(
             val name: String,
@@ -446,6 +452,46 @@ abstract class RmfDatabase : RoomDatabase() {
                 indices = listOf(
                     IndexSpec("idx_reminders_time", false, listOf("remind_time", "is_deleted", "is_completed"))
                 )
+            ),
+            TableSpec(
+                tableName = "notes",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("title", "TEXT", true, null, "''"),
+                    ColSpec("content", "TEXT", true, null, "''"),
+                    ColSpec("category", "TEXT", true, "'灵感'", "'灵感'"),
+                    ColSpec("color_hex", "TEXT", true, "'#F59E0B'", "'#F59E0B'"),
+                    ColSpec("is_pinned", "INTEGER", true, "0", "0"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_notes_pinned", false, listOf("is_pinned", "is_deleted")),
+                    IndexSpec("idx_notes_updated", false, listOf("updated_at", "is_deleted"))
+                )
+            ),
+            TableSpec(
+                tableName = "time_markers",
+                columns = listOf(
+                    ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
+                    ColSpec("name", "TEXT", true, null, "''"),
+                    ColSpec("marker_type", "TEXT", true, "'POINT'", "'POINT'"),
+                    ColSpec("category", "TEXT", true, "'LIFESTYLE'", "'LIFESTYLE'"),
+                    ColSpec("icon", "TEXT", true, "'📍'", "'📍'"),
+                    ColSpec("date", "TEXT", true, null, "date('now')"),
+                    ColSpec("start_time", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("end_time", "TEXT", true, "''", "''"),
+                    ColSpec("color_hex", "TEXT", true, "'#38BDF8'", "'#38BDF8'"),
+                    ColSpec("notes", "TEXT", true, "''", "''"),
+                    ColSpec("is_deleted", "INTEGER", true, "0", "0"),
+                    ColSpec("created_at", "TEXT", true, null, "datetime('now')"),
+                    ColSpec("updated_at", "TEXT", true, null, "datetime('now')")
+                ),
+                indices = listOf(
+                    IndexSpec("idx_markers_date", false, listOf("date", "is_deleted")),
+                    IndexSpec("idx_markers_time", false, listOf("start_time", "is_deleted"))
+                )
             )
         )
 
@@ -492,6 +538,12 @@ abstract class RmfDatabase : RoomDatabase() {
         }
 
         val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                ensureLosslessSchema(db)
+            }
+        }
+
+        val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 ensureLosslessSchema(db)
             }
@@ -554,7 +606,7 @@ abstract class RmfDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)

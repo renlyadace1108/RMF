@@ -66,6 +66,7 @@ import kotlin.math.roundToInt
 import com.renly.rmf.RmfApplication
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.ScheduleTagEntity
+import com.renly.rmf.data.local.entity.TimeMarkerEntity
 import com.renly.rmf.domain.model.SubTaskItem
 import com.renly.rmf.domain.service.CalendarSyncResult
 import com.renly.rmf.domain.service.GoogleCalendarSyncService
@@ -97,11 +98,16 @@ enum class ScheduleViewMode(val title: String, val icon: String) {
 fun ScheduleScreen(
     schedulesFlow: Flow<List<ScheduleEntity>>,
     tagsFlow: Flow<List<ScheduleTagEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
+    timeMarkersFlow: Flow<List<TimeMarkerEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onToggleStatus: (ScheduleEntity) -> Unit,
     onAddSchedule: (String, String, String, Int, String, String, Int, String) -> Unit,
     onUpdateSchedule: (ScheduleEntity) -> Unit = {},
     onDeleteSchedule: (String) -> Unit = {},
+    onAddTimeMarker: (TimeMarkerEntity) -> Unit = {},
+    onUpdateTimeMarker: (TimeMarkerEntity) -> Unit = {},
+    onDeleteTimeMarker: (String) -> Unit = {},
     onOpenQuickCapture: () -> Unit = {},
+    onNavigateToNotes: () -> Unit = {},
     onNavigateToSummary: () -> Unit = {},
     onNavigateToFitness: () -> Unit = {},
     onAddTag: (ScheduleTagEntity) -> Unit = {},
@@ -109,6 +115,7 @@ fun ScheduleScreen(
 ) {
     val schedules by schedulesFlow.collectAsState(initial = emptyList())
     val dbTags by tagsFlow.collectAsState(initial = emptyList())
+    val timeMarkers by timeMarkersFlow.collectAsState(initial = emptyList())
     val defaultTags = remember {
         listOf(
             ScheduleTagEntity(id = "1", name = "工作", colorHex = "#38BDF8", createdAt = ""),
@@ -142,6 +149,7 @@ fun ScheduleScreen(
     var showCalendarSyncDialog by remember { mutableStateOf(false) }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showManageTagsDialog by remember { mutableStateOf(false) }
+    var showTimeMarkerDialog by remember { mutableStateOf(false) }
     var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
@@ -210,6 +218,50 @@ fun ScheduleScreen(
                                 Text("⚡", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text("闪念", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
+                            }
+                        }
+
+                        // 📍 真实时间标记与偏差分析入口 (TimeMarker)
+                        val dayMarkerCount = remember(timeMarkers, selectedDate) {
+                            timeMarkers.count { it.isDeleted == 0 && (it.date == selectedDate.toString() || it.startTime.startsWith(selectedDate.toString())) }
+                        }
+                        Surface(
+                            onClick = { showTimeMarkerDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("📍", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (dayMarkerCount > 0) "标记 $dayMarkerCount" else "标记",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = DopamineCyan
+                                )
+                            }
+                        }
+
+                        // 📝 灵感便签与随记速记入口
+                        Surface(
+                            onClick = onNavigateToNotes,
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("📝", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("随记", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
                             }
                         }
 
@@ -415,6 +467,8 @@ fun ScheduleScreen(
                         ScheduleDayGridView(
                             schedules = calendarSchedules,
                             backlogItems = backlogSchedules,
+                            timeMarkers = timeMarkers,
+                            onMarkerClick = { showTimeMarkerDialog = true },
                             selectedDate = selectedDate,
                             availableTags = availableTags,
                             tagColorMap = tagColorMap,
@@ -1015,6 +1069,19 @@ fun ScheduleScreen(
                 onOpenAdd = {
                     showAddTagDialog = true
                 }
+            )
+        }
+
+        // 📍 真实时间标记与实际偏差分析弹窗 (TimeMarkerDialog)
+        if (showTimeMarkerDialog) {
+            TimeMarkerDialog(
+                selectedDate = selectedDate,
+                schedules = calendarSchedules,
+                markers = timeMarkers,
+                onDismiss = { showTimeMarkerDialog = false },
+                onAddMarker = onAddTimeMarker,
+                onUpdateMarker = onUpdateTimeMarker,
+                onDeleteMarker = onDeleteTimeMarker
             )
         }
     }
@@ -2185,6 +2252,8 @@ fun ScheduleWeekGridView(
 fun ScheduleDayGridView(
     schedules: List<ScheduleEntity>,
     backlogItems: List<ScheduleEntity> = emptyList(),
+    timeMarkers: List<TimeMarkerEntity> = emptyList(),
+    onMarkerClick: (TimeMarkerEntity) -> Unit = {},
     selectedDate: LocalDate,
     availableTags: List<ScheduleTagEntity> = emptyList(),
     tagColorMap: Map<String, Color> = emptyMap(),
@@ -2211,6 +2280,12 @@ fun ScheduleDayGridView(
         schedules.filter { item ->
             val dt = parseDateTime(item.startTime)
             dt?.toLocalDate() == selectedDate
+        }
+    }
+
+    val dayMarkers = remember(timeMarkers, selectedDate) {
+        timeMarkers.filter {
+            it.isDeleted == 0 && (it.date == selectedDate.toString() || it.startTime.startsWith(selectedDate.toString()))
         }
     }
 
@@ -2818,6 +2893,82 @@ fun ScheduleDayGridView(
                             }
                         }
 
+                        // 真实时间段标记 (Range Markers: 如实际午休、睡眠、锻炼等底色区块)
+                        dayMarkers.filter { it.markerType == "RANGE" }.forEach { marker ->
+                            val sDt = parseDateTime(marker.startTime)
+                            val eDt = parseDateTime(marker.endTime)
+                            if (sDt != null && eDt != null) {
+                                val sMin = sDt.hour * 60 + sDt.minute
+                                val eMin = eDt.hour * 60 + eDt.minute
+                                val durationM = (eMin - sMin).coerceIn(5, 1440)
+                                val topY = (sMin.toFloat() / 60f) * hourHeightDpValue
+                                val blockH = (durationM.toFloat() / 60f) * hourHeightDpValue
+                                val markerColor = try {
+                                    Color(android.graphics.Color.parseColor(marker.colorHex))
+                                } catch (_: Exception) {
+                                    DopamineCyan
+                                }
+
+                                Surface(
+                                    onClick = { onMarkerClick(marker) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = markerColor.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.2.dp, markerColor.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .offset(y = topY.dp)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 2.dp)
+                                        .height(blockH.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Text(marker.icon, fontSize = 11.5.sp, modifier = Modifier.padding(top = 1.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = marker.name,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = markerColor
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "%02d:%02d~%02d:%02d (%dm)".format(sDt.hour, sDt.minute, eDt.hour, eDt.minute, durationM),
+                                                    fontSize = 9.5.sp,
+                                                    color = markerColor.copy(alpha = 0.85f)
+                                                )
+                                            }
+                                            if (marker.notes.isNotBlank() && blockH >= 34f) {
+                                                Text(
+                                                    text = marker.notes,
+                                                    fontSize = 9.sp,
+                                                    color = TextSecondary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = markerColor.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = "实际时间段",
+                                                fontSize = 8.5.sp,
+                                                color = markerColor,
+                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // 已排期日程卡片 (支持长按拖拽移时、底部手柄拉伸缩放时长)
                         daySchedules.forEach { item ->
                             val startDt = parseDateTime(item.startTime)
@@ -3048,6 +3199,56 @@ fun ScheduleDayGridView(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        // 真实时间点标记 (Point Markers: 如实际起床、就寝、实际开工等横向标尺线与图钉标签)
+                        dayMarkers.filter { it.markerType != "RANGE" }.forEach { marker ->
+                            val sDt = parseDateTime(marker.startTime)
+                            if (sDt != null) {
+                                val sMin = sDt.hour * 60 + sDt.minute
+                                val topY = (sMin.toFloat() / 60f) * hourHeightDpValue
+                                val markerColor = try {
+                                    Color(android.graphics.Color.parseColor(marker.colorHex))
+                                } catch (_: Exception) {
+                                    DopamineAmber
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .offset(y = (topY - 11).dp)
+                                        .fillMaxWidth()
+                                        .clickable { onMarkerClick(marker) }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = markerColor,
+                                        shadowElevation = 3.dp,
+                                        modifier = Modifier.height(20.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 6.dp)
+                                        ) {
+                                            Text(marker.icon, fontSize = 10.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${marker.name} %02d:%02d".format(sDt.hour, sDt.minute),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(1.6.dp)
+                                            .background(markerColor.copy(alpha = 0.75f))
+                                    )
                                 }
                             }
                         }
