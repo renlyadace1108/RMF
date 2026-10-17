@@ -3392,13 +3392,47 @@ fun BacklogDialog(
 
                 // 象限归属选择
                 Text("🎯 象限归属:", fontSize = 11.sp, color = TextSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("Q1" to "🔥 Q1", "Q2" to "⭐ Q2", "Q3" to "⚡ Q3", "Q4" to "🍃 Q4").forEach { (qCode, qLabel) ->
+                val backlogQuadrantOptions = listOf(
+                    "Q1" to ("🔥 Q1 重要且紧急" to "危机与突发，截止日迫在眉睫，需立刻执行"),
+                    "Q2" to ("⭐ Q2 重要不紧急" to "核心战略、学习成长、深度规划与长远沉淀"),
+                    "Q3" to ("⚡ Q3 紧急不重要" to "临时插单、琐事催促、代理委派，快速通关"),
+                    "Q4" to ("🍃 Q4 不重要不紧急" to "休闲琐碎、低价值杂务，适当削减与断舍离")
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(backlogQuadrantOptions) { (qCode, qData) ->
+                        val (qLabel, _) = qData
                         val isSel = newQuadrant == qCode
                         FilterChip(
                             selected = isSel,
                             onClick = { newQuadrant = qCode },
                             label = { Text(qLabel, fontSize = 10.5.sp) }
+                        )
+                    }
+                }
+                // 当前选中象限的事件类型与行动指导说明
+                val currentQuadrantDesc = backlogQuadrantOptions.firstOrNull { it.first == newQuadrant }?.second?.second
+                if (currentQuadrantDesc != null) {
+                    Surface(
+                        color = when (newQuadrant) {
+                            "Q1" -> QuadrantQ1Color.copy(alpha = 0.12f)
+                            "Q2" -> QuadrantQ2Color.copy(alpha = 0.12f)
+                            "Q3" -> QuadrantQ3Color.copy(alpha = 0.12f)
+                            else -> QuadrantQ4Color.copy(alpha = 0.12f)
+                        },
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "💡 $currentQuadrantDesc",
+                            fontSize = 11.sp,
+                            color = when (newQuadrant) {
+                                "Q1" -> QuadrantQ1Color
+                                "Q2" -> QuadrantQ2Color
+                                "Q3" -> QuadrantQ3Color
+                                else -> QuadrantQ4Color
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            lineHeight = 15.sp
                         )
                     }
                 }
@@ -3727,18 +3761,45 @@ fun EditScheduleDialog(
 
                 Text("🎯 艾森豪威尔四象限:", fontSize = 12.sp, color = TextSecondary)
                 val quadrantOptions = listOf(
-                    "Q1" to "🔥 Q1 重要紧急",
-                    "Q2" to "⭐ Q2 重要不紧急",
-                    "Q3" to "⚡ Q3 紧急不重要",
-                    "Q4" to "🍃 Q4 不重要不紧急"
+                    "Q1" to ("🔥 Q1 重要且紧急" to "危机突发与临期事件，需立刻执行"),
+                    "Q2" to ("⭐ Q2 重要不紧急" to "核心战略、技能学习与深度专注，高价值投入"),
+                    "Q3" to ("⚡ Q3 紧急不重要" to "临时插单、琐事催促、代理委派，快速通关"),
+                    "Q4" to ("🍃 Q4 不重要不紧急" to "休闲琐碎、低价值杂务，适当削减与断舍离")
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(quadrantOptions) { (qCode, qLabel) ->
+                    items(quadrantOptions) { (qCode, qData) ->
+                        val (qLabel, _) = qData
                         val isSel = eisenhowerQuadrant == qCode
                         FilterChip(
                             selected = isSel,
                             onClick = { eisenhowerQuadrant = qCode },
                             label = { Text(qLabel, fontSize = 11.5.sp) }
+                        )
+                    }
+                }
+                val currentEditQuadrantDesc = quadrantOptions.firstOrNull { it.first == eisenhowerQuadrant }?.second?.second
+                if (currentEditQuadrantDesc != null) {
+                    Surface(
+                        color = when (eisenhowerQuadrant) {
+                            "Q1" -> QuadrantQ1Color.copy(alpha = 0.12f)
+                            "Q2" -> QuadrantQ2Color.copy(alpha = 0.12f)
+                            "Q3" -> QuadrantQ3Color.copy(alpha = 0.12f)
+                            else -> QuadrantQ4Color.copy(alpha = 0.12f)
+                        },
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "💡 $currentEditQuadrantDesc",
+                            fontSize = 11.sp,
+                            color = when (eisenhowerQuadrant) {
+                                "Q1" -> QuadrantQ1Color
+                                "Q2" -> QuadrantQ2Color
+                                "Q3" -> QuadrantQ3Color
+                                else -> QuadrantQ4Color
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            lineHeight = 15.sp
                         )
                     }
                 }
