@@ -1753,9 +1753,9 @@ fun ScheduleWeekGridView(
                                                     dragSelectStartOffset = offset
                                                     dragSelectCurrentOffset = offset
                                                 },
-                                                onDrag = { change, dragAmount ->
+                                                onDrag = { change, _ ->
                                                     change.consume()
-                                                    dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
+                                                    dragSelectCurrentOffset = change.position
                                                 },
                                                 onDragEnd = {
                                                     if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
@@ -1763,25 +1763,23 @@ fun ScheduleWeekGridView(
                                                         val curr = dragSelectCurrentOffset!!
                                                         val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
                                                         val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                                        val heightPx = maxY - minY
-                                                        if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
-                                                            val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
-                                                            val targetDate = weekDates[colIdx]
+                                                        val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
+                                                        val targetDate = weekDates[colIdx]
 
-                                                            val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                            val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                            val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                                                            val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
+                                                        val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
+                                                        val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
+                                                        val sSnapped = (((startMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1425)
+                                                        val rawEndSnapped = (((endMinExact + 7.5f) / 15).toInt() * 15).coerceIn(15, 1440)
+                                                        val eSnapped = maxOf(sSnapped + 15, rawEndSnapped)
 
-                                                            dragSelectedRange = DragRangeData(
-                                                                date = targetDate,
-                                                                startHour = sSnapped / 60,
-                                                                startMinute = sSnapped % 60,
-                                                                endHour = eSnapped / 60,
-                                                                endMinute = eSnapped % 60,
-                                                                durationMinutes = eSnapped - sSnapped
-                                                            )
-                                                        }
+                                                        dragSelectedRange = DragRangeData(
+                                                            date = targetDate,
+                                                            startHour = sSnapped / 60,
+                                                            startMinute = sSnapped % 60,
+                                                            endHour = eSnapped / 60,
+                                                            endMinute = eSnapped % 60,
+                                                            durationMinutes = eSnapped - sSnapped
+                                                        )
                                                     }
                                                     isDragSelecting = false
                                                     dragSelectStartOffset = null
@@ -1914,31 +1912,58 @@ fun ScheduleWeekGridView(
                                     val start = dragSelectStartOffset!!
                                     val curr = dragSelectCurrentOffset!!
                                     val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                    val maxY = maxOf(start.y, curr.y)
-                                    val topDp = minY / density.density
-                                    val heightDp = maxOf(10f, (maxY - minY) / density.density)
+                                    val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
                                     val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
 
-                                    val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                                    val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                                    val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                                    val eSnapped = maxOf(sSnapped + 15, ((endMinRaw + 14) / 15) * 15).coerceIn(15, 1440)
+                                    val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
+                                    val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
+                                    val sSnapped = (((startMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1425)
+                                    val rawEndSnapped = (((endMinExact + 7.5f) / 15).toInt() * 15).coerceIn(15, 1440)
+                                    val eSnapped = maxOf(sSnapped + 15, rawEndSnapped)
+                                    val durationM = eSnapped - sSnapped
+
+                                    val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
+                                    val ghostHeightDp = maxOf(12f, (durationM.toFloat() / 60f) * hourHeightDpValue)
 
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = DopamineBlue.copy(alpha = 0.35f),
+                                        color = DopamineBlue.copy(alpha = 0.38f),
                                         border = BorderStroke(1.5.dp, DopamineBlue),
                                         modifier = Modifier
-                                            .offset(x = dayColWidth * colIdx + 1.dp, y = topDp.dp)
+                                            .offset(x = dayColWidth * colIdx + 1.dp, y = ghostTopDp.dp)
                                             .width(dayColWidth - 2.dp)
-                                            .height(heightDp.dp)
+                                            .height(ghostHeightDp.dp)
                                     ) {
-                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(1.dp)) {
+                                        if (ghostHeightDp >= 20f) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(1.dp)) {
+                                                Text(
+                                                    text = "%02d:%02d-%02d:%02d".format(sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60),
+                                                    fontSize = 7.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // 周视图短时段悬浮气泡
+                                    if (ghostHeightDp < 24f) {
+                                        val tooltipOffset = if (ghostTopDp >= 24f) (ghostTopDp - 22f) else (ghostTopDp + ghostHeightDp + 2f)
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = DopamineBlue,
+                                            shadowElevation = 4.dp,
+                                            border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.8f)),
+                                            modifier = Modifier
+                                                .offset(x = (dayColWidth * colIdx - 8.dp).coerceAtLeast(0.dp), y = tooltipOffset.dp)
+                                                .padding(horizontal = 2.dp)
+                                        ) {
                                             Text(
                                                 text = "%02d:%02d-%02d:%02d".format(sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60),
-                                                fontSize = 7.sp,
+                                                fontSize = 7.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                             )
                                         }
                                     }
@@ -2014,18 +2039,18 @@ fun ScheduleWeekGridView(
                                                         }
                                                     }
                                             ) {
-                                                Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)) {
+                                                Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = if (blockH < 22f) 1.dp else 2.dp)) {
                                                     Text(
                                                         text = item.title,
-                                                        fontSize = 8.5.sp,
+                                                        fontSize = if (blockH < 22f) 7.5.sp else 8.5.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        lineHeight = 10.5.sp,
-                                                        maxLines = if (blockH >= 32) 2 else 1,
+                                                        lineHeight = if (blockH < 22f) 9.sp else 10.5.sp,
+                                                        maxLines = if (blockH >= 32f) 2 else 1,
                                                         overflow = TextOverflow.Ellipsis,
                                                         textDecoration = if (isDone) TextDecoration.LineThrough else null,
                                                         color = if (isDone) TextMuted else TextPrimary
                                                     )
-                                                    if (blockH >= 28) {
+                                                    if (blockH >= 28f) {
                                                         Text(
                                                             text = "%02d:%02d".format(startDt.hour, startDt.minute),
                                                             fontSize = 7.5.sp,
@@ -2525,9 +2550,9 @@ fun ScheduleDayGridView(
                                             dragSelectStartOffset = offset
                                             dragSelectCurrentOffset = offset
                                         },
-                                        onDrag = { change, dragAmount ->
+                                        onDrag = { change, _ ->
                                             change.consume()
-                                            dragSelectCurrentOffset = (dragSelectCurrentOffset ?: Offset.Zero) + dragAmount
+                                            dragSelectCurrentOffset = change.position
                                         },
                                         onDragEnd = {
                                             if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
@@ -2535,22 +2560,21 @@ fun ScheduleDayGridView(
                                                 val curr = dragSelectCurrentOffset!!
                                                 val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
                                                 val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                                val heightPx = maxY - minY
-                                                if (heightPx >= (15f / 60f * hourHeightDpValue * density.density)) {
-                                                    val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                    val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                                                    val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                                                    val eSnapped = (((endMinRaw + 14) / 15) * 15).coerceIn(sSnapped + 15, 1440)
 
-                                                    dragSelectedRange = DragRangeData(
-                                                        date = selectedDate,
-                                                        startHour = sSnapped / 60,
-                                                        startMinute = sSnapped % 60,
-                                                        endHour = eSnapped / 60,
-                                                        endMinute = eSnapped % 60,
-                                                        durationMinutes = eSnapped - sSnapped
-                                                    )
-                                                }
+                                                val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
+                                                val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
+                                                val sSnapped = (((startMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1425)
+                                                val rawEndSnapped = (((endMinExact + 7.5f) / 15).toInt() * 15).coerceIn(15, 1440)
+                                                val eSnapped = maxOf(sSnapped + 15, rawEndSnapped)
+
+                                                dragSelectedRange = DragRangeData(
+                                                    date = selectedDate,
+                                                    startHour = sSnapped / 60,
+                                                    startMinute = sSnapped % 60,
+                                                    endHour = eSnapped / 60,
+                                                    endMinute = eSnapped % 60,
+                                                    durationMinutes = eSnapped - sSnapped
+                                                )
                                             }
                                             isDragSelecting = false
                                             dragSelectStartOffset = null
@@ -2684,40 +2708,90 @@ fun ScheduleDayGridView(
                             val start = dragSelectStartOffset!!
                             val curr = dragSelectCurrentOffset!!
                             val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                            val maxY = maxOf(start.y, curr.y)
-                            val topDp = minY / density.density
-                            val heightDp = maxOf(12f, (maxY - minY) / density.density)
+                            val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
 
-                            val startMinRaw = ((minY / density.density) / hourHeightDpValue * 60f).toInt()
-                            val endMinRaw = ((maxY / density.density) / hourHeightDpValue * 60f).toInt()
-                            val sSnapped = ((startMinRaw / 15) * 15).coerceIn(0, 1425)
-                            val eSnapped = maxOf(sSnapped + 15, ((endMinRaw + 14) / 15) * 15).coerceIn(15, 1440)
+                            val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
+                            val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
+                            val sSnapped = (((startMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1425)
+                            val rawEndSnapped = (((endMinExact + 7.5f) / 15).toInt() * 15).coerceIn(15, 1440)
+                            val eSnapped = maxOf(sSnapped + 15, rawEndSnapped)
                             val durationM = eSnapped - sSnapped
+
+                            val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
+                            val ghostHeightDp = maxOf(14f, (durationM.toFloat() / 60f) * hourHeightDpValue)
 
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = DopamineBlue.copy(alpha = 0.32f),
+                                color = DopamineBlue.copy(alpha = 0.35f),
                                 border = BorderStroke(1.8.dp, DopamineBlue),
                                 modifier = Modifier
-                                    .offset(y = topDp.dp)
+                                    .offset(y = ghostTopDp.dp)
                                     .fillMaxWidth()
                                     .padding(horizontal = 4.dp)
-                                    .height(heightDp.dp)
+                                    .height(ghostHeightDp.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                if (ghostHeightDp >= 38f) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 10.dp)
+                                    ) {
+                                        Text("⏱️", fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "框选排期: %02d:%02d - %02d:%02d (%d分钟) · 松开即可排期".format(
+                                                sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                            ),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                } else if (ghostHeightDp >= 24f) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    ) {
+                                        Text("⏱️", fontSize = 10.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "%02d:%02d - %02d:%02d (%d分)".format(
+                                                sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                            ),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 悬浮时间提示胶囊：当框选时间较短时，浮于选区上方/下方，保证文字绝不挤压裁切
+                            if (ghostHeightDp < 38f) {
+                                val tooltipOffset = if (ghostTopDp >= 32f) (ghostTopDp - 28f) else (ghostTopDp + ghostHeightDp + 4f)
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = DopamineBlue,
+                                    shadowElevation = 6.dp,
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)),
+                                    modifier = Modifier
+                                        .offset(y = tooltipOffset.dp)
+                                        .padding(horizontal = 12.dp)
                                 ) {
-                                    Text("⏱️", fontSize = 12.sp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "框选排期: %02d:%02d - %02d:%02d (%d分钟) · 松开即可排期".format(
-                                            sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
-                                        ),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text("⏱️", fontSize = 10.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "框选: %02d:%02d - %02d:%02d (%d分钟) · 松开排期".format(
+                                                sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                            ),
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2777,8 +2851,8 @@ fun ScheduleDayGridView(
                                                     onDragEnd = {
                                                         if (movingScheduleItem != null) {
                                                             val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                            val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
-                                                            val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
+                                                            val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                            val targetMinSnapped = (((targetMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1440 - item.estimatedMinutes)
                                                             val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
                                                             val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
                                                             val updated = item.copy(
@@ -2799,59 +2873,99 @@ fun ScheduleDayGridView(
                                             }
                                         }
                                 ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                                .weight(1f, fill = false)
-                                        ) {
-                                            Box(
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        if (blockH < 34f) {
+                                            // 极简紧凑单行模式：当日程时间块较短（如 15~30 分钟）时，单行排版，彻底解决文字挤压与截断问题
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
                                                 modifier = Modifier
-                                                    .width(3.5.dp)
-                                                    .height(28.dp)
-                                                    .background(accentColor, RoundedCornerShape(2.dp))
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(3.dp)
+                                                        .height((blockH - 6f).coerceIn(6f, 16f).dp)
+                                                        .background(accentColor, RoundedCornerShape(1.5.dp))
+                                                )
+                                                Spacer(modifier = Modifier.width(5.dp))
                                                 Text(
                                                     text = item.title,
-                                                    fontSize = 12.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     textDecoration = if (isDone) TextDecoration.LineThrough else null,
                                                     color = if (isDone) TextMuted else TextPrimary,
                                                     maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
                                                 )
-                                                Spacer(modifier = Modifier.height(1.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
-                                                    text = "%02d:%02d · %d分钟 · %s".format(
-                                                        startDt.hour,
-                                                        startDt.minute,
-                                                        displayDuration,
-                                                        when (item.workType) {
-                                                            "DEEP_WORK" -> "深度攻坚"
-                                                            "SHALLOW_WORK" -> "日常浅度"
-                                                            "REST_BUFFER" -> "休整缓冲"
-                                                            else -> "协同沟通"
-                                                        }
-                                                    ),
-                                                    fontSize = 10.sp,
-                                                    color = if (isResizingThis) DopamineAmber else TextSecondary
+                                                    text = "%02d:%02d (%dm)".format(startDt.hour, startDt.minute, displayDuration),
+                                                    fontSize = 9.sp,
+                                                    color = if (isResizingThis) DopamineAmber else TextSecondary,
+                                                    maxLines = 1
                                                 )
+                                            }
+                                        } else {
+                                            // 宽裕双行模式 (>= 34dp)
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(3.5.dp)
+                                                            .height(if (blockH < 48f) 18.dp else 28.dp)
+                                                            .background(accentColor, RoundedCornerShape(2.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = item.title,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            textDecoration = if (isDone) TextDecoration.LineThrough else null,
+                                                            color = if (isDone) TextMuted else TextPrimary,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        if (blockH >= 42f) {
+                                                            Spacer(modifier = Modifier.height(1.dp))
+                                                            Text(
+                                                                text = "%02d:%02d · %d分钟 · %s".format(
+                                                                    startDt.hour,
+                                                                    startDt.minute,
+                                                                    displayDuration,
+                                                                    when (item.workType) {
+                                                                        "DEEP_WORK" -> "深度攻坚"
+                                                                        "SHALLOW_WORK" -> "日常浅度"
+                                                                        "REST_BUFFER" -> "休整缓冲"
+                                                                        else -> "协同沟通"
+                                                                    }
+                                                                ),
+                                                                fontSize = 10.sp,
+                                                                color = if (isResizingThis) DopamineAmber else TextSecondary
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
 
-                                        if (!isLocked) {
+                                        if (!isLocked && blockH >= 24f) {
                                             // 底边时长调节手柄 (Drag Handle to Resize Duration)
                                             Box(
                                                 modifier = Modifier
+                                                    .align(Alignment.BottomCenter)
                                                     .fillMaxWidth()
-                                                    .height(14.dp)
+                                                    .height(if (blockH < 34f) 8.dp else 12.dp)
                                                     .pointerInput(item.id + "_resize", isLocked) {
                                                         detectDragGestures(
                                                             onDragStart = {
@@ -2864,7 +2978,7 @@ fun ScheduleDayGridView(
                                                             },
                                                             onDragEnd = {
                                                                 if (resizingScheduleItem != null) {
-                                                                    val extraMins = ((resizeDeltaY / density.density / hourHeightDpValue * 60f) / 15 * 15).toInt()
+                                                                    val extraMins = (((resizeDeltaY / density.density / hourHeightDpValue * 60f) + 7.5f) / 15).toInt() * 15
                                                                     val newMins = (item.estimatedMinutes + extraMins).coerceIn(15, 360)
                                                                     val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
                                                                     val newEnd = curStart.plusMinutes(newMins.toLong())
@@ -2888,11 +3002,11 @@ fun ScheduleDayGridView(
                                             ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .width(32.dp)
-                                                        .height(3.5.dp)
+                                                        .width(28.dp)
+                                                        .height(2.5.dp)
                                                         .background(
                                                             if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.7f),
-                                                            RoundedCornerShape(2.dp)
+                                                            RoundedCornerShape(1.5.dp)
                                                         )
                                                 )
                                             }
@@ -2906,8 +3020,8 @@ fun ScheduleDayGridView(
                         if (movingScheduleItem != null) {
                             val item = movingScheduleItem!!
                             val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                            val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f).toInt()
-                            val targetMinSnapped = ((targetMinRaw / 15) * 15).coerceIn(0, 1440 - item.estimatedMinutes)
+                            val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                            val targetMinSnapped = (((targetMinExact + 7.5f) / 15).toInt() * 15).coerceIn(0, 1440 - item.estimatedMinutes)
                             val targetStartHour = targetMinSnapped / 60
                             val targetStartMin = targetMinSnapped % 60
                             val targetEndMinTotal = targetMinSnapped + item.estimatedMinutes
