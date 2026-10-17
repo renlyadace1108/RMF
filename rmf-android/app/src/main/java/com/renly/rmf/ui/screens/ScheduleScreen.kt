@@ -2071,10 +2071,12 @@ fun ScheduleWeekGridView(
                                                         color = if (isDone) TextMuted else TextPrimary
                                                     )
                                                     if (blockH >= 28f) {
+                                                        val endDt = startDt.plusMinutes(item.estimatedMinutes.coerceIn(5, 1440).toLong())
                                                         Text(
-                                                            text = "%02d:%02d".format(startDt.hour, startDt.minute),
-                                                            fontSize = 7.5.sp,
-                                                            color = if (isDone) TextMuted else TextSecondary
+                                                            text = "%02d:%02d-%02d:%02d".format(startDt.hour, startDt.minute, endDt.hour, endDt.minute),
+                                                            fontSize = 7.sp,
+                                                            color = if (isDone) TextMuted else TextSecondary,
+                                                            maxLines = 1
                                                         )
                                                     }
                                                 }
@@ -2896,6 +2898,7 @@ fun ScheduleDayGridView(
                                         }
                                 ) {
                                     Box(modifier = Modifier.fillMaxSize()) {
+                                        val endDt = startDt.plusMinutes(displayDuration.toLong())
                                         if (blockH < 34f) {
                                             // 极简紧凑单行模式：当日程时间块较短（如 15~30 分钟）时，单行排版，彻底解决文字挤压与截断问题
                                             Row(
@@ -2923,7 +2926,13 @@ fun ScheduleDayGridView(
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
-                                                    text = "%02d:%02d (%dm)".format(startDt.hour, startDt.minute, displayDuration),
+                                                    text = "%02d:%02d-%02d:%02d (%dm)".format(
+                                                        startDt.hour,
+                                                        startDt.minute,
+                                                        endDt.hour,
+                                                        endDt.minute,
+                                                        displayDuration
+                                                    ),
                                                     fontSize = 9.sp,
                                                     color = if (isResizingThis) DopamineAmber else TextSecondary,
                                                     maxLines = 1
@@ -2961,9 +2970,11 @@ fun ScheduleDayGridView(
                                                         if (blockH >= 42f) {
                                                             Spacer(modifier = Modifier.height(1.dp))
                                                             Text(
-                                                                text = "%02d:%02d · %d分钟 · %s".format(
+                                                                text = "%02d:%02d - %02d:%02d · %d分钟 · %s".format(
                                                                     startDt.hour,
                                                                     startDt.minute,
+                                                                    endDt.hour,
+                                                                    endDt.minute,
                                                                     displayDuration,
                                                                     when (item.workType) {
                                                                         "DEEP_WORK" -> "深度攻坚"
@@ -4123,7 +4134,12 @@ fun ScheduleDetailModal(
 
     val startDt = parseDateTime(item.startTime)
     val timeStr = if (startDt != null) {
-        startDt.format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+        val endDt = parseDateTime(item.endTime) ?: startDt.plusMinutes(item.estimatedMinutes.toLong())
+        if (startDt.toLocalDate() == endDt.toLocalDate()) {
+            "%s - %02d:%02d".format(startDt.format(DateTimeFormatter.ofPattern("M月d日 HH:mm")), endDt.hour, endDt.minute)
+        } else {
+            "%s - %s".format(startDt.format(DateTimeFormatter.ofPattern("M月d日 HH:mm")), endDt.format(DateTimeFormatter.ofPattern("M月d日 HH:mm")))
+        }
     } else {
         item.startTime
     }
