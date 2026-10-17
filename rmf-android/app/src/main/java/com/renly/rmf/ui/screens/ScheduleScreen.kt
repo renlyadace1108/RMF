@@ -29,9 +29,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.outlined.Circle
@@ -1468,6 +1472,10 @@ fun ScheduleWeekGridView(
     var movingDragDeltaY by remember { mutableFloatStateOf(0f) }
     var movingOriginalTopDp by remember { mutableFloatStateOf(0f) }
 
+    // 选中具体时间灰色标尺状态
+    var selectedTimeIndicatorMinute by remember { mutableStateOf<Int?>(null) }
+    var selectedTimeIndicatorCol by remember { mutableStateOf<Int?>(null) }
+
     var hasInitializedScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (!hasInitializedScroll) {
@@ -1881,17 +1889,49 @@ fun ScheduleWeekGridView(
                                         }
                                     }
                             ) {
-                                // 今日高亮柔和背景列
+                                // 今日高亮柔和背景列与单点具体时间交互
                                 weekDates.forEachIndexed { idx, date ->
-                                    if (date == LocalDate.now()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .offset(x = dayColWidth * idx)
-                                                .width(dayColWidth)
-                                                .fillMaxHeight()
-                                                .background(DopamineBlue.copy(alpha = if (LocalAppColors.current.isDark) 0.08f else 0.05f))
-                                        )
-                                    }
+                                    val isToday = date == LocalDate.now()
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = dayColWidth * idx)
+                                            .width(dayColWidth)
+                                            .fillMaxHeight()
+                                            .pointerInput(idx, isLocked) {
+                                                if (!isLocked) {
+                                                    awaitEachGesture {
+                                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                                        val downTime = System.currentTimeMillis()
+                                                        var upChange: PointerInputChange? = null
+                                                        while (true) {
+                                                            val event = awaitPointerEvent()
+                                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                            if (change.isConsumed) return@awaitEachGesture
+                                                            if (change.changedToUp()) {
+                                                                upChange = change
+                                                                break
+                                                            }
+                                                        }
+                                                        if (upChange != null) {
+                                                            val elapsed = System.currentTimeMillis() - downTime
+                                                            val distance = (upChange.position - down.position).getDistance()
+                                                            if (elapsed < 450 && distance < 20f) {
+                                                                val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
+                                                                val tappedMin = ((rawMin / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                                if (selectedTimeIndicatorCol == idx && selectedTimeIndicatorMinute == tappedMin) {
+                                                                    selectedTimeIndicatorMinute = null
+                                                                    selectedTimeIndicatorCol = null
+                                                                } else {
+                                                                    selectedTimeIndicatorMinute = tappedMin
+                                                                    selectedTimeIndicatorCol = idx
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            .background(if (isToday) DopamineBlue.copy(alpha = if (LocalAppColors.current.isDark) 0.08f else 0.05f) else Color.Transparent)
+                                    )
                                 }
 
                                 // 横向小时刻度线
@@ -1934,6 +1974,80 @@ fun ScheduleWeekGridView(
                                                 .weight(1f)
                                                 .height(1.8.dp)
                                                 .background(DopamineRed)
+                                        )
+                                    }
+                                }
+
+                                // 选中时间灰色标尺指示线 (单点具体时间，像红线那样显示灰色标尺与胶囊)
+                                if (selectedTimeIndicatorMinute != null && selectedTimeIndicatorCol != null) {
+                                    val selMin = selectedTimeIndicatorMinute!!
+                                    val selCol = selectedTimeIndicatorCol!!
+                                    val selY = (selMin.toFloat() / 60f) * hourHeightDpValue
+                                    val isDark = LocalAppColors.current.isDark
+                                    val greyLineColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                    val badgeBgColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+
+                                    // 跨越全周横向贯穿标尺参考线
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(y = (selY - 0.9).dp)
+                                            .width(weekGridWidth)
+                                            .height(1.5.dp)
+                                            .background(greyLineColor.copy(alpha = 0.45f))
+                                            .zIndex(14f)
+                                    )
+
+                                    // 选中星期列上的高亮灰色实线标尺与时间微胶囊
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .offset(x = dayColWidth * selCol, y = (selY - 10).dp)
+                                            .width(dayColWidth)
+                                            .zIndex(15f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = badgeBgColor,
+                                            border = BorderStroke(1.dp, greyLineColor),
+                                            shadowElevation = 3.dp,
+                                            modifier = Modifier.height(20.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .padding(horizontal = 4.dp)
+                                                    .clickable {
+                                                        selectedTimeIndicatorMinute = null
+                                                        selectedTimeIndicatorCol = null
+                                                    }
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(4.5.dp)
+                                                        .background(greyLineColor, CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text(
+                                                    text = "%02d:%02d".format(selMin / 60, selMin % 60),
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "清除标尺",
+                                                    tint = greyLineColor,
+                                                    modifier = Modifier.size(10.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(1.8.dp)
+                                                .background(greyLineColor)
                                         )
                                     }
                                 }
@@ -2302,6 +2416,7 @@ fun ScheduleDayGridView(
     var isBacklogBarExpanded by remember { mutableStateOf(true) }
     var quickScheduleTargetItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var clickedHourForBacklog by remember { mutableIntStateOf(-1) }
+    var selectedTimeIndicatorMinute by remember { mutableStateOf<Int?>(null) }
 
     val executeDropDay: (ScheduleEntity) -> Unit = { item ->
         if (isLocked) {
@@ -2686,17 +2801,45 @@ fun ScheduleDayGridView(
                                 }
                             }
                     ) {
-                        // 每小时网格分割线与点击交互
-                        (0..23).forEach { h ->
-                            Box(
-                                modifier = Modifier
-                                    .offset(y = hourHeight * h)
-                                    .fillMaxWidth()
-                                    .height(hourHeight)
-                                    .clickable(enabled = !isLocked) {
-                                        clickedHourForBacklog = h
+                        // 单日网格背景点击交互 (捕获单点时间标尺，不阻断父级长按拖选)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(isLocked) {
+                                    if (!isLocked) {
+                                        awaitEachGesture {
+                                            val down = awaitFirstDown(requireUnconsumed = false)
+                                            val downTime = System.currentTimeMillis()
+                                            var upChange: PointerInputChange? = null
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                                if (change.isConsumed) return@awaitEachGesture
+                                                if (change.changedToUp()) {
+                                                    upChange = change
+                                                    break
+                                                }
+                                            }
+                                            if (upChange != null) {
+                                                val elapsed = System.currentTimeMillis() - downTime
+                                                val distance = (upChange.position - down.position).getDistance()
+                                                if (elapsed < 450 && distance < 20f) {
+                                                    val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
+                                                    val tappedMin = ((rawMin / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                    if (selectedTimeIndicatorMinute == tappedMin) {
+                                                        selectedTimeIndicatorMinute = null
+                                                    } else {
+                                                        selectedTimeIndicatorMinute = tappedMin
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
-                            )
+                                }
+                        )
+
+                        // 每小时网格分割线
+                        (0..23).forEach { h ->
                             HorizontalDivider(
                                 modifier = Modifier.offset(y = hourHeight * h),
                                 color = DarkBorder.copy(alpha = 0.35f),
@@ -2723,6 +2866,77 @@ fun ScheduleDayGridView(
                                         .fillMaxWidth()
                                         .height(1.8.dp)
                                         .background(DopamineRed)
+                                )
+                            }
+                        }
+
+                        // 选中时间灰色标尺指示线 (单点具体时间，像红线那样显示灰色标尺与胶囊)
+                        if (selectedTimeIndicatorMinute != null) {
+                            val selMin = selectedTimeIndicatorMinute!!
+                            val selY = (selMin.toFloat() / 60f) * hourHeightDpValue
+                            val isDark = LocalAppColors.current.isDark
+                            val greyLineColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                            val badgeBgColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .offset(y = (selY - 11).dp)
+                                    .fillMaxWidth()
+                                    .zIndex(15f)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = badgeBgColor,
+                                    border = BorderStroke(1.dp, greyLineColor),
+                                    shadowElevation = 4.dp,
+                                    modifier = Modifier.height(22.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(5.dp)
+                                                .background(greyLineColor, CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "%02d:%02d".format(selMin / 60, selMin % 60),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "+排期",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = DopamineBlue,
+                                            modifier = Modifier.clickable {
+                                                clickedHourForBacklog = selMin / 60
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "清除标尺",
+                                            tint = greyLineColor,
+                                            modifier = Modifier
+                                                .size(11.dp)
+                                                .clickable {
+                                                    selectedTimeIndicatorMinute = null
+                                                }
+                                        )
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.8.dp)
+                                        .background(greyLineColor)
                                 )
                             }
                         }
