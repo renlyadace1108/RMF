@@ -21,7 +21,7 @@ data class TimeMarkerEntity(
     @ColumnInfo(name = "name")
     val name: String, // "起床", "睡觉", "午休", "实际开工", "实际收工", or custom
 
-    @ColumnInfo(name = "marker_type")
+    @ColumnInfo(name = "marker_type", defaultValue = "'POINT'")
     val markerType: String = "POINT", // "POINT" (时间点) or "RANGE" (时间段)
 
     @ColumnInfo(name = "category", defaultValue = "'LIFESTYLE'")

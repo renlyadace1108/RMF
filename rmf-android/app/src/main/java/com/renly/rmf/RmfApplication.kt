@@ -8,6 +8,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import com.renly.rmf.data.local.RmfDatabase
+import kotlinx.coroutines.launch
 
 class RmfApplication : Application() {
 
@@ -29,8 +30,13 @@ class RmfApplication : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         createNotificationChannels()
-        // 执行无损升级自动安全快照备份（启动与版本迭代安全屏障）
-        com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(this)
+        // 异步后台执行安全快照与数据库预热，确保不阻塞主线程冷启动
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(this@RmfApplication)
+                database.openHelper.writableDatabase
+            } catch (_: Exception) {}
+        }
     }
 
     private fun createNotificationChannels() {

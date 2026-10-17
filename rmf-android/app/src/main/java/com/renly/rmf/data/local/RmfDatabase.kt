@@ -457,8 +457,8 @@ abstract class RmfDatabase : RoomDatabase() {
                 tableName = "notes",
                 columns = listOf(
                     ColSpec("id", "TEXT", true, null, "lower(hex(randomblob(16)))", pkPos = 1),
-                    ColSpec("title", "TEXT", true, null, "''"),
-                    ColSpec("content", "TEXT", true, null, "''"),
+                    ColSpec("title", "TEXT", true, "''", "''"),
+                    ColSpec("content", "TEXT", true, "''", "''"),
                     ColSpec("category", "TEXT", true, "'灵感'", "'灵感'"),
                     ColSpec("color_hex", "TEXT", true, "'#F59E0B'", "'#F59E0B'"),
                     ColSpec("is_pinned", "INTEGER", true, "0", "0"),
