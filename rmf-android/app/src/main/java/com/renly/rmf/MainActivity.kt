@@ -1178,7 +1178,14 @@ class MainActivity : ComponentActivity() {
                                         Toast.makeText(this@MainActivity, "✓ 已添加至待办任务箱", Toast.LENGTH_SHORT).show()
                                     }
                                 },
-                                onBack = { navigateToScreen(Screen.Workbench, -1) }
+                                onBack = {
+                                    val fallback = if (safeNavScreens.contains(lastScreenBeforeSettings)) {
+                                        lastScreenBeforeSettings
+                                    } else {
+                                        safeNavScreens.firstOrNull() ?: Screen.Schedule
+                                    }
+                                    navigateToScreen(fallback, -1)
+                                }
                             )
 
                             Screen.Workbench -> WorkbenchScreen(
