@@ -98,27 +98,35 @@ fun StudyScreen(
 
     // 按自定义顺序排序
     val orderedTopics = remember(topics, customOrderList) {
-        val orderMap = customOrderList.mapIndexed { index, id -> id to index }.toMap()
-        topics.sortedWith(compareBy({ orderMap[it.id] ?: Int.MAX_VALUE }, { it.createdAt }))
+        if (customOrderList.isEmpty()) {
+            topics
+        } else {
+            val orderMap = customOrderList.mapIndexed { index, id -> id to index }.toMap()
+            topics.sortedWith(compareBy({ orderMap[it.id] ?: Int.MAX_VALUE }, { it.createdAt }))
+        }
     }
 
     val filteredTopics = remember(orderedTopics, selectedCategoryFilter) {
         if (selectedCategoryFilter == "ALL") orderedTopics else orderedTopics.filter { it.category == selectedCategoryFilter }
     }
 
-    val onMoveTopic: (Int, Int) -> Unit = { fromIdx, toIdx ->
-        if (fromIdx in filteredTopics.indices && toIdx in filteredTopics.indices && fromIdx != toIdx) {
-            val fromItem = filteredTopics[fromIdx]
-            val toItem = filteredTopics[toIdx]
-            val fullList = orderedTopics.toMutableList()
-            val fullFromIdx = fullList.indexOfFirst { it.id == fromItem.id }
-            val fullToIdx = fullList.indexOfFirst { it.id == toItem.id }
-            if (fullFromIdx != -1 && fullToIdx != -1) {
-                val item = fullList.removeAt(fullFromIdx)
-                fullList.add(fullToIdx, item)
-                val newOrder = fullList.map { it.id }
-                customOrderList = newOrder
-                studyPrefs.edit().putString("study_topics_custom_order", newOrder.joinToString(",")).apply()
+    val onMoveTopicById: (String, Int) -> Unit = { targetTopicId, direction ->
+        val currentFiltered = filteredTopics
+        val currentIdx = currentFiltered.indexOfFirst { it.id == targetTopicId }
+        val targetIdx = currentIdx + direction
+        if (currentIdx != -1 && targetIdx in currentFiltered.indices) {
+            val fromTopic = currentFiltered[currentIdx]
+            val toTopic = currentFiltered[targetIdx]
+            
+            // 基于全量 orderedTopics 顺序移动
+            val fullList = orderedTopics.map { it.id }.toMutableList()
+            val fromFullIdx = fullList.indexOf(fromTopic.id)
+            val toFullIdx = fullList.indexOf(toTopic.id)
+            if (fromFullIdx != -1 && toFullIdx != -1) {
+                val item = fullList.removeAt(fromFullIdx)
+                fullList.add(toFullIdx, item)
+                customOrderList = fullList
+                studyPrefs.edit().putString("study_topics_custom_order", fullList.joinToString(",")).apply()
             }
         }
     }
@@ -307,15 +315,18 @@ fun StudyScreen(
                             },
                             onDragHandleMove = { deltaY ->
                                 dragDeltaY += deltaY
-                                val threshold = 120f * density.density
-                                if (dragDeltaY > threshold && index < filteredTopics.size - 1) {
-                                    onMoveTopic(index, index + 1)
-                                    dragDeltaY -= threshold
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                } else if (dragDeltaY < -threshold && index > 0) {
-                                    onMoveTopic(index, index - 1)
-                                    dragDeltaY += threshold
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val threshold = 70f * density.density
+                                val currentIdx = filteredTopics.indexOfFirst { it.id == topic.id }
+                                if (currentIdx != -1) {
+                                    if (dragDeltaY > threshold && currentIdx < filteredTopics.size - 1) {
+                                        onMoveTopicById(topic.id, 1)
+                                        dragDeltaY -= threshold
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    } else if (dragDeltaY < -threshold && currentIdx > 0) {
+                                        onMoveTopicById(topic.id, -1)
+                                        dragDeltaY += threshold
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
                                 }
                             },
                             onDragHandleEnd = {
