@@ -832,6 +832,8 @@ fun DailyClockDial(
             val innerRadius = outerRadius - trackWidth
             val midRadius = (outerRadius + innerRadius) / 2f
 
+            if (outerRadius <= 0f || midRadius <= 0f) return@Canvas
+
             // 1. 表盘外轮廓背景圆盘
             drawCircle(
                 color = if (colors.isDark) Color(0xFF13171F) else Color(0xFFF8FAFC),
@@ -1086,8 +1088,8 @@ fun WeeklyCompletionTrendChart(
             ) {
                 dailyStats.forEach { (date, total, completed) ->
                     val isToday = date == today
-                    val barHeightFraction = (total.toFloat() / maxTotal.toFloat()).coerceIn(0.08f, 1f)
-                    val doneFraction = if (total > 0) (completed.toFloat() / total.toFloat()) else 0f
+                    val barHeightFraction = if (maxTotal > 0) (total.toFloat() / maxTotal.toFloat()).coerceIn(0.08f, 1f) else 0.08f
+                    val doneFraction = if (total > 0) (completed.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
 
                     Column(
                         modifier = Modifier.weight(1f),
@@ -1106,15 +1108,15 @@ fun WeeklyCompletionTrendChart(
                         Box(
                             modifier = Modifier
                                 .width(18.dp)
-                                .height((70 * barHeightFraction).dp)
+                                .height((70 * barHeightFraction).coerceAtLeast(6f).dp)
                                 .background(colors.border.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
-                            if (total > 0 && completed > 0) {
+                            if (total > 0 && completed > 0 && doneFraction > 0f) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .fillMaxHeight(doneFraction)
+                                        .fillMaxHeight(doneFraction.coerceIn(0.01f, 1f))
                                         .background(
                                             if (isToday) colors.dopamineBlue else colors.dopamineGreen,
                                             RoundedCornerShape(4.dp)
@@ -1204,6 +1206,7 @@ fun CategoryDonutChart(
                         val strokeW = 16.dp.toPx()
                         val center = Offset(size.width / 2f, size.height / 2f)
                         val radius = (size.minDimension - strokeW) / 2f
+                        if (radius <= 0f) return@Canvas
 
                         if (totalCatHours <= 0) {
                             drawCircle(
@@ -1216,7 +1219,7 @@ fun CategoryDonutChart(
                             var startAngle = -90f
                             for ((_, h, c) in categoryHours) {
                                 if (h <= 0) continue
-                                val sweep = (h / totalCatHours * 360.0).toFloat()
+                                val sweep = ((h / totalCatHours) * 360.0).toFloat().coerceIn(0f, 360f)
                                 drawArc(
                                     color = c,
                                     startAngle = startAngle,
@@ -1290,9 +1293,13 @@ fun CategoryDonutChart(
     }
 }
 
-// =========================================================================
-// ⚡ 24 小时时段精力与排期分布 (Hourly Energy Heatmap)
-// =========================================================================
+private data class HourlyEnergyData(
+    val hourlyMins: DoubleArray,
+    val morningMins: Double,
+    val afternoonMins: Double,
+    val eveningMins: Double
+)
+
 @Composable
 fun HourlyEnergyHeatmap(
     blocks: List<ClockTimeBlock>,
@@ -1300,7 +1307,7 @@ fun HourlyEnergyHeatmap(
 ) {
     val colors = LocalAppColors.current
 
-    val (hourlyMins, morningM, afternoonM, eveningM) = remember(blocks) {
+    val energyData = remember(blocks) {
         val arr = DoubleArray(24)
         var morning = 0.0
         var afternoon = 0.0
@@ -1325,10 +1332,10 @@ fun HourlyEnergyHeatmap(
                 }
             }
         }
-        listOf(arr, doubleArrayOf(morning), doubleArrayOf(afternoon), doubleArrayOf(evening))
+        HourlyEnergyData(arr, morning, afternoon, evening)
     }
 
-    val maxM = (hourlyMins as DoubleArray).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val maxM = energyData.hourlyMins.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1345,9 +1352,9 @@ fun HourlyEnergyHeatmap(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                val mH = (morningM as DoubleArray)[0] / 60.0
-                val aH = (afternoonM as DoubleArray)[0] / 60.0
-                val eH = (eveningM as DoubleArray)[0] / 60.0
+                val mH = energyData.morningMins / 60.0
+                val aH = energyData.afternoonMins / 60.0
+                val eH = energyData.eveningMins / 60.0
 
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -1397,8 +1404,8 @@ fun HourlyEnergyHeatmap(
                 verticalAlignment = Alignment.Bottom
             ) {
                 for (h in 0 until 24) {
-                    val m = hourlyMins[h]
-                    val fraction = if (m > 0) (m / maxM).toFloat().coerceIn(0.1f, 1f) else 0.05f
+                    val m = energyData.hourlyMins[h]
+                    val fraction = if (m > 0 && maxM > 0) (m / maxM).toFloat().coerceIn(0.1f, 1f) else 0.05f
 
                     val barColor = when {
                         m == 0.0 -> colors.border.copy(alpha = 0.3f)
@@ -1411,7 +1418,7 @@ fun HourlyEnergyHeatmap(
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 0.8.dp)
-                            .height((50 * fraction).dp)
+                            .height((50 * fraction).coerceAtLeast(3f).dp)
                             .background(barColor, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
                     )
                 }

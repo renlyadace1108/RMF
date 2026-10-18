@@ -1246,9 +1246,9 @@ fun DragRangeScheduleDialog(
                     // 预估时长自由调节
                     Text("⏱️ 预估耗时: $durationMinutes 分钟", fontSize = 11.sp, color = TextSecondary)
                     Slider(
-                        value = durationMinutes.toFloat().coerceIn(5f, 720f),
-                        onValueChange = { durationMinutes = ((it / 5f).roundToInt() * 5).coerceIn(5, 720) },
-                        valueRange = 5f..720f,
+                        value = durationMinutes.toFloat().coerceIn(1f, 720f),
+                        onValueChange = { durationMinutes = it.roundToInt().coerceIn(1, 720) },
+                        valueRange = 1f..720f,
                         colors = SliderDefaults.colors(thumbColor = DopamineBlue, activeTrackColor = DopamineBlue)
                     )
                     val quickDurations = listOf(15, 25, 30, 45, 60, 90, 120, 180)
@@ -1439,7 +1439,7 @@ fun ScheduleWeekGridView(
                 val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
                 val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
                 val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
-                val snappedMinutes = ((totalMinutes / 5f).roundToInt() * 5).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
+                val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
                 val dropHour = snappedMinutes / 60
                 val dropMinute = snappedMinutes % 60
                 val targetDt = targetDay.atTime(dropHour, dropMinute)
@@ -1866,9 +1866,9 @@ fun ScheduleWeekGridView(
 
                                                         val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
                                                         val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                                        val sSnapped = ((startMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
-                                                        val rawEndSnapped = ((endMinExact / 5f).roundToInt() * 5).coerceIn(5, 1440)
-                                                        val eSnapped = maxOf(sSnapped + 5, rawEndSnapped)
+                                                        val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+                                                        val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+                                                        val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
 
                                                         dragSelectedRange = DragRangeData(
                                                             date = targetDate,
@@ -1920,7 +1920,7 @@ fun ScheduleWeekGridView(
                                                             val distance = (upChange.position - down.position).getDistance()
                                                             if (elapsed < 450 && distance < 20f) {
                                                                 val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
-                                                                val tappedMin = ((rawMin / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                                val tappedMin = rawMin.roundToInt().coerceIn(0, 1439)
                                                                 if (selectedTimeIndicatorCol == idx && selectedTimeIndicatorMinute == tappedMin) {
                                                                     selectedTimeIndicatorMinute = null
                                                                     selectedTimeIndicatorCol = null
@@ -2069,7 +2069,7 @@ fun ScheduleWeekGridView(
                                         val previewBlockH = (draggingBacklogItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
                                         val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
                                         val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
-                                        val snappedMinutes = ((totalMinutes / 5f).roundToInt() * 5).coerceIn(0, (1440 - draggingBacklogItem!!.estimatedMinutes).coerceAtLeast(0))
+                                        val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - draggingBacklogItem!!.estimatedMinutes).coerceAtLeast(0))
                                         val previewHour = snappedMinutes / 60
                                         val previewMinute = snappedMinutes % 60
                                         val draggedColor = tagColorMap[draggingBacklogItem!!.category] ?: when (draggingBacklogItem!!.workType) {
@@ -2121,9 +2121,9 @@ fun ScheduleWeekGridView(
 
                                     val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
                                     val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                    val sSnapped = ((startMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
-                                    val rawEndSnapped = ((endMinExact / 5f).roundToInt() * 5).coerceIn(5, 1440)
-                                    val eSnapped = maxOf(sSnapped + 5, rawEndSnapped)
+                                    val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+                                    val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+                                    val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
                                     val durationM = eSnapped - sSnapped
 
                                     val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
@@ -2221,7 +2221,7 @@ fun ScheduleWeekGridView(
                                                                     if (movingScheduleItem != null) {
                                                                         val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
                                                                         val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f)
-                                                                        val targetMinSnapped = ((targetMinRaw / 5f).roundToInt() * 5).coerceIn(0, 1440 - item.estimatedMinutes)
+                                                                        val targetMinSnapped = targetMinRaw.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
                                                                         val curDate = startDt.toLocalDate()
                                                                         val newStart = curDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
                                                                         val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
@@ -2434,7 +2434,7 @@ fun ScheduleDayGridView(
                 val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
                 val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
                 val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
-                val snappedMinutes = ((totalMinutes / 5f).roundToInt() * 5).coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
+                val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
                 val dropHour = snappedMinutes / 60
                 val dropMinute = snappedMinutes % 60
                 val targetDt = selectedDate.atTime(dropHour, dropMinute)
@@ -2784,9 +2784,9 @@ fun ScheduleDayGridView(
 
                                                 val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
                                                 val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                                val sSnapped = ((startMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
-                                                val rawEndSnapped = ((endMinExact / 5f).roundToInt() * 5).coerceIn(5, 1440)
-                                                val eSnapped = maxOf(sSnapped + 5, rawEndSnapped)
+                                                val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+                                                val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+                                                val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
 
                                                 dragSelectedRange = DragRangeData(
                                                     date = selectedDate,
@@ -2834,7 +2834,7 @@ fun ScheduleDayGridView(
                                                 val distance = (upChange.position - down.position).getDistance()
                                                 if (elapsed < 450 && distance < 20f) {
                                                     val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
-                                                    val tappedMin = ((rawMin / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                    val tappedMin = rawMin.roundToInt().coerceIn(0, 1439)
                                                     if (selectedTimeIndicatorMinute == tappedMin) {
                                                         selectedTimeIndicatorMinute = null
                                                     } else {
@@ -2960,7 +2960,7 @@ fun ScheduleDayGridView(
                                 val previewBlockH = (draggingItem!!.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
                                 val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
                                 val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
-                                val snappedMinutes = ((totalMinutes / 5f).roundToInt() * 5).coerceIn(0, (1440 - draggingItem!!.estimatedMinutes).coerceAtLeast(0))
+                                val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - draggingItem!!.estimatedMinutes).coerceAtLeast(0))
                                 val previewHour = snappedMinutes / 60
                                 val previewMinute = snappedMinutes % 60
                                 val endMinutesTotal = (snappedMinutes + draggingItem!!.estimatedMinutes).coerceAtMost(1440)
@@ -3032,9 +3032,9 @@ fun ScheduleDayGridView(
 
                             val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
                             val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                            val sSnapped = ((startMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
-                            val rawEndSnapped = ((endMinExact / 5f).roundToInt() * 5).coerceIn(5, 1440)
-                            val eSnapped = maxOf(sSnapped + 5, rawEndSnapped)
+                            val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+                            val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+                            val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
                             val durationM = eSnapped - sSnapped
 
                             val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
@@ -3177,7 +3177,7 @@ fun ScheduleDayGridView(
                                                                 if (movingMarkerItem != null) {
                                                                     val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
                                                                     val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
-                                                                    val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - durationM)
+                                                                    val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - durationM)
                                                                     val targetStartHour = targetMinSnapped / 60
                                                                     val targetStartMin = targetMinSnapped % 60
                                                                     val targetEndMinTotal = targetMinSnapped + durationM
@@ -3269,14 +3269,11 @@ fun ScheduleDayGridView(
                             val startDt = parseDateTime(item.startTime)
                             if (startDt != null) {
                                 val startMinute = startDt.hour * 60 + startDt.minute
-                                val origDuration = item.estimatedMinutes.coerceIn(5, 1440)
+                                val origDuration = item.estimatedMinutes.coerceIn(1, 1440)
                                 val isResizingThis = resizingScheduleItem?.id == item.id
-                                val extraResizeMinutes = if (isResizingThis) {
-                                    val rawMins = resizeDeltaY / density.density / hourHeightDpValue * 60f
-                                    (rawMins / 5f).roundToInt() * 5
-                                } else 0
                                 val maxAllowedDuration = 1440 - startMinute
-                                val displayDuration = (origDuration + extraResizeMinutes).coerceIn(5, maxOf(5, maxAllowedDuration))
+                                // 拖拽手柄保持原卡片尺寸，避免手柄在手指下漂移移动；实时扩展高度通过浮层即时呈现
+                                val displayDuration = origDuration
 
                                 val topY = (startMinute.toFloat() / 60f) * hourHeightDpValue
                                 val blockH = (displayDuration.toFloat() / 60f) * hourHeightDpValue
@@ -3322,7 +3319,7 @@ fun ScheduleDayGridView(
                                                         if (movingScheduleItem != null) {
                                                             val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
                                                             val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
-                                                            val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - item.estimatedMinutes)
+                                                            val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
                                                             val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
                                                             val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
                                                             val updated = item.copy(
@@ -3458,11 +3455,11 @@ fun ScheduleDayGridView(
                                                             onDragEnd = {
                                                                 if (resizingScheduleItem != null) {
                                                                     val rawMins = resizeDeltaY / density.density / hourHeightDpValue * 60f
-                                                                    val extraMins = (rawMins / 5f).roundToInt() * 5
+                                                                    val extraMins = rawMins.roundToInt()
                                                                     val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
                                                                     val startMin = curStart.hour * 60 + curStart.minute
                                                                     val maxAllowedMins = 1440 - startMin
-                                                                    val newMins = (item.estimatedMinutes + extraMins).coerceIn(5, maxOf(5, maxAllowedMins))
+                                                                    val newMins = (item.estimatedMinutes + extraMins).coerceIn(1, maxOf(1, maxAllowedMins))
                                                                     val newEnd = curStart.plusMinutes(newMins.toLong())
                                                                     val updated = item.copy(
                                                                         estimatedMinutes = newMins,
@@ -3550,7 +3547,7 @@ fun ScheduleDayGridView(
                                                                 if (movingMarkerItem != null) {
                                                                     val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.8f * hourHeightDpValue)
                                                                     val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
-                                                                    val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                                                    val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1439)
                                                                     val targetHour = targetMinSnapped / 60
                                                                     val targetMinute = targetMinSnapped % 60
                                                                     val newStart = selectedDate.atTime(targetHour, targetMinute)
@@ -3629,7 +3626,7 @@ fun ScheduleDayGridView(
                             val item = movingScheduleItem!!
                             val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
                             val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
-                            val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - item.estimatedMinutes)
+                            val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
                             val targetStartHour = targetMinSnapped / 60
                             val targetStartMin = targetMinSnapped % 60
                             val targetEndMinTotal = targetMinSnapped + item.estimatedMinutes
@@ -3667,6 +3664,50 @@ fun ScheduleDayGridView(
                             }
                         }
 
+                        // 已有日程卡片底边拖拽调整时长实时预览指示虚影 (Resizing Schedule Hover Preview)
+                        if (resizingScheduleItem != null) {
+                            val item = resizingScheduleItem!!
+                            val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
+                            val startMinute = curStart.hour * 60 + curStart.minute
+                            val rawMins = resizeDeltaY / density.density / hourHeightDpValue * 60f
+                            val extraMins = rawMins.roundToInt()
+                            val maxAllowedMins = 1440 - startMinute
+                            val newMins = (item.estimatedMinutes + extraMins).coerceIn(1, maxOf(1, maxAllowedMins))
+                            val curEnd = curStart.plusMinutes(newMins.toLong())
+
+                            val topY = (startMinute.toFloat() / 60f) * hourHeightDpValue
+                            val previewHeightDp = (newMins.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(18f)
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = DopamineAmber.copy(alpha = 0.42f),
+                                border = BorderStroke(2.dp, DopamineAmber),
+                                shadowElevation = 6.dp,
+                                modifier = Modifier
+                                    .offset(y = topY.dp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp)
+                                    .height(previewHeightDp.dp)
+                                    .zIndex(31f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                ) {
+                                    Text("⏱️", fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "调整至 %02d:%02d (%d分钟)".format(
+                                            curEnd.hour, curEnd.minute, newMins
+                                        ),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
                         // 真实时间标记长按拖拽移时实时预览指示虚影 (Moving Marker Hover Preview)
                         if (movingMarkerItem != null) {
                             val marker = movingMarkerItem!!
@@ -3682,10 +3723,10 @@ fun ScheduleDayGridView(
                                 val sDt = parseDateTime(marker.startTime)
                                 val eDt = parseDateTime(marker.endTime)
                                 val origDurationM = if (sDt != null && eDt != null) {
-                                    ((eDt.hour * 60 + eDt.minute) - (sDt.hour * 60 + sDt.minute)).coerceIn(5, 1440)
+                                    ((eDt.hour * 60 + eDt.minute) - (sDt.hour * 60 + sDt.minute)).coerceIn(1, 1440)
                                 } else 60
 
-                                val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1440 - origDurationM)
+                                val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - origDurationM)
                                 val targetStartHour = targetMinSnapped / 60
                                 val targetStartMin = targetMinSnapped % 60
                                 val targetEndMinTotal = targetMinSnapped + origDurationM
@@ -3722,7 +3763,7 @@ fun ScheduleDayGridView(
                                     }
                                 }
                             } else {
-                                val targetMinSnapped = ((targetMinExact / 5f).roundToInt() * 5).coerceIn(0, 1435)
+                                val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1439)
                                 val targetHour = targetMinSnapped / 60
                                 val targetMinute = targetMinSnapped % 60
 
@@ -4695,9 +4736,9 @@ fun EditScheduleDialog(
 
                 Text("预估耗时: $minutes 分钟", fontSize = 12.sp, color = TextSecondary)
                 Slider(
-                    value = minutes.toFloat().coerceIn(5f, 720f),
-                    onValueChange = { minutes = ((it / 5f).roundToInt() * 5).coerceIn(5, 720) },
-                    valueRange = 5f..720f,
+                    value = minutes.toFloat().coerceIn(1f, 720f),
+                    onValueChange = { minutes = it.roundToInt().coerceIn(1, 720) },
+                    valueRange = 1f..720f,
                     colors = SliderDefaults.colors(thumbColor = DopamineBlue, activeTrackColor = DopamineBlue)
                 )
                 val editQuickDurations = listOf(15, 25, 30, 45, 60, 90, 120, 180, 240)
@@ -5346,9 +5387,9 @@ fun AddScheduleDialog(
 
                 Text("预估耗时: $minutes 分钟", fontSize = 12.sp, color = TextSecondary)
                 Slider(
-                    value = minutes.toFloat().coerceIn(5f, 720f),
-                    onValueChange = { minutes = ((it / 5f).roundToInt() * 5).coerceIn(5, 720) },
-                    valueRange = 5f..720f,
+                    value = minutes.toFloat().coerceIn(1f, 720f),
+                    onValueChange = { minutes = it.roundToInt().coerceIn(1, 720) },
+                    valueRange = 1f..720f,
                     colors = SliderDefaults.colors(thumbColor = DopamineBlue, activeTrackColor = DopamineBlue)
                 )
                 val addQuickDurations = listOf(15, 25, 30, 45, 60, 90, 120, 180, 240)
