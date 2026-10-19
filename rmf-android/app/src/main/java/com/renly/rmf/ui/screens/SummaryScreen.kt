@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -237,17 +238,21 @@ fun SummaryScreen(
         getCombinedDailyBlocks(selectedDate, schedules, courses, context)
     }
 
-    val totalHours = dailyBlocks.sumOf {
-        Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+    val totalHours = remember(dailyBlocks) {
+        dailyBlocks.sumOf {
+            Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+        }
     }
 
     val totalSchedules = schedules.size
-    val completedSchedules = schedules.count { it.status == "COMPLETED" }
-    val completionRate = if (totalSchedules > 0) (completedSchedules * 100 / totalSchedules) else 0
+    val completedSchedules = remember(schedules) { schedules.count { it.status == "COMPLETED" } }
+    val completionRate = remember(totalSchedules, completedSchedules) {
+        if (totalSchedules > 0) (completedSchedules * 100 / totalSchedules) else 0
+    }
 
-    val totalInterruptionSeconds = interruptions.sumOf { it.durationSeconds }
+    val totalInterruptionSeconds = remember(interruptions) { interruptions.sumOf { it.durationSeconds } }
     val interruptionMinutes = totalInterruptionSeconds / 60
-    val totalExpenseAmount = expenses.sumOf { it.amount }
+    val totalExpenseAmount = remember(expenses) { expenses.sumOf { it.amount } }
 
     LazyColumn(
         modifier = Modifier
@@ -847,10 +852,20 @@ fun DailyClockDial(
     modifier: Modifier = Modifier
 ) {
     val colors = LocalAppColors.current
-    val totalHours = blocks.sumOf {
-        Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+    val density = LocalDensity.current
+    val totalHours = remember(blocks) {
+        blocks.sumOf {
+            Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+        }
     }
     val totalCount = blocks.size
+    val textPaint = remember(density) {
+        android.graphics.Paint().apply {
+            isAntiAlias = true
+            textAlign = android.graphics.Paint.Align.CENTER
+            textSize = with(density) { 9.sp.toPx() }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -881,11 +896,6 @@ fun DailyClockDial(
             )
 
             // 2. 24 小时刻度线与数字刻度
-            val textPaint = android.graphics.Paint().apply {
-                isAntiAlias = true
-                textAlign = android.graphics.Paint.Align.CENTER
-                textSize = 9.sp.toPx()
-            }
 
             for (h in 0 until 24) {
                 val deg = -90f + h * 15f
@@ -1060,9 +1070,9 @@ fun WeeklyCompletionTrendChart(
 ) {
     val colors = LocalAppColors.current
     val today = LocalDate.now()
-    val past7Days = remember { (6 downTo 0).map { today.minusDays(it.toLong()) } }
+    val past7Days = remember(today) { (6 downTo 0).map { today.minusDays(it.toLong()) } }
 
-    val dailyStats = remember(schedules) {
+    val dailyStats = remember(schedules, past7Days) {
         past7Days.map { date ->
             val daySchedules = schedules.filter { s ->
                 val st = parseSummaryDateTime(s.startTime)
@@ -1074,9 +1084,9 @@ fun WeeklyCompletionTrendChart(
         }
     }
 
-    val maxTotal = dailyStats.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
-    val totalDoneWeek = dailyStats.sumOf { it.third }
-    val totalWeek = dailyStats.sumOf { it.second }
+    val maxTotal = remember(dailyStats) { dailyStats.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1 }
+    val totalDoneWeek = remember(dailyStats) { dailyStats.sumOf { it.third } }
+    val totalWeek = remember(dailyStats) { dailyStats.sumOf { it.second } }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1214,7 +1224,7 @@ fun CategoryDonutChart(
         )
     }
 
-    val totalCatHours = categoryHours.sumOf { it.second }
+    val totalCatHours = remember(categoryHours) { categoryHours.sumOf { it.second } }
 
     Card(
         modifier = modifier.fillMaxWidth(),

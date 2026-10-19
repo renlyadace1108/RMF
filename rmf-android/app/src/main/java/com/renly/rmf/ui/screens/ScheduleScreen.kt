@@ -161,12 +161,14 @@ fun ScheduleScreen(
     var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
-    val calendarSchedules = schedules.filter { it.status != "BACKLOG" }
-    val backlogSchedules = schedules.filter { it.status == "BACKLOG" }
+    val calendarSchedules = remember(schedules) { schedules.filter { it.status != "BACKLOG" } }
+    val backlogSchedules = remember(schedules) { schedules.filter { it.status == "BACKLOG" } }
 
-    val completedCount = calendarSchedules.count { it.status == "COMPLETED" }
+    val completedCount = remember(calendarSchedules) { calendarSchedules.count { it.status == "COMPLETED" } }
     val totalCount = calendarSchedules.size
-    val completionPercent = if (totalCount > 0) (completedCount * 100 / totalCount) else 0
+    val completionPercent = remember(totalCount, completedCount) {
+        if (totalCount > 0) (completedCount * 100 / totalCount) else 0
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -2862,6 +2864,8 @@ fun ScheduleDayGridView(
             it.isDeleted == 0 && (it.date == selectedDate.toString() || it.startTime.startsWith(selectedDate.toString()))
         }
     }
+    val rangeMarkers = remember(dayMarkers) { dayMarkers.filter { it.markerType == "RANGE" } }
+    val pointMarkers = remember(dayMarkers) { dayMarkers.filter { it.markerType != "RANGE" } }
 
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -2878,13 +2882,15 @@ fun ScheduleDayGridView(
     var clickedHourForBacklog by remember { mutableIntStateOf(-1) }
     var selectedTimeIndicatorMinute by remember { mutableStateOf<Int?>(null) }
 
-    val checkScheduleOverlap: (Int, Int, String?) -> ScheduleEntity? = { startMin, endMin, excludeScheduleId ->
-        daySchedules.firstOrNull { other ->
-            if (other.id == excludeScheduleId || other.status == "CANCELLED") return@firstOrNull false
-            val sDt = parseDateTime(other.startTime) ?: return@firstOrNull false
-            val otherStartMin = sDt.hour * 60 + sDt.minute
-            val otherEndMin = otherStartMin + other.estimatedMinutes
-            maxOf(startMin, otherStartMin) < minOf(endMin, otherEndMin)
+    val checkScheduleOverlap: (Int, Int, String?) -> ScheduleEntity? = remember(daySchedules) {
+        { startMin, endMin, excludeScheduleId ->
+            daySchedules.firstOrNull { other ->
+                if (other.id == excludeScheduleId || other.status == "CANCELLED") return@firstOrNull false
+                val sDt = parseDateTime(other.startTime) ?: return@firstOrNull false
+                val otherStartMin = sDt.hour * 60 + sDt.minute
+                val otherEndMin = otherStartMin + other.estimatedMinutes
+                maxOf(startMin, otherStartMin) < minOf(endMin, otherEndMin)
+            }
         }
     }
 
@@ -3787,8 +3793,9 @@ fun ScheduleDayGridView(
                         }
 
                         // 真实时间段标记 (Range Markers: 如实际午休、睡眠、锻炼等底色区块)
-                        dayMarkers.filter { it.markerType == "RANGE" }.forEach { marker ->
-                            val sDt = parseDateTime(marker.startTime)
+                        rangeMarkers.forEach { marker ->
+                            key(marker.id) {
+                                val sDt = parseDateTime(marker.startTime)
                             val eDt = parseDateTime(marker.endTime)
                             if (sDt != null && eDt != null) {
                                 val sMin = sDt.hour * 60 + sDt.minute
@@ -3938,10 +3945,12 @@ fun ScheduleDayGridView(
                                 }
                             }
                         }
+                    }
 
                         // 已排期日程卡片 (支持长按拖拽移时、底部手柄拉伸缩放时长)
                         daySchedules.forEach { item ->
-                            val startDt = parseDateTime(item.startTime)
+                            key(item.id) {
+                                val startDt = parseDateTime(item.startTime)
                             if (startDt != null) {
                                 val startMinute = startDt.hour * 60 + startDt.minute
                                 val origDuration = item.estimatedMinutes.coerceIn(1, 1440)
@@ -4179,10 +4188,12 @@ fun ScheduleDayGridView(
                                 }
                             }
                         }
+                    }
 
                         // 真实时间点标记 (Point Markers: 如实际起床、就寝、实际开工等横向标尺线与图钉标签)
-                        dayMarkers.filter { it.markerType != "RANGE" }.forEach { marker ->
-                            val sDt = parseDateTime(marker.startTime)
+                        pointMarkers.forEach { marker ->
+                            key(marker.id) {
+                                val sDt = parseDateTime(marker.startTime)
                             if (sDt != null) {
                                 val sMin = sDt.hour * 60 + sDt.minute
                                 val topY = (sMin.toFloat() / 60f) * hourHeightDpValue
@@ -4310,6 +4321,7 @@ fun ScheduleDayGridView(
                                 }
                             }
                         }
+                    }
 
                         // 已有日程卡片长按拖拽移时实时预览指示虚影 (Moving Schedule Hover Preview)
                         if (movingScheduleItem != null) {
