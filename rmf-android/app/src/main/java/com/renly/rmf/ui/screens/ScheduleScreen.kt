@@ -1152,6 +1152,7 @@ fun DragRangeScheduleDialog(
     range: DragRangeData,
     backlogItems: List<ScheduleEntity> = emptyList(),
     availableTags: List<ScheduleTagEntity> = emptyList(),
+    existingSchedules: List<ScheduleEntity> = emptyList(),
     onDismiss: () -> Unit,
     onAddSchedule: (String, String, String, Int, String, String, Int, String) -> Unit,
     onAssignBacklog: (ScheduleEntity, LocalDateTime, LocalDateTime, Int) -> Unit
@@ -1168,6 +1169,19 @@ fun DragRangeScheduleDialog(
     val endDt = startDt.plusMinutes(durationMinutes.toLong())
     val startStr = startDt.format(DateTimeFormatter.ISO_DATE_TIME)
     val endStr = endDt.format(DateTimeFormatter.ISO_DATE_TIME)
+
+    val startMinuteOfDay = range.startHour * 60 + range.startMinute
+    val endMinuteOfDay = startMinuteOfDay + durationMinutes
+    val conflictSchedule = remember(startMinuteOfDay, durationMinutes, existingSchedules) {
+        existingSchedules.firstOrNull { s ->
+            if (s.status == "CANCELLED") return@firstOrNull false
+            val sDt = parseDateTime(s.startTime) ?: return@firstOrNull false
+            if (sDt.toLocalDate() != range.date) return@firstOrNull false
+            val oStart = sDt.hour * 60 + sDt.minute
+            val oEnd = oStart + s.estimatedMinutes
+            maxOf(startMinuteOfDay, oStart) < minOf(endMinuteOfDay, oEnd)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1192,6 +1206,26 @@ fun DragRangeScheduleDialog(
                         color = DopamineBlue,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
+                }
+                if (conflictSchedule != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = DopamineRed.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, DopamineRed.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ 注意：此时间段与「${conflictSchedule.title}」重叠冲突",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DopamineRed
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -2764,6 +2798,7 @@ fun ScheduleWeekGridView(
             range = dragSelectedRange!!,
             backlogItems = backlogItems,
             availableTags = availableTags,
+            existingSchedules = schedules,
             onDismiss = { dragSelectedRange = null },
             onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
                 onAddScheduleWithRange(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
@@ -2843,6 +2878,69 @@ fun ScheduleDayGridView(
     var clickedHourForBacklog by remember { mutableIntStateOf(-1) }
     var selectedTimeIndicatorMinute by remember { mutableStateOf<Int?>(null) }
 
+    val checkScheduleOverlap: (Int, Int, String?) -> ScheduleEntity? = { startMin, endMin, excludeScheduleId ->
+        daySchedules.firstOrNull { other ->
+            if (other.id == excludeScheduleId || other.status == "CANCELLED") return@firstOrNull false
+            val sDt = parseDateTime(other.startTime) ?: return@firstOrNull false
+            val otherStartMin = sDt.hour * 60 + sDt.minute
+            val otherEndMin = otherStartMin + other.estimatedMinutes
+            maxOf(startMin, otherStartMin) < minOf(endMin, otherEndMin)
+        }
+    }
+
+    val autoSequenceSchedule: () -> Unit = {
+        if (isLocked) {
+            Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
+        } else if (backlogItems.isEmpty()) {
+            Toast.makeText(context, "待办箱为空，暂无可排任务", Toast.LENGTH_SHORT).show()
+        } else {
+            var cursorMinute = if (selectedTimeIndicatorMinute != null) {
+                selectedTimeIndicatorMinute!!
+            } else if (selectedDate == LocalDate.now()) {
+                val now = LocalDateTime.now()
+                val curM = now.hour * 60 + now.minute
+                val rem = curM % 5
+                if (rem == 0) curM else curM + (5 - rem)
+            } else {
+                9 * 60 // 09:00
+            }
+
+            val activeIntervals = daySchedules.mapNotNull { s ->
+                if (s.status == "CANCELLED") return@mapNotNull null
+                val dt = parseDateTime(s.startTime) ?: return@mapNotNull null
+                val sMin = dt.hour * 60 + dt.minute
+                val eMin = sMin + s.estimatedMinutes
+                sMin to eMin
+            }.sortedBy { it.first }
+
+            var scheduledCount = 0
+            backlogItems.forEach { item ->
+                val duration = item.estimatedMinutes.coerceIn(5, 720)
+                while (cursorMinute + duration <= 1440) {
+                    val endMinute = cursorMinute + duration
+                    val conflict = activeIntervals.firstOrNull { (start, end) ->
+                        maxOf(cursorMinute, start) < minOf(endMinute, end)
+                    }
+                    if (conflict != null) {
+                        cursorMinute = conflict.second
+                    } else {
+                        break
+                    }
+                }
+
+                if (cursorMinute + duration <= 1440) {
+                    val startDt = selectedDate.atTime(cursorMinute / 60, cursorMinute % 60)
+                    onScheduleBacklog(item, startDt)
+                    cursorMinute += duration
+                    scheduledCount++
+                }
+            }
+
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            Toast.makeText(context, "⚡ 智能顺序排期完成: 已紧凑排入 ${scheduledCount} 项待办", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val executeDropDay: (ScheduleEntity) -> Unit = { item ->
         if (isLocked) {
             Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
@@ -2859,10 +2957,15 @@ fun ScheduleDayGridView(
                 val dropHour = snappedMinutes / 60
                 val dropMinute = snappedMinutes % 60
                 val targetDt = selectedDate.atTime(dropHour, dropMinute)
+                val conflict = checkScheduleOverlap(snappedMinutes, snappedMinutes + item.estimatedMinutes, null)
 
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                 onScheduleBacklog(item, targetDt)
-                Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+                if (conflict != null) {
+                    Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d (注意与「%s」重叠)".format(dropHour, dropMinute, conflict.title), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d".format(dropHour, dropMinute), Toast.LENGTH_SHORT).show()
+                }
             }
         }
         draggingItem = null
@@ -2998,11 +3101,28 @@ fun ScheduleDayGridView(
                             )
                         }
 
-                        Text(
-                            text = "长按拖入时间轴 / 点击快捷排期",
-                            fontSize = 9.sp,
-                            color = TextSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                onClick = autoSequenceSchedule,
+                                shape = RoundedCornerShape(12.dp),
+                                color = DopamineBlue.copy(alpha = 0.15f),
+                                border = BorderStroke(0.8.dp, DopamineBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.padding(end = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("⚡ 智能顺序排期", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = DopamineBlue)
+                                }
+                            }
+
+                            Text(
+                                text = "长按拖入 / 点选",
+                                fontSize = 8.5.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
 
                     if (isBacklogBarExpanded) {
@@ -3227,7 +3347,10 @@ fun ScheduleDayGridView(
                             } while (event.changes.any { it.pressed })
                         }
                     }
-                    .verticalScroll(verticalScrollState)
+                    .verticalScroll(
+                        verticalScrollState,
+                        enabled = draggingItem == null && movingScheduleItem == null && movingMarkerItem == null && resizingScheduleItem == null && !isDragSelecting
+                    )
             ) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.width(timeColWidth)) {
@@ -3235,7 +3358,19 @@ fun ScheduleDayGridView(
                             Box(
                                 modifier = Modifier
                                     .height(hourHeight)
-                                    .fillMaxWidth(),
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (!isLocked) {
+                                            dragSelectedRange = DragRangeData(
+                                                date = selectedDate,
+                                                startHour = h,
+                                                startMinute = 0,
+                                                endHour = (h + 1).coerceAtMost(24),
+                                                endMinute = 0,
+                                                durationMinutes = 60
+                                            )
+                                        }
+                                    },
                                 contentAlignment = Alignment.TopCenter
                             ) {
                                 Text(
@@ -3428,7 +3563,18 @@ fun ScheduleDayGridView(
                                             fontWeight = FontWeight.Bold,
                                             color = DopamineBlue,
                                             modifier = Modifier.clickable {
-                                                clickedHourForBacklog = selMin / 60
+                                                val startH = selMin / 60
+                                                val startM = selMin % 60
+                                                val dur = 30
+                                                val endTotal = (selMin + dur).coerceAtMost(1440)
+                                                dragSelectedRange = DragRangeData(
+                                                    date = selectedDate,
+                                                    startHour = startH,
+                                                    startMinute = startM,
+                                                    endHour = endTotal / 60,
+                                                    endMinute = endTotal % 60,
+                                                    durationMinutes = dur
+                                                )
                                             }
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
@@ -3470,22 +3616,28 @@ fun ScheduleDayGridView(
                                 val endMinutesTotal = (snappedMinutes + draggingItem!!.estimatedMinutes).coerceAtMost(1440)
                                 val endHour = endMinutesTotal / 60
                                 val endMinute = endMinutesTotal % 60
-                                val draggedColor = tagColorMap[draggingItem!!.category] ?: when (draggingItem!!.workType) {
+                                val snappedBlockTopDp = (snappedMinutes.toFloat() / 60f) * hourHeightDpValue
+
+                                val conflict = checkScheduleOverlap(snappedMinutes, endMinutesTotal, null)
+                                val isConflict = conflict != null
+                                val baseColor = tagColorMap[draggingItem!!.category] ?: when (draggingItem!!.workType) {
                                     "DEEP_WORK" -> DopamineBlue
                                     "SHALLOW_WORK" -> DopamineAmber
                                     "REST_BUFFER" -> DopamineGreen
                                     else -> DopaminePurple
                                 }
+                                val draggedColor = if (isConflict) DopamineRed else baseColor
 
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = draggedColor.copy(alpha = 0.42f),
-                                    border = BorderStroke(1.8.dp, draggedColor),
+                                    color = (if (isConflict) DopamineRed else draggedColor).copy(alpha = if (isConflict) 0.5f else 0.42f),
+                                    border = BorderStroke(2.dp, draggedColor),
                                     modifier = Modifier
-                                        .offset(y = blockTopDp.dp)
+                                        .offset(y = snappedBlockTopDp.dp)
                                         .fillMaxWidth()
                                         .padding(horizontal = 4.dp)
                                         .height(previewBlockH.dp)
+                                        .zIndex(30f)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -3502,10 +3654,10 @@ fun ScheduleDayGridView(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = draggingItem!!.title,
+                                                text = if (isConflict) "⚠️ 与「${conflict?.title}」冲突" else draggingItem!!.title,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = TextPrimary,
+                                                color = if (isConflict) Color.White else TextPrimary,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -3544,10 +3696,14 @@ fun ScheduleDayGridView(
                             val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
                             val ghostHeightDp = maxOf(14f, (durationM.toFloat() / 60f) * hourHeightDpValue)
 
+                            val conflict = checkScheduleOverlap(sSnapped, eSnapped, null)
+                            val isConflict = conflict != null
+                            val ghostColor = if (isConflict) DopamineAmber else DopamineBlue
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = DopamineBlue.copy(alpha = 0.35f),
-                                border = BorderStroke(1.8.dp, DopamineBlue),
+                                color = ghostColor.copy(alpha = if (isConflict) 0.45f else 0.35f),
+                                border = BorderStroke(1.8.dp, if (isConflict) DopamineRed else ghostColor),
                                 modifier = Modifier
                                     .offset(y = ghostTopDp.dp)
                                     .fillMaxWidth()
@@ -3559,12 +3715,18 @@ fun ScheduleDayGridView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 10.dp)
                                     ) {
-                                        Text("⏱️", fontSize = 12.sp)
+                                        Text(if (isConflict) "⚠️" else "⏱️", fontSize = 12.sp)
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "框选排期: %02d:%02d - %02d:%02d (%d分钟) · 松开即可排期".format(
-                                                sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
-                                            ),
+                                            text = if (isConflict) {
+                                                "与「${conflict?.title}」冲突 · %02d:%02d-%02d:%02d (%dm)".format(
+                                                    sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                                )
+                                            } else {
+                                                "框选排期: %02d:%02d - %02d:%02d (%d分钟) · 松开即可排期".format(
+                                                    sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                                )
+                                            },
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
@@ -3575,12 +3737,16 @@ fun ScheduleDayGridView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 8.dp)
                                     ) {
-                                        Text("⏱️", fontSize = 10.sp)
+                                        Text(if (isConflict) "⚠️" else "⏱️", fontSize = 10.sp)
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = "%02d:%02d - %02d:%02d (%d分)".format(
-                                                sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
-                                            ),
+                                            text = if (isConflict) {
+                                                "与「${conflict?.title}」重叠 (%d分)".format(durationM)
+                                            } else {
+                                                "%02d:%02d - %02d:%02d (%d分)".format(
+                                                    sSnapped / 60, sSnapped % 60, eSnapped / 60, eSnapped % 60, durationM
+                                                )
+                                            },
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
@@ -3594,7 +3760,7 @@ fun ScheduleDayGridView(
                                 val tooltipOffset = if (ghostTopDp >= 32f) (ghostTopDp - 28f) else (ghostTopDp + ghostHeightDp + 4f)
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = DopamineBlue,
+                                    color = if (isConflict) DopamineRed else DopamineBlue,
                                     shadowElevation = 6.dp,
                                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)),
                                     modifier = Modifier
@@ -3605,7 +3771,7 @@ fun ScheduleDayGridView(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
-                                        Text("⏱️", fontSize = 10.sp)
+                                        Text(if (isConflict) "⚠️" else "⏱️", fontSize = 10.sp)
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = "框选: %02d:%02d - %02d:%02d (%d分钟) · 松开排期".format(
@@ -3834,6 +4000,8 @@ fun ScheduleDayGridView(
                                                             val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
                                                             val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
                                                             val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
+                                                            val targetEndMinTotal = targetMinSnapped + item.estimatedMinutes
+                                                            val conflict = checkScheduleOverlap(targetMinSnapped, targetEndMinTotal, item.id)
                                                             val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
                                                             val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
                                                             val updated = item.copy(
@@ -3842,6 +4010,9 @@ fun ScheduleDayGridView(
                                                                 updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                             )
                                                             onUpdateSchedule(updated)
+                                                            if (conflict != null) {
+                                                                Toast.makeText(context, "已移至 %02d:%02d (注意与「%s」重叠)".format(targetMinSnapped / 60, targetMinSnapped % 60, conflict.title), Toast.LENGTH_SHORT).show()
+                                                            }
                                                             movingScheduleItem = null
                                                             movingDragDeltaY = 0f
                                                         }
@@ -4152,14 +4323,19 @@ fun ScheduleDayGridView(
                             val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
                             val targetEndMin = targetEndMinTotal % 60
 
+                            val snappedTopDp = (targetMinSnapped.toFloat() / 60f) * hourHeightDpValue
                             val previewHeightDp = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(24f)
+
+                            val conflict = checkScheduleOverlap(targetMinSnapped, targetEndMinTotal, item.id)
+                            val isConflict = conflict != null
+                            val strokeColor = if (isConflict) DopamineRed else DopamineAmber
 
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = DopamineAmber.copy(alpha = 0.38f),
-                                border = BorderStroke(2.dp, DopamineAmber),
+                                color = (if (isConflict) DopamineRed else DopamineAmber).copy(alpha = if (isConflict) 0.5f else 0.38f),
+                                border = BorderStroke(2.dp, strokeColor),
                                 modifier = Modifier
-                                    .offset(y = currentTopDp.dp)
+                                    .offset(y = snappedTopDp.dp)
                                     .fillMaxWidth()
                                     .padding(horizontal = 4.dp)
                                     .height(previewHeightDp.dp)
@@ -4169,12 +4345,18 @@ fun ScheduleDayGridView(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 8.dp)
                                 ) {
-                                    Text("🎯", fontSize = 11.sp)
+                                    Text(if (isConflict) "⚠️" else "🎯", fontSize = 11.sp)
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "移动至 %02d:%02d - %02d:%02d · %s (%dm)".format(
-                                            targetStartHour, targetStartMin, targetEndHour, targetEndMin, item.title, item.estimatedMinutes
-                                        ),
+                                        text = if (isConflict) {
+                                            "与「${conflict?.title}」重叠 · %02d:%02d - %02d:%02d".format(
+                                                targetStartHour, targetStartMin, targetEndHour, targetEndMin
+                                            )
+                                        } else {
+                                            "移动至 %02d:%02d - %02d:%02d · %s (%dm)".format(
+                                                targetStartHour, targetStartMin, targetEndHour, targetEndMin, item.title, item.estimatedMinutes
+                                            )
+                                        },
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -4197,10 +4379,14 @@ fun ScheduleDayGridView(
                             val topY = (startMinute.toFloat() / 60f) * hourHeightDpValue
                             val previewHeightDp = (newMins.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(18f)
 
+                            val conflict = checkScheduleOverlap(startMinute, startMinute + newMins, item.id)
+                            val isConflict = conflict != null
+                            val strokeColor = if (isConflict) DopamineRed else DopamineAmber
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = DopamineAmber.copy(alpha = 0.42f),
-                                border = BorderStroke(2.dp, DopamineAmber),
+                                color = (if (isConflict) DopamineRed else DopamineAmber).copy(alpha = if (isConflict) 0.5f else 0.42f),
+                                border = BorderStroke(2.dp, strokeColor),
                                 shadowElevation = 6.dp,
                                 modifier = Modifier
                                     .offset(y = topY.dp)
@@ -4213,12 +4399,16 @@ fun ScheduleDayGridView(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 8.dp)
                                 ) {
-                                    Text("⏱️", fontSize = 11.sp)
+                                    Text(if (isConflict) "⚠️" else "⏱️", fontSize = 11.sp)
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "调整至 %02d:%02d (%d分钟)".format(
-                                            curEnd.hour, curEnd.minute, newMins
-                                        ),
+                                        text = if (isConflict) {
+                                            "碰撞冲突: 与「${conflict?.title}」重叠 (%d分钟)".format(newMins)
+                                        } else {
+                                            "调整至 %02d:%02d (%d分钟)".format(
+                                                curEnd.hour, curEnd.minute, newMins
+                                            )
+                                        },
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -4251,6 +4441,7 @@ fun ScheduleDayGridView(
                                 val targetEndMinTotal = targetMinSnapped + origDurationM
                                 val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
                                 val targetEndMin = targetEndMinTotal % 60
+                                val snappedTopDp = (targetMinSnapped.toFloat() / 60f) * hourHeightDpValue
                                 val previewHeightDp = (origDurationM.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(24f)
 
                                 Surface(
@@ -4259,7 +4450,7 @@ fun ScheduleDayGridView(
                                     border = BorderStroke(2.dp, markerColor),
                                     shadowElevation = 8.dp,
                                     modifier = Modifier
-                                        .offset(y = currentTopDp.dp)
+                                        .offset(y = snappedTopDp.dp)
                                         .fillMaxWidth()
                                         .padding(horizontal = 2.dp)
                                         .height(previewHeightDp.dp)
@@ -4285,11 +4476,12 @@ fun ScheduleDayGridView(
                                 val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1439)
                                 val targetHour = targetMinSnapped / 60
                                 val targetMinute = targetMinSnapped % 60
+                                val snappedTopDp = (targetMinSnapped.toFloat() / 60f) * hourHeightDpValue
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .offset(y = (currentTopDp - 11f).dp)
+                                        .offset(y = (snappedTopDp - 11f).dp)
                                         .fillMaxWidth()
                                         .zIndex(32f)
                                 ) {
@@ -4459,6 +4651,7 @@ fun ScheduleDayGridView(
                 range = dragSelectedRange!!,
                 backlogItems = backlogItems,
                 availableTags = availableTags,
+                existingSchedules = daySchedules,
                 onDismiss = { dragSelectedRange = null },
                 onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
                     onAddScheduleWithRange(title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType)
