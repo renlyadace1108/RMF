@@ -35,6 +35,7 @@ import com.renly.rmf.data.local.entity.CourseEntity
 import com.renly.rmf.data.local.entity.ExpenseEntity
 import com.renly.rmf.data.local.entity.InterruptionEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
+import com.renly.rmf.data.local.entity.TimeMarkerEntity
 import com.renly.rmf.domain.service.TimetablePreferences
 import com.renly.rmf.ui.theme.LocalAppColors
 import kotlinx.coroutines.flow.Flow
@@ -209,6 +210,7 @@ fun SummaryScreen(
     coursesFlow: Flow<List<CourseEntity>> = flowOf(emptyList()),
     interruptionsFlow: Flow<List<InterruptionEntity>>,
     expensesFlow: Flow<List<ExpenseEntity>>,
+    timeMarkersFlow: Flow<List<TimeMarkerEntity>> = flowOf(emptyList()),
     onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -218,12 +220,18 @@ fun SummaryScreen(
     val courses by coursesFlow.collectAsState(initial = emptyList())
     val interruptions by interruptionsFlow.collectAsState(initial = emptyList())
     val expenses by expensesFlow.collectAsState(initial = emptyList())
+    val allTimeMarkers by timeMarkersFlow.collectAsState(initial = emptyList())
 
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedBlock by remember { mutableStateOf<ClockTimeBlock?>(null) }
     var isGeneratingAiAudit by remember { mutableStateOf(false) }
     var aiAuditResult by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
+
+    val dailyMarkers = remember(selectedDate, allTimeMarkers) {
+        val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        allTimeMarkers.filter { it.date == dateStr }
+    }
 
     val dailyBlocks = remember(selectedDate, schedules, courses) {
         getCombinedDailyBlocks(selectedDate, schedules, courses, context)
@@ -597,6 +605,15 @@ fun SummaryScreen(
             HourlyEnergyHeatmap(blocks = dailyBlocks)
         }
 
+        // 4.2 🎯 实际作息与预计日程偏差透视
+        item {
+            RealityVsScheduleContrastCard(
+                selectedDate = selectedDate,
+                dailyBlocks = dailyBlocks,
+                dailyMarkers = dailyMarkers
+            )
+        }
+
         // 4.5 🤖 AI 智能效能与精力深度分析
         item {
             Card(
@@ -624,7 +641,7 @@ fun SummaryScreen(
                                 )
                             }
                             Text(
-                                text = "综合全息作息时钟、专注时长、心流打断与履约率生成智能诊断",
+                                text = "综合全息作息时钟、专注时长、实际时间标记与履约率生成智能诊断",
                                 fontSize = 11.sp,
                                 color = colors.textSecondary,
                                 modifier = Modifier.padding(top = 2.dp)
@@ -645,6 +662,21 @@ fun SummaryScreen(
                                     val catSummary = dailyBlocks.groupBy { it.category }
                                         .map { "${it.key}: ${it.value.size}项" }.joinToString()
 
+                                    val markersSummary = if (dailyMarkers.isNotEmpty()) {
+                                        dailyMarkers.joinToString("\n") { m ->
+                                            val sDt = parseSummaryDateTime(m.startTime)
+                                            val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: m.startTime
+                                            if (m.markerType == "RANGE" && m.endTime.isNotBlank()) {
+                                                val eDt = parseSummaryDateTime(m.endTime)
+                                                val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: m.endTime
+                                                val dur = if (sDt != null && eDt != null) Duration.between(sDt, eDt).toMinutes() else 0
+                                                "- ${m.icon} ${m.name}: $sTimeStr ~ $eTimeStr (${dur}分钟)"
+                                            } else {
+                                                "- ${m.icon} ${m.name}: $sTimeStr"
+                                            }
+                                        }
+                                    } else ""
+
                                     val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
                                         context = context,
                                         completedCount = completedSchedules,
@@ -652,7 +684,8 @@ fun SummaryScreen(
                                         focusMinutes = if (focusMins > 0) focusMins else completedSchedules * 30,
                                         interruptionCount = interruptions.size,
                                         studySummary = catSummary.ifBlank { "全天均衡排期" },
-                                        customNote = "${selectedDate} 效能全盘分析，包含 ${dailyBlocks.size} 个作息时间块"
+                                        customNote = "${selectedDate} 效能全盘分析，包含 ${dailyBlocks.size} 个作息时间块",
+                                        timeMarkersSummary = markersSummary
                                     )
                                     isGeneratingAiAudit = false
                                     when (res) {
@@ -1440,3 +1473,227 @@ fun HourlyEnergyHeatmap(
         }
     }
 }
+
+/**
+ * 🎯 计划日程 vs 实际作息标记 对照透视卡片
+ */
+@Composable
+fun RealityVsScheduleContrastCard(
+    selectedDate: LocalDate,
+    dailyBlocks: List<ClockTimeBlock>,
+    dailyMarkers: List<TimeMarkerEntity>
+) {
+    val colors = LocalAppColors.current
+
+    // 计算实际起床时间标记
+    val wakeMarker = remember(dailyMarkers) {
+        dailyMarkers.firstOrNull { it.name.contains("醒") || it.name.contains("起") || it.icon == "🌅" }
+    }
+    // 当日首个计划日程
+    val firstSchedule = remember(dailyBlocks) {
+        dailyBlocks.minByOrNull { it.startTime }
+    }
+    // 实际午休标记
+    val napMarker = remember(dailyMarkers) {
+        dailyMarkers.firstOrNull { it.name.contains("午") || it.name.contains("休") || it.icon == "🛌" }
+    }
+    // 实际就寝标记
+    val sleepMarker = remember(dailyMarkers) {
+        dailyMarkers.firstOrNull { it.name.contains("睡") || it.name.contains("寝") || it.icon == "💤" }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.card),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, colors.border)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("⚖️", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "计划日程 vs 实际作息对照",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = colors.dopamineBlue.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "${dailyMarkers.size} 个打卡标记",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.dopamineBlue,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "对比预设排期与真实打卡标记，洞察时间感知偏差与生物钟节奏",
+                fontSize = 11.5.sp,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+            )
+
+            // 核心比对小胶囊卡片：起床对照 & 午休对照
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 起床偏差
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = colors.bg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, colors.border.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🌅", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("晨起节奏", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        if (wakeMarker != null) {
+                            val wTime = parseSummaryDateTime(wakeMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: wakeMarker.startTime
+                            Text("实际打卡: $wTime", fontSize = 11.sp, color = colors.dopamineGreen, fontWeight = FontWeight.SemiBold)
+                            if (firstSchedule != null) {
+                                val sTime = firstSchedule.startTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                                Text("首个日程: $sTime", fontSize = 10.5.sp, color = colors.textSecondary)
+                                val diffMinutes = Duration.between(
+                                    parseSummaryDateTime(wakeMarker.startTime) ?: firstSchedule.startTime,
+                                    firstSchedule.startTime
+                                ).toMinutes()
+                                val diffText = when {
+                                    diffMinutes > 15 -> "提前 ${diffMinutes}m 起床 🌟"
+                                    diffMinutes < -15 -> "比首个排期晚 ${-diffMinutes}m ⚠️"
+                                    else -> "从容接轨 (±15m) ✅"
+                                }
+                                Text(diffText, fontSize = 10.5.sp, color = if (diffMinutes >= -15) colors.dopamineGreen else colors.dopamineRed, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 2.dp))
+                            } else {
+                                Text("今日无前置排期", fontSize = 10.5.sp, color = colors.textMuted)
+                            }
+                        } else {
+                            Text("未打卡晨起标记", fontSize = 11.sp, color = colors.textMuted)
+                            Text(if (firstSchedule != null) "首个排期 ${firstSchedule.startTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))}" else "暂无排期", fontSize = 10.5.sp, color = colors.textSecondary)
+                        }
+                    }
+                }
+
+                // 午休/睡眠
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = colors.bg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, colors.border.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🛌", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("休整与就寝", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        if (napMarker != null) {
+                            val nStart = parseSummaryDateTime(napMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.startTime
+                            val nEnd = if (napMarker.endTime.isNotBlank()) parseSummaryDateTime(napMarker.endTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.endTime else ""
+                            Text(if (nEnd.isNotBlank()) "午休: $nStart - $nEnd" else "午休: $nStart", fontSize = 11.sp, color = colors.dopamineBlue, fontWeight = FontWeight.SemiBold)
+                        } else if (sleepMarker != null) {
+                            val sTime = parseSummaryDateTime(sleepMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: sleepMarker.startTime
+                            Text("就寝: $sTime", fontSize = 11.sp, color = colors.dopaminePurple, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text("无午休/睡眠打卡", fontSize = 11.sp, color = colors.textMuted)
+                        }
+                        val deepWorkBlocks = dailyBlocks.filter { it.workType == "DEEP_WORK" }
+                        Text("高能专注 ${deepWorkBlocks.size} 块", fontSize = 10.5.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+
+            // 标记清单与对照列表
+            if (dailyMarkers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "今日实际作息轨迹 (${dailyMarkers.size})",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                dailyMarkers.sortedBy { it.startTime }.forEach { marker ->
+                    val sDt = parseSummaryDateTime(marker.startTime)
+                    val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.startTime
+                    val eDt = if (marker.endTime.isNotBlank()) parseSummaryDateTime(marker.endTime) else null
+                    val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.endTime
+
+                    val markerColor = try {
+                        Color(android.graphics.Color.parseColor(marker.colorHex))
+                    } catch (e: Exception) {
+                        colors.dopamineBlue
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .background(colors.bg.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(markerColor, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(marker.icon, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = marker.name,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary
+                            )
+                            if (marker.notes.isNotBlank()) {
+                                Text(
+                                    text = " (${marker.notes})",
+                                    fontSize = 10.5.sp,
+                                    color = colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = if (marker.markerType == "RANGE" && eTimeStr.isNotBlank()) "$sTimeStr - $eTimeStr" else sTimeStr,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textSecondary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

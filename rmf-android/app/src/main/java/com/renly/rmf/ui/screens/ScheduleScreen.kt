@@ -91,6 +91,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import java.util.UUID
 
 enum class ScheduleViewMode(val title: String, val icon: String) {
     DAY_GRID("日网格", "⏱️"),
@@ -156,6 +157,7 @@ fun ScheduleScreen(
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showManageTagsDialog by remember { mutableStateOf(false) }
     var showTimeMarkerDialog by remember { mutableStateOf(false) }
+    var showRoutineTemplateDialog by remember { mutableStateOf(false) }
     var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
@@ -250,6 +252,24 @@ fun ScheduleScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     color = DopamineCyan
                                 )
+                            }
+                        }
+
+                        // 🪄 智能作息模板预设入口 (Routine Templates)
+                        Surface(
+                            onClick = { showRoutineTemplateDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("🪄", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("模版", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
                             }
                         }
 
@@ -1091,6 +1111,26 @@ fun ScheduleScreen(
                 onDeleteMarker = onDeleteTimeMarker
             )
         }
+
+        // 🪄 智能作息模板与预设套装弹窗 (RoutineTemplateDialog)
+        if (showRoutineTemplateDialog) {
+            RoutineTemplateDialog(
+                selectedDate = selectedDate,
+                schedules = calendarSchedules,
+                markers = timeMarkers,
+                onDismiss = { showRoutineTemplateDialog = false },
+                onApplyPresetSchedules = { presetList ->
+                    presetList.forEach { p ->
+                        onAddSchedule(p.title, p.workType, p.category, p.durationMinutes, p.startTime, p.endTime, p.reminderMinutes, p.reminderType)
+                    }
+                },
+                onApplyPresetMarkers = { markerList ->
+                    markerList.forEach { m ->
+                        onAddTimeMarker(m)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -1374,6 +1414,387 @@ fun DragRangeScheduleDialog(
 }
 
 // -----------------------------------------------------------------------------------------
+// 🪄 智能作息模板与预设套装 (Routine Template Models & Dialog)
+// -----------------------------------------------------------------------------------------
+data class PresetScheduleItem(
+    val title: String,
+    val workType: String,
+    val category: String,
+    val durationMinutes: Int,
+    val startTime: String,
+    val endTime: String,
+    val reminderMinutes: Int = 10,
+    val reminderType: String = "POPUP"
+)
+
+data class RoutineTemplatePreset(
+    val id: String,
+    val title: String,
+    val icon: String,
+    val desc: String,
+    val schedules: List<PresetScheduleItem>,
+    val markers: List<TimeMarkerEntity>
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RoutineTemplateDialog(
+    selectedDate: LocalDate,
+    schedules: List<ScheduleEntity>,
+    markers: List<TimeMarkerEntity>,
+    onDismiss: () -> Unit,
+    onApplyPresetSchedules: (List<PresetScheduleItem>) -> Unit,
+    onApplyPresetMarkers: (List<TimeMarkerEntity>) -> Unit
+) {
+    val colors = LocalAppColors.current
+    val context = LocalContext.current
+    val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    // 构建常用预设作息套装
+    val presets = remember(selectedDate) {
+        listOf(
+            RoutineTemplatePreset(
+                id = "workday_focus",
+                title = "工作日高效作息",
+                icon = "💼",
+                desc = "早起晨间规划、深度工作黄金块、午间休整与晚间复盘",
+                schedules = listOf(
+                    PresetScheduleItem(
+                        title = "晨间规划与收件箱整理",
+                        workType = "SHALLOW_WORK",
+                        category = "工作",
+                        durationMinutes = 30,
+                        startTime = selectedDate.atTime(8, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(9, 0).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "上午核心深度攻坚",
+                        workType = "DEEP_WORK",
+                        category = "工作",
+                        durationMinutes = 120,
+                        startTime = selectedDate.atTime(9, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(11, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "下午高能推进与协同",
+                        workType = "DEEP_WORK",
+                        category = "工作",
+                        durationMinutes = 90,
+                        startTime = selectedDate.atTime(14, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(15, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "日常事务与晚间复盘",
+                        workType = "SHALLOW_WORK",
+                        category = "日常",
+                        durationMinutes = 45,
+                        startTime = selectedDate.atTime(17, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(18, 15).format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                ),
+                markers = listOf(
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "晨起唤醒",
+                        markerType = "POINT",
+                        category = "ROUTINE",
+                        icon = "🌅",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(7, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = "",
+                        colorHex = "#10B981",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "午休充能",
+                        markerType = "RANGE",
+                        category = "REST",
+                        icon = "🛌",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(12, 45).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(13, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        colorHex = "#3B82F6",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "舒缓就寝",
+                        markerType = "POINT",
+                        category = "ROUTINE",
+                        icon = "💤",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(23, 15).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = "",
+                        colorHex = "#8B5CF6",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                )
+            ),
+            RoutineTemplatePreset(
+                id = "weekend_recharge",
+                title = "周末蓄能休整",
+                icon = "🏖️",
+                desc = "充裕自然醒、户外轻运动、阅读充电与慢节奏生活",
+                schedules = listOf(
+                    PresetScheduleItem(
+                        title = "户外散步 / 有氧运动",
+                        workType = "REST_BUFFER",
+                        category = "运动",
+                        durationMinutes = 60,
+                        startTime = selectedDate.atTime(10, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(11, 0).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "沉浸式深度阅读 / 自由充电",
+                        workType = "DEEP_WORK",
+                        category = "学习",
+                        durationMinutes = 90,
+                        startTime = selectedDate.atTime(15, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(16, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "家庭时光 / 影音放松",
+                        workType = "REST_BUFFER",
+                        category = "娱乐",
+                        durationMinutes = 120,
+                        startTime = selectedDate.atTime(19, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(21, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                ),
+                markers = listOf(
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "周末自然醒",
+                        markerType = "POINT",
+                        category = "ROUTINE",
+                        icon = "🌅",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(9, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = "",
+                        colorHex = "#10B981",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "周末午后惬意小憩",
+                        markerType = "RANGE",
+                        category = "REST",
+                        icon = "🛌",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(13, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(14, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        colorHex = "#3B82F6",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                )
+            ),
+            RoutineTemplatePreset(
+                id = "exam_sprint",
+                title = "备考 / 冲刺作息",
+                icon = "🔥",
+                desc = "番茄钟多轮攻坚、背诵记忆、规律作息杜绝熬夜",
+                schedules = listOf(
+                    PresetScheduleItem(
+                        title = "晨间重点攻坚 & 记忆背诵",
+                        workType = "DEEP_WORK",
+                        category = "学习",
+                        durationMinutes = 90,
+                        startTime = selectedDate.atTime(8, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(9, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "上午真题模拟与实战演练",
+                        workType = "DEEP_WORK",
+                        category = "学习",
+                        durationMinutes = 120,
+                        startTime = selectedDate.atTime(10, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(12, 0).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "下午专题攻坚与错题复盘",
+                        workType = "DEEP_WORK",
+                        category = "学习",
+                        durationMinutes = 120,
+                        startTime = selectedDate.atTime(14, 30).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(16, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    PresetScheduleItem(
+                        title = "晚间查漏补缺与知识树梳理",
+                        workType = "DEEP_WORK",
+                        category = "学习",
+                        durationMinutes = 90,
+                        startTime = selectedDate.atTime(19, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(20, 30).format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                ),
+                markers = listOf(
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "准点起床",
+                        markerType = "POINT",
+                        category = "ROUTINE",
+                        icon = "🌅",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(7, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = "",
+                        colorHex = "#10B981",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    ),
+                    TimeMarkerEntity(
+                        id = UUID.randomUUID().toString(),
+                        name = "高效午休",
+                        markerType = "RANGE",
+                        category = "REST",
+                        icon = "🛌",
+                        date = dateStr,
+                        startTime = selectedDate.atTime(13, 0).format(DateTimeFormatter.ISO_DATE_TIME),
+                        endTime = selectedDate.atTime(13, 40).format(DateTimeFormatter.ISO_DATE_TIME),
+                        colorHex = "#3B82F6",
+                        notes = "模板作息打卡",
+                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
+                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    )
+                )
+            )
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🪄", fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Column {
+                    Text(
+                        text = "智能作息模板与预设套装",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                    Text(
+                        text = "一键为「$selectedDate」铺设科学作息与日程排期",
+                        fontSize = 11.5.sp,
+                        color = colors.textSecondary
+                    )
+                }
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(presets) { preset ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = colors.bg),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, colors.border.copy(alpha = 0.8f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(preset.icon, fontSize = 16.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = preset.title,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = colors.dopamineBlue.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "${preset.schedules.size}日程 · ${preset.markers.size}标记",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.dopamineBlue,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = preset.desc,
+                                fontSize = 11.5.sp,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+
+                            // 简要展示排期预览
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(colors.card.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                preset.schedules.forEach { s ->
+                                    val start = LocalDateTime.parse(s.startTime, DateTimeFormatter.ISO_DATE_TIME).toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                                    val end = LocalDateTime.parse(s.endTime, DateTimeFormatter.ISO_DATE_TIME).toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("• ${s.title}", fontSize = 11.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                        Text("$start-$end", fontSize = 10.5.sp, color = colors.textSecondary)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Button(
+                                onClick = {
+                                    onApplyPresetSchedules(preset.schedules)
+                                    onApplyPresetMarkers(preset.markers)
+                                    Toast.makeText(context, "🎉 已成功应用「${preset.title}」至今日排期！", Toast.LENGTH_SHORT).show()
+                                    onDismiss()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.dopamineBlue),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(36.dp)
+                            ) {
+                                Text("一键应用此模板", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = colors.textSecondary)
+            }
+        }
+    )
+}
+
+// -----------------------------------------------------------------------------------------
+
 // 电脑版 1:1 周历网格视图 (Week Grid Track: 7 列星期 x 24 小时刻度网格 - 支持待办拖拽与手势框选排期)
 // -----------------------------------------------------------------------------------------
 @Composable
@@ -2469,6 +2890,9 @@ fun ScheduleDayGridView(
     var resizingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var resizeDeltaY by remember { mutableFloatStateOf(0f) }
 
+    // 计划日程 vs 实际作息双轨对照模式开关 (Dual Track Mode)
+    var isDualTrackMode by rememberSaveable { mutableStateOf(false) }
+
     var hasInitializedDayScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (!hasInitializedDayScroll) {
@@ -2682,7 +3106,7 @@ fun ScheduleDayGridView(
             }
         }
 
-        // 快捷操作提示条
+        // 快捷操作提示条 & 双轨对照切换开关
         Surface(
             shape = RoundedCornerShape(6.dp),
             color = if (isLocked) Color(0xFFF59E0B).copy(alpha = 0.12f) else DarkCard.copy(alpha = 0.6f),
@@ -2693,17 +3117,83 @@ fun ScheduleDayGridView(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text(if (isLocked) "🔒" else "💡", fontSize = 9.sp)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁即可编辑排期" else "长按框选 · 拖拽日程/标记移时 · 拉伸时长 · 双指捏合缩放",
-                    fontSize = 8.5.sp,
-                    color = if (isLocked) Color(0xFFF59E0B) else TextMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isLocked) "🔒" else "💡", fontSize = 9.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isLocked) "表格已锁定防误触 · 点击右下角小锁解锁" else "长按框选 · 拖拽日程/标记移时 · 拉伸时长",
+                        fontSize = 8.5.sp,
+                        color = if (isLocked) Color(0xFFF59E0B) else TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 双轨对照开关胶囊
+                Surface(
+                    onClick = { isDualTrackMode = !isDualTrackMode },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDualTrackMode) DopamineBlue else DarkSurface,
+                    border = BorderStroke(0.8.dp, if (isDualTrackMode) DopamineBlue else DarkBorder),
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isDualTrackMode) "⚖️ 双轨对照 开" else "⚖️ 双轨对照 关",
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDualTrackMode) Color.White else TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+
+        // 双轨模式轨道列头 (预计排期 vs 实际作息)
+        if (isDualTrackMode) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = timeColWidth, end = 4.dp, top = 1.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = DopamineBlue.copy(alpha = 0.12f),
+                    modifier = Modifier.weight(0.58f).padding(end = 2.dp)
+                ) {
+                    Text(
+                        text = "📋 预计排期日程",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DopamineBlue,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = DopamineGreen.copy(alpha = 0.12f),
+                    modifier = Modifier.weight(0.42f).padding(start = 2.dp)
+                ) {
+                    Text(
+                        text = "📍 实际作息打卡",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DopamineGreen,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
             }
         }
 
@@ -2854,6 +3344,20 @@ fun ScheduleDayGridView(
                                 color = DarkBorder.copy(alpha = 0.35f),
                                 thickness = 0.8.dp
                             )
+                        }
+
+                        // 双轨对照模式中轴垂直分割线 (58% 计划 | 42% 实际标记)
+                        if (isDualTrackMode) {
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val splitX = maxWidth * 0.58f
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = splitX)
+                                        .width(1.2.dp)
+                                        .height(hourHeight * 24)
+                                        .background(DopamineBlue.copy(alpha = 0.35f))
+                                )
+                            }
                         }
 
                         // 今日当前时间红线
@@ -3141,9 +3645,14 @@ fun ScheduleDayGridView(
                                         if (isMovingThis) 2.dp else 1.2.dp,
                                         markerColor.copy(alpha = if (isMovingThis) 0.9f else 0.5f)
                                     ),
-                                    modifier = Modifier
+                                    modifier = (if (isDualTrackMode) {
+                                        Modifier
+                                            .fillMaxWidth(0.42f)
+                                            .align(Alignment.TopEnd)
+                                    } else {
+                                        Modifier.fillMaxWidth()
+                                    })
                                         .offset(y = topY.dp)
-                                        .fillMaxWidth()
                                         .padding(horizontal = 2.dp)
                                         .height(blockH.dp)
                                         .zIndex(if (isMovingThis) 20f else 5f)
@@ -3298,9 +3807,14 @@ fun ScheduleDayGridView(
                                         if (isResizingThis) 2.dp else 1.dp,
                                         if (isDone) DarkBorder else if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.7f)
                                     ),
-                                    modifier = Modifier
+                                    modifier = (if (isDualTrackMode) {
+                                        Modifier
+                                            .fillMaxWidth(0.58f)
+                                            .align(Alignment.TopStart)
+                                    } else {
+                                        Modifier.fillMaxWidth()
+                                    })
                                         .offset(y = topY.dp)
-                                        .fillMaxWidth()
                                         .padding(horizontal = 4.dp)
                                         .height(blockH.dp)
                                         .pointerInput(item.id + "_move", isLocked) {
@@ -3512,9 +4026,14 @@ fun ScheduleDayGridView(
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color.Transparent,
-                                    modifier = Modifier
+                                    modifier = (if (isDualTrackMode) {
+                                        Modifier
+                                            .fillMaxWidth(0.42f)
+                                            .align(Alignment.TopEnd)
+                                    } else {
+                                        Modifier.fillMaxWidth()
+                                    })
                                         .offset(y = (topY - 11).dp)
-                                        .fillMaxWidth()
                                         .height(24.dp)
                                         .zIndex(if (isMovingThis) 22f else 8f)
                                         .pointerInput(marker.id + "_move", isLocked) {

@@ -119,12 +119,26 @@ class RmfApplication : Application() {
                 setShowBadge(true)
             }
 
+            val quickActionChannel = NotificationChannel(
+                CHANNEL_QUICK_ACTION,
+                "作息快捷打卡胶囊",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "通知栏常驻快捷作息打卡：醒了、午休、睡了一键标记"
+                enableVibration(false)
+                vibrationPattern = longArrayOf(0)
+                setSound(null, null)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(false)
+            }
+
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
             manager.createNotificationChannel(fluidChannel)
             manager.createNotificationChannel(soundChannel)
             manager.createNotificationChannel(vibrateChannel)
             manager.createNotificationChannel(silentChannel)
+            manager.createNotificationChannel(quickActionChannel)
         }
     }
 
@@ -134,5 +148,6 @@ class RmfApplication : Application() {
         const val CHANNEL_REMINDER_SOUND_ONLY = "rmf_reminder_sound_channel"
         const val CHANNEL_REMINDER_VIBRATE_ONLY = "rmf_reminder_vibrate_channel"
         const val CHANNEL_REMINDER_SILENT = "rmf_reminder_silent_channel"
+        const val CHANNEL_QUICK_ACTION = "rmf_quick_action_channel"
     }
 }

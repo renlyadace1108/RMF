@@ -326,6 +326,7 @@ class MainActivity : ComponentActivity() {
         // 异步后台自动检查并排期未来课程的胶囊通知上课提醒与全学期课表日程实时映射 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
         if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
             checkAndRequestNotificationPermission()
+            com.renly.rmf.domain.service.QuickActionNotificationManager.updateQuickActionNotification(this)
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 if (com.renly.rmf.domain.service.TimetablePreferences.isSemesterConfigured(this@MainActivity)) {
                     com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
@@ -1017,6 +1018,7 @@ class MainActivity : ComponentActivity() {
                                 coursesFlow = db.courseDao().getAllActiveCourses(),
                                 interruptionsFlow = db.interruptionDao().getAllInterruptions(),
                                 expensesFlow = db.expenseDao().getAllActiveExpenses(),
+                                timeMarkersFlow = db.timeMarkerDao().getAllActiveMarkers(),
                                 onBack = null
                             )
 

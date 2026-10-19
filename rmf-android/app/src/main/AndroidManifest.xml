@@ -43,6 +43,17 @@
             android:name=".domain.service.ScheduleAlarmReceiver"
             android:exported="false" />
 
+        <!-- 系统通知栏常驻快捷打卡胶囊广播接收器 -->
+        <receiver
+            android:name=".domain.service.QuickActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.renly.rmf.ACTION_MARK_WAKE_UP" />
+                <action android:name="com.renly.rmf.ACTION_MARK_NAP" />
+                <action android:name="com.renly.rmf.ACTION_MARK_SLEEP" />
+            </intent-filter>
+        </receiver>
+
         <!-- 开机自动重新注册日程闹钟 (适配系统强杀与重启) -->
         <receiver
             android:name=".domain.service.BootReceiver"
