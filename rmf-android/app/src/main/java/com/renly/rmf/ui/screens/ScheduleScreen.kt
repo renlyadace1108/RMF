@@ -1863,6 +1863,14 @@ fun ScheduleWeekGridView(
     val verticalScrollState = rememberScrollState()
     val density = LocalDensity.current
 
+    val currentHourHeightDpValue by rememberUpdatedState(hourHeightDpValue)
+    val currentWeekDates by rememberUpdatedState(weekDates)
+    val currentDensity by rememberUpdatedState(density)
+    val currentIsLocked by rememberUpdatedState(isLocked)
+    val currentOnUpdateSchedule by rememberUpdatedState(onUpdateSchedule)
+    val currentOnScheduleBacklog by rememberUpdatedState(onScheduleBacklog)
+    val currentOnItemClick by rememberUpdatedState(onItemClick)
+
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     var weekViewRootOffset by remember { mutableStateOf(Offset.Zero) }
@@ -1879,8 +1887,22 @@ fun ScheduleWeekGridView(
     var weekDayColWidthPx by remember { mutableFloatStateOf(0f) }
     var isBacklogExpanded by remember { mutableStateOf(false) }
 
+    val computeWeekDragMinutes: (Offset, Offset) -> Triple<Int, Int, LocalDate> = { start, curr ->
+        val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
+        val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * currentHourHeightDpValue * currentDensity.density)
+        val colW = if (weekDayColWidthPx > 0f) (start.x / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
+        val targetDate = currentWeekDates[colW]
+
+        val startMinExact = (minY / currentDensity.density / currentHourHeightDpValue * 60f)
+        val endMinExact = (maxY / currentDensity.density / currentHourHeightDpValue * 60f)
+        val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+        val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+        val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+        Triple(sSnapped, eSnapped, targetDate)
+    }
+
     val executeDropWeek: (ScheduleEntity) -> Unit = { item ->
-        if (isLocked) {
+        if (currentIsLocked) {
             Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
         } else {
             val currentScroll = verticalScrollState.value
@@ -1888,21 +1910,21 @@ fun ScheduleWeekGridView(
             val dropGlobalX = if (backlogDragTouchInRoot != Offset.Zero) backlogDragTouchInRoot.x else (backlogChipRootX + backlogDragOffsetX)
             if (dropGlobalY >= weekGridRootY) {
                 val relativeY = (dropGlobalY - weekGridRootY + currentScroll).coerceAtLeast(0f)
-                val relativeX = (dropGlobalX - weekGridRootX - 32f * density.density).coerceAtLeast(0f)
+                val relativeX = (dropGlobalX - weekGridRootX - 32f * currentDensity.density).coerceAtLeast(0f)
                 val colW = if (weekDayColWidthPx > 0f) (relativeX / weekDayColWidthPx).toInt().coerceIn(0, 6) else 0
-                val targetDay = weekDates[colW]
+                val targetDay = currentWeekDates[colW]
 
-                val relDp = relativeY / density.density
-                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(20f)
-                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
-                val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
+                val relDp = relativeY / currentDensity.density
+                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * currentHourHeightDpValue).coerceAtLeast(20f)
+                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * currentHourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                val totalMinutes = (blockTopDp / currentHourHeightDpValue) * 60f
                 val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
                 val dropHour = snappedMinutes / 60
                 val dropMinute = snappedMinutes % 60
                 val targetDt = targetDay.atTime(dropHour, dropMinute)
 
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                onScheduleBacklog(item, targetDt)
+                currentOnScheduleBacklog(item, targetDt)
                 val weekdayName = when (targetDay.dayOfWeek) {
                     DayOfWeek.MONDAY -> "周一"
                     DayOfWeek.TUESDAY -> "周二"
@@ -2076,7 +2098,7 @@ fun ScheduleWeekGridView(
                                     border = BorderStroke(1.dp, chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.7f)),
                                     modifier = Modifier
                                         .onGloballyPositioned { coords -> chipPosInRoot = coords.positionInRoot() }
-                                        .pointerInput(item.id) {
+                                        .pointerInput(item.id, hourHeightDpValue) {
                                             awaitEachGesture {
                                                 val down = awaitFirstDown(requireUnconsumed = false)
                                                 var isDragging = false
@@ -2300,7 +2322,7 @@ fun ScheduleWeekGridView(
                                 modifier = Modifier
                                     .width(weekGridWidth)
                                     .height(hourHeight * 24)
-                                    .pointerInput(isLocked) {
+                                    .pointerInput(isLocked, hourHeightDpValue) {
                                         if (!isLocked) {
                                             detectDragGesturesAfterLongPress(
                                                 onDragStart = { offset ->
@@ -2314,18 +2336,7 @@ fun ScheduleWeekGridView(
                                                 },
                                                 onDragEnd = {
                                                     if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                                                        val start = dragSelectStartOffset!!
-                                                        val curr = dragSelectCurrentOffset!!
-                                                        val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                                        val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                                        val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
-                                                        val targetDate = weekDates[colIdx]
-
-                                                        val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
-                                                        val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                                        val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
-                                                        val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
-                                                        val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+                                                        val (sSnapped, eSnapped, targetDate) = computeWeekDragMinutes(dragSelectStartOffset!!, dragSelectCurrentOffset!!)
 
                                                         dragSelectedRange = DragRangeData(
                                                             date = targetDate,
@@ -2357,7 +2368,7 @@ fun ScheduleWeekGridView(
                                             .offset(x = dayColWidth * idx)
                                             .width(dayColWidth)
                                             .fillMaxHeight()
-                                            .pointerInput(idx, isLocked) {
+                                            .pointerInput(idx, isLocked, hourHeightDpValue) {
                                                 if (!isLocked) {
                                                     awaitEachGesture {
                                                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -2376,7 +2387,7 @@ fun ScheduleWeekGridView(
                                                             val elapsed = System.currentTimeMillis() - downTime
                                                             val distance = (upChange.position - down.position).getDistance()
                                                             if (elapsed < 450 && distance < 20f) {
-                                                                val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
+                                                                val rawMin = (upChange.position.y / currentDensity.density / currentHourHeightDpValue * 60f)
                                                                 val tappedMin = rawMin.roundToInt().coerceIn(0, 1439)
                                                                 if (selectedTimeIndicatorCol == idx && selectedTimeIndicatorMinute == tappedMin) {
                                                                     selectedTimeIndicatorMinute = null
@@ -2570,18 +2581,9 @@ fun ScheduleWeekGridView(
 
                                 // 手势框选时间段的实时高亮指示框 (Week Drag-Select Box)
                                 if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                                    val start = dragSelectStartOffset!!
-                                    val curr = dragSelectCurrentOffset!!
-                                    val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                    val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-                                    val colIdx = (start.x / dayColWidthPx).toInt().coerceIn(0, 6)
-
-                                    val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
-                                    val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                    val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
-                                    val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
-                                    val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+                                    val (sSnapped, eSnapped, targetDate) = computeWeekDragMinutes(dragSelectStartOffset!!, dragSelectCurrentOffset!!)
                                     val durationM = eSnapped - sSnapped
+                                    val colIdx = currentWeekDates.indexOf(targetDate).coerceIn(0, 6)
 
                                     val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
                                     val ghostHeightDp = maxOf(12f, (durationM.toFloat() / 60f) * hourHeightDpValue)
@@ -2662,7 +2664,7 @@ fun ScheduleWeekGridView(
                                                     .offset(x = dayColWidth * dayIndex + 1.dp, y = topY.dp)
                                                     .width(dayColWidth - 2.dp)
                                                     .height(blockH.dp)
-                                                    .pointerInput(item.id + "_week_move", isLocked) {
+                                                    .pointerInput(item.id + "_week_move", isLocked, hourHeightDpValue) {
                                                         if (!isLocked) {
                                                             detectDragGesturesAfterLongPress(
                                                                 onDragStart = {
@@ -2676,8 +2678,8 @@ fun ScheduleWeekGridView(
                                                                 },
                                                                 onDragEnd = {
                                                                     if (movingScheduleItem != null) {
-                                                                        val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                                        val targetMinRaw = (currentTopDp / hourHeightDpValue * 60f)
+                                                                        val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / currentDensity.density).coerceIn(0f, 23.5f * currentHourHeightDpValue)
+                                                                        val targetMinRaw = (currentTopDp / currentHourHeightDpValue * 60f)
                                                                         val targetMinSnapped = targetMinRaw.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
                                                                         val curDate = startDt.toLocalDate()
                                                                         val newStart = curDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
@@ -2687,7 +2689,7 @@ fun ScheduleWeekGridView(
                                                                             endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                             updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                                         )
-                                                                        onUpdateSchedule(updated)
+                                                                        currentOnUpdateSchedule(updated)
                                                                         movingScheduleItem = null
                                                                         movingDragDeltaY = 0f
                                                                     }
@@ -2852,6 +2854,16 @@ fun ScheduleDayGridView(
     val verticalScrollState = rememberScrollState()
     val density = LocalDensity.current
 
+    val currentHourHeightDpValue by rememberUpdatedState(hourHeightDpValue)
+    val currentSelectedDate by rememberUpdatedState(selectedDate)
+    val currentDensity by rememberUpdatedState(density)
+    val currentIsLocked by rememberUpdatedState(isLocked)
+    val currentOnUpdateSchedule by rememberUpdatedState(onUpdateSchedule)
+    val currentOnMarkerClick by rememberUpdatedState(onMarkerClick)
+    val currentOnUpdateTimeMarker by rememberUpdatedState(onUpdateTimeMarker)
+    val currentOnScheduleBacklog by rememberUpdatedState(onScheduleBacklog)
+    val currentOnItemClick by rememberUpdatedState(onItemClick)
+
     val daySchedules = remember(schedules, selectedDate) {
         schedules.filter { item ->
             val dt = parseDateTime(item.startTime)
@@ -2893,16 +2905,29 @@ fun ScheduleDayGridView(
             }
         }
     }
+    val currentCheckScheduleOverlap by rememberUpdatedState(checkScheduleOverlap)
+
+    val computeDragMinutes: (Offset, Offset) -> Pair<Int, Int> = { start, curr ->
+        val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
+        val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * currentHourHeightDpValue * currentDensity.density)
+
+        val startMinExact = (minY / currentDensity.density / currentHourHeightDpValue * 60f)
+        val endMinExact = (maxY / currentDensity.density / currentHourHeightDpValue * 60f)
+        val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
+        val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
+        val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+        sSnapped to eSnapped
+    }
 
     val autoSequenceSchedule: () -> Unit = {
-        if (isLocked) {
+        if (currentIsLocked) {
             Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
         } else if (backlogItems.isEmpty()) {
             Toast.makeText(context, "待办箱为空，暂无可排任务", Toast.LENGTH_SHORT).show()
         } else {
             var cursorMinute = if (selectedTimeIndicatorMinute != null) {
                 selectedTimeIndicatorMinute!!
-            } else if (selectedDate == LocalDate.now()) {
+            } else if (currentSelectedDate == LocalDate.now()) {
                 val now = LocalDateTime.now()
                 val curM = now.hour * 60 + now.minute
                 val rem = curM % 5
@@ -2935,8 +2960,8 @@ fun ScheduleDayGridView(
                 }
 
                 if (cursorMinute + duration <= 1440) {
-                    val startDt = selectedDate.atTime(cursorMinute / 60, cursorMinute % 60)
-                    onScheduleBacklog(item, startDt)
+                    val startDt = currentSelectedDate.atTime(cursorMinute / 60, cursorMinute % 60)
+                    currentOnScheduleBacklog(item, startDt)
                     cursorMinute += duration
                     scheduledCount++
                 }
@@ -2948,25 +2973,25 @@ fun ScheduleDayGridView(
     }
 
     val executeDropDay: (ScheduleEntity) -> Unit = { item ->
-        if (isLocked) {
+        if (currentIsLocked) {
             Toast.makeText(context, "🔒 表格已锁定防误触，请先点击右下角小锁解锁", Toast.LENGTH_SHORT).show()
         } else {
             val currentScroll = verticalScrollState.value
             val dropGlobalY = if (dayDragTouchInRoot != Offset.Zero) dayDragTouchInRoot.y else (chipYInRoot + dragOffsetY)
             if (dropGlobalY >= timelineYInRoot) {
                 val relativeY = (dropGlobalY - timelineYInRoot + currentScroll).coerceAtLeast(0f)
-                val relDp = relativeY / density.density
-                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * hourHeightDpValue).coerceAtLeast(28f)
-                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * hourHeightDpValue - previewBlockH).coerceAtLeast(0f))
-                val totalMinutes = (blockTopDp / hourHeightDpValue) * 60f
+                val relDp = relativeY / currentDensity.density
+                val previewBlockH = (item.estimatedMinutes.toFloat() / 60f * currentHourHeightDpValue).coerceAtLeast(28f)
+                val blockTopDp = (relDp - previewBlockH / 2f).coerceIn(0f, (24f * currentHourHeightDpValue - previewBlockH).coerceAtLeast(0f))
+                val totalMinutes = (blockTopDp / currentHourHeightDpValue) * 60f
                 val snappedMinutes = totalMinutes.roundToInt().coerceIn(0, (1440 - item.estimatedMinutes).coerceAtLeast(0))
                 val dropHour = snappedMinutes / 60
                 val dropMinute = snappedMinutes % 60
-                val targetDt = selectedDate.atTime(dropHour, dropMinute)
-                val conflict = checkScheduleOverlap(snappedMinutes, snappedMinutes + item.estimatedMinutes, null)
+                val targetDt = currentSelectedDate.atTime(dropHour, dropMinute)
+                val conflict = currentCheckScheduleOverlap(snappedMinutes, snappedMinutes + item.estimatedMinutes, null)
 
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                onScheduleBacklog(item, targetDt)
+                currentOnScheduleBacklog(item, targetDt)
                 if (conflict != null) {
                     Toast.makeText(context, "已排期: ${item.title} 至 %02d:%02d (注意与「%s」重叠)".format(dropHour, dropMinute, conflict.title), Toast.LENGTH_SHORT).show()
                 } else {
@@ -3157,7 +3182,7 @@ fun ScheduleDayGridView(
                                     border = BorderStroke(1.dp, chipColor.copy(alpha = if (isBeingDragged) 0.35f else 0.7f)),
                                     modifier = Modifier
                                         .onGloballyPositioned { coords -> dayChipPosInRoot = coords.positionInRoot() }
-                                        .pointerInput(item.id) {
+                                        .pointerInput(item.id, hourHeightDpValue) {
                                             awaitEachGesture {
                                                 val down = awaitFirstDown(requireUnconsumed = false)
                                                 var isDragging = false
@@ -3394,7 +3419,7 @@ fun ScheduleDayGridView(
                         modifier = Modifier
                             .weight(1f)
                             .height(hourHeight * 24)
-                            .pointerInput(isLocked) {
+                            .pointerInput(isLocked, hourHeightDpValue, selectedDate) {
                                 if (!isLocked) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
@@ -3408,19 +3433,10 @@ fun ScheduleDayGridView(
                                         },
                                         onDragEnd = {
                                             if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                                                val start = dragSelectStartOffset!!
-                                                val curr = dragSelectCurrentOffset!!
-                                                val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                                                val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-
-                                                val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
-                                                val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                                                val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
-                                                val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
-                                                val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+                                                val (sSnapped, eSnapped) = computeDragMinutes(dragSelectStartOffset!!, dragSelectCurrentOffset!!)
 
                                                 dragSelectedRange = DragRangeData(
-                                                    date = selectedDate,
+                                                    date = currentSelectedDate,
                                                     startHour = sSnapped / 60,
                                                     startMinute = sSnapped % 60,
                                                     endHour = eSnapped / 60,
@@ -3445,7 +3461,7 @@ fun ScheduleDayGridView(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(isLocked) {
+                                .pointerInput(isLocked, hourHeightDpValue) {
                                     if (!isLocked) {
                                         awaitEachGesture {
                                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -3464,7 +3480,7 @@ fun ScheduleDayGridView(
                                                 val elapsed = System.currentTimeMillis() - downTime
                                                 val distance = (upChange.position - down.position).getDistance()
                                                 if (elapsed < 450 && distance < 20f) {
-                                                    val rawMin = (upChange.position.y / density.density / hourHeightDpValue * 60f)
+                                                    val rawMin = (upChange.position.y / currentDensity.density / currentHourHeightDpValue * 60f)
                                                     val tappedMin = rawMin.roundToInt().coerceIn(0, 1439)
                                                     if (selectedTimeIndicatorMinute == tappedMin) {
                                                         selectedTimeIndicatorMinute = null
@@ -3687,22 +3703,13 @@ fun ScheduleDayGridView(
 
                         // 手势框选时间段的实时高亮指示框 (Drag-to-Select Ghost Box)
                         if (isDragSelecting && dragSelectStartOffset != null && dragSelectCurrentOffset != null) {
-                            val start = dragSelectStartOffset!!
-                            val curr = dragSelectCurrentOffset!!
-                            val minY = minOf(start.y, curr.y).coerceAtLeast(0f)
-                            val maxY = maxOf(start.y, curr.y).coerceAtMost(24 * hourHeightDpValue * density.density)
-
-                            val startMinExact = (minY / density.density / hourHeightDpValue * 60f)
-                            val endMinExact = (maxY / density.density / hourHeightDpValue * 60f)
-                            val sSnapped = startMinExact.roundToInt().coerceIn(0, 1439)
-                            val rawEndSnapped = endMinExact.roundToInt().coerceIn(1, 1440)
-                            val eSnapped = maxOf(sSnapped + 1, rawEndSnapped)
+                            val (sSnapped, eSnapped) = computeDragMinutes(dragSelectStartOffset!!, dragSelectCurrentOffset!!)
                             val durationM = eSnapped - sSnapped
 
                             val ghostTopDp = (sSnapped.toFloat() / 60f) * hourHeightDpValue
                             val ghostHeightDp = maxOf(14f, (durationM.toFloat() / 60f) * hourHeightDpValue)
 
-                            val conflict = checkScheduleOverlap(sSnapped, eSnapped, null)
+                            val conflict = currentCheckScheduleOverlap(sSnapped, eSnapped, null)
                             val isConflict = conflict != null
                             val ghostColor = if (isConflict) DopamineAmber else DopamineBlue
 
@@ -3829,7 +3836,7 @@ fun ScheduleDayGridView(
                                         .padding(horizontal = 2.dp)
                                         .height(blockH.dp)
                                         .zIndex(if (isMovingThis) 20f else 5f)
-                                        .pointerInput(marker.id + "_move", isLocked) {
+                                        .pointerInput(marker.id + "_move", isLocked, hourHeightDpValue, selectedDate) {
                                             awaitEachGesture {
                                                 val down = awaitFirstDown(requireUnconsumed = false)
                                                 if (isLocked) {
@@ -3838,7 +3845,7 @@ fun ScheduleDayGridView(
                                                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                                         if (change.changedToUp()) {
                                                             change.consume()
-                                                            onMarkerClick(marker)
+                                                            currentOnMarkerClick(marker)
                                                             break
                                                         }
                                                     }
@@ -3857,8 +3864,8 @@ fun ScheduleDayGridView(
                                                             if (change.changedToUp()) {
                                                                 change.consume()
                                                                 if (movingMarkerItem != null) {
-                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                                    val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / currentDensity.density).coerceIn(0f, 23.5f * currentHourHeightDpValue)
+                                                                    val targetMinExact = (currentTopDp / currentHourHeightDpValue * 60f)
                                                                     val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - durationM)
                                                                     val targetStartHour = targetMinSnapped / 60
                                                                     val targetStartMin = targetMinSnapped % 60
@@ -3866,16 +3873,16 @@ fun ScheduleDayGridView(
                                                                     val targetEndHour = (targetEndMinTotal / 60).coerceIn(0, 24)
                                                                     val targetEndMin = targetEndMinTotal % 60
 
-                                                                    val newStart = selectedDate.atTime(targetStartHour, targetStartMin)
-                                                                    val newEnd = selectedDate.atTime(targetEndHour, targetEndMin)
-                                                                    val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                                                    val newStart = currentSelectedDate.atTime(targetStartHour, targetStartMin)
+                                                                    val newEnd = currentSelectedDate.atTime(targetEndHour, targetEndMin)
+                                                                    val dateStr = currentSelectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                                                                     val updated = marker.copy(
                                                                         date = dateStr,
                                                                         startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                         endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                         updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                                     )
-                                                                    onUpdateTimeMarker(updated)
+                                                                    currentOnUpdateTimeMarker(updated)
                                                                     Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d ~ %02d:%02d".format(targetStartHour, targetStartMin, targetEndHour, targetEndMin), Toast.LENGTH_SHORT).show()
                                                                     movingMarkerItem = null
                                                                     movingMarkerDragDeltaY = 0f
@@ -3992,7 +3999,7 @@ fun ScheduleDayGridView(
                                         .offset(y = topY.dp)
                                         .padding(horizontal = 4.dp)
                                         .height(blockH.dp)
-                                        .pointerInput(item.id + "_move", isLocked) {
+                                        .pointerInput(item.id + "_move", isLocked, hourHeightDpValue, selectedDate) {
                                             if (!isLocked) {
                                                 detectDragGesturesAfterLongPress(
                                                     onDragStart = {
@@ -4006,19 +4013,19 @@ fun ScheduleDayGridView(
                                                     },
                                                     onDragEnd = {
                                                         if (movingScheduleItem != null) {
-                                                            val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / density.density).coerceIn(0f, 23.5f * hourHeightDpValue)
-                                                            val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                            val currentTopDp = (movingOriginalTopDp + movingDragDeltaY / currentDensity.density).coerceIn(0f, 23.5f * currentHourHeightDpValue)
+                                                            val targetMinExact = (currentTopDp / currentHourHeightDpValue * 60f)
                                                             val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1440 - item.estimatedMinutes)
                                                             val targetEndMinTotal = targetMinSnapped + item.estimatedMinutes
-                                                            val conflict = checkScheduleOverlap(targetMinSnapped, targetEndMinTotal, item.id)
-                                                            val newStart = selectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
+                                                            val conflict = currentCheckScheduleOverlap(targetMinSnapped, targetEndMinTotal, item.id)
+                                                            val newStart = currentSelectedDate.atTime(targetMinSnapped / 60, targetMinSnapped % 60)
                                                             val newEnd = newStart.plusMinutes(item.estimatedMinutes.toLong())
                                                             val updated = item.copy(
                                                                 startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                 endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                 updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                             )
-                                                            onUpdateSchedule(updated)
+                                                            currentOnUpdateSchedule(updated)
                                                             if (conflict != null) {
                                                                 Toast.makeText(context, "已移至 %02d:%02d (注意与「%s」重叠)".format(targetMinSnapped / 60, targetMinSnapped % 60, conflict.title), Toast.LENGTH_SHORT).show()
                                                             }
@@ -4136,7 +4143,7 @@ fun ScheduleDayGridView(
                                                     .align(Alignment.BottomCenter)
                                                     .fillMaxWidth()
                                                     .height(if (blockH < 34f) 8.dp else 12.dp)
-                                                    .pointerInput(item.id + "_resize", isLocked) {
+                                                    .pointerInput(item.id + "_resize", isLocked, hourHeightDpValue) {
                                                         detectDragGestures(
                                                             onDragStart = {
                                                                 resizingScheduleItem = item
@@ -4148,9 +4155,9 @@ fun ScheduleDayGridView(
                                                             },
                                                             onDragEnd = {
                                                                 if (resizingScheduleItem != null) {
-                                                                    val rawMins = resizeDeltaY / density.density / hourHeightDpValue * 60f
+                                                                    val rawMins = resizeDeltaY / currentDensity.density / currentHourHeightDpValue * 60f
                                                                     val extraMins = rawMins.roundToInt()
-                                                                    val curStart = parseDateTime(item.startTime) ?: selectedDate.atTime(9, 0)
+                                                                    val curStart = parseDateTime(item.startTime) ?: currentSelectedDate.atTime(9, 0)
                                                                     val startMin = curStart.hour * 60 + curStart.minute
                                                                     val maxAllowedMins = 1440 - startMin
                                                                     val newMins = (item.estimatedMinutes + extraMins).coerceIn(1, maxOf(1, maxAllowedMins))
@@ -4160,7 +4167,7 @@ fun ScheduleDayGridView(
                                                                         endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                         updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                                     )
-                                                                    onUpdateSchedule(updated)
+                                                                    currentOnUpdateSchedule(updated)
                                                                     resizingScheduleItem = null
                                                                     resizeDeltaY = 0f
                                                                 }
@@ -4218,7 +4225,7 @@ fun ScheduleDayGridView(
                                         .offset(y = (topY - 11).dp)
                                         .height(24.dp)
                                         .zIndex(if (isMovingThis) 22f else 8f)
-                                        .pointerInput(marker.id + "_move", isLocked) {
+                                        .pointerInput(marker.id + "_move", isLocked, hourHeightDpValue, selectedDate) {
                                             awaitEachGesture {
                                                 val down = awaitFirstDown(requireUnconsumed = false)
                                                 if (isLocked) {
@@ -4227,7 +4234,7 @@ fun ScheduleDayGridView(
                                                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                                         if (change.changedToUp()) {
                                                             change.consume()
-                                                            onMarkerClick(marker)
+                                                            currentOnMarkerClick(marker)
                                                             break
                                                         }
                                                     }
@@ -4246,19 +4253,19 @@ fun ScheduleDayGridView(
                                                             if (change.changedToUp()) {
                                                                 change.consume()
                                                                 if (movingMarkerItem != null) {
-                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / density.density).coerceIn(0f, 23.8f * hourHeightDpValue)
-                                                                    val targetMinExact = (currentTopDp / hourHeightDpValue * 60f)
+                                                                    val currentTopDp = (movingMarkerOriginalTopDp + movingMarkerDragDeltaY / currentDensity.density).coerceIn(0f, 23.8f * currentHourHeightDpValue)
+                                                                    val targetMinExact = (currentTopDp / currentHourHeightDpValue * 60f)
                                                                     val targetMinSnapped = targetMinExact.roundToInt().coerceIn(0, 1439)
                                                                     val targetHour = targetMinSnapped / 60
                                                                     val targetMinute = targetMinSnapped % 60
-                                                                    val newStart = selectedDate.atTime(targetHour, targetMinute)
-                                                                    val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                                                    val newStart = currentSelectedDate.atTime(targetHour, targetMinute)
+                                                                    val dateStr = currentSelectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                                                                     val updated = marker.copy(
                                                                         date = dateStr,
                                                                         startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                         updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                                     )
-                                                                    onUpdateTimeMarker(updated)
+                                                                    currentOnUpdateTimeMarker(updated)
                                                                     Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d".format(targetHour, targetMinute), Toast.LENGTH_SHORT).show()
                                                                     movingMarkerItem = null
                                                                     movingMarkerDragDeltaY = 0f
