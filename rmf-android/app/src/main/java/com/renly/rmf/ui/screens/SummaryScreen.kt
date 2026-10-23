@@ -140,6 +140,7 @@ private fun getCombinedDailyBlocks(
 
     // 1. 筛选当天日程
     for (s in schedules) {
+        if (s.isDeleted != 0) continue
         val st = parseSummaryDateTime(s.startTime, selectedDate) ?: continue
         if (st.toLocalDate() != selectedDate) continue
 
@@ -264,7 +265,7 @@ fun SummaryScreen(
 
     val totalHours = remember(dailyBlocks) {
         dailyBlocks.sumOf {
-            Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+            maxOf(0.0, Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0)
         }
     }
 
@@ -696,10 +697,10 @@ fun SummaryScreen(
 
                                     val markersSummary = if (dailyMarkers.isNotEmpty()) {
                                         dailyMarkers.joinToString("\n") { m ->
-                                            val sDt = parseSummaryDateTime(m.startTime)
+                                            val sDt = parseSummaryDateTime(m.startTime, selectedDate)
                                             val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: m.startTime
                                             if (m.markerType == "RANGE" && m.endTime.isNotBlank()) {
-                                                val eDt = parseSummaryDateTime(m.endTime)
+                                                val eDt = parseSummaryDateTime(m.endTime, selectedDate)
                                                 val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: m.endTime
                                                 val dur = if (sDt != null && eDt != null) Duration.between(sDt, eDt).toMinutes() else 0
                                                 "- ${m.icon} ${m.name}: $sTimeStr ~ $eTimeStr (${dur}分钟)"
@@ -882,7 +883,7 @@ fun DailyClockDial(
     val density = LocalDensity.current
     val totalHours = remember(blocks) {
         blocks.sumOf {
-            Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0
+            maxOf(0.0, Duration.between(it.startTime, it.endTime).toMinutes().toDouble() / 60.0)
         }
     }
     val totalCount = blocks.size
@@ -1056,7 +1057,7 @@ fun DailyClockDial(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
-                    val dur = Duration.between(selectedBlock.startTime, selectedBlock.endTime).toMinutes()
+                    val dur = maxOf(0L, Duration.between(selectedBlock.startTime, selectedBlock.endTime).toMinutes())
                     Text(
                         text = "${dur}m · ${if (selectedBlock.isCourse) "🎓 课程" else if (selectedBlock.workType == "DEEP_WORK") "🎯 深度" else "⚡ 事务"}",
                         fontSize = 9.5.sp,
@@ -1102,7 +1103,8 @@ fun WeeklyCompletionTrendChart(
     val dailyStats = remember(schedules, past7Days) {
         past7Days.map { date ->
             val daySchedules = schedules.filter { s ->
-                val st = parseSummaryDateTime(s.startTime)
+                if (s.isDeleted != 0) return@filter false
+                val st = parseSummaryDateTime(s.startTime, date)
                 st?.toLocalDate() == date
             }
             val total = daySchedules.size
@@ -1233,7 +1235,7 @@ fun CategoryDonutChart(
         var otherH = 0.0
 
         for (b in blocks) {
-            val dur = Duration.between(b.startTime, b.endTime).toMinutes().toDouble() / 60.0
+            val dur = maxOf(0.0, Duration.between(b.startTime, b.endTime).toMinutes().toDouble() / 60.0)
             when (b.category) {
                 "WORK" -> workH += dur
                 "STUDY" -> studyH += dur
