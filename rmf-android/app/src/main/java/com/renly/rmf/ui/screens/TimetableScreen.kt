@@ -47,6 +47,7 @@ import java.time.temporal.ChronoUnit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimetableScreen(
+    isActive: Boolean = true,
     coursesFlow: Flow<List<CourseEntity>>,
     adjustmentsFlow: Flow<List<CourseAdjustmentEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onAddCourse: (CourseEntity) -> Unit,
@@ -114,8 +115,14 @@ fun TimetableScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showAdjustmentDialog by remember { mutableStateOf(false) }
-    // 首次进入课程表若尚未配置开学日期，强制弹出学期配置弹窗
-    var showSettingsDialog by remember { mutableStateOf(!isSemesterConfigured) }
+    // 仅在首次真正进入课表且尚未配置开学日期时，强制弹出学期配置弹窗
+    var showSettingsDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isActive, isSemesterConfigured) {
+        if (isActive && !isSemesterConfigured) {
+            showSettingsDialog = true
+        }
+    }
     var selectedCourseDetail by remember { mutableStateOf<CourseEntity?>(null) }
     var isGridView by remember { mutableStateOf(true) } // 默认网格视图，画上浅灰色格子
     var addCourseInitialDay by remember { mutableIntStateOf(1) }

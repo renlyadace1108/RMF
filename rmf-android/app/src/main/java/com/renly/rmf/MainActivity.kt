@@ -659,7 +659,7 @@ class MainActivity : ComponentActivity() {
                         navigateToScreen(fallback, -1)
                     }
 
-                    val renderScreenContent: @Composable (Screen) -> Unit = { screen ->
+                    val renderScreenContent: @Composable (Screen, Boolean) -> Unit = { screen, isActive ->
                         when (screen) {
                             Screen.Schedule -> ScheduleScreen(
                                 schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
@@ -786,6 +786,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Timetable -> TimetableScreen(
+                                isActive = isActive,
                                 coursesFlow = db.courseDao().getAllActiveCourses(),
                                 adjustmentsFlow = db.courseDao().getAllActiveAdjustments(),
                                 onAddCourse = { course ->
@@ -1368,8 +1369,9 @@ class MainActivity : ComponentActivity() {
                                     key = { page -> safeNavScreens.getOrNull(page)?.route ?: page }
                                 ) { page ->
                                     val screen = safeNavScreens.getOrNull(page) ?: safeNavScreens.firstOrNull() ?: Screen.Schedule
+                                    val isPageActive = (currentScreen == screen && pagerState.currentPage == page)
                                     saveableStateHolder.SaveableStateProvider(screen.route) {
-                                        renderScreenContent(screen)
+                                        renderScreenContent(screen, isPageActive)
                                     }
                                 }
 
@@ -1409,7 +1411,7 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         if (!isInMainPager) {
                                             saveableStateHolder.SaveableStateProvider(currentScreen.route) {
-                                                renderScreenContent(currentScreen)
+                                                renderScreenContent(currentScreen, true)
                                             }
                                         }
                                     }

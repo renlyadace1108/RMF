@@ -3024,8 +3024,10 @@ fun ScheduleDayGridView(
     var resizingScheduleItem by remember { mutableStateOf<ScheduleEntity?>(null) }
     var resizeDeltaY by remember { mutableFloatStateOf(0f) }
 
-    // 计划日程 vs 实际作息双轨对照模式开关 (Dual Track Mode)
-    var isDualTrackMode by rememberSaveable { mutableStateOf(false) }
+    // 计划日程 vs 实际作息双轨对照模式开关 (Dual Track Mode) —— 默认开启
+    var isDualTrackMode by rememberSaveable {
+        mutableStateOf(com.renly.rmf.domain.service.SchedulePreferences.isDualTrackMode(context))
+    }
 
     var hasInitializedDayScroll by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -3288,7 +3290,11 @@ fun ScheduleDayGridView(
 
                 // 双轨对照开关胶囊
                 Surface(
-                    onClick = { isDualTrackMode = !isDualTrackMode },
+                    onClick = {
+                        val newMode = !isDualTrackMode
+                        isDualTrackMode = newMode
+                        com.renly.rmf.domain.service.SchedulePreferences.setDualTrackMode(context, newMode)
+                    },
                     shape = RoundedCornerShape(12.dp),
                     color = if (isDualTrackMode) DopamineBlue else DarkSurface,
                     border = BorderStroke(0.8.dp, if (isDualTrackMode) DopamineBlue else DarkBorder),
