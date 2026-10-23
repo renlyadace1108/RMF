@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,6 +49,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 // =========================================================================
 // 🕒 统一作息时间块数据结构 (兼容日程表排期 + 课表周期课程)
@@ -80,18 +82,36 @@ private val defaultSectionTimes = mapOf(
     12 to Pair("21:45", "22:30")
 )
 
-private fun parseSummaryDateTime(dateStr: String): LocalDateTime? {
+private fun parseSummaryDateTime(dateStr: String, baseDate: LocalDate = LocalDate.now()): LocalDateTime? {
     if (dateStr.isBlank()) return null
+    val trimmed = dateStr.trim()
     return try {
-        LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_DATE_TIME)
+        LocalDateTime.parse(trimmed, DateTimeFormatter.ISO_DATE_TIME)
     } catch (_: Exception) {
         try {
-            LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            LocalDateTime.parse(trimmed, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         } catch (_: Exception) {
             try {
-                LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay()
+                val normalized = trimmed.replace(" ", "T")
+                LocalDateTime.parse(normalized)
             } catch (_: Exception) {
-                null
+                try {
+                    LocalDate.parse(trimmed, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay()
+                } catch (_: Exception) {
+                    try {
+                        LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm")).atDate(baseDate)
+                    } catch (_: Exception) {
+                        try {
+                            LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("H:m")).atDate(baseDate)
+                        } catch (_: Exception) {
+                            try {
+                                LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm:ss")).atDate(baseDate)
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -120,10 +140,10 @@ private fun getCombinedDailyBlocks(
 
     // 1. 筛选当天日程
     for (s in schedules) {
-        val st = parseSummaryDateTime(s.startTime) ?: continue
+        val st = parseSummaryDateTime(s.startTime, selectedDate) ?: continue
         if (st.toLocalDate() != selectedDate) continue
 
-        var et = parseSummaryDateTime(s.endTime)
+        var et = parseSummaryDateTime(s.endTime, selectedDate)
         if (et == null || !et.isAfter(st)) {
             val mins = if (s.estimatedMinutes > 0) s.estimatedMinutes.toLong() else 30L
             et = st.plusMinutes(mins)
@@ -139,7 +159,7 @@ private fun getCombinedDailyBlocks(
 
         list.add(
             ClockTimeBlock(
-                id = s.id,
+                id = s.id.ifBlank { UUID.randomUUID().toString() },
                 title = s.title,
                 startTime = st,
                 endTime = et,
@@ -171,11 +191,15 @@ private fun getCombinedDailyBlocks(
 
                 // 计算起止时间
                 val startSlot = defaultSectionTimes[c.startSection]
-                val endSlot = defaultSectionTimes[c.startSection + c.sectionSpan - 1] ?: startSlot
+                val span = maxOf(1, c.sectionSpan)
+                val endSlot = defaultSectionTimes[c.startSection + span - 1] ?: startSlot
 
                 if (startSlot != null && endSlot != null) {
                     val st = selectedDate.atTime(LocalTime.parse(startSlot.first))
-                    val et = selectedDate.atTime(LocalTime.parse(endSlot.second))
+                    var et = selectedDate.atTime(LocalTime.parse(endSlot.second))
+                    if (et <= st) {
+                        et = st.plusMinutes(45)
+                    }
 
                     // 避免如果日程中已经投影过该课程产生完全重复
                     val alreadyProjected = list.any {
@@ -184,7 +208,7 @@ private fun getCombinedDailyBlocks(
                     if (!alreadyProjected) {
                         list.add(
                             ClockTimeBlock(
-                                id = "course_${c.id}_$selectedDate",
+                                id = "course_${c.id}_${selectedDate}_${c.startSection}_${c.dayOfWeek}",
                                 title = c.name + if (c.location.isNotBlank()) " (${c.location})" else "",
                                 startTime = st,
                                 endTime = et,
@@ -487,9 +511,12 @@ fun SummaryScreen(
                 }
             }
         } else {
-            items(dailyBlocks, key = { it.id }) { block ->
+            itemsIndexed(
+                items = dailyBlocks,
+                key = { index, block -> "daily_block_${block.id}_${block.startTime}_$index" }
+            ) { _, block ->
                 val isSelected = selectedBlock?.id == block.id
-                val durMinutes = Duration.between(block.startTime, block.endTime).toMinutes()
+                val durMinutes = maxOf(0L, Duration.between(block.startTime, block.endTime).toMinutes())
                 val blockColor = parseHexColor(block.colorHex, colors.dopamineBlue)
 
                 Card(
@@ -1148,18 +1175,20 @@ fun WeeklyCompletionTrendChart(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         // 柱体
+                        val totalH = (70 * barHeightFraction).coerceAtLeast(6f)
                         Box(
                             modifier = Modifier
                                 .width(18.dp)
-                                .height((70 * barHeightFraction).coerceAtLeast(6f).dp)
+                                .height(totalH.dp)
                                 .background(colors.border.copy(alpha = 0.5f), RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.BottomCenter
                         ) {
                             if (total > 0 && completed > 0 && doneFraction > 0f) {
+                                val fillH = (totalH * doneFraction).coerceIn(2f, totalH)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .fillMaxHeight(doneFraction.coerceIn(0.01f, 1f))
+                                        .height(fillH.dp)
                                         .background(
                                             if (isToday) colors.dopamineBlue else colors.dopamineGreen,
                                             RoundedCornerShape(4.dp)
@@ -1251,7 +1280,7 @@ fun CategoryDonutChart(
                         val radius = (size.minDimension - strokeW) / 2f
                         if (radius <= 0f) return@Canvas
 
-                        if (totalCatHours <= 0) {
+                        if (totalCatHours <= 0.0001) {
                             drawCircle(
                                 color = colors.border.copy(alpha = 0.5f),
                                 radius = radius,
@@ -1263,16 +1292,18 @@ fun CategoryDonutChart(
                             for ((_, h, c) in categoryHours) {
                                 if (h <= 0) continue
                                 val sweep = ((h / totalCatHours) * 360.0).toFloat().coerceIn(0f, 360f)
-                                drawArc(
-                                    color = c,
-                                    startAngle = startAngle,
-                                    sweepAngle = sweep,
-                                    useCenter = false,
-                                    topLeft = Offset(center.x - radius, center.y - radius),
-                                    size = Size(radius * 2, radius * 2),
-                                    style = Stroke(width = strokeW)
-                                )
-                                startAngle += sweep
+                                if (sweep > 0f) {
+                                    drawArc(
+                                        color = c,
+                                        startAngle = startAngle,
+                                        sweepAngle = sweep,
+                                        useCenter = false,
+                                        topLeft = Offset(center.x - radius, center.y - radius),
+                                        size = Size(radius * 2, radius * 2),
+                                        style = Stroke(width = strokeW)
+                                    )
+                                    startAngle += sweep
+                                }
                             }
                         }
                     }
@@ -1291,7 +1322,7 @@ fun CategoryDonutChart(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     categoryHours.filter { it.second > 0 }.forEach { (name, h, col) ->
-                        val pct = if (totalCatHours > 0) (h * 100 / totalCatHours).toInt() else 0
+                        val pct = if (totalCatHours > 0.0001) ((h * 100) / totalCatHours).toInt() else 0
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1319,10 +1350,10 @@ fun CategoryDonutChart(
             // 智能洞察说明
             Spacer(modifier = Modifier.height(10.dp))
             val insight = when {
-                totalCatHours <= 0 -> "🌱 当前日期暂无排期，添加日程后自动洞察精力分布。"
-                (categoryHours[0].second + categoryHours[1].second + categoryHours[2].second) / totalCatHours >= 0.6 ->
+                totalCatHours <= 0.0001 -> "🌱 当前日期暂无排期，添加日程后自动洞察精力分布。"
+                (categoryHours[0].second + categoryHours[1].second + categoryHours[2].second) / totalCatHours.coerceAtLeast(0.0001) >= 0.6 ->
                     "💡 工作与学业占比超 60%，专注精力高度聚焦于主航道！"
-                (categoryHours[3].second + categoryHours[4].second) / totalCatHours >= 0.5 ->
+                (categoryHours[3].second + categoryHours[4].second) / totalCatHours.coerceAtLeast(0.0001) >= 0.5 ->
                     "☕ 生活与身心投入充足，劳逸结合状态佳！"
                 else -> "💡 各分类投入均衡，作息与成长节奏平稳！"
             }
@@ -1581,15 +1612,15 @@ fun RealityVsScheduleContrastCard(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         if (wakeMarker != null) {
-                            val wTime = parseSummaryDateTime(wakeMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: wakeMarker.startTime
+                            val wakeDt = parseSummaryDateTime(wakeMarker.startTime, selectedDate)
+                            val wTime = wakeDt?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: wakeMarker.startTime
                             Text("实际打卡: $wTime", fontSize = 11.sp, color = colors.dopamineGreen, fontWeight = FontWeight.SemiBold)
                             if (firstSchedule != null) {
                                 val sTime = firstSchedule.startTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
                                 Text("首个日程: $sTime", fontSize = 10.5.sp, color = colors.textSecondary)
-                                val diffMinutes = Duration.between(
-                                    parseSummaryDateTime(wakeMarker.startTime) ?: firstSchedule.startTime,
-                                    firstSchedule.startTime
-                                ).toMinutes()
+                                val wakeOnDate = wakeDt?.let { selectedDate.atTime(it.toLocalTime()) } ?: firstSchedule.startTime
+                                val schedOnDate = selectedDate.atTime(firstSchedule.startTime.toLocalTime())
+                                val diffMinutes = Duration.between(wakeOnDate, schedOnDate).toMinutes()
                                 val diffText = when {
                                     diffMinutes > 15 -> "提前 ${diffMinutes}m 起床 🌟"
                                     diffMinutes < -15 -> "比首个排期晚 ${-diffMinutes}m ⚠️"
@@ -1621,11 +1652,11 @@ fun RealityVsScheduleContrastCard(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         if (napMarker != null) {
-                            val nStart = parseSummaryDateTime(napMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.startTime
-                            val nEnd = if (napMarker.endTime.isNotBlank()) parseSummaryDateTime(napMarker.endTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.endTime else ""
+                            val nStart = parseSummaryDateTime(napMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.startTime
+                            val nEnd = if (napMarker.endTime.isNotBlank()) parseSummaryDateTime(napMarker.endTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.endTime else ""
                             Text(if (nEnd.isNotBlank()) "午休: $nStart - $nEnd" else "午休: $nStart", fontSize = 11.sp, color = colors.dopamineBlue, fontWeight = FontWeight.SemiBold)
                         } else if (sleepMarker != null) {
-                            val sTime = parseSummaryDateTime(sleepMarker.startTime)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: sleepMarker.startTime
+                            val sTime = parseSummaryDateTime(sleepMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: sleepMarker.startTime
                             Text("就寝: $sTime", fontSize = 11.sp, color = colors.dopaminePurple, fontWeight = FontWeight.SemiBold)
                         } else {
                             Text("无午休/睡眠打卡", fontSize = 11.sp, color = colors.textMuted)
@@ -1648,16 +1679,12 @@ fun RealityVsScheduleContrastCard(
                 )
 
                 dailyMarkers.sortedBy { it.startTime }.forEach { marker ->
-                    val sDt = parseSummaryDateTime(marker.startTime)
+                    val sDt = parseSummaryDateTime(marker.startTime, selectedDate)
                     val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.startTime
-                    val eDt = if (marker.endTime.isNotBlank()) parseSummaryDateTime(marker.endTime) else null
+                    val eDt = if (marker.endTime.isNotBlank()) parseSummaryDateTime(marker.endTime, selectedDate) else null
                     val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.endTime
 
-                    val markerColor = try {
-                        Color(android.graphics.Color.parseColor(marker.colorHex))
-                    } catch (e: Exception) {
-                        colors.dopamineBlue
-                    }
+                    val markerColor = parseHexColor(marker.colorHex, colors.dopamineBlue)
 
                     Row(
                         modifier = Modifier
