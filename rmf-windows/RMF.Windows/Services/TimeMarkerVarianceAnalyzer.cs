@@ -16,15 +16,7 @@ public static class TimeMarkerVarianceAnalyzer
 
         var dateStr = targetDate.ToString("yyyy-MM-dd");
         var daySchedules = schedules
-            .Where(s => !s.IsDeleted && s.Status != "BACKLOG" && !string.IsNullOrWhiteSpace(s.StartTime))
-            .Where(s =>
-            {
-                if (DateTime.TryParse(s.StartTime, out var dt))
-                {
-                    return dt.Date == targetDate.Date;
-                }
-                return false;
-            })
+            .Where(s => !s.IsDeleted && s.Status != "BACKLOG" && s.StartTime.Date == targetDate.Date)
             .OrderBy(s => s.StartTime)
             .ToList();
 
@@ -45,7 +37,7 @@ public static class TimeMarkerVarianceAnalyzer
             return insights;
         }
 
-        // 1. 起床时间分析 (Wake up vs First Schedule)
+        // 1. 起床时间分析 (Wake vs First Schedule)
         var wakeMarker = dayMarkers.FirstOrDefault(m =>
             m.Name.Contains("起床") || (m.Category == "SLEEP" && m.Icon == "🌅"));
         if (wakeMarker != null && DateTime.TryParse(wakeMarker.StartTime, out var wakeTime))
@@ -53,40 +45,38 @@ public static class TimeMarkerVarianceAnalyzer
             if (daySchedules.Count > 0)
             {
                 var firstSchedule = daySchedules.First();
-                if (DateTime.TryParse(firstSchedule.StartTime, out var firstSchedTime))
+                DateTime firstSchedTime = firstSchedule.StartTime;
+                int diffMinutes = (int)(wakeTime - firstSchedTime).TotalMinutes;
+                if (diffMinutes > 10)
                 {
-                    int diffMinutes = (int)(wakeTime - firstSchedTime).TotalMinutes;
-                    if (diffMinutes > 10)
+                    insights.Add(new VarianceInsight
                     {
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "⚠️",
-                            Title = "晨间起床晚于首个计划日程",
-                            Detail = $"首个日程「{firstSchedule.Title}」定于 {firstSchedTime:HH:mm}，实际于 {wakeTime:HH:mm} 起床（推迟 {diffMinutes} 分钟），计划开局产生延迟，建议适当调整晨起闹钟或合理延后首个任务。",
-                            Level = "WARNING"
-                        });
-                    }
-                    else if (diffMinutes < -15)
+                        Icon = "⚠️",
+                        Title = "晨间起床晚于首个计划日程",
+                        Detail = $"首个日程「{firstSchedule.Title}」定于 {firstSchedTime:HH:mm}，实际于 {wakeTime:HH:mm} 起床（推迟 {diffMinutes} 分钟），计划开局产生延迟，建议适当调整晨起闹钟或合理延后首个任务。",
+                        Level = "WARNING"
+                    });
+                }
+                else if (diffMinutes < -15)
+                {
+                    int advance = Math.Abs(diffMinutes);
+                    insights.Add(new VarianceInsight
                     {
-                        int advance = Math.Abs(diffMinutes);
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "🌅",
-                            Title = "从容早起，预留充沛缓冲",
-                            Detail = $"实际于 {wakeTime:HH:mm} 起床，比首个日程「{firstSchedule.Title}」提前 {advance} 分钟，晨间准备时间充裕，执行心态平稳！",
-                            Level = "SUCCESS"
-                        });
-                    }
-                    else
+                        Icon = "🌅",
+                        Title = "从容早起，预留充沛缓冲",
+                        Detail = $"实际于 {wakeTime:HH:mm} 起床，比首个日程「{firstSchedule.Title}」提前 {advance} 分钟，晨间准备时间充裕，执行心态平稳！",
+                        Level = "SUCCESS"
+                    });
+                }
+                else
+                {
+                    insights.Add(new VarianceInsight
                     {
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "🎯",
-                            Title = "晨起与首个日程准点对齐",
-                            Detail = $"实际于 {wakeTime:HH:mm} 起床，与首个计划日程无缝顺承，节奏紧凑精准。",
-                            Level = "SUCCESS"
-                        });
-                    }
+                        Icon = "🎯",
+                        Title = "晨起与首个日程准点对齐",
+                        Detail = $"实际于 {wakeTime:HH:mm} 起床，与首个计划日程无缝顺承，节奏紧凑精准。",
+                        Level = "SUCCESS"
+                    });
                 }
             }
             else
@@ -112,12 +102,9 @@ public static class TimeMarkerVarianceAnalyzer
                 int napMinutes = (int)(rEnd - rStart).TotalMinutes;
                 var overlappingSchedules = daySchedules.Where(sched =>
                 {
-                    if (DateTime.TryParse(sched.StartTime, out var sStart))
-                    {
-                        var sEnd = DateTime.TryParse(sched.EndTime, out var se) ? se : sStart.AddMinutes(sched.EstimatedMinutes > 0 ? sched.EstimatedMinutes : 30);
-                        return sStart < rEnd && sEnd > rStart;
-                    }
-                    return false;
+                    DateTime sStart = sched.StartTime;
+                    DateTime sEnd = sched.EndTime > sched.StartTime ? sched.EndTime : sched.StartTime.AddMinutes(sched.EstimatedMinutes > 0 ? sched.EstimatedMinutes : 30);
+                    return sStart < rEnd && sEnd > rStart;
                 }).ToList();
 
                 if (overlappingSchedules.Count > 0)
@@ -152,43 +139,40 @@ public static class TimeMarkerVarianceAnalyzer
             if (daySchedules.Count > 0)
             {
                 var lastSchedule = daySchedules.Last();
-                var lastEndTime = DateTime.TryParse(lastSchedule.EndTime, out var le)
-                    ? le
-                    : (DateTime.TryParse(lastSchedule.StartTime, out var ls) ? ls.AddMinutes(lastSchedule.EstimatedMinutes > 0 ? lastSchedule.EstimatedMinutes : 30) : DateTime.MinValue);
+                DateTime lastEndTime = lastSchedule.EndTime > lastSchedule.StartTime
+                    ? lastSchedule.EndTime
+                    : lastSchedule.StartTime.AddMinutes(lastSchedule.EstimatedMinutes > 0 ? lastSchedule.EstimatedMinutes : 30);
 
-                if (lastEndTime != DateTime.MinValue)
+                int diff = (int)(sleepTime - lastEndTime).TotalMinutes;
+                if (diff > 60)
                 {
-                    int diff = (int)(sleepTime - lastEndTime).TotalMinutes;
-                    if (diff > 60)
+                    insights.Add(new VarianceInsight
                     {
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "🌙",
-                            Title = "日程结束至就寝有较长空白",
-                            Detail = $"最后一个日程「{lastSchedule.Title}」于 {lastEndTime:HH:mm} 结束，实际于 {sleepTime:HH:mm} 就寝，存在约 {diff / 60} 小时余量时间，可用于复盘或个人娱乐。",
-                            Level = "INFO"
-                        });
-                    }
-                    else if (diff < 0)
+                        Icon = "🌙",
+                        Title = "日程结束至就寝有较长空白",
+                        Detail = $"最后一个日程「{lastSchedule.Title}」于 {lastEndTime:HH:mm} 结束，实际于 {sleepTime:HH:mm} 就寝，存在约 {diff / 60} 小时余量时间，可用于复盘或个人娱乐。",
+                        Level = "INFO"
+                    });
+                }
+                else if (diff < 0)
+                {
+                    insights.Add(new VarianceInsight
                     {
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "⚠️",
-                            Title = "就寝时间早于预计日程结束",
-                            Detail = $"实际于 {sleepTime:HH:mm} 就寝，但日程「{lastSchedule.Title}」预计至 {lastEndTime:HH:mm}，可能存在未完结排期推迟到明日。",
-                            Level = "WARNING"
-                        });
-                    }
-                    else
+                        Icon = "⚠️",
+                        Title = "就寝时间早于预计日程结束",
+                        Detail = $"实际于 {sleepTime:HH:mm} 就寝，但日程「{lastSchedule.Title}」预计至 {lastEndTime:HH:mm}，可能存在未完结排期推迟到明日。",
+                        Level = "WARNING"
+                    });
+                }
+                else
+                {
+                    insights.Add(new VarianceInsight
                     {
-                        insights.Add(new VarianceInsight
-                        {
-                            Icon = "🌙",
-                            Title = "准时收工与健康就寝",
-                            Detail = $"日程结束于 {lastEndTime:HH:mm}，随后于 {sleepTime:HH:mm} 顺利就寝，作息节奏张弛有度。",
-                            Level = "SUCCESS"
-                        });
-                    }
+                        Icon = "🌙",
+                        Title = "准时收工与健康就寝",
+                        Detail = $"日程结束于 {lastEndTime:HH:mm}，随后于 {sleepTime:HH:mm} 顺利就寝，作息节奏张弛有度。",
+                        Level = "SUCCESS"
+                    });
                 }
             }
         }
@@ -204,5 +188,14 @@ public static class TimeMarkerVarianceAnalyzer
         });
 
         return insights;
+    }
+
+    public static List<VarianceInsight> AnalyzeDay(
+        string targetDateStr,
+        List<ScheduleItem> schedules,
+        List<TimeMarkerItem> markers)
+    {
+        DateTime dt = DateTime.TryParse(targetDateStr, out var d) ? d : DateTime.Today;
+        return AnalyzeDay(dt, schedules, markers);
     }
 }

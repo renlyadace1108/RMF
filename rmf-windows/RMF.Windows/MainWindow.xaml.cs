@@ -14902,7 +14902,7 @@ public partial class MainWindow : Window
         {
             Id = Guid.NewGuid().ToString(),
             Title = string.IsNullOrWhiteSpace(note.Title) ? "便签任务" : note.Title,
-            Content = note.Content ?? "",
+            Description = note.Content ?? "",
             StartTime = DateTime.Today.AddHours(9),
             EndTime = DateTime.Today.AddHours(10),
             WorkType = note.Category == "生活" ? "LIFE" : (note.Category == "思考" ? "STUDY" : "WORK"),
@@ -15287,7 +15287,7 @@ public partial class MainWindow : Window
         if (VarianceInsightsPanel != null)
         {
             VarianceInsightsPanel.Children.Clear();
-            var insights = TimeMarkerVarianceAnalyzer.AnalyzeDay(dateStr, schedules, markers);
+            var insights = TimeMarkerVarianceAnalyzer.AnalyzeDay(_currentDate, schedules, markers);
             foreach (var ins in insights)
             {
                 VarianceInsightsPanel.Children.Add(CreateInsightCard(ins));
