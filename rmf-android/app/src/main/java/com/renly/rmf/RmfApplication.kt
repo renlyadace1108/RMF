@@ -38,10 +38,13 @@ class RmfApplication : Application() {
                 com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(this@RmfApplication)
                 database.openHelper.writableDatabase
 
-                // 启动系统级看门狗服务 (每15分钟核验)
-                com.renly.rmf.domain.service.ReminderWatchdogJobService.schedule(this@RmfApplication)
+                // 确保彻底注销旧版后台看门狗任务，杜绝无意义周期性后台自启唤醒
+                try {
+                    val jobScheduler = getSystemService(android.content.Context.JOB_SCHEDULER_SERVICE) as? android.app.job.JobScheduler
+                    jobScheduler?.cancel(9182)
+                } catch (_: Exception) {}
 
-                // 核验并重新排期待触发提醒与日程闹钟
+                // 轻量核验并注册待触发事件与近 3 天日程闹钟 (纯按需注册至系统硬件 RTC，完成后即刻休眠，0 后台驻留)
                 com.renly.rmf.domain.service.ScheduleReminderManager.rescheduleAll(this@RmfApplication)
             } catch (_: Exception) {}
         }

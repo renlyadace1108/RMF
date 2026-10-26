@@ -195,8 +195,10 @@ object ScheduleReminderManager {
                         }
                     }
                 }
-                // 2. 触发一次逾期补漏提醒，确保用户绝不错漏
-                triggerOverdueReminderNotification(context, reminder)
+                // 2. 仅对过去 24 小时内的事件触发补漏提醒，避免久远历史事项无意义骚扰
+                if (remindLdt.isAfter(LocalDateTime.now().minusHours(24))) {
+                    triggerOverdueReminderNotification(context, reminder)
+                }
                 return
             }
 
@@ -358,30 +360,27 @@ object ScheduleReminderManager {
                     scheduleDirectReminder(context, reminder)
                 }
 
-                // 2. 重新加载未来 7 天内有效普通日程
-                val schedules = db.scheduleDao().getAllRawSchedules().filter {
-                    it.isDeleted == 0 && it.status != "COMPLETED"
-                }
-                for (schedule in schedules) {
+                // 2. 轻量区间查询未来 3 天内日程 (仅查近期待办，杜绝全表扫描与内存峰值)
+                val startStr = now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                val endStr = now.plusDays(3).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                val upcomingSchedules = db.scheduleDao().getUpcomingSchedulesList(startStr, endStr)
+                for (schedule in upcomingSchedules) {
                     try {
-                        val start = LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_DATE_TIME)
-                        if (start.isAfter(now)) {
-                            scheduleReminder(
-                                context = context,
-                                scheduleId = schedule.id,
-                                title = schedule.title,
-                                startTimeStr = schedule.startTime,
-                                advanceMinutes = 10
-                            )
-                        }
+                        scheduleReminder(
+                            context = context,
+                            scheduleId = schedule.id,
+                            title = schedule.title,
+                            startTimeStr = schedule.startTime,
+                            advanceMinutes = 10
+                        )
                     } catch (_: Exception) {}
                 }
 
-                // 3. 重新核验未来 7 天的课程胶囊提醒
+                // 3. 仅核验未来 3 天课程提醒 (精简按需排期，节省内存与唤醒资源)
                 CourseReminderScheduler.scheduleUpcomingCourseReminders(
                     context = context,
                     courseDao = db.courseDao(),
-                    daysAhead = 7
+                    daysAhead = 3
                 )
             } catch (_: Exception) { }
         }

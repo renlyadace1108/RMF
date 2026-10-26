@@ -3,16 +3,15 @@ package com.renly.rmf.domain.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.PowerManager
 import com.renly.rmf.RmfApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * 手机开机自启、系统唤醒、时区变化或解锁屏广播：
- * 重新加载待办事件、日程与课程，自动注册系统级精准闹钟，并启动看门狗服务，
- * 确保即使历经深睡、强杀、时间校准或冷重启，提醒永不失效。
+ * 开机自启、应用版本升级与系统时区校准单次事件广播：
+ * 仅在系统物理重启（RTC 闹钟被硬件清空）或时区变化时被动触发一次闹钟排期，
+ * 严禁监听亮屏解锁或电源接入等高频行为，实现真正的 0 常驻、0 闲置耗电。
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -25,40 +24,18 @@ class BootReceiver : BroadcastReceiver() {
             "android.intent.action.QUICKBOOT_POWERON",
             "com.htc.intent.action.QUICKBOOT_POWERON",
             Intent.ACTION_TIME_CHANGED,
-            Intent.ACTION_TIMEZONE_CHANGED,
-            Intent.ACTION_USER_PRESENT,
-            Intent.ACTION_POWER_CONNECTED
+            Intent.ACTION_TIMEZONE_CHANGED
         )
 
         if (action in validActions) {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-            val wakeLock = try {
-                powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rmf:boot_receiver")?.apply {
-                    acquire(15000L)
+            val app = context.applicationContext as? RmfApplication ?: return
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    ScheduleReminderManager.rescheduleAll(context)
+                } finally {
+                    pendingResult.finish()
                 }
-            } catch (_: Exception) {
-                null
-            }
-
-            // 1. 确保系统后台看门狗周期调度处于就绪状态
-            ReminderWatchdogJobService.schedule(context)
-
-            // 2. 全量核验所有待触发提醒、日程与课程
-            val app = context.applicationContext as? RmfApplication
-            if (app != null) {
-                val pendingResult = goAsync()
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        ScheduleReminderManager.rescheduleAll(context)
-                        // 重新刷新桌面全部小组件
-                        com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
-                    } finally {
-                        try { wakeLock?.release() } catch (_: Exception) {}
-                        pendingResult.finish()
-                    }
-                }
-            } else {
-                try { wakeLock?.release() } catch (_: Exception) {}
             }
         }
     }

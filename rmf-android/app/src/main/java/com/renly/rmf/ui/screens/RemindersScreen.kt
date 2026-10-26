@@ -151,7 +151,7 @@ fun RemindersScreen(
                 }
 
                 Text(
-                    text = "硬件级系统精准闹钟对齐 · 看门狗防强杀 · 重复周期自动推进 · 逾期强力兜底",
+                    text = "系统时钟硬件 RTC 唤醒 · 零后台常驻与零闲置耗电 · 重复周期自动推进 · 逾期强力兜底",
                     fontSize = 11.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)

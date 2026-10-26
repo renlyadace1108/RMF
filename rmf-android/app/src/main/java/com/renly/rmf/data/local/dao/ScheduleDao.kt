@@ -19,6 +19,9 @@ interface ScheduleDao {
     @Query("SELECT * FROM schedules WHERE is_deleted = 0 AND start_time >= :startTime AND start_time < :endTime ORDER BY start_time ASC")
     fun getSchedulesByDateRange(startTime: String, endTime: String): Flow<List<ScheduleEntity>>
 
+    @Query("SELECT * FROM schedules WHERE is_deleted = 0 AND status != 'COMPLETED' AND start_time >= :startTime AND start_time <= :endTime ORDER BY start_time ASC")
+    suspend fun getUpcomingSchedulesList(startTime: String, endTime: String): List<ScheduleEntity>
+
     @Query("SELECT * FROM schedules WHERE id = :id LIMIT 1")
     suspend fun getScheduleById(id: String): ScheduleEntity?
 

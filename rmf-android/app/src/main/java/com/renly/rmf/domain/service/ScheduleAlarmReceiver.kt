@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.PowerManager
 import android.os.SystemClock
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -22,16 +21,6 @@ import java.time.format.DateTimeFormatter
 class ScheduleAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        // 获取短时唤醒锁 (10秒)，保证广播分发与数据库写入期间 CPU 不被系统强行打断休眠
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val wakeLock = try {
-            powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rmf:alarm_receiver")?.apply {
-                acquire(10000L)
-            }
-        } catch (_: Exception) {
-            null
-        }
-
         val intentAction = intent.action
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -69,12 +58,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                             SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
                         }
                     } finally {
-                        try { wakeLock?.release() } catch (_: Exception) {}
                         pendingResult.finish()
                     }
                 }
-            } else {
-                try { wakeLock?.release() } catch (_: Exception) {}
             }
             return
         }
@@ -107,12 +93,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                             }
                         }
                     } finally {
-                        try { wakeLock?.release() } catch (_: Exception) {}
                         pendingResult.finish()
                     }
                 }
-            } else {
-                try { wakeLock?.release() } catch (_: Exception) {}
             }
             return
         }
@@ -266,10 +249,11 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     .bigText(message)
             )
 
-            // 若此事件有周期性重复规则，在触发弹窗的同时异步自动排期下一周期闹钟，确保持续生效永不失效
+            // 若此事件有周期性重复规则，在触发弹窗的同时异步自动排期下一周期闹钟，确保持续生效
             if (reminderId.isNotBlank()) {
                 val app = context.applicationContext as? RmfApplication
                 if (app != null) {
+                    val pendingResult = goAsync()
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
                             val reminder = app.database.reminderDao().getReminderById(reminderId)
@@ -282,7 +266,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                                     ScheduleReminderManager.scheduleDirectReminder(context, updated)
                                 }
                             }
-                        } catch (_: Exception) {}
+                        } finally {
+                            pendingResult.finish()
+                        }
                     }
                 }
             }
@@ -521,9 +507,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val notification = builder.build()
         FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
         manager.notify(notificationId, notification)
-
-        // 释放临时唤醒锁
-        try { wakeLock?.release() } catch (_: Exception) {}
     }
 
     companion object {
