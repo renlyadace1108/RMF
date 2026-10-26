@@ -861,6 +861,11 @@ public partial class MainWindow : Window
             Canvas.SetZIndex(punchInBanner, 100);
             WeekEventsCanvas.Children.Add(punchInBanner);
         }
+
+        if (_isDualTrackMode)
+        {
+            RenderWeekDualTrackMarkers(monday, colWidth);
+        }
     }
 
     /// <summary>
@@ -1478,6 +1483,11 @@ public partial class MainWindow : Window
                     DayEventsCanvas.Children.Add(card);
                 }
             }
+        }
+
+        if (_isDualTrackMode)
+        {
+            RenderDayDualTrackMarkers(canvasWidth);
         }
     }
 
@@ -6283,6 +6293,8 @@ public partial class MainWindow : Window
     private void OnTutorialJumpTimetableClicked(object sender, RoutedEventArgs e) => SwitchPrimaryPage("Timetable");
     private void OnTutorialJumpDailyReportClicked(object sender, RoutedEventArgs e) => SwitchPrimaryPage("DailyReport");
     private void OnTutorialJumpSettingsClicked(object sender, RoutedEventArgs e) => SwitchPrimaryPage("Settings");
+    private void OnNavNotesClicked(object sender, RoutedEventArgs e) => SwitchPrimaryPage("Notes");
+    private void OnNavRemindersClicked(object sender, RoutedEventArgs e) => SwitchPrimaryPage("Reminders");
 
     private void SwitchPrimaryPage(string page)
     {
@@ -6326,6 +6338,18 @@ public partial class MainWindow : Window
             NavTutorialBtn.Foreground = page == "Tutorial" ? activeFg : normalFg;
         }
 
+        if (NavNotesBtn != null)
+        {
+            NavNotesBtn.Background = page == "Notes" ? activeBg : normalBg;
+            NavNotesBtn.Foreground = page == "Notes" ? activeFg : normalFg;
+        }
+
+        if (NavRemindersBtn != null)
+        {
+            NavRemindersBtn.Background = page == "Reminders" ? activeBg : normalBg;
+            NavRemindersBtn.Foreground = page == "Reminders" ? activeFg : normalFg;
+        }
+
         if (NavSettingsBtn != null)
         {
             NavSettingsBtn.Background = page == "Settings" ? activeBg : normalBg;
@@ -6348,6 +6372,14 @@ public partial class MainWindow : Window
         if (TutorialPageContainer != null)
         {
             TutorialPageContainer.Visibility = page == "Tutorial" ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (NotesPageContainer != null)
+        {
+            NotesPageContainer.Visibility = page == "Notes" ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (RemindersPageContainer != null)
+        {
+            RemindersPageContainer.Visibility = page == "Reminders" ? Visibility.Visible : Visibility.Collapsed;
         }
         if (SettingsPageContainer != null)
         {
@@ -6379,6 +6411,8 @@ public partial class MainWindow : Window
                     "Timetable" => "🎓 课程表",
                     "DailyReport" => "🏆 日报",
                     "Tutorial" => "📖 使用指南",
+                    "Notes" => "📝 便签中心",
+                    "Reminders" => "🔔 提醒事项",
                     "Settings" => "⚙️ 设置",
                     _ => "RMF"
                 };
@@ -6408,6 +6442,14 @@ public partial class MainWindow : Window
         else if (page == "DailyReport")
         {
             RenderDailyReportPage();
+        }
+        else if (page == "Notes")
+        {
+            RenderNotesPage();
+        }
+        else if (page == "Reminders")
+        {
+            RenderRemindersPage();
         }
         else if (page == "Settings")
         {
@@ -14553,6 +14595,959 @@ public partial class MainWindow : Window
         if (LegalDocumentModal != null)
         {
             LegalDocumentModal.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // =========================================================================
+    // ======================== NOTES MODULE LOGIC =============================
+    // =========================================================================
+
+    private string _selectedNoteCategory = "ALL";
+    private string _noteSearchFilter = "";
+    private NoteItem? _editingNote = null;
+
+    private void RenderNotesPage()
+    {
+        if (NotesWrapPanel == null) return;
+        NotesWrapPanel.Children.Clear();
+
+        var allNotes = DatabaseService.GetAllNotes();
+        var filtered = allNotes.Where(n =>
+        {
+            if (_selectedNoteCategory != "ALL" && n.Category != _selectedNoteCategory) return false;
+            if (!string.IsNullOrWhiteSpace(_noteSearchFilter))
+            {
+                string term = _noteSearchFilter.Trim().ToLowerInvariant();
+                bool matchTitle = (n.Title ?? "").ToLowerInvariant().Contains(term);
+                bool matchContent = (n.Content ?? "").ToLowerInvariant().Contains(term);
+                if (!matchTitle && !matchContent) return false;
+            }
+            return true;
+        }).ToList();
+
+        if (NotesCountBadge != null)
+        {
+            NotesCountBadge.Text = $"共 {filtered.Count} 条便签";
+        }
+
+        if (NotesEmptyStatePanel != null)
+        {
+            NotesEmptyStatePanel.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        foreach (var note in filtered)
+        {
+            NotesWrapPanel.Children.Add(CreateNoteCard(note));
+        }
+    }
+
+    private UIElement CreateNoteCard(NoteItem note)
+    {
+        var card = new Border
+        {
+            Width = 236,
+            MinHeight = 160,
+            Background = (Brush)FindResource("CardBackground"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(14, 12, 14, 12),
+            Margin = new Thickness(8)
+        };
+
+        Color accentColor;
+        try { accentColor = (Color)ColorConverter.ConvertFromString(note.ColorHex ?? "#F59E0B"); }
+        catch { accentColor = Color.FromRgb(0xF5, 0x9E, 0x0B); }
+
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        // 1. Header: Category Chip + Pin Button
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var catBadge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x28, accentColor.R, accentColor.G, accentColor.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, accentColor.R, accentColor.G, accentColor.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(8, 2, 8, 2),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        catBadge.Child = new TextBlock
+        {
+            Text = note.Category ?? "灵感",
+            FontSize = 10.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(accentColor)
+        };
+        Grid.SetColumn(catBadge, 0);
+        headerGrid.Children.Add(catBadge);
+
+        var pinBtn = new Button
+        {
+            Content = note.IsPinned ? "📌" : "📍",
+            ToolTip = note.IsPinned ? "取消置顶" : "置顶便签",
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4, 2, 4, 2),
+            FontSize = 12,
+            Cursor = Cursors.Hand,
+            Opacity = note.IsPinned ? 1.0 : 0.4
+        };
+        pinBtn.Click += (s, e) =>
+        {
+            DatabaseService.TogglePinNote(note.Id);
+            RenderNotesPage();
+        };
+        Grid.SetColumn(pinBtn, 1);
+        headerGrid.Children.Add(pinBtn);
+
+        Grid.SetRow(headerGrid, 0);
+        grid.Children.Add(headerGrid);
+
+        // 2. Title
+        var titleText = new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(note.Title) ? "无标题便签" : note.Title,
+            FontSize = 13.5,
+            FontWeight = FontWeights.Bold,
+            Foreground = (Brush)FindResource("TextPrimary"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        Grid.SetRow(titleText, 1);
+        grid.Children.Add(titleText);
+
+        // 3. Content preview
+        var contentText = new TextBlock
+        {
+            Text = note.PreviewContent,
+            FontSize = 12,
+            Foreground = (Brush)FindResource("TextSecondary"),
+            TextWrapping = TextWrapping.Wrap,
+            LineHeight = 17,
+            MaxHeight = 80,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        Grid.SetRow(contentText, 2);
+        grid.Children.Add(contentText);
+
+        // 4. Footer: UpdatedAt + Actions
+        var footerGrid = new Grid();
+        footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var dateText = new TextBlock
+        {
+            Text = note.DisplayTime,
+            FontSize = 10,
+            Foreground = (Brush)FindResource("TextMuted"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(dateText, 0);
+        footerGrid.Children.Add(dateText);
+
+        var actionsSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        var schedBtn = new Button
+        {
+            Content = "🗓️",
+            ToolTip = "一键转为今日日程任务",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(4, 2, 4, 2),
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(0, 0, 4, 0)
+        };
+        schedBtn.Click += (s, e) => ConvertNoteToSchedule(note);
+        actionsSp.Children.Add(schedBtn);
+
+        var editBtn = new Button
+        {
+            Content = "✏️",
+            ToolTip = "编辑便签",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(4, 2, 4, 2),
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(0, 0, 4, 0)
+        };
+        editBtn.Click += (s, e) => OpenNoteEditModal(note);
+        actionsSp.Children.Add(editBtn);
+
+        var delBtn = new Button
+        {
+            Content = "🗑️",
+            ToolTip = "删除便签",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(4, 2, 4, 2),
+            FontSize = 11,
+            Cursor = Cursors.Hand
+        };
+        delBtn.Click += (s, e) =>
+        {
+            if (MessageBox.Show($"确定要删除便签「{note.Title}」吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                DatabaseService.DeleteNote(note.Id);
+                RenderNotesPage();
+            }
+        };
+        actionsSp.Children.Add(delBtn);
+
+        Grid.SetColumn(actionsSp, 1);
+        footerGrid.Children.Add(actionsSp);
+
+        Grid.SetRow(footerGrid, 3);
+        grid.Children.Add(footerGrid);
+
+        card.Child = grid;
+        return card;
+    }
+
+    private void OnSearchNotesTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (NotesSearchBox != null)
+        {
+            _noteSearchFilter = NotesSearchBox.Text ?? "";
+            RenderNotesPage();
+        }
+    }
+
+    private void OnFilterNotesCategoryClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string cat)
+        {
+            _selectedNoteCategory = cat;
+            RenderNotesPage();
+        }
+    }
+
+    private void OnAddNoteClicked(object sender, RoutedEventArgs e)
+    {
+        OpenNoteEditModal(null);
+    }
+
+    private void OpenNoteEditModal(NoteItem? note)
+    {
+        _editingNote = note;
+        if (note == null)
+        {
+            NoteModalTitle.Text = "新建便签";
+            NoteEditTitleBox.Text = "";
+            NoteEditContentBox.Text = "";
+            NoteEditPinCheck.IsChecked = false;
+            NoteEditCategoryCombo.SelectedIndex = 0;
+        }
+        else
+        {
+            NoteModalTitle.Text = "编辑便签";
+            NoteEditTitleBox.Text = note.Title ?? "";
+            NoteEditContentBox.Text = note.Content ?? "";
+            NoteEditPinCheck.IsChecked = note.IsPinned;
+            int foundIdx = -1;
+            for (int i = 0; i < NoteEditCategoryCombo.Items.Count; i++)
+            {
+                if (NoteEditCategoryCombo.Items[i] is ComboBoxItem cbi && (cbi.Content?.ToString() == note.Category))
+                {
+                    foundIdx = i;
+                    break;
+                }
+            }
+            NoteEditCategoryCombo.SelectedIndex = foundIdx >= 0 ? foundIdx : 0;
+        }
+        NoteEditModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnSaveNoteClicked(object sender, RoutedEventArgs e)
+    {
+        string title = NoteEditTitleBox.Text.Trim();
+        string content = NoteEditContentBox.Text.Trim();
+        if (string.IsNullOrEmpty(title) && string.IsNullOrEmpty(content))
+        {
+            MessageBox.Show("便签标题和内容不能同时为空！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string cat = (NoteEditCategoryCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "灵感";
+        bool isPinned = NoteEditPinCheck.IsChecked == true;
+
+        var note = _editingNote ?? new NoteItem { Id = Guid.NewGuid().ToString() };
+        note.Title = string.IsNullOrEmpty(title) ? (content.Length > 20 ? content.Substring(0, 20) + "..." : content) : title;
+        note.Content = content;
+        note.Category = cat;
+        note.IsPinned = isPinned;
+        note.UpdatedAt = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+
+        DatabaseService.UpsertNote(note);
+        NoteEditModal.Visibility = Visibility.Collapsed;
+        RenderNotesPage();
+    }
+
+    private void OnCancelNoteModalClicked(object sender, RoutedEventArgs e)
+    {
+        NoteEditModal.Visibility = Visibility.Collapsed;
+        _editingNote = null;
+    }
+
+    private void ConvertNoteToSchedule(NoteItem note)
+    {
+        var sched = new ScheduleItem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = string.IsNullOrWhiteSpace(note.Title) ? "便签任务" : note.Title,
+            Content = note.Content ?? "",
+            StartTime = DateTime.Today.AddHours(9),
+            EndTime = DateTime.Today.AddHours(10),
+            WorkType = note.Category == "生活" ? "LIFE" : (note.Category == "思考" ? "STUDY" : "WORK"),
+            Status = "PENDING",
+            EstimatedMinutes = 60
+        };
+        DatabaseService.UpsertSchedule(sched);
+        MessageBox.Show($"已将便签「{note.Title}」转为今日排期任务！可在日历视图中查看。", "转为任务成功", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    // =========================================================================
+    // ===================== REMINDERS MODULE LOGIC ============================
+    // =========================================================================
+
+    private bool _showCompletedReminders = false;
+    private string _selectedReminderCategory = "ALL";
+    private ReminderItem? _editingReminder = null;
+
+    private void RenderRemindersPage()
+    {
+        if (RemindersListPanel == null) return;
+        RemindersListPanel.Children.Clear();
+
+        var all = DatabaseService.GetAllReminders();
+        int pendingCount = all.Count(r => !r.IsCompleted);
+        int completedCount = all.Count(r => r.IsCompleted);
+
+        if (ReminderPendingTabBtn != null) ReminderPendingTabBtn.Content = $"待提醒 ({pendingCount})";
+        if (ReminderCompletedTabBtn != null) ReminderCompletedTabBtn.Content = $"已完成 ({completedCount})";
+
+        var filtered = all.Where(r =>
+        {
+            if (r.IsCompleted != _showCompletedReminders) return false;
+            if (_selectedReminderCategory != "ALL" && r.Category != _selectedReminderCategory) return false;
+            return true;
+        }).ToList();
+
+        if (RemindersEmptyStatePanel != null)
+        {
+            RemindersEmptyStatePanel.Visibility = filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        foreach (var item in filtered)
+        {
+            RemindersListPanel.Children.Add(CreateReminderRow(item));
+        }
+    }
+
+    private UIElement CreateReminderRow(ReminderItem item)
+    {
+        var border = new Border
+        {
+            Background = (Brush)FindResource("CardBackground"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 12, 14, 12),
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // 1. Completion Checkbox
+        var chk = new CheckBox
+        {
+            IsChecked = item.IsCompleted,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 14, 0),
+            Cursor = Cursors.Hand
+        };
+        chk.Click += (s, e) =>
+        {
+            bool newStatus = chk.IsChecked == true;
+            DatabaseService.SetReminderCompleted(item.Id, newStatus);
+            RenderRemindersPage();
+        };
+        Grid.SetColumn(chk, 0);
+        grid.Children.Add(chk);
+
+        // 2. Info stack
+        var infoSp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+
+        // Title row: Priority Badge + Title
+        var titleSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 4) };
+
+        Color prioColor;
+        try { prioColor = (Color)ColorConverter.ConvertFromString(item.PriorityBadgeColor); }
+        catch { prioColor = Color.FromRgb(0xF5, 0x9E, 0x0B); }
+
+        var prioBadge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x28, prioColor.R, prioColor.G, prioColor.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, prioColor.R, prioColor.G, prioColor.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 1, 6, 1),
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        prioBadge.Child = new TextBlock
+        {
+            Text = item.PriorityText,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(prioColor)
+        };
+        titleSp.Children.Add(prioBadge);
+
+        var titleBlock = new TextBlock
+        {
+            Text = item.Title,
+            FontSize = 13.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = item.IsCompleted ? (Brush)FindResource("TextMuted") : (Brush)FindResource("TextPrimary"),
+            TextDecorations = item.IsCompleted ? TextDecorations.Strikethrough : null,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleSp.Children.Add(titleBlock);
+        infoSp.Children.Add(titleSp);
+
+        // Metadata badges row: Remind Time + Repeat Rule + Category
+        var metaSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        var timeBlock = new TextBlock
+        {
+            Text = $"🔔 {item.DisplayTime}" + (item.AdvanceMinutes > 0 ? $" (提前{item.AdvanceMinutes}m)" : ""),
+            FontSize = 11,
+            Foreground = item.IsOverdue ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) : (Brush)FindResource("TextSecondary"),
+            Margin = new Thickness(0, 0, 12, 0)
+        };
+        metaSp.Children.Add(timeBlock);
+
+        if (item.RepeatRule != "NONE")
+        {
+            var repBlock = new TextBlock
+            {
+                Text = $"🔄 {item.RepeatRuleText}",
+                FontSize = 11,
+                Foreground = (Brush)FindResource("AccentBlue"),
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+            metaSp.Children.Add(repBlock);
+        }
+
+        var catBlock = new TextBlock
+        {
+            Text = $"🏷️ {item.CategoryText}",
+            FontSize = 11,
+            Foreground = (Brush)FindResource("TextMuted")
+        };
+        metaSp.Children.Add(catBlock);
+
+        infoSp.Children.Add(metaSp);
+
+        if (!string.IsNullOrWhiteSpace(item.Content))
+        {
+            var memoBlock = new TextBlock
+            {
+                Text = item.Content,
+                FontSize = 11.5,
+                Foreground = (Brush)FindResource("TextMuted"),
+                Margin = new Thickness(0, 4, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            infoSp.Children.Add(memoBlock);
+        }
+
+        Grid.SetColumn(infoSp, 1);
+        grid.Children.Add(infoSp);
+
+        // 3. Actions
+        var actionsSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        var editBtn = new Button
+        {
+            Content = "✏️",
+            ToolTip = "编辑提醒",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(6, 4, 6, 4),
+            FontSize = 11,
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(0, 0, 4, 0)
+        };
+        editBtn.Click += (s, e) => OpenReminderEditModal(item);
+        actionsSp.Children.Add(editBtn);
+
+        var delBtn = new Button
+        {
+            Content = "🗑️",
+            ToolTip = "删除提醒",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(6, 4, 6, 4),
+            FontSize = 11,
+            Cursor = Cursors.Hand
+        };
+        delBtn.Click += (s, e) =>
+        {
+            if (MessageBox.Show($"确定要删除提醒「{item.Title}」吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                DatabaseService.DeleteReminder(item.Id);
+                RenderRemindersPage();
+            }
+        };
+        actionsSp.Children.Add(delBtn);
+
+        Grid.SetColumn(actionsSp, 2);
+        grid.Children.Add(actionsSp);
+
+        border.Child = grid;
+        return border;
+    }
+
+    private void OnReminderTabPendingClicked(object sender, RoutedEventArgs e)
+    {
+        _showCompletedReminders = false;
+        ReminderPendingTabBtn.Background = (Brush)FindResource("GoogleBlue");
+        ReminderPendingTabBtn.Foreground = Brushes.White;
+        ReminderPendingTabBtn.FontWeight = FontWeights.SemiBold;
+        ReminderCompletedTabBtn.Background = Brushes.Transparent;
+        ReminderCompletedTabBtn.Foreground = (Brush)FindResource("TextPrimary");
+        ReminderCompletedTabBtn.FontWeight = FontWeights.Normal;
+        RenderRemindersPage();
+    }
+
+    private void OnReminderTabCompletedClicked(object sender, RoutedEventArgs e)
+    {
+        _showCompletedReminders = true;
+        ReminderCompletedTabBtn.Background = (Brush)FindResource("GoogleBlue");
+        ReminderCompletedTabBtn.Foreground = Brushes.White;
+        ReminderCompletedTabBtn.FontWeight = FontWeights.SemiBold;
+        ReminderPendingTabBtn.Background = Brushes.Transparent;
+        ReminderPendingTabBtn.Foreground = (Brush)FindResource("TextPrimary");
+        ReminderPendingTabBtn.FontWeight = FontWeights.Normal;
+        RenderRemindersPage();
+    }
+
+    private void OnFilterReminderCategoryClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string cat)
+        {
+            _selectedReminderCategory = cat;
+            RenderRemindersPage();
+        }
+    }
+
+    private void OnAddReminderClicked(object sender, RoutedEventArgs e)
+    {
+        OpenReminderEditModal(null);
+    }
+
+    private void OpenReminderEditModal(ReminderItem? item)
+    {
+        _editingReminder = item;
+        if (item == null)
+        {
+            ReminderModalTitle.Text = "新建提醒事项";
+            ReminderEditTitleBox.Text = "";
+            ReminderEditContentBox.Text = "";
+            ReminderEditDatePicker.SelectedDate = DateTime.Today;
+            ReminderEditTimeBox.Text = DateTime.Now.AddHours(1).ToString("HH:00");
+            ReminderEditPriorityCombo.SelectedIndex = 1;
+            ReminderEditAdvanceCombo.SelectedIndex = 0;
+            ReminderEditRepeatCombo.SelectedIndex = 0;
+            ReminderEditCategoryCombo.SelectedIndex = 0;
+        }
+        else
+        {
+            ReminderModalTitle.Text = "编辑提醒事项";
+            ReminderEditTitleBox.Text = item.Title;
+            ReminderEditContentBox.Text = item.Content ?? "";
+            if (DateTime.TryParse(item.RemindTime, out var dt))
+            {
+                ReminderEditDatePicker.SelectedDate = dt.Date;
+                ReminderEditTimeBox.Text = dt.ToString("HH:mm");
+            }
+            else
+            {
+                ReminderEditDatePicker.SelectedDate = DateTime.Today;
+                ReminderEditTimeBox.Text = "09:00";
+            }
+
+            int prioIdx = item.Priority switch { "HIGH" => 0, "LOW" => 2, _ => 1 };
+            ReminderEditPriorityCombo.SelectedIndex = prioIdx;
+
+            int advIdx = item.AdvanceMinutes switch { 5 => 1, 10 => 2, 15 => 3, 30 => 4, 60 => 5, _ => 0 };
+            ReminderEditAdvanceCombo.SelectedIndex = advIdx;
+
+            int repIdx = item.RepeatRule switch { "DAILY" => 1, "WEEKDAYS" => 2, "WEEKLY" => 3, "MONTHLY" => 4, "YEARLY" => 5, _ => 0 };
+            ReminderEditRepeatCombo.SelectedIndex = repIdx;
+
+            int catIdx = item.Category switch { "MEMO" => 1, "LIFE" => 2, "WORK" => 3, "HEALTH" => 4, _ => 0 };
+            ReminderEditCategoryCombo.SelectedIndex = catIdx;
+        }
+        ReminderEditModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnSaveReminderClicked(object sender, RoutedEventArgs e)
+    {
+        string title = ReminderEditTitleBox.Text.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            MessageBox.Show("提醒标题不能为空！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        DateTime date = ReminderEditDatePicker.SelectedDate ?? DateTime.Today;
+        if (!TimeSpan.TryParse(ReminderEditTimeBox.Text.Trim(), out var time))
+        {
+            time = new TimeSpan(9, 0, 0);
+        }
+        DateTime remindDateTime = date.Date + time;
+
+        string prio = (ReminderEditPriorityCombo.SelectedIndex) switch { 0 => "HIGH", 2 => "LOW", _ => "MEDIUM" };
+        int advance = (ReminderEditAdvanceCombo.SelectedItem as ComboBoxItem)?.Tag is string advStr && int.TryParse(advStr, out int a) ? a : 0;
+        string repeat = (ReminderEditRepeatCombo.SelectedItem as ComboBoxItem)?.Tag is string repStr ? repStr : "NONE";
+        string cat = (ReminderEditCategoryCombo.SelectedIndex) switch { 1 => "MEMO", 2 => "LIFE", 3 => "WORK", 4 => "HEALTH", _ => "REMINDER" };
+        string content = ReminderEditContentBox.Text.Trim();
+
+        var rem = _editingReminder ?? new ReminderItem { Id = Guid.NewGuid().ToString() };
+        rem.Title = title;
+        rem.Content = content;
+        rem.RemindTime = remindDateTime.ToString("yyyy-MM-ddTHH:mm:ss");
+        rem.AdvanceMinutes = advance;
+        rem.RepeatRule = repeat;
+        rem.Priority = prio;
+        rem.Category = cat;
+
+        DatabaseService.UpsertReminder(rem);
+        ReminderEditModal.Visibility = Visibility.Collapsed;
+        RenderRemindersPage();
+    }
+
+    private void OnCancelReminderModalClicked(object sender, RoutedEventArgs e)
+    {
+        ReminderEditModal.Visibility = Visibility.Collapsed;
+        _editingReminder = null;
+    }
+
+    // =========================================================================
+    // ============ DUAL-TRACK MODE & TIME MARKERS & VARIANCE LOGIC =============
+    // =========================================================================
+
+    private bool _isDualTrackMode = false;
+
+    private void OnDualTrackToggleClicked(object sender, RoutedEventArgs e)
+    {
+        _isDualTrackMode = !_isDualTrackMode;
+        if (DualTrackToggleBtn != null)
+        {
+            DualTrackToggleBtn.Background = _isDualTrackMode ? ThemeService.CurrentAccentBrush : (Brush)FindResource("ControlBackground");
+            DualTrackToggleBtn.Foreground = _isDualTrackMode ? Brushes.White : (Brush)FindResource("TextPrimary");
+        }
+        RenderAllCalendarViews();
+    }
+
+    private void OnOpenTimeMarkerModalClicked(object sender, RoutedEventArgs e)
+    {
+        RefreshTimeMarkerModal();
+        TimeMarkerModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseTimeMarkerModalClicked(object sender, RoutedEventArgs e)
+    {
+        TimeMarkerModal.Visibility = Visibility.Collapsed;
+        if (_isDualTrackMode) RenderAllCalendarViews();
+    }
+
+    private void RefreshTimeMarkerModal()
+    {
+        string dateStr = _currentDate.ToString("yyyy-MM-dd");
+        if (TimeMarkerDateBadge != null) TimeMarkerDateBadge.Text = dateStr;
+
+        var schedules = DatabaseService.GetSchedulesForDate(_currentDate);
+        var markers = DatabaseService.GetTimeMarkersByDate(dateStr);
+
+        if (MarkersCountText != null) MarkersCountText.Text = $"共 {markers.Count} 条记录";
+
+        // Variance Review Analysis
+        if (VarianceInsightsPanel != null)
+        {
+            VarianceInsightsPanel.Children.Clear();
+            var insights = TimeMarkerVarianceAnalyzer.AnalyzeDay(dateStr, schedules, markers);
+            foreach (var ins in insights)
+            {
+                VarianceInsightsPanel.Children.Add(CreateInsightCard(ins));
+            }
+        }
+
+        // Today's markers list
+        if (TodayMarkersListPanel != null)
+        {
+            TodayMarkersListPanel.Children.Clear();
+            if (markers.Count == 0)
+            {
+                TodayMarkersListPanel.Children.Add(new TextBlock
+                {
+                    Text = "今日尚未打卡任何实际作息锚点，点击上方极速按钮立即打卡。",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("TextMuted"),
+                    Margin = new Thickness(0, 4, 0, 8)
+                });
+            }
+            else
+            {
+                foreach (var marker in markers)
+                {
+                    TodayMarkersListPanel.Children.Add(CreateMarkerRow(marker));
+                }
+            }
+        }
+    }
+
+    private UIElement CreateInsightCard(VarianceInsight ins)
+    {
+        var border = new Border
+        {
+            Background = (Brush)FindResource("CardBackground"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10),
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconBlock = new TextBlock
+        {
+            Text = ins.Icon,
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0)
+        };
+        Grid.SetColumn(iconBlock, 0);
+        grid.Children.Add(iconBlock);
+
+        var textSp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        textSp.Children.Add(new TextBlock
+        {
+            Text = ins.Title,
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("TextPrimary"),
+            Margin = new Thickness(0, 0, 0, 2)
+        });
+        textSp.Children.Add(new TextBlock
+        {
+            Text = ins.Detail,
+            FontSize = 11.5,
+            Foreground = (Brush)FindResource("TextSecondary"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        Grid.SetColumn(textSp, 1);
+        grid.Children.Add(textSp);
+
+        Color lvlColor;
+        try { lvlColor = (Color)ColorConverter.ConvertFromString(ins.LevelColorHex); }
+        catch { lvlColor = Color.FromRgb(0x10, 0xB9, 0x81); }
+
+        var lvlBadge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x28, lvlColor.R, lvlColor.G, lvlColor.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, lvlColor.R, lvlColor.G, lvlColor.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 2, 6, 2),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        lvlBadge.Child = new TextBlock
+        {
+            Text = ins.Level,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(lvlColor)
+        };
+        Grid.SetColumn(lvlBadge, 2);
+        grid.Children.Add(lvlBadge);
+
+        border.Child = grid;
+        return border;
+    }
+
+    private UIElement CreateMarkerRow(TimeMarkerItem marker)
+    {
+        var border = new Border
+        {
+            Background = (Brush)FindResource("ControlBackground"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        sp.Children.Add(new TextBlock { Text = marker.Icon, FontSize = 14, Margin = new Thickness(0, 0, 8, 0) });
+        sp.Children.Add(new TextBlock { Text = marker.Name, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("TextPrimary"), Margin = new Thickness(0, 0, 12, 0) });
+        sp.Children.Add(new TextBlock { Text = marker.FormattedTimeSpan, FontSize = 11.5, Foreground = (Brush)FindResource("AccentBlue") });
+        Grid.SetColumn(sp, 0);
+        grid.Children.Add(sp);
+
+        var delBtn = new Button
+        {
+            Content = "🗑️",
+            ToolTip = "删除锚点",
+            Style = (Style)FindResource("GoogleTopBtnStyle"),
+            Padding = new Thickness(4, 2, 4, 2),
+            FontSize = 11,
+            Cursor = Cursors.Hand
+        };
+        delBtn.Click += (s, e) =>
+        {
+            DatabaseService.DeleteTimeMarker(marker.Id);
+            RefreshTimeMarkerModal();
+        };
+        Grid.SetColumn(delBtn, 1);
+        grid.Children.Add(delBtn);
+
+        border.Child = grid;
+        return border;
+    }
+
+    private void RecordPresetMarker(string name, string category, string icon)
+    {
+        string nowIso = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        string todayStr = _currentDate.ToString("yyyy-MM-dd");
+        var item = new TimeMarkerItem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = name,
+            Category = category,
+            Icon = icon,
+            MarkerType = "POINT",
+            Date = todayStr,
+            StartTime = nowIso,
+            ColorHex = category switch
+            {
+                "SLEEP" => "#818CF8",
+                "REST" => "#38BDF8",
+                "WORK" => "#10B981",
+                "EXERCISE" => "#F59E0B",
+                _ => "#38BDF8"
+            }
+        };
+        DatabaseService.UpsertTimeMarker(item);
+        RefreshTimeMarkerModal();
+    }
+
+    private void OnQuickRecordWakeClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("起床", "SLEEP", "🌅");
+    private void OnQuickRecordSleepClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("就寝", "SLEEP", "🌙");
+    private void OnQuickRecordNapClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("午休", "REST", "💤");
+    private void OnQuickRecordWorkStartClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("实际开工", "WORK", "💻");
+    private void OnQuickRecordWorkEndClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("实际收工", "WORK", "🏁");
+    private void OnQuickRecordExerciseClicked(object sender, RoutedEventArgs e) => RecordPresetMarker("实际运动", "EXERCISE", "🏃");
+
+    private void RenderDayDualTrackMarkers(double canvasWidth)
+    {
+        string dateStr = _currentDate.ToString("yyyy-MM-dd");
+        var markers = DatabaseService.GetTimeMarkersByDate(dateStr);
+        foreach (var marker in markers)
+        {
+            if (!DateTime.TryParse(marker.StartTime, out var dt)) continue;
+            double h = dt.Hour + dt.Minute / 60.0;
+            double top = h * HourHeight;
+
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xEE, 0x1E, 0x29, 0x3B)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(8, 2, 8, 2),
+                Cursor = Cursors.Hand,
+                ToolTip = $"实际作息打卡: {marker.Name} @ {dt:HH:mm}"
+            };
+            badge.Child = new TextBlock
+            {
+                Text = $"{marker.Icon} {marker.Name} {dt:HH:mm}",
+                FontSize = 10.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8))
+            };
+            badge.MouseLeftButtonUp += (s, e) =>
+            {
+                OnOpenTimeMarkerModalClicked(this, new RoutedEventArgs());
+            };
+
+            Canvas.SetRight(badge, 12);
+            Canvas.SetTop(badge, top - 10);
+            DayEventsCanvas.Children.Add(badge);
+        }
+    }
+
+    private void RenderWeekDualTrackMarkers(DateTime monday, double colWidth)
+    {
+        for (int i = 0; i < 7; i++)
+        {
+            DateTime dayDate = monday.AddDays(i);
+            string dateStr = dayDate.ToString("yyyy-MM-dd");
+            var markers = DatabaseService.GetTimeMarkersByDate(dateStr);
+            double dayLeft = i * colWidth;
+
+            foreach (var marker in markers)
+            {
+                if (!DateTime.TryParse(marker.StartTime, out var dt)) continue;
+                double h = dt.Hour + dt.Minute / 60.0;
+                double top = h * HourHeight;
+
+                var badge = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0xDD, 0x1E, 0x29, 0x3B)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(3, 1, 3, 1),
+                    Cursor = Cursors.Hand,
+                    ToolTip = $"实际作息打卡: {marker.Name} @ {dt:HH:mm}"
+                };
+                badge.Child = new TextBlock
+                {
+                    Text = $"{marker.Icon} {marker.Name} {dt:HH:mm}",
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8))
+                };
+                badge.MouseLeftButtonUp += (s, e) =>
+                {
+                    OnOpenTimeMarkerModalClicked(this, new RoutedEventArgs());
+                };
+
+                Canvas.SetLeft(badge, dayLeft + colWidth - 85);
+                Canvas.SetTop(badge, top - 8);
+                Canvas.SetZIndex(badge, 50);
+                WeekEventsCanvas.Children.Add(badge);
+            }
         }
     }
 }

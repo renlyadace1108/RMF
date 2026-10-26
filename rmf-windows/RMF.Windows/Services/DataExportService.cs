@@ -17,6 +17,11 @@ public class DataExportService
         public object Goals { get; set; } = new();
         public object StudyTopics { get; set; } = new();
         public object Courses { get; set; } = new();
+        public object Notes { get; set; } = new();
+        public object Reminders { get; set; } = new();
+        public object TimeMarkers { get; set; } = new();
+        public object Habits { get; set; } = new();
+        public object Countdowns { get; set; } = new();
     }
 
     /// <summary>
@@ -28,6 +33,11 @@ public class DataExportService
         var goals = DatabaseService.GetAllGoals();
         var studyTopics = DatabaseService.GetAllStudyTopics();
         var courses = DatabaseService.GetAllCourses();
+        var notes = DatabaseService.GetAllNotes();
+        var reminders = DatabaseService.GetAllReminders();
+        var timeMarkers = DatabaseService.GetAllTimeMarkers();
+        var habits = DatabaseService.GetAllHabits();
+        var countdowns = DatabaseService.GetAllCountdowns();
 
         var bundle = new RmfFullDataBundle
         {
@@ -36,7 +46,12 @@ public class DataExportService
             Schedules = schedules,
             Goals = goals,
             StudyTopics = studyTopics,
-            Courses = courses
+            Courses = courses,
+            Notes = notes,
+            Reminders = reminders,
+            TimeMarkers = timeMarkers,
+            Habits = habits,
+            Countdowns = countdowns
         };
 
         var options = new JsonSerializerOptions
@@ -59,6 +74,11 @@ public class DataExportService
         var goals = DatabaseService.GetAllGoals();
         var studyTopics = DatabaseService.GetAllStudyTopics();
         var courses = DatabaseService.GetAllCourses();
+        var notes = DatabaseService.GetAllNotes();
+        var reminders = DatabaseService.GetAllReminders();
+        var timeMarkers = DatabaseService.GetAllTimeMarkers();
+        var habits = DatabaseService.GetAllHabits();
+        var countdowns = DatabaseService.GetAllCountdowns();
 
         var sb = new StringBuilder();
         sb.AppendLine("# 📦 RMF 全量数据战略归档备份");
@@ -90,6 +110,34 @@ public class DataExportService
         {
             string statusIcon = s.Status == "COMPLETED" ? "✅" : "⏳";
             sb.AppendLine($"- {statusIcon} `{s.StartTime:yyyy-MM-dd HH:mm}` **{s.Title}** [{s.WorkType}]" + (!string.IsNullOrEmpty(s.Dod) ? $" DoD: {s.Dod}" : ""));
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"## 五、 便签中心 (共 {notes.Count} 条)");
+        foreach (var n in notes)
+        {
+            sb.AppendLine($"- [{(n.IsPinned ? "📌" : "📄")}] **{n.Title}** [{n.Category}]: {n.Content}");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"## 六、 提醒事项 (共 {reminders.Count} 条)");
+        foreach (var r in reminders)
+        {
+            string statusIcon = r.IsCompleted ? "✅" : "🔔";
+            sb.AppendLine($"- {statusIcon} `{r.RemindTime}` [{r.Priority}] **{r.Title}** ({r.RepeatRuleText})");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine($"## 七、 习惯打卡与倒数日");
+        sb.AppendLine("### 习惯项:");
+        foreach (var h in habits)
+        {
+            sb.AppendLine($"- {h.Icon} **{h.Title}** (连续: {h.CurrentStreak}天 / 最佳: {h.BestStreak}天)");
+        }
+        sb.AppendLine("### 倒数日:");
+        foreach (var cd in countdowns)
+        {
+            sb.AppendLine($"- [{(cd.IsPinned ? "📌" : "⏳")}] **{cd.Title}** 目标: {cd.TargetDate} (剩余 {cd.RemainingDays} 天)");
         }
 
         File.WriteAllText(targetFilePath, sb.ToString(), Encoding.UTF8);

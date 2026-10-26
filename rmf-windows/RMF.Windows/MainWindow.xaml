@@ -270,7 +270,9 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="⚡ 闪念" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="全局闪念极速捕获 (快捷键: Ctrl + Shift + Space)" Click="OnTopQuickCaptureClicked" />
                     <Button Content="🚀 专注胶囊" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="呼出 Mini Focus HUD 桌面置顶胶囊 (快捷键: Ctrl + Shift + F)" Click="OnTopFocusHudClicked" />
-                    <Button Content="🪟 桌面挂件" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,10,0" ToolTip="打开常驻桌面透明小组件 (今日北极星/课表/待办)" Click="OnTopDesktopWidgetClicked" />
+                    <Button Content="🪟 桌面挂件" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="打开常驻桌面透明小组件 (今日北极星/课表/待办)" Click="OnTopDesktopWidgetClicked" />
+                    <Button x:Name="DualTrackToggleBtn" Content="⚖️ 双轨对照" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="切换日程与课表/作息实际双轨对照模式" Click="OnDualTrackToggleClicked" />
+                    <Button x:Name="TimeMarkerModalBtn" Content="📍 作息/偏差" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,10,0" ToolTip="记录作息锚点 (起床/就寝/实际开工) 与计划 vs 实际偏差复盘" Click="OnOpenTimeMarkerModalClicked" />
                     <Border x:Name="ViewSelectorBorder" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,8,0" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Button x:Name="ViewDayBtn" Content="日" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource TextPrimary}" Padding="8,3" FontSize="12" FontWeight="Normal" Click="OnViewDayClicked" ToolTip="日视图 (快捷键: D)" />
@@ -421,6 +423,22 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="📖" FontSize="18" Width="46" TextAlignment="Center" VerticalAlignment="Center" />
                                 <TextBlock x:Name="NavTutorialLabel" Text="教程" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Notes Nav Btn -->
+                        <Button x:Name="NavNotesBtn" Style="{StaticResource PrimaryNavRailBtnStyle}" Click="OnNavNotesClicked" ToolTip="便签">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="📝" FontSize="18" Width="46" TextAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="NavNotesLabel" Text="便签" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Reminders Nav Btn -->
+                        <Button x:Name="NavRemindersBtn" Style="{StaticResource PrimaryNavRailBtnStyle}" Click="OnNavRemindersClicked" ToolTip="提醒">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🔔" FontSize="18" Width="46" TextAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="NavRemindersLabel" Text="提醒" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
                             </StackPanel>
                         </Button>
 
@@ -2926,7 +2944,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.7.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
@@ -3325,7 +3343,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.4.3.3" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.7.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
@@ -3337,6 +3355,150 @@
                                 </StackPanel>
                             </StackPanel>
 
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ================= 8. NOTES PAGE (便签中心) ================= -->
+                <Grid x:Name="NotesPageContainer" Visibility="Collapsed" Background="{DynamicResource GoogleSurface}">
+                    <Grid.RowDefinitions>
+                        <!-- Header & Filter Bar -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Content Area -->
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Top Bar: Title, Search, Category Chips, Add Button -->
+                    <Border Grid.Row="0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14,24,14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="📝" FontSize="22" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="便签中心" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <Border Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="12" Padding="10,3" VerticalAlignment="Center">
+                                        <TextBlock x:Name="NotesCountBadge" Text="共 0 条便签" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Width="220" Height="32" Padding="8,0" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="🔍" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBox x:Name="NotesSearchBox" Grid.Column="1" Background="Transparent" Foreground="{DynamicResource TextPrimary}" BorderThickness="0" FontSize="12" VerticalAlignment="Center" TextChanged="OnSearchNotesTextChanged" />
+                                        </Grid>
+                                    </Border>
+                                    <Button Content="➕ 新建便签" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="16,6" FontSize="12" FontWeight="SemiBold" Click="OnAddNoteClicked" ToolTip="新建便签灵感" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Category Filter Chips -->
+                            <WrapPanel Grid.Row="1" VerticalAlignment="Center">
+                                <Button x:Name="NoteFilterAllBtn" Content="全部" Style="{DynamicResource GoogleOutlineBtnStyle}" Background="{DynamicResource AccentBlue}" Foreground="#FFFFFF" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="ALL" />
+                                <Button Content="灵感" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="灵感" />
+                                <Button Content="思考" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="思考" />
+                                <Button Content="待办" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="待办" />
+                                <Button Content="闪念" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="闪念" />
+                                <Button Content="摘录" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="摘录" />
+                                <Button Content="生活" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterNotesCategoryClicked" Tag="生活" />
+                            </WrapPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Notes Grid View -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,20">
+                        <StackPanel>
+                            <!-- Empty State -->
+                            <StackPanel x:Name="NotesEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,60,0,0" Visibility="Collapsed">
+                                <TextBlock Text="📝" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,12" />
+                                <TextBlock Text="暂无便签记录" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                                <TextBlock Text="记录生活、思考、灵感与备忘，点击上方「新建便签」开始记录" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- Notes Cards Wrap Panel -->
+                            <WrapPanel x:Name="NotesWrapPanel" HorizontalAlignment="Stretch" Margin="-8" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ================= 9. REMINDERS PAGE (提醒事项) ================= -->
+                <Grid x:Name="RemindersPageContainer" Visibility="Collapsed" Background="{DynamicResource GoogleSurface}">
+                    <Grid.RowDefinitions>
+                        <!-- Header & Tabs Bar -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Content Area -->
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Top Bar: Title, Tabs (待提醒 / 已完成), Filter Chips, Add Button -->
+                    <Border Grid.Row="0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14,24,14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="🔔" FontSize="22" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="提醒事项" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                    
+                                    <!-- Pending / Completed Tabs -->
+                                    <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="2" Margin="0,0,12,0" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="ReminderPendingTabBtn" Content="待提醒 (0)" Style="{DynamicResource GoogleTopBtnStyle}" Background="{DynamicResource GoogleBlue}" Foreground="#FFFFFF" Padding="12,4" FontSize="12" FontWeight="SemiBold" Click="OnReminderTabPendingClicked" />
+                                            <Button x:Name="ReminderCompletedTabBtn" Content="已完成 (0)" Style="{DynamicResource GoogleTopBtnStyle}" Foreground="{DynamicResource TextPrimary}" Padding="12,4" FontSize="12" FontWeight="Normal" Click="OnReminderTabCompletedClicked" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="➕ 新建提醒" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="16,6" FontSize="12" FontWeight="SemiBold" Click="OnAddReminderClicked" ToolTip="新建准时或提前提醒" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Category Filter Chips -->
+                            <WrapPanel Grid.Row="1" VerticalAlignment="Center">
+                                <Button x:Name="ReminderFilterAllBtn" Content="全部" Style="{DynamicResource GoogleOutlineBtnStyle}" Background="{DynamicResource AccentBlue}" Foreground="#FFFFFF" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="ALL" />
+                                <Button Content="提醒" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="REMINDER" />
+                                <Button Content="备忘" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="MEMO" />
+                                <Button Content="生活" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="LIFE" />
+                                <Button Content="工作" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="WORK" />
+                                <Button Content="健康" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,4" FontSize="11.5" Margin="0,0,6,0" Click="OnFilterReminderCategoryClicked" Tag="HEALTH" />
+                            </WrapPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Reminders List View -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,18">
+                        <StackPanel MaxWidth="800" HorizontalAlignment="Left" Width="800">
+                            <!-- Empty State -->
+                            <StackPanel x:Name="RemindersEmptyStatePanel" HorizontalAlignment="Center" Margin="0,60,0,0" Visibility="Collapsed">
+                                <TextBlock Text="🔔" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,12" />
+                                <TextBlock Text="暂无相关提醒事项" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                                <TextBlock Text="支持每日、工作日、周、月重复与提前提醒" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- Reminders Stack Panel -->
+                            <StackPanel x:Name="RemindersListPanel" />
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -5504,6 +5666,253 @@
                     <Border Grid.Row="2" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="0,14,0,0" Margin="0,14,0,0">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <Button Content="我已阅读并同意" Style="{StaticResource GoogleActionBtnStyle}" Padding="36,7" FontSize="13" FontWeight="SemiBold" Click="OnCloseLegalModalClicked" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL: 便签编辑模态窗口 (NOTE EDIT MODAL) ================= -->
+        <Grid x:Name="NoteEditModal" Visibility="Collapsed" Background="#88000000" Grid.RowSpan="2" Panel.ZIndex="1250">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📝" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock x:Name="NoteModalTitle" Text="新建便签" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{DynamicResource GoogleModalCloseBtnStyle}" Click="OnCancelNoteModalClicked" ToolTip="关闭" />
+                    </Grid>
+
+                    <!-- Content -->
+                    <StackPanel Grid.Row="1">
+                        <!-- Title -->
+                        <TextBlock Text="便签标题" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                        <TextBox x:Name="NoteEditTitleBox" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,6" FontSize="13" Margin="0,0,0,12" />
+
+                        <!-- Category & Pin -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="便签分类" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <ComboBox x:Name="NoteEditCategoryCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="8,4" FontSize="12">
+                                    <ComboBoxItem Content="灵感" IsSelected="True" />
+                                    <ComboBoxItem Content="思考" />
+                                    <ComboBoxItem Content="待办" />
+                                    <ComboBoxItem Content="闪念" />
+                                    <ComboBoxItem Content="摘录" />
+                                    <ComboBoxItem Content="生活" />
+                                </ComboBox>
+                            </StackPanel>
+                            <CheckBox x:Name="NoteEditPinCheck" Grid.Column="1" Content="📌 置顶显示" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Bottom" Margin="16,0,0,6" FontSize="12" />
+                        </Grid>
+
+                        <!-- Content -->
+                        <TextBlock Text="便签内容" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                        <TextBox x:Name="NoteEditContentBox" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,8" FontSize="12.5" Height="140" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,16" />
+                    </StackPanel>
+
+                    <!-- Footer Buttons -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="取消" Background="Transparent" Foreground="{DynamicResource TextSecondary}" BorderThickness="0" Padding="14,6" FontSize="12" Margin="0,0,8,0" Click="OnCancelNoteModalClicked" />
+                        <Button Content="保存便签" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="20,6" FontSize="12" FontWeight="SemiBold" Click="OnSaveNoteClicked" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL: 提醒事项编辑模态窗口 (REMINDER EDIT MODAL) ================= -->
+        <Grid x:Name="ReminderEditModal" Visibility="Collapsed" Background="#88000000" Grid.RowSpan="2" Panel.ZIndex="1250">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Width="480" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🔔" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock x:Name="ReminderModalTitle" Text="新建提醒事项" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{DynamicResource GoogleModalCloseBtnStyle}" Click="OnCancelReminderModalClicked" ToolTip="关闭" />
+                    </Grid>
+
+                    <!-- Content -->
+                    <StackPanel Grid.Row="1">
+                        <!-- Title -->
+                        <TextBlock Text="提醒标题 *" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                        <TextBox x:Name="ReminderEditTitleBox" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,6" FontSize="13" Margin="0,0,0,12" />
+
+                        <!-- Remind Date & Time -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="110" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="提醒日期" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <DatePicker x:Name="ReminderEditDatePicker" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="提醒时间" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <TextBox x:Name="ReminderEditTimeBox" Text="09:00" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12.5" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Priority, Advance, Repeat -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                <TextBlock Text="优先级" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <ComboBox x:Name="ReminderEditPriorityCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,4" FontSize="12">
+                                    <ComboBoxItem Content="高 (HIGH)" Foreground="#EF4444" />
+                                    <ComboBoxItem Content="中 (MEDIUM)" Foreground="#F59E0B" IsSelected="True" />
+                                    <ComboBoxItem Content="低 (LOW)" Foreground="#38BDF8" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="3,0,3,0">
+                                <TextBlock Text="提前提醒" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <ComboBox x:Name="ReminderEditAdvanceCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,4" FontSize="12">
+                                    <ComboBoxItem Content="准时 (0m)" IsSelected="True" Tag="0" />
+                                    <ComboBoxItem Content="提前 5m" Tag="5" />
+                                    <ComboBoxItem Content="提前 10m" Tag="10" />
+                                    <ComboBoxItem Content="提前 15m" Tag="15" />
+                                    <ComboBoxItem Content="提前 30m" Tag="30" />
+                                    <ComboBoxItem Content="提前 1h" Tag="60" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                                <TextBlock Text="重复规则" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                <ComboBox x:Name="ReminderEditRepeatCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="6,4" FontSize="12">
+                                    <ComboBoxItem Content="不重复" IsSelected="True" Tag="NONE" />
+                                    <ComboBoxItem Content="每天" Tag="DAILY" />
+                                    <ComboBoxItem Content="工作日" Tag="WEEKDAYS" />
+                                    <ComboBoxItem Content="每周" Tag="WEEKLY" />
+                                    <ComboBoxItem Content="每月" Tag="MONTHLY" />
+                                    <ComboBoxItem Content="每年" Tag="YEARLY" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Category -->
+                        <TextBlock Text="事项分类" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                        <ComboBox x:Name="ReminderEditCategoryCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="8,4" FontSize="12" Margin="0,0,0,12">
+                            <ComboBoxItem Content="REMINDER (提醒)" IsSelected="True" />
+                            <ComboBoxItem Content="MEMO (备忘)" />
+                            <ComboBoxItem Content="LIFE (生活)" />
+                            <ComboBoxItem Content="WORK (工作)" />
+                            <ComboBoxItem Content="HEALTH (健康)" />
+                        </ComboBox>
+
+                        <!-- Content / Memo -->
+                        <TextBlock Text="备注说明" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                        <TextBox x:Name="ReminderEditContentBox" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="8,6" FontSize="12" Height="60" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,16" />
+                    </StackPanel>
+
+                    <!-- Footer Buttons -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="取消" Background="Transparent" Foreground="{DynamicResource TextSecondary}" BorderThickness="0" Padding="14,6" FontSize="12" Margin="0,0,8,0" Click="OnCancelReminderModalClicked" />
+                        <Button Content="保存提醒" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="20,6" FontSize="12" FontWeight="SemiBold" Click="OnSaveReminderClicked" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL: 实际作息打卡与偏差复盘 (TIME MARKER & VARIANCE MODAL) ================= -->
+        <Grid x:Name="TimeMarkerModal" Visibility="Collapsed" Background="#88000000" Grid.RowSpan="2" Panel.ZIndex="1250">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Width="680" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24" MaxHeight="660">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📍" FontSize="20" Margin="0,0,8,0" />
+                            <TextBlock Text="作息打卡与计划 vs 实际偏差复盘" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+                            <Border Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" CornerRadius="12" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="TimeMarkerDateBadge" Text="2026-10-26" FontSize="11" Foreground="#38BDF8" FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{DynamicResource GoogleModalCloseBtnStyle}" Click="OnCloseTimeMarkerModalClicked" ToolTip="关闭" />
+                    </Grid>
+
+                    <!-- Scrollable Body -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,10,0">
+                            <!-- Quick Presets Section -->
+                            <TextBlock Text="⚡ 极速作息锚点打卡 (以当前时刻快速落点)" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8" />
+                            <WrapPanel Margin="0,0,0,16">
+                                <Button Content="🌅 记录起床" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordWakeClicked" />
+                                <Button Content="🌙 记录就寝" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordSleepClicked" />
+                                <Button Content="💤 记录午休" Style="{DynamicResource GoogleOutlineBtnStyle}" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordNapClicked" />
+                                <Button Content="💻 实际开工" Style="{DynamicResource GoogleOutlineBtnStyle}" Foreground="{DynamicResource AccentBlue}" BorderBrush="{DynamicResource AccentBlue}" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordWorkStartClicked" />
+                                <Button Content="🏁 实际收工" Style="{DynamicResource GoogleOutlineBtnStyle}" Foreground="#10B981" BorderBrush="#10B981" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordWorkEndClicked" />
+                                <Button Content="🏃 实际运动" Style="{DynamicResource GoogleOutlineBtnStyle}" Foreground="#F59E0B" BorderBrush="#F59E0B" Padding="12,6" FontSize="12" Margin="0,0,8,8" Click="OnQuickRecordExerciseClicked" />
+                            </WrapPanel>
+
+                            <!-- Live Variance Insights Review Section -->
+                            <TextBlock Text="⚖️ 计划 vs 实际偏差洞察复盘" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8" />
+                            <StackPanel x:Name="VarianceInsightsPanel" Margin="0,0,0,16" />
+
+                            <!-- Today's Markers List -->
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="📋 今日已记录的时间锚点" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="MarkersCountText" Grid.Column="1" Text="共 0 条记录" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" />
+                            </Grid>
+                            <StackPanel x:Name="TodayMarkersListPanel" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Footer -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,12,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="完成复盘" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="24,6" FontSize="12" FontWeight="SemiBold" Click="OnCloseTimeMarkerModalClicked" />
                         </StackPanel>
                     </Border>
                 </Grid>

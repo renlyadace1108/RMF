@@ -227,6 +227,82 @@ public class DatabaseService
                 updated_at TEXT
             );
 
+            -- 便签中心 (Notes)
+            CREATE TABLE IF NOT EXISTS notes (
+                id TEXT PRIMARY KEY,
+                title TEXT DEFAULT '',
+                content TEXT DEFAULT '',
+                category TEXT DEFAULT '灵感',
+                color_hex TEXT DEFAULT '#F59E0B',
+                is_pinned INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+
+            -- 提醒事项 (Reminders)
+            CREATE TABLE IF NOT EXISTS reminders (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT DEFAULT '',
+                remind_time TEXT NOT NULL,
+                advance_minutes INTEGER DEFAULT 0,
+                reminder_type TEXT DEFAULT 'ALL',
+                repeat_rule TEXT DEFAULT 'NONE',
+                category TEXT DEFAULT 'REMINDER',
+                priority TEXT DEFAULT 'MEDIUM',
+                is_completed INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+
+            -- 实际时间锚点 (Time Markers)
+            CREATE TABLE IF NOT EXISTS time_markers (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                marker_type TEXT DEFAULT 'POINT',
+                category TEXT DEFAULT 'LIFESTYLE',
+                icon TEXT DEFAULT '📍',
+                date TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                end_time TEXT DEFAULT '',
+                color_hex TEXT DEFAULT '#38BDF8',
+                notes TEXT DEFAULT '',
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+
+            -- 习惯打卡 (Habits)
+            CREATE TABLE IF NOT EXISTS habits (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                icon TEXT DEFAULT '✨',
+                target_days_per_week INTEGER DEFAULT 7,
+                color_hex TEXT DEFAULT '#38BDF8',
+                current_streak INTEGER DEFAULT 0,
+                best_streak INTEGER DEFAULT 0,
+                history_dates_json TEXT DEFAULT '[]',
+                reminder_time TEXT DEFAULT '',
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+
+            -- 倒数日 / 目标胶囊 (Countdowns)
+            CREATE TABLE IF NOT EXISTS countdowns (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                target_date TEXT NOT NULL,
+                category TEXT DEFAULT 'EXAM',
+                color_hex TEXT DEFAULT '#F59E0B',
+                is_pinned INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            );
+
             -- 高性能查询索引优化 (优化高频日期检索与未删除过滤)
             CREATE INDEX IF NOT EXISTS idx_schedules_time ON schedules (start_time, end_time, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules (status, is_deleted);
@@ -239,6 +315,13 @@ public class DatabaseService
             CREATE INDEX IF NOT EXISTS idx_fitness_plans_date ON fitness_plans (plan_date, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_fitness_records_date ON fitness_records (record_date, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_fitness_records_plan ON fitness_records (plan_id, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes (is_pinned, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes (updated_at, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_reminders_time ON reminders (remind_time, is_deleted, is_completed);
+            CREATE INDEX IF NOT EXISTS idx_markers_date ON time_markers (date, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_markers_time ON time_markers (start_time, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_habits_deleted ON habits (is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_countdowns_pinned ON countdowns (is_pinned, is_deleted);
         ";
 
         using (var cmd = new SqliteCommand(initSql, conn))
@@ -587,6 +670,11 @@ public class DatabaseService
                 DELETE FROM interruptions;
                 DELETE FROM fitness_plans;
                 DELETE FROM fitness_records;
+                DELETE FROM notes;
+                DELETE FROM reminders;
+                DELETE FROM time_markers;
+                DELETE FROM habits;
+                DELETE FROM countdowns;
                 DELETE FROM snapshot_metadata;
                 DELETE FROM timetable_settings WHERE key LIKE 'test_%';
             ";
@@ -2806,6 +2894,596 @@ public class DatabaseService
         }
         catch { }
         return (0, 0, 0.0);
+    }
+
+    // ==================== 便签中心 (Notes) ====================
+
+    public static List<NoteItem> GetAllNotes(bool includeDeleted = false)
+    {
+        var list = new List<NoteItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, content, category, color_hex, is_pinned, is_deleted, created_at, updated_at
+            FROM notes
+            WHERE (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY is_pinned DESC, updated_at DESC, created_at DESC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new NoteItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                Content = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                Category = reader.IsDBNull(3) ? "灵感" : reader.GetString(3),
+                ColorHex = reader.IsDBNull(4) ? "#F59E0B" : reader.GetString(4),
+                IsPinned = !reader.IsDBNull(5) && reader.GetInt32(5) == 1,
+                IsDeleted = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                CreatedAt = reader.IsDBNull(7) ? DateTime.Now.ToString("s") : reader.GetString(7),
+                UpdatedAt = reader.IsDBNull(8) ? DateTime.Now.ToString("s") : reader.GetString(8)
+            });
+        }
+        return list;
+    }
+
+    public static NoteItem? GetNoteById(string id)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = @"
+            SELECT id, title, content, category, color_hex, is_pinned, is_deleted, created_at, updated_at
+            FROM notes
+            WHERE id = @id LIMIT 1;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new NoteItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                Content = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                Category = reader.IsDBNull(3) ? "灵感" : reader.GetString(3),
+                ColorHex = reader.IsDBNull(4) ? "#F59E0B" : reader.GetString(4),
+                IsPinned = !reader.IsDBNull(5) && reader.GetInt32(5) == 1,
+                IsDeleted = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                CreatedAt = reader.IsDBNull(7) ? DateTime.Now.ToString("s") : reader.GetString(7),
+                UpdatedAt = reader.IsDBNull(8) ? DateTime.Now.ToString("s") : reader.GetString(8)
+            };
+        }
+        return null;
+    }
+
+    public static void UpsertNote(NoteItem item)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string now = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(item.CreatedAt)) item.CreatedAt = now;
+        item.UpdatedAt = now;
+
+        string sql = @"
+            INSERT INTO notes (id, title, content, category, color_hex, is_pinned, is_deleted, created_at, updated_at)
+            VALUES (@id, @title, @content, @category, @color_hex, @is_pinned, @is_deleted, @created_at, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                content = excluded.content,
+                category = excluded.category,
+                color_hex = excluded.color_hex,
+                is_pinned = excluded.is_pinned,
+                is_deleted = excluded.is_deleted,
+                updated_at = excluded.updated_at;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        cmd.Parameters.AddWithValue("@title", item.Title ?? "");
+        cmd.Parameters.AddWithValue("@content", item.Content ?? "");
+        cmd.Parameters.AddWithValue("@category", item.Category ?? "灵感");
+        cmd.Parameters.AddWithValue("@color_hex", item.ColorHex ?? "#F59E0B");
+        cmd.Parameters.AddWithValue("@is_pinned", item.IsPinned ? 1 : 0);
+        cmd.Parameters.AddWithValue("@is_deleted", item.IsDeleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
+        cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void DeleteNote(string id, bool softDelete = true)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = softDelete
+            ? "UPDATE notes SET is_deleted = 1, updated_at = @now WHERE id = @id;"
+            : "DELETE FROM notes WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void TogglePinNote(string id)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = "UPDATE notes SET is_pinned = 1 - is_pinned, updated_at = @now WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    // ==================== 提醒事项 (Reminders) ====================
+
+    public static List<ReminderItem> GetAllReminders(bool includeDeleted = false)
+    {
+        var list = new List<ReminderItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, content, remind_time, advance_minutes, reminder_type, repeat_rule,
+                   category, priority, is_completed, is_deleted, created_at, updated_at
+            FROM reminders
+            WHERE (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY is_completed ASC, remind_time ASC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new ReminderItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.GetString(1),
+                Content = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                RemindTime = reader.GetString(3),
+                AdvanceMinutes = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                ReminderType = reader.IsDBNull(5) ? "ALL" : reader.GetString(5),
+                RepeatRule = reader.IsDBNull(6) ? "NONE" : reader.GetString(6),
+                Category = reader.IsDBNull(7) ? "REMINDER" : reader.GetString(7),
+                Priority = reader.IsDBNull(8) ? "MEDIUM" : reader.GetString(8),
+                IsCompleted = !reader.IsDBNull(9) && reader.GetInt32(9) == 1,
+                IsDeleted = !reader.IsDBNull(10) && reader.GetInt32(10) == 1,
+                CreatedAt = reader.IsDBNull(11) ? DateTime.Now.ToString("s") : reader.GetString(11),
+                UpdatedAt = reader.IsDBNull(12) ? DateTime.Now.ToString("s") : reader.GetString(12)
+            });
+        }
+        return list;
+    }
+
+    public static List<ReminderItem> GetPendingReminders()
+    {
+        return GetAllReminders().Where(r => !r.IsCompleted).ToList();
+    }
+
+    public static ReminderItem? GetReminderById(string id)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = @"
+            SELECT id, title, content, remind_time, advance_minutes, reminder_type, repeat_rule,
+                   category, priority, is_completed, is_deleted, created_at, updated_at
+            FROM reminders
+            WHERE id = @id LIMIT 1;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            return new ReminderItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.GetString(1),
+                Content = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                RemindTime = reader.GetString(3),
+                AdvanceMinutes = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                ReminderType = reader.IsDBNull(5) ? "ALL" : reader.GetString(5),
+                RepeatRule = reader.IsDBNull(6) ? "NONE" : reader.GetString(6),
+                Category = reader.IsDBNull(7) ? "REMINDER" : reader.GetString(7),
+                Priority = reader.IsDBNull(8) ? "MEDIUM" : reader.GetString(8),
+                IsCompleted = !reader.IsDBNull(9) && reader.GetInt32(9) == 1,
+                IsDeleted = !reader.IsDBNull(10) && reader.GetInt32(10) == 1,
+                CreatedAt = reader.IsDBNull(11) ? DateTime.Now.ToString("s") : reader.GetString(11),
+                UpdatedAt = reader.IsDBNull(12) ? DateTime.Now.ToString("s") : reader.GetString(12)
+            };
+        }
+        return null;
+    }
+
+    public static void UpsertReminder(ReminderItem item)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string now = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(item.CreatedAt)) item.CreatedAt = now;
+        item.UpdatedAt = now;
+
+        string sql = @"
+            INSERT INTO reminders (id, title, content, remind_time, advance_minutes, reminder_type, repeat_rule,
+                                   category, priority, is_completed, is_deleted, created_at, updated_at)
+            VALUES (@id, @title, @content, @remind_time, @advance_minutes, @reminder_type, @repeat_rule,
+                    @category, @priority, @is_completed, @is_deleted, @created_at, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                content = excluded.content,
+                remind_time = excluded.remind_time,
+                advance_minutes = excluded.advance_minutes,
+                reminder_type = excluded.reminder_type,
+                repeat_rule = excluded.repeat_rule,
+                category = excluded.category,
+                priority = excluded.priority,
+                is_completed = excluded.is_completed,
+                is_deleted = excluded.is_deleted,
+                updated_at = excluded.updated_at;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        cmd.Parameters.AddWithValue("@title", item.Title ?? "");
+        cmd.Parameters.AddWithValue("@content", item.Content ?? "");
+        cmd.Parameters.AddWithValue("@remind_time", item.RemindTime ?? now);
+        cmd.Parameters.AddWithValue("@advance_minutes", item.AdvanceMinutes);
+        cmd.Parameters.AddWithValue("@reminder_type", item.ReminderType ?? "ALL");
+        cmd.Parameters.AddWithValue("@repeat_rule", item.RepeatRule ?? "NONE");
+        cmd.Parameters.AddWithValue("@category", item.Category ?? "REMINDER");
+        cmd.Parameters.AddWithValue("@priority", item.Priority ?? "MEDIUM");
+        cmd.Parameters.AddWithValue("@is_completed", item.IsCompleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@is_deleted", item.IsDeleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
+        cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void SetReminderCompleted(string id, bool isCompleted)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = "UPDATE reminders SET is_completed = @is_completed, updated_at = @now WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@is_completed", isCompleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void DeleteReminder(string id, bool softDelete = true)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = softDelete
+            ? "UPDATE reminders SET is_deleted = 1, updated_at = @now WHERE id = @id;"
+            : "DELETE FROM reminders WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    // ==================== 实际时间锚点 (Time Markers) ====================
+
+    public static List<TimeMarkerItem> GetTimeMarkersByDate(string date, bool includeDeleted = false)
+    {
+        var list = new List<TimeMarkerItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, name, marker_type, category, icon, date, start_time, end_time,
+                   color_hex, notes, is_deleted, created_at, updated_at
+            FROM time_markers
+            WHERE date = @date AND (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY start_time ASC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@date", date);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new TimeMarkerItem
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1),
+                MarkerType = reader.IsDBNull(2) ? "POINT" : reader.GetString(2),
+                Category = reader.IsDBNull(3) ? "LIFESTYLE" : reader.GetString(3),
+                Icon = reader.IsDBNull(4) ? "📍" : reader.GetString(4),
+                Date = reader.GetString(5),
+                StartTime = reader.GetString(6),
+                EndTime = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                ColorHex = reader.IsDBNull(8) ? "#38BDF8" : reader.GetString(8),
+                Notes = reader.IsDBNull(9) ? "" : reader.GetString(9),
+                IsDeleted = !reader.IsDBNull(10) && reader.GetInt32(10) == 1,
+                CreatedAt = reader.IsDBNull(11) ? DateTime.Now.ToString("s") : reader.GetString(11),
+                UpdatedAt = reader.IsDBNull(12) ? DateTime.Now.ToString("s") : reader.GetString(12)
+            });
+        }
+        return list;
+    }
+
+    public static List<TimeMarkerItem> GetAllTimeMarkers(bool includeDeleted = false)
+    {
+        var list = new List<TimeMarkerItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, name, marker_type, category, icon, date, start_time, end_time,
+                   color_hex, notes, is_deleted, created_at, updated_at
+            FROM time_markers
+            WHERE (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY date DESC, start_time ASC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new TimeMarkerItem
+            {
+                Id = reader.GetString(0),
+                Name = reader.GetString(1),
+                MarkerType = reader.IsDBNull(2) ? "POINT" : reader.GetString(2),
+                Category = reader.IsDBNull(3) ? "LIFESTYLE" : reader.GetString(3),
+                Icon = reader.IsDBNull(4) ? "📍" : reader.GetString(4),
+                Date = reader.GetString(5),
+                StartTime = reader.GetString(6),
+                EndTime = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                ColorHex = reader.IsDBNull(8) ? "#38BDF8" : reader.GetString(8),
+                Notes = reader.IsDBNull(9) ? "" : reader.GetString(9),
+                IsDeleted = !reader.IsDBNull(10) && reader.GetInt32(10) == 1,
+                CreatedAt = reader.IsDBNull(11) ? DateTime.Now.ToString("s") : reader.GetString(11),
+                UpdatedAt = reader.IsDBNull(12) ? DateTime.Now.ToString("s") : reader.GetString(12)
+            });
+        }
+        return list;
+    }
+
+    public static void UpsertTimeMarker(TimeMarkerItem item)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string now = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(item.CreatedAt)) item.CreatedAt = now;
+        item.UpdatedAt = now;
+
+        string sql = @"
+            INSERT INTO time_markers (id, name, marker_type, category, icon, date, start_time, end_time,
+                                      color_hex, notes, is_deleted, created_at, updated_at)
+            VALUES (@id, @name, @marker_type, @category, @icon, @date, @start_time, @end_time,
+                    @color_hex, @notes, @is_deleted, @created_at, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                marker_type = excluded.marker_type,
+                category = excluded.category,
+                icon = excluded.icon,
+                date = excluded.date,
+                start_time = excluded.start_time,
+                end_time = excluded.end_time,
+                color_hex = excluded.color_hex,
+                notes = excluded.notes,
+                is_deleted = excluded.is_deleted,
+                updated_at = excluded.updated_at;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        cmd.Parameters.AddWithValue("@name", item.Name ?? "");
+        cmd.Parameters.AddWithValue("@marker_type", item.MarkerType ?? "POINT");
+        cmd.Parameters.AddWithValue("@category", item.Category ?? "LIFESTYLE");
+        cmd.Parameters.AddWithValue("@icon", item.Icon ?? "📍");
+        cmd.Parameters.AddWithValue("@date", item.Date ?? DateTime.Today.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("@start_time", item.StartTime ?? now);
+        cmd.Parameters.AddWithValue("@end_time", item.EndTime ?? "");
+        cmd.Parameters.AddWithValue("@color_hex", item.ColorHex ?? "#38BDF8");
+        cmd.Parameters.AddWithValue("@notes", item.Notes ?? "");
+        cmd.Parameters.AddWithValue("@is_deleted", item.IsDeleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
+        cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void DeleteTimeMarker(string id, bool softDelete = true)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = softDelete
+            ? "UPDATE time_markers SET is_deleted = 1, updated_at = @now WHERE id = @id;"
+            : "DELETE FROM time_markers WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    // ==================== 习惯打卡 (Habits) ====================
+
+    public static List<HabitItem> GetAllHabits(bool includeDeleted = false)
+    {
+        var list = new List<HabitItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, icon, target_days_per_week, color_hex, current_streak,
+                   best_streak, history_dates_json, reminder_time, is_deleted, created_at, updated_at
+            FROM habits
+            WHERE (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY created_at ASC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new HabitItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.GetString(1),
+                Icon = reader.IsDBNull(2) ? "✨" : reader.GetString(2),
+                TargetDaysPerWeek = reader.IsDBNull(3) ? 7 : reader.GetInt32(3),
+                ColorHex = reader.IsDBNull(4) ? "#38BDF8" : reader.GetString(4),
+                CurrentStreak = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                BestStreak = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
+                HistoryDatesJson = reader.IsDBNull(7) ? "[]" : reader.GetString(7),
+                ReminderTime = reader.IsDBNull(8) ? "" : reader.GetString(8),
+                IsDeleted = !reader.IsDBNull(9) && reader.GetInt32(9) == 1,
+                CreatedAt = reader.IsDBNull(10) ? DateTime.Now.ToString("s") : reader.GetString(10),
+                UpdatedAt = reader.IsDBNull(11) ? DateTime.Now.ToString("s") : reader.GetString(11)
+            });
+        }
+        return list;
+    }
+
+    public static void UpsertHabit(HabitItem item)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string now = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(item.CreatedAt)) item.CreatedAt = now;
+        item.UpdatedAt = now;
+
+        string sql = @"
+            INSERT INTO habits (id, title, icon, target_days_per_week, color_hex, current_streak,
+                                best_streak, history_dates_json, reminder_time, is_deleted, created_at, updated_at)
+            VALUES (@id, @title, @icon, @target_days_per_week, @color_hex, @current_streak,
+                    @best_streak, @history_dates_json, @reminder_time, @is_deleted, @created_at, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                icon = excluded.icon,
+                target_days_per_week = excluded.target_days_per_week,
+                color_hex = excluded.color_hex,
+                current_streak = excluded.current_streak,
+                best_streak = excluded.best_streak,
+                history_dates_json = excluded.history_dates_json,
+                reminder_time = excluded.reminder_time,
+                is_deleted = excluded.is_deleted,
+                updated_at = excluded.updated_at;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        cmd.Parameters.AddWithValue("@title", item.Title ?? "");
+        cmd.Parameters.AddWithValue("@icon", item.Icon ?? "✨");
+        cmd.Parameters.AddWithValue("@target_days_per_week", item.TargetDaysPerWeek);
+        cmd.Parameters.AddWithValue("@color_hex", item.ColorHex ?? "#38BDF8");
+        cmd.Parameters.AddWithValue("@current_streak", item.CurrentStreak);
+        cmd.Parameters.AddWithValue("@best_streak", item.BestStreak);
+        cmd.Parameters.AddWithValue("@history_dates_json", item.HistoryDatesJson ?? "[]");
+        cmd.Parameters.AddWithValue("@reminder_time", item.ReminderTime ?? "");
+        cmd.Parameters.AddWithValue("@is_deleted", item.IsDeleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
+        cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void DeleteHabit(string id, bool softDelete = true)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = softDelete
+            ? "UPDATE habits SET is_deleted = 1, updated_at = @now WHERE id = @id;"
+            : "DELETE FROM habits WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    // ==================== 倒数日 / 目标胶囊 (Countdowns) ====================
+
+    public static List<CountdownItem> GetAllCountdowns(bool includeDeleted = false)
+    {
+        var list = new List<CountdownItem>();
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+
+        string sql = @"
+            SELECT id, title, target_date, category, color_hex, is_pinned, is_deleted, created_at, updated_at
+            FROM countdowns
+            WHERE (@includeDeleted = 1 OR is_deleted = 0)
+            ORDER BY is_pinned DESC, target_date ASC;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@includeDeleted", includeDeleted ? 1 : 0);
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new CountdownItem
+            {
+                Id = reader.GetString(0),
+                Title = reader.GetString(1),
+                TargetDate = reader.GetString(2),
+                Category = reader.IsDBNull(3) ? "EXAM" : reader.GetString(3),
+                ColorHex = reader.IsDBNull(4) ? "#F59E0B" : reader.GetString(4),
+                IsPinned = !reader.IsDBNull(5) && reader.GetInt32(5) == 1,
+                IsDeleted = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                CreatedAt = reader.IsDBNull(7) ? DateTime.Now.ToString("s") : reader.GetString(7),
+                UpdatedAt = reader.IsDBNull(8) ? DateTime.Now.ToString("s") : reader.GetString(8)
+            });
+        }
+        return list;
+    }
+
+    public static void UpsertCountdown(CountdownItem item)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string now = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        if (string.IsNullOrEmpty(item.CreatedAt)) item.CreatedAt = now;
+        item.UpdatedAt = now;
+
+        string sql = @"
+            INSERT INTO countdowns (id, title, target_date, category, color_hex, is_pinned, is_deleted, created_at, updated_at)
+            VALUES (@id, @title, @target_date, @category, @color_hex, @is_pinned, @is_deleted, @created_at, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                target_date = excluded.target_date,
+                category = excluded.category,
+                color_hex = excluded.color_hex,
+                is_pinned = excluded.is_pinned,
+                is_deleted = excluded.is_deleted,
+                updated_at = excluded.updated_at;
+        ";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        cmd.Parameters.AddWithValue("@title", item.Title ?? "");
+        cmd.Parameters.AddWithValue("@target_date", item.TargetDate ?? DateTime.Today.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("@category", item.Category ?? "EXAM");
+        cmd.Parameters.AddWithValue("@color_hex", item.ColorHex ?? "#F59E0B");
+        cmd.Parameters.AddWithValue("@is_pinned", item.IsPinned ? 1 : 0);
+        cmd.Parameters.AddWithValue("@is_deleted", item.IsDeleted ? 1 : 0);
+        cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
+        cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void DeleteCountdown(string id, bool softDelete = true)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = softDelete
+            ? "UPDATE countdowns SET is_deleted = 1, updated_at = @now WHERE id = @id;"
+            : "DELETE FROM countdowns WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public static void TogglePinCountdown(string id)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = "UPDATE countdowns SET is_pinned = 1 - is_pinned, updated_at = @now WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
     }
 }
 
