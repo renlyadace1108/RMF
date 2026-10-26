@@ -17,6 +17,7 @@ crash.log
 publish/
 installer_output/
 *.exe
+release/*.zip
 
 # Android / Gradle
 .gradle/

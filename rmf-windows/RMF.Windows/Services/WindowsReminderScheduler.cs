@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.Toolkit.Uwp.Notifications;
 using Microsoft.Win32;
+using Windows.UI.Notifications;
 using RMF.Windows.Models;
 
 namespace RMF.Windows.Services;
