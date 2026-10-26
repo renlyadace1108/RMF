@@ -321,6 +321,26 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         // 用户离开 App 切到桌面或锁屏时，自动刷新所有桌面小组件，确保桌面数据永远实时更新
         com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(this)
+
+        // 离开前台时异步截断 WAL 预写日志并收缩 SQLite 内存池，将后台常驻内存占用降至最低
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(PASSIVE);").close()
+                db.openHelper.writableDatabase.query("PRAGMA shrink_memory;").close()
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+                    db.openHelper.writableDatabase.query("PRAGMA shrink_memory;").close()
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

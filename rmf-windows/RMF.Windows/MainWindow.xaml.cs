@@ -260,6 +260,7 @@ public partial class MainWindow : Window
         }
         else
         {
+            FlushPendingActivityTelemetry();
             _hotKeyService?.Dispose();
             _trayIconService?.Dispose();
             base.OnClosing(e);
@@ -286,11 +287,29 @@ public partial class MainWindow : Window
     {
         try
         {
+            FlushPendingActivityTelemetry();
             GC.Collect(2, GCCollectionMode.Aggressive, false, true);
             GC.WaitForPendingFinalizers();
             EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+            Task.Run(() => DatabaseService.CheckpointAndTrimMemory());
         }
         catch { }
+    }
+
+    private string _lastTrackedProc = "";
+    private string _lastTrackedTitle = "";
+    private int _accumulatedTrackedSeconds = 0;
+
+    private void FlushPendingActivityTelemetry()
+    {
+        if (_accumulatedTrackedSeconds > 0 && !string.IsNullOrWhiteSpace(_lastTrackedProc))
+        {
+            string proc = _lastTrackedProc;
+            string title = _lastTrackedTitle;
+            int secs = _accumulatedTrackedSeconds;
+            _accumulatedTrackedSeconds = 0;
+            Task.Run(() => DatabaseService.LogActivity(proc, title, secs));
+        }
     }
 
     private void UpdateTelemetry()
@@ -317,7 +336,25 @@ public partial class MainWindow : Window
 
                 if (procName != "Unknown" && procName != "RMF.Windows")
                 {
-                    Task.Run(() => DatabaseService.LogActivity(procName, title, 2));
+                    if (procName == _lastTrackedProc && title == _lastTrackedTitle)
+                    {
+                        _accumulatedTrackedSeconds += 2;
+                        if (_accumulatedTrackedSeconds >= 30)
+                        {
+                            FlushPendingActivityTelemetry();
+                        }
+                    }
+                    else
+                    {
+                        FlushPendingActivityTelemetry();
+                        _lastTrackedProc = procName;
+                        _lastTrackedTitle = title;
+                        _accumulatedTrackedSeconds = 2;
+                    }
+                }
+                else
+                {
+                    FlushPendingActivityTelemetry();
                 }
             }
         }

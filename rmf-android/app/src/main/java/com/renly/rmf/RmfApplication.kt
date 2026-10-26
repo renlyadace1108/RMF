@@ -50,6 +50,45 @@ class RmfApplication : Application() {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            // 用户切到后台或系统低内存时收缩 SQLite 内存并截断 WAL，大幅缩减后台常驻占用
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val db = database.openHelper.writableDatabase
+                    db.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+                    db.query("PRAGMA shrink_memory;").close()
+
+                    // 自动清理超过 60 天的陈旧已删除事项与打断记录，杜绝数据库无节制膨胀
+                    val cutoffStr = java.time.LocalDateTime.now().minusDays(60).format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
+                    db.execSQL("DELETE FROM interruptions WHERE timestamp < '$cutoffStr';")
+                    db.execSQL("DELETE FROM schedules WHERE is_deleted = 1 AND updated_at < '$cutoffStr';")
+                } catch (_: Exception) {}
+
+                // 清理临时快照与垃圾碎片
+                try {
+                    cacheDir.listFiles()?.forEach { file ->
+                        if (file.isFile && (file.name.endsWith(".tmp") || file.name.startsWith("rmf_cloud_backup") || file.name.endsWith(".db-shm") || file.name.endsWith(".db-wal"))) {
+                            file.delete()
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = database.openHelper.writableDatabase
+                db.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+                db.query("PRAGMA shrink_memory;").close()
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val audioAttributes = AudioAttributes.Builder()

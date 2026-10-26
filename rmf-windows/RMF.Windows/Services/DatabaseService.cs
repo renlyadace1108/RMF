@@ -1812,6 +1812,36 @@ public class DatabaseService
 
     // ==================== 行为活动采集打点 (Activity Log) ====================
 
+    public static void CheckpointAndTrimMemory()
+    {
+        try
+        {
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            // 1. 将 WAL 预写日志完整刷盘并截断文件大小至 0，彻底释放磁盘空间
+            using (var cmd = new SqliteCommand("PRAGMA wal_checkpoint(TRUNCATE);", conn))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 2. 收缩 SQLite 内存缓存
+            using (var cmd = new SqliteCommand("PRAGMA shrink_memory;", conn))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            // 3. 自动清理超过 60 天的陈旧活动日志 (focus_logs)，杜绝数据库文件无限制膨胀
+            string cutoff = DateTime.UtcNow.AddDays(-60).ToString("s");
+            using (var cmd = new SqliteCommand("DELETE FROM focus_logs WHERE timestamp < @cutoff;", conn))
+            {
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                cmd.ExecuteNonQuery();
+            }
+        }
+        catch { }
+    }
+
     public static void LogActivity(string processName, string windowTitle, int durationSeconds)
     {
         try

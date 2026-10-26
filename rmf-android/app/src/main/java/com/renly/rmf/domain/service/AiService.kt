@@ -552,7 +552,12 @@ object AiService {
 
                 val stream = ByteArrayOutputStream()
                 scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
-                stream.toByteArray()
+                val bytes = stream.toByteArray()
+                if (scaledBitmap != originalBitmap) {
+                    scaledBitmap.recycle()
+                }
+                originalBitmap.recycle()
+                bytes
             }
         } catch (e: Exception) {
             null
