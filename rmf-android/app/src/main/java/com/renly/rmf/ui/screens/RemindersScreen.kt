@@ -48,7 +48,8 @@ fun RemindersScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val reminders by reminderDao.getAllActiveReminders().collectAsState(initial = emptyList())
+    val remindersFlow = remember { reminderDao.getAllActiveReminders() }
+    val reminders by remindersFlow.collectAsState(initial = emptyList())
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: 待提醒, 1: 已完成
     var showAddEditDialog by remember { mutableStateOf(false) }

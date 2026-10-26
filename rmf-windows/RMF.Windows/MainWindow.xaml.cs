@@ -200,12 +200,15 @@ public partial class MainWindow : Window
         _perfTimer.Tick += (s, e) =>
         {
             UpdateTelemetry();
-            CheckUpcomingEvents();
+            if (++perfTicks % 15 == 0) // 每 30 秒后台异步检查一次待办与提醒，避免 UI 线程高频读写数据库
+            {
+                CheckUpcomingEvents();
+            }
             if (_activePrimaryPage == "Focus")
             {
                 UpdateFocusLiveMonitor();
             }
-            if (++perfTicks >= 150) // 每 5 分钟在后台自动静默整理一次，确保长期运行零堆积
+            if (perfTicks >= 150) // 每 5 分钟在后台自动静默整理一次，确保长期运行零堆积
             {
                 perfTicks = 0;
                 PerformSilentMemoryTrim();
@@ -314,7 +317,7 @@ public partial class MainWindow : Window
 
                 if (procName != "Unknown" && procName != "RMF.Windows")
                 {
-                    DatabaseService.LogActivity(procName, title, 2);
+                    Task.Run(() => DatabaseService.LogActivity(procName, title, 2));
                 }
             }
         }
@@ -3663,34 +3666,41 @@ public partial class MainWindow : Window
 
     private void CheckUpcomingEvents()
     {
-        CheckPendingRemindersWatchdog();
-        try
+        Task.Run(() =>
         {
-            DateTime now = DateTime.Now;
-            DateTime lookahead = now.AddMinutes(15);
-
-            var todayEvents = DatabaseService.GetSchedulesForDate(DateTime.Today);
-            var upcoming = todayEvents.FirstOrDefault(e =>
-                !e.IsAllDay &&
-                e.Status != "COMPLETED" &&
-                e.StartTime >= now &&
-                e.StartTime <= lookahead &&
-                !_notifiedUpcomingEventIds.Contains(e.Id));
-
-            if (upcoming != null)
+            CheckPendingRemindersWatchdog();
+            try
             {
-                _notifiedUpcomingEventIds.Add(upcoming.Id);
-                _upcomingAlertItem = upcoming;
-                int mins = Math.Max(1, (int)(upcoming.StartTime - now).TotalMinutes);
-                UpcomingEventTimeText.Text = $"🔔 即将开始 ({mins}分钟后)";
-                UpcomingEventTitleText.Text = $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})";
-                UpcomingEventToast.Visibility = Visibility.Visible;
+                DateTime now = DateTime.Now;
+                DateTime lookahead = now.AddMinutes(15);
 
-                // 弹出 Windows 原生系统托盘横幅/气泡通知
-                _trayIconService?.ShowNotification($"🔔 日程即将开始 ({mins}分钟后)", $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})");
+                var todayEvents = DatabaseService.GetSchedulesForDate(DateTime.Today);
+                var upcoming = todayEvents.FirstOrDefault(e =>
+                    !e.IsAllDay &&
+                    e.Status != "COMPLETED" &&
+                    e.StartTime >= now &&
+                    e.StartTime <= lookahead &&
+                    !_notifiedUpcomingEventIds.Contains(e.Id));
+
+                if (upcoming != null)
+                {
+                    _notifiedUpcomingEventIds.Add(upcoming.Id);
+                    int mins = Math.Max(1, (int)(upcoming.StartTime - now).TotalMinutes);
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        _upcomingAlertItem = upcoming;
+                        UpcomingEventTimeText.Text = $"🔔 即将开始 ({mins}分钟后)";
+                        UpcomingEventTitleText.Text = $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})";
+                        UpcomingEventToast.Visibility = Visibility.Visible;
+                    });
+
+                    // 弹出 Windows 原生系统托盘横幅/气泡通知
+                    _trayIconService?.ShowNotification($"🔔 日程即将开始 ({mins}分钟后)", $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})");
+                }
             }
-        }
-        catch { }
+            catch { }
+        });
     }
 
     private void CheckPendingRemindersWatchdog()
@@ -3708,7 +3718,7 @@ public partial class MainWindow : Window
                     {
                         _notifiedUpcomingEventIds.Add("rem_" + r.Id);
                         WindowsReminderScheduler.ShowOverdueNotification(r);
-                        _trayIconService?.ShowNotification($"馃敂 浜嬩欢鎻愰啋: {r.Title}", string.IsNullOrWhiteSpace(r.Content) ? $"鎻愰啋鏃堕棿锛歿r.DisplayTime}" : r.Content);
+                        _trayIconService?.ShowNotification($"🔔 事件提醒: {r.Title}", string.IsNullOrWhiteSpace(r.Content) ? $"提醒时间：{r.DisplayTime}" : r.Content);
 
                         if (!string.IsNullOrWhiteSpace(r.RepeatRule) && !r.RepeatRule.Equals("NONE", StringComparison.OrdinalIgnoreCase))
                         {

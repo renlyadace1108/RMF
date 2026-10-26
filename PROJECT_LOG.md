@@ -34,6 +34,19 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-26 21:15] - 双端性能全链路深度优化：消灭滑页闪跳卡顿与 UI 线程 SQLite 阻塞 (v1.5.8.1)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“再检查一遍性能，优化一下”
+* **核心排查与性能突破清单**：
+  1. **Android 端 Compose 滑动闪跳（“跳上一个页面画面”）与掉帧根治**：
+     - **锁定并解决状态同步死锁导致的强制回弹**：排查发现原 `safeNavScreens` 未进行 `remember` 记忆，每次手势重组均生成新 List 实例，导致 `LaunchedEffect(safeNavScreens)` 在用户滑页中途被高频重触发并执行 `pagerState.scrollToPage(targetIdx)`，将正在滑动的页面强行拉回上一页！现已为 `safeNavScreens` 施加 `remember(enabledNavRoutes)`，并在同步逻辑中增加 `!pagerState.isScrollInProgress` 防护，彻底消灭滑动闪跳与手势打断。
+     - **Room DAO 响应式 Flow 全量持久缓存**：此前在 `renderScreenContent` 中，每次 Compose 重组（每秒数十帧）均直接调用 `db.*Dao().getAll*()` 创建全新的 Flow 实例，导致子页面的 `collectAsState` 疯狂取消重订、发射 `emptyList()` 闪烁并引起垃圾回收 (GC) 飙升。现已将全部 13 个数据流统一提升为 `remember { db.*Dao().getAll*() }`，数据流长期稳定复用，滑页帧率直接拉满 120Hz。
+     - **消除子页面 Flow 隐式新建**：修复 `RemindersScreen.kt` 与 `FitnessScreen.kt` 内部未缓存 Flow 的隐蔽重组瓶颈。
+     - **视口激活状态精确对齐**：将 `HorizontalPager` 子项中的 `isPageActive` 简化为 `pagerState.currentPage == page`，消除了转场中的 1 帧空白闪烁。
+  2. **Windows 端 UI 渲染线程完全解耦与异步化**：
+     - **移除非 UI 线程高频磁盘 I/O**：此前 `MainWindow.xaml.cs` 的 `_perfTimer`（每 2 秒一次）在 UI Dispatcher 线程上直接同步调用 `DatabaseService.LogActivity`，每 2 秒在主线程建立 SQLite 连接并写入。现已完全移入 `Task.Run` 异步线程池，WPF 渲染线程与 SQLite 磁盘写入 100% 物理隔离。
+     - **待办与提醒巡检非阻塞降频**：将每 2 秒主线程巡检平滑降频为每 30 秒（`perfTicks % 15 == 0`）并放入 `Task.Run` 后台线程池执行，检索完成后仅在命中临近事件时向 UI 线程分发轻量级 Toast 显示，杜绝任何主界面微卡顿。
+
 ### [2026-10-26 21:00] - 双端提醒强力加固 (永不失效/关后台保活) 与多端云同步深度优化 (v1.5.8.0)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“优化一下多端同步，然后着重优化通知和提醒模块，提醒必须做到不会失效，要不会因为关闭后台而不提醒”

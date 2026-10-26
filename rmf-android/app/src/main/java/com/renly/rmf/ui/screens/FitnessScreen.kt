@@ -68,10 +68,17 @@ fun FitnessScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     val dateStr = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-    val currentPlan by fitnessDao.observePlanByDate(dateStr).collectAsState(initial = null)
-    val records by fitnessDao.observeRecordsByDate(dateStr).collectAsState(initial = emptyList())
-    val completedDates by fitnessDao.observeCompletedDates().collectAsState(initial = emptyList())
-    val recentPlans by fitnessDao.observeRecentPlans(20).collectAsState(initial = emptyList())
+    val currentPlanFlow = remember(dateStr) { fitnessDao.observePlanByDate(dateStr) }
+    val currentPlan by currentPlanFlow.collectAsState(initial = null)
+
+    val recordsFlow = remember(dateStr) { fitnessDao.observeRecordsByDate(dateStr) }
+    val records by recordsFlow.collectAsState(initial = emptyList())
+
+    val completedDatesFlow = remember { fitnessDao.observeCompletedDates() }
+    val completedDates by completedDatesFlow.collectAsState(initial = emptyList())
+
+    val recentPlansFlow = remember { fitnessDao.observeRecentPlans(20) }
+    val recentPlans by recentPlansFlow.collectAsState(initial = emptyList())
 
     // 震动服务
     val vibrator = remember(context) {

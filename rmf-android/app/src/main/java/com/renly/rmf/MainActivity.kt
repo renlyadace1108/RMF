@@ -425,8 +425,10 @@ class MainActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
                 val saveableStateHolder = rememberSaveableStateHolder()
 
-                val navScreens = enabledNavRoutes.map { Screen.fromRoute(it) }
-                val safeNavScreens = if (navScreens.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else navScreens
+                val safeNavScreens = remember(enabledNavRoutes) {
+                    val nav = enabledNavRoutes.map { Screen.fromRoute(it) }
+                    if (nav.isEmpty()) listOf(Screen.Schedule, Screen.Workbench) else nav
+                }
 
                 val initialNavIndex = remember(safeNavScreens, defaultHomeRoute) {
                     val idx = safeNavScreens.indexOfFirst { it.route == defaultHomeRoute }
@@ -445,18 +447,21 @@ class MainActivity : ComponentActivity() {
                 var showFloatingNavMenu by remember { mutableStateOf(false) }
 
                 // 页面滑动手势完成后，自动同步当前选中的屏幕状态与底栏高亮，并触发触感反馈
-                LaunchedEffect(pagerState.currentPage) {
-                    val pageScreen = safeNavScreens.getOrNull(pagerState.currentPage)
-                    if (pageScreen != null && currentScreen != pageScreen && safeNavScreens.contains(currentScreen)) {
-                        com.renly.rmf.util.HapticHelper.performPageTurn(this@MainActivity)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        currentScreen = pageScreen
-                    }
+                LaunchedEffect(pagerState) {
+                    androidx.compose.runtime.snapshotFlow { pagerState.currentPage }
+                        .collect { page ->
+                            val pageScreen = safeNavScreens.getOrNull(page)
+                            if (pageScreen != null && currentScreen != pageScreen && safeNavScreens.contains(currentScreen)) {
+                                com.renly.rmf.util.HapticHelper.performPageTurn(this@MainActivity)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                currentScreen = pageScreen
+                            }
+                        }
                 }
 
-                // 底栏配置变动时，安全同步当前 pager 页码，严防索引越界闪退并保持当前页面状态无缝对接
+                // 底栏配置变动时，安全同步当前 pager 页码，严防索引越界闪退并保持当前页面状态无缝对接 (滑动手势进行中绝不强行打断)
                 LaunchedEffect(safeNavScreens) {
-                    if (safeNavScreens.isNotEmpty()) {
+                    if (safeNavScreens.isNotEmpty() && !pagerState.isScrollInProgress) {
                         val targetIdx = safeNavScreens.indexOf(currentScreen)
                         if (targetIdx != -1) {
                             if (pagerState.currentPage != targetIdx) {
@@ -502,6 +507,30 @@ class MainActivity : ComponentActivity() {
 
                 var showQuickCaptureDialog by remember { mutableStateOf(false) }
                 var dailyReportDate by remember { mutableStateOf(java.time.LocalDate.now()) }
+
+                // 预先缓存并持久化所有 Room DAO 的响应式 Flow 实例，杜绝页面滑动或重组频繁重建流导致界面卡顿闪烁
+                val schedulesFlow = remember { db.scheduleDao().getAllActiveSchedules() }
+                val tagsFlow = remember { db.syncDao().getAllTags() }
+                val timeMarkersFlow = remember { db.timeMarkerDao().getAllActiveMarkers() }
+                val coursesFlow = remember { db.courseDao().getAllActiveCourses() }
+                val adjustmentsFlow = remember { db.courseDao().getAllActiveAdjustments() }
+                val studyTopicsFlow = remember { db.studyTopicDao().getAllActiveTopics() }
+                val focusRecordsFlow = remember { db.focusDao().getAllFocusRecords() }
+                val goalsFlow = remember { db.goalDao().getAllActiveGoals() }
+                val expensesFlow = remember { db.expenseDao().getAllActiveExpenses() }
+                val interruptionsFlow = remember { db.interruptionDao().getAllInterruptions() }
+                val habitsFlow = remember { db.habitDao().getAllActiveHabits() }
+                val countdownsFlow = remember { db.countdownDao().getAllActiveCountdowns() }
+                val notesFlow = remember { db.noteDao().getAllActiveNotes() }
+                val todaySchedulesFlow = remember(dailyReportDate) {
+                    db.scheduleDao().getSchedulesByDateRange(
+                        dailyReportDate.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                        dailyReportDate.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    )
+                }
+                val todayMarkersFlow = remember(dailyReportDate) {
+                    db.timeMarkerDao().getMarkersByDate(dailyReportDate.toString())
+                }
 
                 LaunchedEffect(pendingTargetRoute) {
                     pendingTargetRoute?.let { route ->
@@ -671,9 +700,9 @@ class MainActivity : ComponentActivity() {
                     val renderScreenContent: @Composable (Screen, Boolean) -> Unit = { screen, isActive ->
                         when (screen) {
                             Screen.Schedule -> ScheduleScreen(
-                                schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
-                                tagsFlow = db.syncDao().getAllTags(),
-                                timeMarkersFlow = db.timeMarkerDao().getAllActiveMarkers(),
+                                schedulesFlow = schedulesFlow,
+                                tagsFlow = tagsFlow,
+                                timeMarkersFlow = timeMarkersFlow,
                                 onAddTimeMarker = { marker ->
                                     lifecycleScope.launch {
                                         db.timeMarkerDao().insertOrUpdate(marker)
@@ -796,8 +825,8 @@ class MainActivity : ComponentActivity() {
 
                             Screen.Timetable -> TimetableScreen(
                                 isActive = isActive,
-                                coursesFlow = db.courseDao().getAllActiveCourses(),
-                                adjustmentsFlow = db.courseDao().getAllActiveAdjustments(),
+                                coursesFlow = coursesFlow,
+                                adjustmentsFlow = adjustmentsFlow,
                                 onAddCourse = { course ->
                                     lifecycleScope.launch {
                                         db.courseDao().insertOrUpdateCourse(course)
@@ -909,8 +938,8 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Study -> StudyScreen(
-                                topicsFlow = db.studyTopicDao().getAllActiveTopics(),
-                                coursesFlow = db.courseDao().getAllActiveCourses(),
+                                topicsFlow = studyTopicsFlow,
+                                coursesFlow = coursesFlow,
                                 onAddTopic = { topic ->
                                     lifecycleScope.launch {
                                         db.studyTopicDao().insertOrUpdate(topic)
@@ -939,8 +968,8 @@ class MainActivity : ComponentActivity() {
 
                             Screen.Focus -> FocusScreen(
                                 isInPip = isInPipMode,
-                                schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
-                                focusRecordsFlow = db.focusDao().getAllFocusRecords(),
+                                schedulesFlow = schedulesFlow,
+                                focusRecordsFlow = focusRecordsFlow,
                                 onUpdateSchedule = { schedule ->
                                     lifecycleScope.launch {
                                         db.scheduleDao().insertOrUpdate(schedule)
@@ -970,7 +999,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Goals -> GoalsScreen(
-                                goalsFlow = db.goalDao().getAllActiveGoals(),
+                                goalsFlow = goalsFlow,
                                 onAddGoal = { goal ->
                                     lifecycleScope.launch { db.goalDao().insertOrUpdate(goal) }
                                 },
@@ -986,7 +1015,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Expenses -> ExpensesScreen(
-                                expensesFlow = db.expenseDao().getAllActiveExpenses(),
+                                expensesFlow = expensesFlow,
                                 onAddExpense = { expense ->
                                     lifecycleScope.launch {
                                         db.expenseDao().insertOrUpdate(expense)
@@ -1010,11 +1039,8 @@ class MainActivity : ComponentActivity() {
                             Screen.DailyReport -> DailyReportScreen(
                                 currentDate = dailyReportDate,
                                 onDateChange = { dailyReportDate = it },
-                                todaySchedulesFlow = db.scheduleDao().getSchedulesByDateRange(
-                                    dailyReportDate.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                                    dailyReportDate.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                                ),
-                                todayMarkersFlow = db.timeMarkerDao().getMarkersByDate(dailyReportDate.toString()),
+                                todaySchedulesFlow = todaySchedulesFlow,
+                                todayMarkersFlow = todayMarkersFlow,
                                 onSaveReport = { report ->
                                     lifecycleScope.launch {
                                         db.dailyReportDao().insertOrUpdate(report)
@@ -1024,11 +1050,11 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Summary -> SummaryScreen(
-                                schedulesFlow = db.scheduleDao().getAllActiveSchedules(),
-                                coursesFlow = db.courseDao().getAllActiveCourses(),
-                                interruptionsFlow = db.interruptionDao().getAllInterruptions(),
-                                expensesFlow = db.expenseDao().getAllActiveExpenses(),
-                                timeMarkersFlow = db.timeMarkerDao().getAllActiveMarkers(),
+                                schedulesFlow = schedulesFlow,
+                                coursesFlow = coursesFlow,
+                                interruptionsFlow = interruptionsFlow,
+                                expensesFlow = expensesFlow,
+                                timeMarkersFlow = timeMarkersFlow,
                                 onBack = null
                             )
 
@@ -1054,7 +1080,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Habits -> HabitsScreen(
-                                habitsFlow = db.habitDao().getAllActiveHabits(),
+                                habitsFlow = habitsFlow,
                                 onAddHabit = { title, icon, targetDays, colorHex ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
@@ -1101,7 +1127,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Countdowns -> CountdownsScreen(
-                                countdownsFlow = db.countdownDao().getAllActiveCountdowns(),
+                                countdownsFlow = countdownsFlow,
                                 onAddCountdown = { title, targetDate, category, colorHex ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
@@ -1136,7 +1162,7 @@ class MainActivity : ComponentActivity() {
                             )
 
                             Screen.Notes -> NotesScreen(
-                                notesFlow = db.noteDao().getAllActiveNotes(),
+                                notesFlow = notesFlow,
                                 onAddNote = { title, content, category, colorHex, isPinned ->
                                     lifecycleScope.launch {
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
@@ -1526,7 +1552,7 @@ class MainActivity : ComponentActivity() {
                                     key = { page -> safeNavScreens.getOrNull(page)?.route ?: page }
                                 ) { page ->
                                     val screen = safeNavScreens.getOrNull(page) ?: safeNavScreens.firstOrNull() ?: Screen.Schedule
-                                    val isPageActive = (currentScreen == screen && pagerState.currentPage == page)
+                                    val isPageActive = (pagerState.currentPage == page)
                                     saveableStateHolder.SaveableStateProvider(screen.route) {
                                         renderScreenContent(screen, isPageActive)
                                     }
