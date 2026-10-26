@@ -82,8 +82,8 @@ private val defaultSectionTimes = mapOf(
     12 to Pair("21:45", "22:30")
 )
 
-private fun parseSummaryDateTime(dateStr: String, baseDate: LocalDate = LocalDate.now()): LocalDateTime? {
-    if (dateStr.isBlank()) return null
+private fun parseSummaryDateTime(dateStr: String?, baseDate: LocalDate = LocalDate.now()): LocalDateTime? {
+    if (dateStr.isNullOrBlank()) return null
     val trimmed = dateStr.trim()
     return try {
         LocalDateTime.parse(trimmed, DateTimeFormatter.ISO_DATE_TIME)
@@ -117,9 +117,9 @@ private fun parseSummaryDateTime(dateStr: String, baseDate: LocalDate = LocalDat
     }
 }
 
-private fun parseHexColor(hex: String, defaultColor: Color): Color {
+private fun parseHexColor(hex: String?, defaultColor: Color): Color {
     return try {
-        if (hex.isBlank()) return defaultColor
+        if (hex.isNullOrBlank()) return defaultColor
         val cleanHex = if (hex.startsWith("#")) hex else "#$hex"
         Color(android.graphics.Color.parseColor(cleanHex))
     } catch (_: Exception) {
@@ -844,7 +844,7 @@ fun SummaryScreen(
                 border = BorderStroke(1.dp, colors.border)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    val reasonGroups = interruptions.groupBy { it.note.ifBlank { it.type }.ifBlank { "未归类打断" } }
+                    val reasonGroups = interruptions.groupBy { it.note.orEmpty().ifBlank { it.type.orEmpty() }.ifBlank { "未归类打断" } }
                     if (reasonGroups.isEmpty()) {
                         Text("暂无打断记录，专注状态良好！👏", fontSize = 12.sp, color = colors.dopamineGreen)
                     } else {
@@ -1186,7 +1186,8 @@ fun WeeklyCompletionTrendChart(
                             contentAlignment = Alignment.BottomCenter
                         ) {
                             if (total > 0 && completed > 0 && doneFraction > 0f) {
-                                val fillH = (totalH * doneFraction).coerceIn(2f, totalH)
+                                val maxH = totalH.coerceAtLeast(2f)
+                                val fillH = (totalH * doneFraction).coerceIn(2f, maxH)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1339,7 +1340,7 @@ fun CategoryDonutChart(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(name, fontSize = 11.sp, color = colors.textPrimary)
                             }
-                            Text("%.1fh ($pct%)".format(h), fontSize = 11.sp, color = colors.textSecondary)
+                            Text("${"%.1f".format(h)}h ($pct%)", fontSize = 11.sp, color = colors.textSecondary)
                         }
                     }
 
@@ -1654,11 +1655,11 @@ fun RealityVsScheduleContrastCard(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         if (napMarker != null) {
-                            val nStart = parseSummaryDateTime(napMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.startTime
-                            val nEnd = if (napMarker.endTime.isNotBlank()) parseSummaryDateTime(napMarker.endTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.endTime else ""
+                            val nStart = parseSummaryDateTime(napMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.startTime.orEmpty()
+                            val nEnd = if (!napMarker.endTime.isNullOrBlank()) parseSummaryDateTime(napMarker.endTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: napMarker.endTime.orEmpty() else ""
                             Text(if (nEnd.isNotBlank()) "午休: $nStart - $nEnd" else "午休: $nStart", fontSize = 11.sp, color = colors.dopamineBlue, fontWeight = FontWeight.SemiBold)
                         } else if (sleepMarker != null) {
-                            val sTime = parseSummaryDateTime(sleepMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: sleepMarker.startTime
+                            val sTime = parseSummaryDateTime(sleepMarker.startTime, selectedDate)?.toLocalTime()?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: sleepMarker.startTime.orEmpty()
                             Text("就寝: $sTime", fontSize = 11.sp, color = colors.dopaminePurple, fontWeight = FontWeight.SemiBold)
                         } else {
                             Text("无午休/睡眠打卡", fontSize = 11.sp, color = colors.textMuted)
@@ -1680,11 +1681,11 @@ fun RealityVsScheduleContrastCard(
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
 
-                dailyMarkers.sortedBy { it.startTime }.forEach { marker ->
+                dailyMarkers.sortedBy { it.startTime.orEmpty() }.forEach { marker ->
                     val sDt = parseSummaryDateTime(marker.startTime, selectedDate)
-                    val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.startTime
-                    val eDt = if (marker.endTime.isNotBlank()) parseSummaryDateTime(marker.endTime, selectedDate) else null
-                    val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.endTime
+                    val sTimeStr = sDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.startTime.orEmpty()
+                    val eDt = if (!marker.endTime.isNullOrBlank()) parseSummaryDateTime(marker.endTime, selectedDate) else null
+                    val eTimeStr = eDt?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: marker.endTime.orEmpty()
 
                     val markerColor = parseHexColor(marker.colorHex, colors.dopamineBlue)
 
@@ -1704,17 +1705,18 @@ fun RealityVsScheduleContrastCard(
                                     .background(markerColor, CircleShape)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(marker.icon, fontSize = 12.sp)
+                            Text(marker.icon.orEmpty().ifBlank { "📍" }, fontSize = 12.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = marker.name,
+                                text = marker.name.orEmpty(),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = colors.textPrimary
                             )
-                            if (marker.notes.isNotBlank()) {
+                            val noteStr = marker.notes.orEmpty()
+                            if (noteStr.isNotBlank()) {
                                 Text(
-                                    text = " (${marker.notes})",
+                                    text = " ($noteStr)",
                                     fontSize = 10.5.sp,
                                     color = colors.textMuted,
                                     maxLines = 1,
