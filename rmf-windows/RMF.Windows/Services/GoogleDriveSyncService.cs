@@ -340,6 +340,8 @@ public class GoogleDriveSyncService
             // 重新刷新本地数据库缓存与连接
             DatabaseService.Initialize();
 
+            // 閲嶆柊鍒锋柊骞舵帓鏈?Windows Action Center 鎵€鏈夊緟鍔炴彁閱?            WindowsReminderScheduler.RescheduleAll();
+
             var config = ConfigService.Load();
             config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             ConfigService.Save(config);

@@ -356,9 +356,15 @@ class GoogleDriveSyncService(
             // 对拉取下来的云端/旧版数据库执行无损表结构对齐自愈
             RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
 
+            // 云端同步还原后，立即全量重排所有待触发事件闹钟与桌面小组件
+            ScheduleReminderManager.rescheduleAll(context)
+            try {
+                com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
+            } catch (_: Exception) {}
+
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
-            return@withContext SyncResult.Success("云端数据库已完整还原生效！已兼容同步 Windows 数据。", nowStr)
+            return@withContext SyncResult.Success("云端数据库已完整还原生效！已兼容同步 Windows 数据并重新排期闹钟。", nowStr)
         } catch (e: Exception) {
             return@withContext SyncResult.Error("拉取还原失败: ${e.localizedMessage}")
         }

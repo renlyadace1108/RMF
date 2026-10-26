@@ -8,6 +8,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import com.renly.rmf.data.local.RmfDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class RmfApplication : Application() {
@@ -30,11 +31,18 @@ class RmfApplication : Application() {
             defaultHandler?.uncaughtException(thread, throwable)
         }
         createNotificationChannels()
-        // 异步后台执行安全快照与数据库预热，确保不阻塞主线程冷启动
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+
+        // 异步后台执行安全快照、系统级看门狗注册与全量闹钟重新核验排期，确保冷启动不阻塞且提醒永不失效
+        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
             try {
                 com.renly.rmf.domain.service.LosslessUpgradeManager.performAutoUpgradeSafetyBackup(this@RmfApplication)
                 database.openHelper.writableDatabase
+
+                // 启动系统级看门狗服务 (每15分钟核验)
+                com.renly.rmf.domain.service.ReminderWatchdogJobService.schedule(this@RmfApplication)
+
+                // 核验并重新排期待触发提醒与日程闹钟
+                com.renly.rmf.domain.service.ScheduleReminderManager.rescheduleAll(this@RmfApplication)
             } catch (_: Exception) {}
         }
     }

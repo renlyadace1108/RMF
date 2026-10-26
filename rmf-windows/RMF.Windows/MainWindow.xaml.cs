@@ -219,6 +219,12 @@ public partial class MainWindow : Window
             onNewEvent: () => Dispatcher.Invoke(() => OpenEventCreateModalWithRange(DateTime.Today, DateTime.Today.AddHours(9), DateTime.Today.AddHours(10))),
             onExit: () => Dispatcher.Invoke(ExitApplicationDirectly)
         );
+        // Windows Action Center Reminder Scheduler Initialization
+        WindowsReminderScheduler.Initialize(
+            onRestoreWindow: () => Dispatcher.Invoke(RestoreFromTray),
+            onNavigateToReminders: (remId) => Dispatcher.Invoke(() => SwitchPrimaryPage("Reminders"))
+        );
+        WindowsReminderScheduler.RescheduleAll();
     }
 
     private void RestoreFromTray()
@@ -3657,6 +3663,7 @@ public partial class MainWindow : Window
 
     private void CheckUpcomingEvents()
     {
+        CheckPendingRemindersWatchdog();
         try
         {
             DateTime now = DateTime.Now;
@@ -3681,6 +3688,40 @@ public partial class MainWindow : Window
 
                 // 弹出 Windows 原生系统托盘横幅/气泡通知
                 _trayIconService?.ShowNotification($"🔔 日程即将开始 ({mins}分钟后)", $"{upcoming.Title} ({upcoming.StartTime:HH:mm} - {upcoming.EndTime:HH:mm})");
+            }
+        }
+        catch { }
+    }
+
+    private void CheckPendingRemindersWatchdog()
+    {
+        try
+        {
+            var pending = DatabaseService.GetPendingReminders();
+            DateTime now = DateTime.Now;
+            foreach (var r in pending)
+            {
+                if (DateTime.TryParse(r.RemindTime, out var dt))
+                {
+                    var triggerTime = dt.AddMinutes(-r.AdvanceMinutes);
+                    if (triggerTime <= now && !_notifiedUpcomingEventIds.Contains("rem_" + r.Id))
+                    {
+                        _notifiedUpcomingEventIds.Add("rem_" + r.Id);
+                        WindowsReminderScheduler.ShowOverdueNotification(r);
+                        _trayIconService?.ShowNotification($"馃敂 浜嬩欢鎻愰啋: {r.Title}", string.IsNullOrWhiteSpace(r.Content) ? $"鎻愰啋鏃堕棿锛歿r.DisplayTime}" : r.Content);
+
+                        if (!string.IsNullOrWhiteSpace(r.RepeatRule) && !r.RepeatRule.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var nextIso = WindowsReminderScheduler.ComputeNextOccurrence(r.RemindTime, r.RepeatRule);
+                            if (nextIso != null)
+                            {
+                                DatabaseService.AdvanceReminderRepeat(r.Id, nextIso);
+                                r.RemindTime = nextIso;
+                                WindowsReminderScheduler.ScheduleReminder(r);
+                            }
+                        }
+                    }
+                }
             }
         }
         catch { }
@@ -14979,7 +15020,28 @@ public partial class MainWindow : Window
         chk.Click += (s, e) =>
         {
             bool newStatus = chk.IsChecked == true;
-            DatabaseService.SetReminderCompleted(item.Id, newStatus);
+            if (newStatus && !string.IsNullOrWhiteSpace(item.RepeatRule) && !item.RepeatRule.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+            {
+                var nextIso = WindowsReminderScheduler.ComputeNextOccurrence(item.RemindTime, item.RepeatRule);
+                if (nextIso != null)
+                {
+                    DatabaseService.AdvanceReminderRepeat(item.Id, nextIso);
+                    item.RemindTime = nextIso;
+                    WindowsReminderScheduler.ScheduleReminder(item);
+                    MessageBox.Show($"鉁?宸插畬鎴愬綋鍓嶅懆鏈燂紝涓嬩竴娆℃彁閱掑凡鎺掓湡鑷?{item.DisplayTime} ({item.RepeatRuleText})", "鍛ㄦ湡鎻愰啋", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    DatabaseService.SetReminderCompleted(item.Id, true);
+                    WindowsReminderScheduler.CancelScheduledReminder(item.Id);
+                }
+            }
+            else
+            {
+                DatabaseService.SetReminderCompleted(item.Id, newStatus);
+                if (newStatus) WindowsReminderScheduler.CancelScheduledReminder(item.Id);
+                else WindowsReminderScheduler.ScheduleReminder(item);
+            }
             RenderRemindersPage();
         };
         Grid.SetColumn(chk, 0);
@@ -15106,6 +15168,7 @@ public partial class MainWindow : Window
             if (MessageBox.Show($"确定要删除提醒「{item.Title}」吗？", "删除确认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 DatabaseService.DeleteReminder(item.Id);
+                WindowsReminderScheduler.CancelScheduledReminder(item.Id);
                 RenderRemindersPage();
             }
         };
@@ -15234,6 +15297,7 @@ public partial class MainWindow : Window
         rem.Category = cat;
 
         DatabaseService.UpsertReminder(rem);
+        WindowsReminderScheduler.ScheduleReminder(rem);
         ReminderEditModal.Visibility = Visibility.Collapsed;
         RenderRemindersPage();
     }

@@ -3153,6 +3153,18 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
     }
 
+    public static void AdvanceReminderRepeat(string id, string nextIso)
+    {
+        using var conn = new SqliteConnection(ConnectionString);
+        conn.Open();
+        string sql = "UPDATE reminders SET remind_time = @newTime, is_completed = 0, updated_at = @now WHERE id = @id;";
+        using var cmd = new SqliteCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@newTime", nextIso);
+        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+        cmd.ExecuteNonQuery();
+    }
+
     public static void DeleteReminder(string id, bool softDelete = true)
     {
         using var conn = new SqliteConnection(ConnectionString);

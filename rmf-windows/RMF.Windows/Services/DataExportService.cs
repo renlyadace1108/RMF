@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -63,6 +64,77 @@ public class DataExportService
         string json = JsonSerializer.Serialize(bundle, options);
         File.WriteAllText(targetFilePath, json, Encoding.UTF8);
         return targetFilePath;
+    }
+
+    /// <summary>
+    /// 从外部备份 JSON 文件导入并智能合并全量数据
+    /// </summary>
+    public static (bool success, string message) ImportFullDataJson(string jsonFilePath)
+    {
+        try
+        {
+            if (!File.Exists(jsonFilePath)) return (false, "文件不存在");
+
+            string json = File.ReadAllText(jsonFilePath, Encoding.UTF8);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            int noteCount = 0, remCount = 0, markerCount = 0, habitCount = 0, cdCount = 0;
+
+            if (root.TryGetProperty("Notes", out var notesElem) || root.TryGetProperty("notes", out notesElem))
+            {
+                var notes = JsonSerializer.Deserialize<List<NoteItem>>(notesElem.GetRawText());
+                if (notes != null)
+                {
+                    foreach (var n in notes) { DatabaseService.UpsertNote(n); noteCount++; }
+                }
+            }
+
+            if (root.TryGetProperty("Reminders", out var remElem) || root.TryGetProperty("reminders", out remElem))
+            {
+                var reminders = JsonSerializer.Deserialize<List<ReminderItem>>(remElem.GetRawText());
+                if (reminders != null)
+                {
+                    foreach (var r in reminders) { DatabaseService.UpsertReminder(r); remCount++; }
+                }
+            }
+
+            if (root.TryGetProperty("TimeMarkers", out var markElem) || root.TryGetProperty("timeMarkers", out markElem))
+            {
+                var markers = JsonSerializer.Deserialize<List<TimeMarkerItem>>(markElem.GetRawText());
+                if (markers != null)
+                {
+                    foreach (var m in markers) { DatabaseService.UpsertTimeMarker(m); markerCount++; }
+                }
+            }
+
+            if (root.TryGetProperty("Habits", out var habitElem) || root.TryGetProperty("habits", out habitElem))
+            {
+                var habits = JsonSerializer.Deserialize<List<HabitItem>>(habitElem.GetRawText());
+                if (habits != null)
+                {
+                    foreach (var h in habits) { DatabaseService.UpsertHabit(h); habitCount++; }
+                }
+            }
+
+            if (root.TryGetProperty("Countdowns", out var cdElem) || root.TryGetProperty("countdowns", out cdElem))
+            {
+                var countdowns = JsonSerializer.Deserialize<List<CountdownItem>>(cdElem.GetRawText());
+                if (countdowns != null)
+                {
+                    foreach (var cd in countdowns) { DatabaseService.UpsertCountdown(cd); cdCount++; }
+                }
+            }
+
+            // 导入后重新核验并排期所有待办事项
+            WindowsReminderScheduler.RescheduleAll();
+
+            return (true, $"已成功导入并合并：便签 {noteCount} 条，提醒事项 {remCount} 条，时间标记 {markerCount} 条，习惯 {habitCount} 条，倒数日 {cdCount} 条！");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"导入失败: {ex.Message}");
+        }
     }
 
     /// <summary>

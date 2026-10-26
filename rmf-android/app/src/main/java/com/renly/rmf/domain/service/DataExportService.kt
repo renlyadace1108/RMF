@@ -20,6 +20,12 @@ object DataExportService {
         val topics = database.studyTopicDao().getAllRawTopics().filter { it.isDeleted == 0 }
         val goals = database.goalDao().getAllRawGoals().filter { it.isDeleted == 0 }
         val expenses = database.expenseDao().getAllRawExpenses().filter { it.isDeleted == 0 }
+        val notes = database.noteDao().getAllRawNotes().filter { it.isDeleted == 0 }
+        val reminders = database.reminderDao().getAllActiveReminders() // wait, let's get raw
+        val rawReminders = database.reminderDao().getPendingRemindersList()
+        val habits = database.habitDao().getAllRawHabits().filter { it.isDeleted == 0 }
+        val countdowns = database.countdownDao().getAllRawCountdowns().filter { it.isDeleted == 0 }
+        val timeMarkers = database.timeMarkerDao().getAllRawMarkers().filter { it.isDeleted == 0 }
 
         val exportPayload = mapOf(
             "app" to "RMF (Resonance Moment Flow)",
@@ -29,7 +35,12 @@ object DataExportService {
             "courses" to courses,
             "studyTopics" to topics,
             "goals" to goals,
-            "expenses" to expenses
+            "expenses" to expenses,
+            "notes" to notes,
+            "reminders" to rawReminders,
+            "habits" to habits,
+            "countdowns" to countdowns,
+            "timeMarkers" to timeMarkers
         )
 
         val jsonString = gson.toJson(exportPayload)
@@ -42,7 +53,7 @@ object DataExportService {
             val sendIntent = Intent().apply {
                 action = Intent.ACTION_SEND
                 putExtra(Intent.EXTRA_TEXT, jsonString)
-                putExtra(Intent.EXTRA_SUBJECT, "RMF 全量数据备份与导出")
+                putExtra(Intent.EXTRA_SUBJECT, "RMF 全量多端数据备份与导出")
                 type = "text/plain"
             }
             val shareIntent = Intent.createChooser(sendIntent, "分享或导出 RMF 数据")

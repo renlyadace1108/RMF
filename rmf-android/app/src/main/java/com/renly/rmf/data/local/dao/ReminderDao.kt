@@ -34,6 +34,9 @@ interface ReminderDao {
     @Query("UPDATE reminders SET remind_time = :newTime, advance_minutes = :advanceMins, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateRemindTime(id: String, newTime: String, advanceMins: Int, updatedAt: String)
 
+    @Query("UPDATE reminders SET remind_time = :newTime, is_completed = :completed, updated_at = :updatedAt WHERE id = :id")
+    suspend fun advanceRepeatCycle(id: String, newTime: String, completed: Int, updatedAt: String)
+
     @Query("UPDATE reminders SET is_deleted = 1, updated_at = :updatedAt WHERE id = :id")
     suspend fun softDelete(id: String, updatedAt: String)
 

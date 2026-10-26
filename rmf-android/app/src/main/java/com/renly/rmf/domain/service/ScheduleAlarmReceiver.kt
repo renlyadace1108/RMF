@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -21,6 +22,16 @@ import java.time.format.DateTimeFormatter
 class ScheduleAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        // 获取短时唤醒锁 (10秒)，保证广播分发与数据库写入期间 CPU 不被系统强行打断休眠
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val wakeLock = try {
+            powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "rmf:alarm_receiver")?.apply {
+                acquire(10000L)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
         val intentAction = intent.action
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -30,16 +41,40 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             val notifId = intent.getIntExtra(EXTRA_ID, 1001)
             manager.cancel(notifId)
 
-            val app = context.applicationContext as? RmfApplication ?: return
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                    app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
-                    SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
-                } finally {
-                    pendingResult.finish()
+            val app = context.applicationContext as? RmfApplication
+            if (app != null) {
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val reminder = app.database.reminderDao().getReminderById(reminderId)
+                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+
+                        if (reminder != null && !reminder.repeatRule.equals("NONE", ignoreCase = true)) {
+                            // 周期性提醒：推进到下一个周期，重置为待提醒状态 (is_completed=0)，并排期下一次闹钟
+                            val nextIso = ReminderRepeatHelper.computeNextOccurrence(reminder.remindTime, reminder.repeatRule)
+                            if (nextIso != null) {
+                                app.database.reminderDao().advanceRepeatCycle(reminderId, nextIso, 0, nowStr)
+                                val updated = reminder.copy(remindTime = nextIso, isCompleted = 0, updatedAt = nowStr)
+                                ScheduleReminderManager.scheduleDirectReminder(context, updated)
+                                if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                                    SystemCalendarSyncService.syncSingleReminder(context, updated)
+                                }
+                            } else {
+                                app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
+                                SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
+                            }
+                        } else {
+                            // 单次提醒：标记完成
+                            app.database.reminderDao().toggleComplete(reminderId, 1, nowStr)
+                            SystemCalendarSyncService.deleteReminderEvent(context, reminderId)
+                        }
+                    } finally {
+                        try { wakeLock?.release() } catch (_: Exception) {}
+                        pendingResult.finish()
+                    }
                 }
+            } else {
+                try { wakeLock?.release() } catch (_: Exception) {}
             }
             return
         }
@@ -49,30 +84,35 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             val notifId = intent.getIntExtra(EXTRA_ID, 1001)
             manager.cancel(notifId)
 
-            val app = context.applicationContext as? RmfApplication ?: return
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val reminder = app.database.reminderDao().getReminderById(reminderId)
-                    if (reminder != null) {
-                        val snoozedTime = LocalDateTime.now().plusMinutes(10)
-                        val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        app.database.reminderDao().updateRemindTime(reminderId, snoozedIso, 0, nowStr)
+            val app = context.applicationContext as? RmfApplication
+            if (app != null) {
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val reminder = app.database.reminderDao().getReminderById(reminderId)
+                        if (reminder != null) {
+                            val snoozedTime = LocalDateTime.now().plusMinutes(10)
+                            val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            app.database.reminderDao().updateRemindTime(reminderId, snoozedIso, 0, nowStr)
 
-                        val updatedReminder = reminder.copy(
-                            remindTime = snoozedIso,
-                            advanceMinutes = 0,
-                            updatedAt = nowStr
-                        )
-                        ScheduleReminderManager.scheduleDirectReminder(context, updatedReminder)
-                        if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
-                            SystemCalendarSyncService.syncSingleReminder(context, updatedReminder)
+                            val updatedReminder = reminder.copy(
+                                remindTime = snoozedIso,
+                                advanceMinutes = 0,
+                                updatedAt = nowStr
+                            )
+                            ScheduleReminderManager.scheduleDirectReminder(context, updatedReminder)
+                            if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                                SystemCalendarSyncService.syncSingleReminder(context, updatedReminder)
+                            }
                         }
+                    } finally {
+                        try { wakeLock?.release() } catch (_: Exception) {}
+                        pendingResult.finish()
                     }
-                } finally {
-                    pendingResult.finish()
                 }
+            } else {
+                try { wakeLock?.release() } catch (_: Exception) {}
             }
             return
         }
@@ -131,7 +171,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             .setCategory(if (isCourse) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .setOngoing(true) // 借道实时活动常驻胶囊展示
+            .setOngoing(true)
             .setContentIntent(pendingIntent)
 
         val brandLabel = FluidCloudHelper.getSystemBrandLabel()
@@ -153,11 +193,11 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             }
             ReminderType.ALARM -> {
                 builder.setSound(defaultSound)
-                builder.setVibrate(longArrayOf(0)) // 明确禁用震动
+                builder.setVibrate(longArrayOf(0))
                 builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
             }
             ReminderType.VIBRATE -> {
-                builder.setSound(null) // 明确静音
+                builder.setSound(null)
                 builder.setVibrate(longArrayOf(0, 350, 200, 350))
                 builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_LIGHTS)
             }
@@ -173,7 +213,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
 
         if (isDirectReminder) {
             // ==========================================
-            // 自定义事件提醒模式 (实时活动倒计时 + 无图标按钮)
+            // 自定义事件提醒模式 (实时活动倒计时 + 完成 / 稍后推迟操作)
             // ==========================================
             val completeIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
                 this.action = ACTION_COMPLETE_REMINDER
@@ -199,12 +239,11 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // 按钮不带图标 (icon=0)，图标在右上角小图标展示
             builder.addAction(
-                NotificationCompat.Action.Builder(0, "完成", completePendingIntent).build()
+                NotificationCompat.Action.Builder(0, "✓ 完成", completePendingIntent).build()
             )
             builder.addAction(
-                NotificationCompat.Action.Builder(0, "稍后提醒 (+10分)", snoozePendingIntent).build()
+                NotificationCompat.Action.Builder(0, "⏰ 稍后提醒 (+10分)", snoozePendingIntent).build()
             )
 
             builder.setContentTitle(title)
@@ -226,6 +265,27 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     .setSummaryText(brandLabel)
                     .bigText(message)
             )
+
+            // 若此事件有周期性重复规则，在触发弹窗的同时异步自动排期下一周期闹钟，确保持续生效永不失效
+            if (reminderId.isNotBlank()) {
+                val app = context.applicationContext as? RmfApplication
+                if (app != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val reminder = app.database.reminderDao().getReminderById(reminderId)
+                            if (reminder != null && !reminder.repeatRule.equals("NONE", ignoreCase = true)) {
+                                val nextIso = ReminderRepeatHelper.computeNextOccurrence(reminder.remindTime, reminder.repeatRule)
+                                if (nextIso != null) {
+                                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                    app.database.reminderDao().advanceRepeatCycle(reminderId, nextIso, 0, nowStr)
+                                    val updated = reminder.copy(remindTime = nextIso, isCompleted = 0, updatedAt = nowStr)
+                                    ScheduleReminderManager.scheduleDirectReminder(context, updated)
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
         } else if (isCourse) {
             // ==========================================
             // 课程提醒模式 (倒计时 + 实时活动 + 无图标按钮)
@@ -257,7 +317,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 0L
             }
 
-            // 按钮不带图标 (icon=0)
             builder.addAction(
                 NotificationCompat.Action.Builder(
                     0,
@@ -377,7 +436,6 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 )
             }
 
-            // 按钮不带图标 (icon=0)
             builder.addAction(
                 NotificationCompat.Action.Builder(
                     0,
@@ -463,6 +521,9 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val notification = builder.build()
         FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
         manager.notify(notificationId, notification)
+
+        // 释放临时唤醒锁
+        try { wakeLock?.release() } catch (_: Exception) {}
     }
 
     companion object {

@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".RmfApplication"
@@ -56,16 +57,27 @@
             </intent-filter>
         </receiver>
 
-        <!-- 开机自动重新注册日程闹钟 (适配系统强杀与重启) -->
+        <!-- 开机自动重新注册日程闹钟与系统唤醒 (适配系统强杀、重启、时区变化与亮屏解锁) -->
         <receiver
             android:name=".domain.service.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
             </intent-filter>
         </receiver>
+
+        <!-- 原生 JobService 周期性看门狗服务 (系统托管防强杀，每 15 分钟核验重排精准闹钟) -->
+        <service
+            android:name=".domain.service.ReminderWatchdogJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
 
         <!-- 胶囊通知实时服务 (前台状态栏胶囊与锁屏实时活动，全局强制使用原生实时活动借道，严禁媒体借道) -->
         <service

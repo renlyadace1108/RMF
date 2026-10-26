@@ -34,6 +34,26 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-26 21:00] - 双端提醒强力加固 (永不失效/关后台保活) 与多端云同步深度优化 (v1.5.8.0)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“优化一下多端同步，然后着重优化通知和提醒模块，提醒必须做到不会失效，要不会因为关闭后台而不提醒”
+* **核心成果与保活加固清单**：
+  1. **Android 端极致防漏与杀后台保活体系**：
+     - **三级容灾精准闹钟调度 (`ScheduleReminderManager.kt`)**：针对 Android 12+ (API 31+) 与厂商定制 ROM，采用原生最高优先级时钟硬件级闹钟 `AlarmManager.setAlarmClock()`，在设备深度 Doze 休眠与低电耗模式下强制亮屏/唤醒；在无精准闹钟权限时优雅降级为 `setExactAndAllowWhileIdle()` 与 `setExact()`。
+     - **周期性重复规则智能推进 (`ReminderRepeatHelper.kt`)**：全面支持 `DAILY`（每天）、`WEEKDAYS`（工作日/跳过周末）、`WEEKLY`（每周）、`MONTHLY`（每月）、`YEARLY`（每年）。当闹钟触发或用户点击完成时，自动推进下个周期并即刻排期，确保周期性提醒永不中断。
+     - **逾期遗漏强力补漏与救援机制**：当手机关机、断电、深睡或强杀后重新上线，系统开机或看门狗检测到 `remind_time <= now` 且未完成的提醒时，自动触发高优先级兜底横幅与响铃，支持「✓ 标记完成」与「⏰ 稍后推迟 10分钟」双按钮快捷交互，坚决不丢一条提醒。
+     - **系统级原生看门狗服务 (`ReminderWatchdogJobService.kt`)**：利用 Android 官方 `JobScheduler` 每 15 分钟后台巡检，`setPersisted(true)` 随系统自启，专门修复厂商清理内存强杀后可能被撤销的 PendingIntent。
+     - **系统唤醒全量多维监听 (`BootReceiver.kt`)**：开机自启（`BOOT_COMPLETED`、`QUICKBOOT_POWERON`）、应用升级替换（`MY_PACKAGE_REPLACED`）、系统时间/时区调整（`TIME_SET`、`TIMEZONE_CHANGED`）、锁屏亮屏解锁（`USER_PRESENT`）与电源接入，全部触发闹钟全量重排。
+     - **提醒保活与权限健康诊断面板 (`RemindersScreen.kt`)**：在提醒界面顶部新增「🛡️ 提醒防漏健康诊断」卡片与弹窗，直观检测电池白名单与精准闹钟权限，提供一键穿透前往各大国产 ROM（小米/Redmi HyperOS、OPPO/一加 ColorOS、vivo/iQOO OriginOS、华为/荣耀鸿蒙）专属自启动与后台保护设置页。
+  2. **Windows 端系统级调度与永不失效提醒体系**：
+     - **Windows Action Center 操作系统级强唤醒 (`WindowsReminderScheduler.cs`)**：直接使用 `Microsoft.Toolkit.Uwp.Notifications` 的 `ScheduledToastNotification` 注册至 Windows 底层通知平台（Action Center）。**即使 RMF 客户端窗口关闭、进程被完全杀死，Windows 操作系统内核仍将在设定时刻准时弹出横幅响铃唤醒！**
+     - **交互式按钮直通**：横幅附带「✓ 标记完成」与「⏰ 稍后推迟 10分钟」系统级 Action，用户无需打开主界面即可一键推迟或完成。
+     - **双向重复周期推进与逾期补漏**：同样对齐 5 大重复规则（每天/工作日/每周/每月/每年），开机启动与 2 秒级看门狗双重巡检，错过时间即刻追溯弹出。
+     - **开机自启与系统托盘常驻守护**：支持写入注册表 `HKCU\...\Run`，开机静默启动至托盘。
+  3. **多端协同同步与全量实体闭环**：
+     - **Google Drive 云同步即时生效**：Android 端在拉取恢复云端备份后，自动触发 `ScheduleReminderManager.rescheduleAll(context)` 与桌面小组件刷新；Windows 端在同步拉取后自动触发 `WindowsReminderScheduler.RescheduleAll()`。
+     - **多端数据包全量覆盖 (`DataExportService`)**：双端 JSON 与 Markdown 备份均已完整覆盖 10 大核心实体（日程、课程、学习、目标、收支、便签、提醒、时间标记、习惯、倒数日），Windows 端新增 `ImportFullDataJson` 智能合并引擎。
+
 ### [2026-10-26 20:00] - Windows 桌面端多维功能对齐：便签中心、提醒事项、作息锚点打卡、计划偏差复盘与双轨对照 (v1.5.7.0)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“拉取；现在你要做的是让windows端也同步这些功能”

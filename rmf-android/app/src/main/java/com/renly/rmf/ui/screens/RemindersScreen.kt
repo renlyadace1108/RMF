@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.renly.rmf.data.local.dao.ReminderDao
 import com.renly.rmf.data.local.entity.ReminderEntity
+import com.renly.rmf.domain.service.ReminderRepeatHelper
 import com.renly.rmf.domain.service.ReminderType
 import com.renly.rmf.domain.service.ScheduleReminderManager
 import com.renly.rmf.domain.service.SystemCalendarSyncService
@@ -53,6 +54,12 @@ fun RemindersScreen(
     var showAddEditDialog by remember { mutableStateOf(false) }
     var editingReminder by remember { mutableStateOf<ReminderEntity?>(null) }
     var syncFeedbackText by remember { mutableStateOf<String?>(null) }
+    var showKeepAliveDialog by remember { mutableStateOf(false) }
+
+    // 系统保活与精准权限状态诊断
+    val canExactAlarm = remember { ScheduleReminderManager.canScheduleExactAlarms(context) }
+    val isBatteryIgnored = remember { ScheduleReminderManager.isIgnoringBatteryOptimizations(context) }
+    val isHealthFullyGuarded = canExactAlarm && isBatteryIgnored
 
     val pendingReminders = remember(reminders) {
         reminders.filter { it.isCompleted == 0 && it.isDeleted == 0 }
@@ -96,39 +103,55 @@ fun RemindersScreen(
                         )
                     }
 
-                    // 同步到手机系统原生日历与系统通知按钮
-                    FilledTonalButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                val res = SystemCalendarSyncService.syncAllReminders(context, reminders)
-                                when (res) {
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Success -> {
-                                        syncFeedbackText = res.message
-                                        Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
-                                    }
-                                    is com.renly.rmf.domain.service.CalendarSyncResult.Error -> {
-                                        syncFeedbackText = res.error
-                                        Toast.makeText(context, res.error, Toast.LENGTH_LONG).show()
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // 提醒防漏守护与系统保活健康诊断按钮
+                        FilledTonalButton(
+                            onClick = { showKeepAliveDialog = true },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = if (isHealthFullyGuarded) DopamineGreen.copy(alpha = 0.16f) else DopamineAmber.copy(alpha = 0.2f),
+                                contentColor = if (isHealthFullyGuarded) DopamineGreen else DopamineAmber
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(if (isHealthFullyGuarded) "🛡️ 守护极佳" else "⚠️ 防漏守护", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 同步到手机系统原生日历与系统通知按钮
+                        FilledTonalButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val res = SystemCalendarSyncService.syncAllReminders(context, reminders)
+                                    when (res) {
+                                        is com.renly.rmf.domain.service.CalendarSyncResult.Success -> {
+                                            syncFeedbackText = res.message
+                                            Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                        }
+                                        is com.renly.rmf.domain.service.CalendarSyncResult.Error -> {
+                                            syncFeedbackText = res.error
+                                            Toast.makeText(context, res.error, Toast.LENGTH_LONG).show()
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = DopamineCyan.copy(alpha = 0.16f),
-                            contentColor = DopamineCyan
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Icon(Icons.Default.Sync, contentDescription = "同步系统", modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("同步系统日历", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = DopamineCyan.copy(alpha = 0.16f),
+                                contentColor = DopamineCyan
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Default.Sync, contentDescription = "同步系统", modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("同步日历", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 
                 Text(
-                    text = "独立单点事件提醒 · 借道实时活动动态胶囊 · 原生硬件时钟对齐零耗电",
+                    text = "硬件级系统精准闹钟对齐 · 看门狗防强杀 · 重复周期自动推进 · 逾期强力兜底",
                     fontSize = 11.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 2.dp)
@@ -228,7 +251,7 @@ fun RemindersScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (selectedTab == 0) "点击右下角「+」或通过闪念捕获添加提醒" else "完成提醒后将归档在此处",
+                        text = if (selectedTab == 0) "点击右下角「+」即可添加准时提醒事项" else "完成提醒后将归档在此处",
                         fontSize = 12.sp,
                         color = TextMuted
                     )
@@ -248,14 +271,34 @@ fun RemindersScreen(
                         onToggleComplete = { completed ->
                             coroutineScope.launch {
                                 val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                                val newCompleted = if (completed) 1 else 0
-                                reminderDao.toggleComplete(reminder.id, newCompleted, nowStr)
-
                                 if (completed) {
-                                    ScheduleReminderManager.cancelDirectReminder(context, reminder.id)
-                                    SystemCalendarSyncService.deleteReminderEvent(context, reminder.id)
-                                    Toast.makeText(context, "✓ 已完成提醒", Toast.LENGTH_SHORT).show()
+                                    if (!reminder.repeatRule.equals("NONE", ignoreCase = true)) {
+                                        val nextIso = ReminderRepeatHelper.computeNextOccurrence(reminder.remindTime, reminder.repeatRule)
+                                        if (nextIso != null) {
+                                            reminderDao.advanceRepeatCycle(reminder.id, nextIso, 0, nowStr)
+                                            val updated = reminder.copy(remindTime = nextIso, isCompleted = 0, updatedAt = nowStr)
+                                            ScheduleReminderManager.scheduleDirectReminder(context, updated)
+                                            if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                                                SystemCalendarSyncService.syncSingleReminder(context, updated)
+                                            }
+                                            val ruleName = ReminderRepeatHelper.formatRepeatRule(reminder.repeatRule)
+                                            val nextLdt = try { LocalDateTime.parse(nextIso, DateTimeFormatter.ISO_LOCAL_DATE_TIME) } catch (_: Exception) { null }
+                                            val nextFmt = nextLdt?.format(DateTimeFormatter.ofPattern("M月d日 HH:mm")) ?: nextIso
+                                            Toast.makeText(context, "✓ 今日已完成！下次提醒：$nextFmt ($ruleName)", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            reminderDao.toggleComplete(reminder.id, 1, nowStr)
+                                            ScheduleReminderManager.cancelDirectReminder(context, reminder.id)
+                                            SystemCalendarSyncService.deleteReminderEvent(context, reminder.id)
+                                            Toast.makeText(context, "✓ 已完成提醒", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        reminderDao.toggleComplete(reminder.id, 1, nowStr)
+                                        ScheduleReminderManager.cancelDirectReminder(context, reminder.id)
+                                        SystemCalendarSyncService.deleteReminderEvent(context, reminder.id)
+                                        Toast.makeText(context, "✓ 已完成提醒", Toast.LENGTH_SHORT).show()
+                                    }
                                 } else {
+                                    reminderDao.toggleComplete(reminder.id, 0, nowStr)
                                     val updated = reminder.copy(isCompleted = 0, updatedAt = nowStr)
                                     ScheduleReminderManager.scheduleDirectReminder(context, updated)
                                     if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
@@ -308,6 +351,129 @@ fun RemindersScreen(
         }
     }
 
+    // 提醒保活与防漏健康诊断对话框
+    if (showKeepAliveDialog) {
+        AlertDialog(
+            onDismissRequest = { showKeepAliveDialog = false },
+            containerColor = DarkCard,
+            title = {
+                Text("🛡️ 提醒防漏与系统保活健康中心", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "为确保在关闭后台、锁屏待机或国内厂商(ColorOS/MIUI/OriginOS等)深度杀后台时不漏提醒，请确保以下防漏策略生效：",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    // 1. 电池无限制白名单
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, if (isBatteryIgnored) DopamineGreen.copy(alpha = 0.4f) else DopamineAmber.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("🔋 忽略电池优化 (防锁屏休眠)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text(
+                                    if (isBatteryIgnored) "已加入电池白名单，免遭系统冻结" else "当前受系统省电策略限制，可能导致提醒推迟",
+                                    fontSize = 11.sp,
+                                    color = if (isBatteryIgnored) DopamineGreen else DopamineAmber
+                                )
+                            }
+                            if (!isBatteryIgnored) {
+                                TextButton(onClick = { ScheduleReminderManager.requestIgnoreBatteryOptimizations(context) }) {
+                                    Text("去开启", color = DopamineCyan, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text("✓ 已生效", fontSize = 12.sp, color = DopamineGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // 2. 精准闹钟权限
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, if (canExactAlarm) DopamineGreen.copy(alpha = 0.4f) else DopamineAmber.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("⏰ 精准硬件闹钟权限 (Android 12+)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text(
+                                    if (canExactAlarm) "已获最高级时钟硬件唤醒权限" else "未授权，闹钟唤醒可能会被系统合并延迟",
+                                    fontSize = 11.sp,
+                                    color = if (canExactAlarm) DopamineGreen else DopamineAmber
+                                )
+                            }
+                            if (!canExactAlarm) {
+                                TextButton(onClick = { ScheduleReminderManager.requestExactAlarmPermission(context) }) {
+                                    Text("去授权", color = DopamineCyan, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text("✓ 已生效", fontSize = 12.sp, color = DopamineGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // 3. 国产 ROM 自启动与后台白名单管理
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = DarkSurface,
+                        border = BorderStroke(1.dp, DarkBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("⚙️ 厂商系统自启动管理", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("ColorOS/MIUI/OriginOS/鸿蒙专属后台自启与应用锁设置", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            TextButton(onClick = { ScheduleReminderManager.openAutostartSettings(context) }) {
+                                Text("前往设置", color = DopamineCyan, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // 4. 立即发送测试提醒
+                    OutlinedButton(
+                        onClick = {
+                            ScheduleReminderManager.sendStandardTestNotification(context)
+                            Toast.makeText(context, "已触发即时测试通知，请查看状态栏", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🔔 发送即时测试通知验证响铃与震动", fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showKeepAliveDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("完成", color = DarkBg, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
     // 新增 / 编辑提醒对话框
     if (showAddEditDialog) {
         AddEditReminderDialog(
@@ -320,7 +486,7 @@ fun RemindersScreen(
                     if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
                         SystemCalendarSyncService.syncSingleReminder(context, savedReminder)
                     }
-                    Toast.makeText(context, "✓ 提醒已设定并注册实时活动胶囊", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "✓ 提醒已设定并注册系统级精准闹钟", Toast.LENGTH_SHORT).show()
                     showAddEditDialog = false
                 }
             }
@@ -378,6 +544,10 @@ fun ReminderItemCard(
         }
     }
 
+    val repeatText = remember(reminder.repeatRule) {
+        ReminderRepeatHelper.formatRepeatRule(reminder.repeatRule)
+    }
+
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = DarkCard,
@@ -403,13 +573,29 @@ fun ReminderItemCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = reminder.title,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDone) TextMuted else TextPrimary,
-                        textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = reminder.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isDone) TextMuted else TextPrimary,
+                            textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
+                        )
+                        if (!reminder.repeatRule.equals("NONE", ignoreCase = true)) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = DopaminePurple.copy(alpha = 0.16f)
+                            ) {
+                                Text(
+                                    text = "🔄 $repeatText",
+                                    fontSize = 10.sp,
+                                    color = DopaminePurple,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                     if (reminder.content.isNotBlank()) {
                         Text(
                             text = reminder.content,
@@ -421,7 +607,7 @@ fun ReminderItemCard(
                     }
                 }
 
-                // 快捷推迟与编辑/删除菜单
+                // 快捷编辑/删除操作
                 IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Edit, contentDescription = "编辑", tint = TextSecondary, modifier = Modifier.size(16.dp))
                 }
@@ -469,7 +655,7 @@ fun ReminderItemCard(
                         color = DopamineCyan.copy(alpha = 0.12f)
                     ) {
                         Text(
-                            text = "🌊 实时活动胶囊",
+                            text = "🛡️ 精准闹钟对齐",
                             fontSize = 10.sp,
                             color = DopamineCyan,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -522,6 +708,7 @@ fun AddEditReminderDialog(
     var selectedDate by remember { mutableStateOf(initialDateTime.toLocalDate()) }
     var selectedTime by remember { mutableStateOf(initialDateTime.toLocalTime()) }
     var advanceMinutes by remember { mutableIntStateOf(reminder?.advanceMinutes ?: 0) }
+    var repeatRule by remember { mutableStateOf(reminder?.repeatRule ?: "NONE") }
     var reminderType by remember { mutableStateOf(reminder?.reminderType ?: "ALL") }
     var category by remember { mutableStateOf(reminder?.category ?: "REMINDER") }
     var priority by remember { mutableStateOf(reminder?.priority ?: "MEDIUM") }
@@ -611,8 +798,33 @@ fun AddEditReminderDialog(
                     }
                 }
 
+                // 重复周期规则
+                Text("重复周期 (自动推进下一次排期):", fontSize = 11.5.sp, color = TextSecondary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val repeatOptions = listOf(
+                        "NONE" to "不重复",
+                        "DAILY" to "每天",
+                        "WEEKDAYS" to "工作日",
+                        "WEEKLY" to "每周",
+                        "MONTHLY" to "每月",
+                        "YEARLY" to "每年"
+                    )
+                    repeatOptions.forEach { (rule, label) ->
+                        FilterChip(
+                            selected = repeatRule == rule,
+                            onClick = { repeatRule = rule },
+                            label = { Text(label, fontSize = 10.5.sp) }
+                        )
+                    }
+                }
+
                 // 提前提醒分钟数选择
-                Text("提前多久提醒 (借道实时活动与胶囊通知):", fontSize = 11.5.sp, color = TextSecondary)
+                Text("提前多久提醒 (精准硬件时钟唤醒):", fontSize = 11.5.sp, color = TextSecondary)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -667,6 +879,7 @@ fun AddEditReminderDialog(
                             content = content.trim(),
                             remindTime = remindIso,
                             advanceMinutes = advanceMinutes,
+                            repeatRule = repeatRule,
                             reminderType = reminderType,
                             priority = priority,
                             category = category,
