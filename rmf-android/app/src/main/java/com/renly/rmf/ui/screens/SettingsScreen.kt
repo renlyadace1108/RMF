@@ -1604,61 +1604,101 @@ fun SettingsScreen(
                     }
                 }
 
+                val isPadDevice = com.renly.rmf.BuildConfig.IS_PAD_EDITION || androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+
                 Text(
-                    text = "在手机桌面长按空白处选择【添加微件 / 桌面小组件】，找到 RMF 即可添加到主屏幕。无需启动应用即可实时查看日程、课表、倒数日并一键直达。",
+                    text = "在${if (isPadDevice) "平板桌面" else "手机桌面"}长按空白处或双指捏合进入【桌面插件 / 微件】挑选 RMF，或直接点击下方【📌 添加到桌面】一键申请放置。无需打开应用即可实时掌控课表、日程与专注倒数！",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
                 )
 
                 // 3 款小组件卡片列表
+                data class WidgetItemSpec(
+                    val name: String,
+                    val desc: String,
+                    val color: Color,
+                    val providerClass: Class<*>
+                )
+
                 val widgetList = listOf(
-                    Triple(
+                    WidgetItemSpec(
                         "⚡ 全景看板 (4x3 / 4x4)",
                         "聚合今日课程动态、倒数日里程碑、北极星战略目标及今日重点日程完成率，支持模块深度直达与快捷专注/新建。",
-                        DopamineBlue
+                        DopamineBlue,
+                        com.renly.rmf.ui.widget.RmfAppWidgetProvider::class.java
                     ),
-                    Triple(
+                    WidgetItemSpec(
                         "📅 今日日程清单 (4x2)",
                         "专注时间块与待办任务列表，清晰呈现开始时间、完成状态与勾选进度，支持快捷添加新日程。",
-                        DopamineGreen
+                        DopamineGreen,
+                        com.renly.rmf.ui.widget.RmfScheduleWidgetProvider::class.java
                     ),
-                    Triple(
+                    WidgetItemSpec(
                         "⏳ 专注与倒数胶囊 (2x2)",
                         "大字直观透视置顶考试/重要日子倒数天数，集成 25 分钟番茄专注一键开启与闪念速记快捷入口。",
-                        DopamineAmber
+                        DopamineAmber,
+                        com.renly.rmf.ui.widget.RmfFocusCapsuleWidgetProvider::class.java
                     )
                 )
 
-                widgetList.forEach { (name, desc, color) ->
+                widgetList.forEach { spec ->
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = DarkSurface,
                         border = BorderStroke(1.dp, DarkBorder),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp)
+                            .padding(bottom = 8.dp)
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = RoundedCornerShape(3.dp),
-                                    color = color,
-                                    modifier = Modifier.size(6.dp)
-                                ) {}
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = name,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(3.dp),
+                                        color = spec.color,
+                                        modifier = Modifier.size(7.dp)
+                                    ) {}
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = spec.name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        val ok = com.renly.rmf.ui.widget.RmfWidgetManager.requestPinWidget(widgetContext, spec.providerClass)
+                                        widgetFeedbackText = if (ok) {
+                                            "✓ 已向系统桌面发起「${spec.name}」添加请求，请在弹窗中确认添加到主屏幕！"
+                                        } else {
+                                            "⚠️ 当前系统桌面启动器暂不支持应用内一键添加，请在桌面空白处长按选择微件添加！"
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = spec.color.copy(alpha = 0.15f),
+                                        contentColor = spec.color
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(26.dp)
+                                ) {
+                                    Text("📌 添加到桌面", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                             Text(
-                                text = desc,
+                                text = spec.desc,
                                 fontSize = 10.5.sp,
                                 color = TextMuted,
-                                modifier = Modifier.padding(top = 3.dp)
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }

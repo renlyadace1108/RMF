@@ -185,6 +185,13 @@ fun WorkbenchScreen(
                     icon = Icons.Default.MenuBook,
                     color = appColors.dopamineBlue,
                     onClick = onNavigateToTutorial
+                ),
+                FunctionalItem(
+                    title = "桌面小组件",
+                    subtitle = "微件管理与一键桌面放置",
+                    icon = Icons.Default.Widgets,
+                    color = appColors.dopamineCyan,
+                    onClick = onNavigateToSettings
                 )
             )
         }

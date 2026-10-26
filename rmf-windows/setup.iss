@@ -28,6 +28,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 UsePreviousAppDir=yes
+ShowLanguageDialog=auto
 CloseApplications=yes
 RestartApplications=no
 AppMutex=RMF_Desktop_SingleInstance_Mutex

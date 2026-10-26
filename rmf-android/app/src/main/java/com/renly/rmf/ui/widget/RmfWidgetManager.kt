@@ -88,6 +88,20 @@ object RmfWidgetManager {
     }
 
     /**
+     * 针对 Android 8.0+ / 平板快捷添加小组件到桌面 (requestPinAppWidget)
+     */
+    fun requestPinWidget(context: Context, providerClass: Class<*>): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val appWidgetManager = AppWidgetManager.getInstance(context.applicationContext)
+            if (appWidgetManager != null && appWidgetManager.isRequestPinAppWidgetSupported) {
+                val component = ComponentName(context, providerClass)
+                return appWidgetManager.requestPinAppWidget(component, null, null)
+            }
+        }
+        return false
+    }
+
+    /**
      * 创建立即刷新小组件的广播 PendingIntent
      */
     fun createRefreshPendingIntent(context: Context, providerClass: Class<*>, requestCode: Int): PendingIntent {
