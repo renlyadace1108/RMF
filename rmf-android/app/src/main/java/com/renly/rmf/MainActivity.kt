@@ -28,6 +28,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -63,10 +65,12 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.lifecycle.lifecycleScope
+import com.renly.rmf.BuildConfig
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.DataExportService
 import com.renly.rmf.domain.service.SchedulerAuditEngine
@@ -517,6 +521,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val configuration = LocalConfiguration.current
+                val useNavigationRail = remember(configuration) {
+                    BuildConfig.IS_PAD_EDITION || configuration.screenWidthDp >= 600
+                }
+
                 Crossfade(
                     targetState = showSplashScreen,
                     animationSpec = tween(durationMillis = 350),
@@ -530,7 +539,7 @@ class MainActivity : ComponentActivity() {
                         Scaffold(
                     containerColor = DarkBg,
                     bottomBar = {
-                        if (!isInPipMode && isBottomBarVisible) {
+                        if (!isInPipMode && isBottomBarVisible && !useNavigationRail) {
                             var bottomBarDragDelta by remember { mutableFloatStateOf(0f) }
 
                             Surface(
@@ -1359,7 +1368,155 @@ class MainActivity : ComponentActivity() {
                                 .padding(if (isInPipMode) androidx.compose.foundation.layout.PaddingValues(0.dp) else innerPadding),
                             color = DarkBg
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                if (useNavigationRail && !isInPipMode) {
+                                    Surface(
+                                        color = DarkSurface,
+                                        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.75f)),
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(84.dp)
+                                    ) {
+                                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                            val needsScroll = maxHeight < 520.dp
+                                            val railScrollState = rememberScrollState()
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .then(if (needsScroll) Modifier.verticalScroll(railScrollState) else Modifier),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+                                                ) {
+                                                    Image(
+                                                        painter = painterResource(id = R.drawable.ic_logo),
+                                                        contentDescription = "RMF Pad Logo",
+                                                        modifier = Modifier
+                                                            .size(36.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = if (BuildConfig.IS_PAD_EDITION) "RMF Pad" else "RMF",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = DopamineBlue
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Surface(
+                                                        onClick = { showQuickCaptureDialog = true },
+                                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                                        color = DopaminePurple.copy(alpha = 0.18f),
+                                                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.45f)),
+                                                        modifier = Modifier.size(34.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Text("⚡", fontSize = 15.sp)
+                                                        }
+                                                    }
+                                                }
+
+                                                if (!needsScroll) Spacer(modifier = Modifier.weight(1f))
+
+                                                safeNavScreens.forEach { screen ->
+                                                    val isSelected = currentScreen == screen
+                                                    val iconScale by animateFloatAsState(
+                                                        targetValue = if (isSelected) 1.15f else 1.0f,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                            stiffness = Spring.StiffnessLow
+                                                        ),
+                                                        label = "railIconScale_${screen.route}"
+                                                    )
+                                                    NavigationRailItem(
+                                                        selected = isSelected,
+                                                        onClick = {
+                                                            com.renly.rmf.util.HapticHelper.performLightClick(this@MainActivity)
+                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            navigateToScreen(screen, null)
+                                                        },
+                                                        icon = {
+                                                            Icon(
+                                                                screen.icon,
+                                                                contentDescription = screen.title,
+                                                                modifier = Modifier.graphicsLayer {
+                                                                    scaleX = iconScale
+                                                                    scaleY = iconScale
+                                                                }
+                                                            )
+                                                        },
+                                                        label = {
+                                                            Text(
+                                                                screen.title,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                            )
+                                                        },
+                                                        colors = NavigationRailItemDefaults.colors(
+                                                            selectedIconColor = DopamineBlue,
+                                                            selectedTextColor = DopamineBlue,
+                                                            unselectedIconColor = TextMuted,
+                                                            unselectedTextColor = TextMuted,
+                                                            indicatorColor = DopamineBlue.copy(alpha = 0.16f)
+                                                        ),
+                                                        modifier = Modifier.padding(vertical = 2.dp)
+                                                    )
+                                                }
+
+                                                if (!needsScroll) Spacer(modifier = Modifier.weight(1f))
+
+                                                val isSettingsSelected = currentScreen == Screen.Settings
+                                                NavigationRailItem(
+                                                    selected = isSettingsSelected,
+                                                    onClick = {
+                                                        com.renly.rmf.util.HapticHelper.performLightClick(this@MainActivity)
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        if (currentScreen == Screen.Settings) {
+                                                            val fallback = if (safeNavScreens.contains(lastScreenBeforeSettings)) {
+                                                                lastScreenBeforeSettings
+                                                            } else {
+                                                                safeNavScreens.firstOrNull() ?: Screen.Schedule
+                                                            }
+                                                            navigateToScreen(fallback, -1)
+                                                        } else {
+                                                            navigateToScreen(Screen.Settings, 1)
+                                                        }
+                                                    },
+                                                    icon = {
+                                                        Icon(
+                                                            Icons.Default.Settings,
+                                                            contentDescription = "系统设置",
+                                                            modifier = Modifier.size(24.dp)
+                                                        )
+                                                    },
+                                                    label = {
+                                                        Text(
+                                                            "设置",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = if (isSettingsSelected) FontWeight.Bold else FontWeight.Normal
+                                                        )
+                                                    },
+                                                    colors = NavigationRailItemDefaults.colors(
+                                                        selectedIconColor = DopamineBlue,
+                                                        selectedTextColor = DopamineBlue,
+                                                        unselectedIconColor = TextMuted,
+                                                        unselectedTextColor = TextMuted,
+                                                        indicatorColor = DopamineBlue.copy(alpha = 0.16f)
+                                                    ),
+                                                    modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                ) {
                                 // 1. 主功能模块原生 120Hz 极速硬件加速横向滑页视口 (HorizontalPager)
                                 // beyondViewportPageCount = 1 预加载前后相邻页，消除滑动手势掉帧与图片闪跳
                                 HorizontalPager(
@@ -1376,7 +1533,7 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 // 2. 二级子页面或系统设置平滑覆盖层 (从下往上优雅展开、向下拉回收起)
-                                AnimatedVisibility(
+                                androidx.compose.animation.AnimatedVisibility(
                                     visible = !isInMainPager,
                                     enter = slideInVertically(
                                         initialOffsetY = { fullHeight -> fullHeight },
@@ -1418,6 +1575,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
 
                         if (showQuickCaptureDialog) {
                             QuickCaptureDialog(
@@ -1604,7 +1762,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    if (showSettingsGestureTutorial) {
+                    if (showSettingsGestureTutorial && !useNavigationRail) {
                         com.renly.rmf.ui.screens.SettingsGestureTutorialDialog(
                             onDismiss = {
                                 com.renly.rmf.domain.service.SettingsTutorialPreferences.setSettingsGestureTutorialCompleted(this@MainActivity, true)

@@ -16,9 +16,28 @@ android {
         versionCode = 1050700
         versionName = "1.5.7"
 
+        manifestPlaceholders["appName"] = "RMF"
+        buildConfigField("Boolean", "IS_PAD_EDITION", "false")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    flavorDimensions += "device"
+    productFlavors {
+        create("phone") {
+            dimension = "device"
+            applicationId = "com.renly.rmf"
+            manifestPlaceholders["appName"] = "RMF"
+            buildConfigField("Boolean", "IS_PAD_EDITION", "false")
+        }
+        create("pad") {
+            dimension = "device"
+            applicationId = "com.renly.rmf.pad"
+            manifestPlaceholders["appName"] = "RMF Pad"
+            buildConfigField("Boolean", "IS_PAD_EDITION", "true")
         }
     }
 
