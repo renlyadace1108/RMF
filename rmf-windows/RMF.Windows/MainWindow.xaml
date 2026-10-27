@@ -2845,7 +2845,7 @@
                                             <Button Grid.Column="2" Content="⬇ 导入外部 .ics 日历文件" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#34D399" BorderBrush="#059669" Padding="12,10" FontSize="12.5" FontWeight="Medium" Click="OnImportIcsFileClicked" ToolTip="从外部 .ics 文件批量导入日程" />
                                         </Grid>
 
-                                        <!-- 全量通用物理数据包导出 (JSON & Markdown) -->
+                                        <!-- 全量通用物理数据包 (JSON & Markdown) -->
                                         <Grid Margin="0,12,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -2853,7 +2853,21 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Button Grid.Column="0" Content="📦 导出全量 JSON 备份包" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#38BDF8" BorderBrush="#0284C7" Padding="12,10" FontSize="12.5" FontWeight="Medium" Click="OnExportFullJsonClicked" ToolTip="一键将日程、目标、课表、学习档案导出为通用 JSON 物理包" />
-                                            <Button Grid.Column="2" Content="📝 导出全量 Markdown 归档" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#A78BFA" BorderBrush="#7C3AED" Padding="12,10" FontSize="12.5" FontWeight="Medium" Click="OnExportFullMarkdownClicked" ToolTip="一键将战略目标与全量日程导出为 Markdown 归档" />
+                                            <Button Grid.Column="2" Content="📥 导入全量 JSON 备份包" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#10B981" BorderBrush="#059669" Padding="12,10" FontSize="12.5" FontWeight="Medium" Click="OnImportFullJsonClicked" ToolTip="从外部或手机导出的 JSON 备份包中恢复日程、课表、提醒、习惯与随记" />
+                                        </Grid>
+
+                                        <!-- 无损数据库快照多端互通 (.db) 与 Markdown 归档 -->
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="💾 导出无损数据包 (.db)" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#F59E0B" BorderBrush="#D97706" Padding="8,10" FontSize="12" FontWeight="Medium" Click="OnExportDbFileClicked" ToolTip="导出与 Android 手机端完全通用的无损 SQLite 数据库副本" />
+                                            <Button Grid.Column="2" Content="🔄 从数据包还原 (.db)" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#EC4899" BorderBrush="#DB2777" Padding="8,10" FontSize="12" FontWeight="Medium" Click="OnImportDbFileClicked" ToolTip="选择手机导出的 rmf.db 或云端备份镜像直接热应用覆盖还原" />
+                                            <Button Grid.Column="4" Content="📝 导出 Markdown 归档" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="#A78BFA" BorderBrush="#7C3AED" Padding="8,10" FontSize="12" FontWeight="Medium" Click="OnExportFullMarkdownClicked" ToolTip="一键将战略目标与全量日程导出为 Markdown 归档" />
                                         </Grid>
                                         <TextBlock x:Name="IcsTransferStatusText" Text="" FontSize="11.5" Foreground="#10B981" Margin="0,12,0,0" TextWrapping="Wrap" />
                                     </StackPanel>

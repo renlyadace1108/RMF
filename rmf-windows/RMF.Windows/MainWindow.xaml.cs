@@ -4038,6 +4038,141 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnImportFullJsonClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var ofd = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择全量数据包 (JSON) 进行恢复",
+                Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                var (success, msg) = DataExportService.ImportFullDataJson(ofd.FileName);
+                if (success)
+                {
+                    RenderAllCalendarViews();
+                    if (_activePrimaryPage == "Timetable") RenderTimetablePage();
+                    else if (_activePrimaryPage == "Summary") RenderSummaryPage();
+                    else if (_activePrimaryPage == "Study") RenderStudyPage();
+                    else if (_activePrimaryPage == "DailyReport") RenderDailyReportPage();
+
+                    MessageBox.Show($"✅ 数据导入恢复成功！\n{msg}", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"导入失败: {msg}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导入处理发生异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnExportDbFileClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var sfd = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "导出无损数据库数据包 (.db)",
+                Filter = "SQLite 数据库 (*.db)|*.db|所有文件 (*.*)|*.*",
+                FileName = $"rmf_lossless_backup_{DateTime.Today:yyyyMMdd}.db"
+            };
+
+            if (sfd.ShowDialog() == true)
+            {
+                DatabaseService.CheckpointAndTrimMemory();
+                string snapshot = DatabaseService.CreateSafeDatabaseSnapshot();
+                File.Copy(snapshot, sfd.FileName, true);
+                try { File.Delete(snapshot); } catch { }
+                MessageBox.Show($"✅ 无损数据库已导出至：\n{sfd.FileName}\n\n该数据包与 Android 手机端完全通用，可直接发送到手机导入使用。", "导出完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导出数据库失败: {ex.Message}", "导出错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnImportDbFileClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var ofd = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择无损数据库数据包 (.db) 进行还原",
+                Filter = "SQLite 数据库 (*.db;*.bak)|*.db;*.bak|所有文件 (*.*)|*.*"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                var confirm = MessageBox.Show(
+                    "⚠️ 还原外部数据库将完整覆盖当前本地数据（系统将自动生成 .bak 备份副本）。\n\n确认要继续还原吗？",
+                    "覆盖还原确认",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning
+                );
+
+                if (confirm != MessageBoxResult.Yes) return;
+
+                // 校验文件完整性
+                using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={ofd.FileName};Pooling=False"))
+                {
+                    conn.Open();
+                    using var cmd = new Microsoft.Data.Sqlite.SqliteCommand("PRAGMA integrity_check;", conn);
+                    if (cmd.ExecuteScalar()?.ToString() != "ok")
+                    {
+                        MessageBox.Show("该数据库文件完整性校验未通过，已取消还原！", "校验失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+                    conn.Close();
+                }
+
+                // 备份当前库
+                string backupOld = Path.Combine(DatabaseService.DbDir, $"rmf_pre_import_{DateTime.Now:yyyyMMddHHmmss}.bak");
+                if (File.Exists(DatabaseService.DbPath))
+                {
+                    File.Copy(DatabaseService.DbPath, backupOld, true);
+                }
+
+                // 热载入
+                using (var srcConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={ofd.FileName};Pooling=False"))
+                {
+                    srcConn.Open();
+                    using (var targetConn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString))
+                    {
+                        targetConn.Open();
+                        srcConn.BackupDatabase(targetConn);
+                        targetConn.Close();
+                    }
+                    srcConn.Close();
+                }
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+                DatabaseService.Initialize();
+                WindowsReminderScheduler.RescheduleAll();
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+                if (_activePrimaryPage == "Timetable") RenderTimetablePage();
+                else if (_activePrimaryPage == "Summary") RenderSummaryPage();
+                else if (_activePrimaryPage == "Study") RenderStudyPage();
+                else if (_activePrimaryPage == "DailyReport") RenderDailyReportPage();
+
+                MessageBox.Show("✅ 无损数据库已成功还原！日程、课表、提醒、习惯与记账均已热加载更新。", "还原成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"还原数据库失败: {ex.Message}", "还原异常", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void OnExportFullMarkdownClicked(object sender, RoutedEventArgs e)
     {
         try
