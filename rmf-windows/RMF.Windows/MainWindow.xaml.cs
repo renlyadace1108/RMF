@@ -4514,6 +4514,10 @@ public partial class MainWindow : Window
         {
             if (_activeDesktopWidget != null && _activeDesktopWidget.IsLoaded)
             {
+                if (_activeDesktopWidget.WindowState == WindowState.Minimized)
+                {
+                    _activeDesktopWidget.WindowState = WindowState.Normal;
+                }
                 _activeDesktopWidget.Activate();
                 return;
             }

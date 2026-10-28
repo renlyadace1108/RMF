@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.TimeMarkerEntity
 import com.renly.rmf.domain.service.TimeMarkerVarianceAnalyzer
@@ -103,9 +104,11 @@ fun TimeMarkerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         containerColor = DarkSurface,
         modifier = Modifier
-            .fillMaxWidth()
+            .widthIn(max = 640.dp)
+            .fillMaxWidth(0.92f)
             .padding(vertical = 16.dp),
         title = {
             Column(modifier = Modifier.fillMaxWidth()) {

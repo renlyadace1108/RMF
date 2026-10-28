@@ -82,6 +82,7 @@ fun SettingsGestureTutorialDialog(
         ) {
             Surface(
                 modifier = Modifier
+                    .widthIn(max = 520.dp)
                     .fillMaxWidth()
                     .wrapContentHeight(),
                 shape = RoundedCornerShape(24.dp),

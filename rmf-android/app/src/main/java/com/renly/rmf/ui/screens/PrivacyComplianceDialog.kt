@@ -46,7 +46,8 @@ fun PrivacyComplianceDialog(
     if (showSecondaryConfirm) {
         AlertDialog(
             onDismissRequest = { /* 禁止点击外部关闭 */ },
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(0.92f),
             containerColor = DarkCard,
             shape = RoundedCornerShape(16.dp),
             title = {
@@ -90,14 +91,15 @@ fun PrivacyComplianceDialog(
     } else {
         Dialog(
             onDismissRequest = { /* 禁止点击外部关闭，必须做出合规选择 */ },
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)
         ) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = DarkCard,
                 border = BorderStroke(1.dp, DarkBorder),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
+                    .fillMaxWidth(0.92f)
                     .padding(vertical = 24.dp)
             ) {
                 Column(

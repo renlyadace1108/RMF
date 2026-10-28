@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.ScheduleTagEntity
 import com.renly.rmf.domain.model.SubTaskItem
@@ -1178,6 +1179,8 @@ fun AnnotateStartTimeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(0.92f),
         containerColor = DarkCard,
         title = {
             Column {

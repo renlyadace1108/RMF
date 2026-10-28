@@ -24,6 +24,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.renly.rmf.domain.service.LanServerInfo
 import com.renly.rmf.domain.service.LanSyncPreferences
 import com.renly.rmf.domain.service.LanSyncService
@@ -98,6 +99,8 @@ fun LanSyncModal(
 
     AlertDialog(
         onDismissRequest = { if (!isSyncing) onDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth(0.92f),
         containerColor = DarkSurface,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {

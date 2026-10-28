@@ -74,6 +74,9 @@
         <SolidColorBrush x:Key="AccentPurple" Color="#8E24AA" />
         <SolidColorBrush x:Key="AccentGreen" Color="#0B8043" />
         <SolidColorBrush x:Key="AccentRed" Color="#EA4335" />
+        <SolidColorBrush x:Key="GoogleTextPrimary" Color="#E8EAED" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#1A73E8" />
+        <DropShadowEffect x:Key="PopupShadow" BlurRadius="24" ShadowDepth="6" Opacity="0.5" Color="Black" />
 
         <!-- Google Calendar Top Button Style -->
         <Style x:Key="GoogleTopBtnStyle" TargetType="Button">
