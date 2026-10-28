@@ -347,6 +347,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         handleWidgetIntent(intent)
 
+        // 启动时清理本地所有历史备份与临时快照，坚决贯彻“本地就一个版本 (rmf.db)”
+        com.renly.rmf.domain.service.GoogleDriveSyncService.cleanupLocalBackupFiles(this)
+
+        // 注册 Room 表级变更监听：每操作一次数据，防抖3秒自动向云端专属文件夹上传时间戳版本
+        db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(
+            arrayOf(
+                "schedules", "courses", "course_adjustments", "timetable_settings",
+                "reminders", "notes", "habits", "goals", "expenses", "time_markers", "countdowns", "fitness_plans", "study_topics"
+            )
+        ) {
+            override fun onInvalidated(tables: Set<String>) {
+                com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
+            }
+        })
+
         // 异步后台自动检查并排期未来课程的胶囊通知上课提醒与全学期课表日程实时映射 (遵循工信部合规规范，仅在用户同意隐私政策后启动)
         if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
             checkAndRequestNotificationPermission()

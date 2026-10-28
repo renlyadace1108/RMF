@@ -125,6 +125,55 @@ object TimetablePreferences {
             .putString(KEY_SEMESTER_START, resolvedDate.toString())
             .putInt(KEY_TOTAL_WEEKS, resolvedWeeks)
             .apply()
+
+        // 异步将学期配置写入 SQLite timetable_settings 表，实现全量双端同步互通
+        try {
+            val db = com.renly.rmf.data.local.RmfDatabase.getInstance(context)
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                persistToDatabase(context, db.syncDao())
+            }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * 从 SQLite 数据库 timetable_settings 表中同步学期与作息设置
+     */
+    suspend fun syncFromDatabase(context: Context, syncDao: com.renly.rmf.data.local.dao.SyncDao) {
+        try {
+            val settings = syncDao.getAllRawSettings().associate { it.key to it.value }
+            if (settings.isNotEmpty()) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val editor = prefs.edit()
+                settings[KEY_SEMESTER_START]?.let { editor.putString(KEY_SEMESTER_START, it) }
+                settings[KEY_TOTAL_WEEKS]?.toIntOrNull()?.let { editor.putInt(KEY_TOTAL_WEEKS, it) }
+                settings[KEY_ACTIVE_SEMESTER]?.toIntOrNull()?.let { editor.putInt(KEY_ACTIVE_SEMESTER, it) }
+                settings[KEY_TERM1_MONTH]?.toIntOrNull()?.let { editor.putInt(KEY_TERM1_MONTH, it) }
+                settings[KEY_TERM1_DAY]?.toIntOrNull()?.let { editor.putInt(KEY_TERM1_DAY, it) }
+                settings[KEY_TERM1_WEEKS]?.toIntOrNull()?.let { editor.putInt(KEY_TERM1_WEEKS, it) }
+                settings[KEY_TERM2_MONTH]?.toIntOrNull()?.let { editor.putInt(KEY_TERM2_MONTH, it) }
+                settings[KEY_TERM2_DAY]?.toIntOrNull()?.let { editor.putInt(KEY_TERM2_DAY, it) }
+                settings[KEY_TERM2_WEEKS]?.toIntOrNull()?.let { editor.putInt(KEY_TERM2_WEEKS, it) }
+                settings[KEY_COURSE_REMINDER_ENABLED]?.toBooleanStrictOrNull()?.let { editor.putBoolean(KEY_COURSE_REMINDER_ENABLED, it) }
+                settings[KEY_REMINDER_ADVANCE_MINUTES]?.toIntOrNull()?.let { editor.putInt(KEY_REMINDER_ADVANCE_MINUTES, it) }
+                editor.putBoolean(KEY_DUAL_SEMESTER_CONFIGURED, true)
+                editor.apply()
+            }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * 将当前配置持久化到 SQLite 数据库中以便云端打包
+     */
+    suspend fun persistToDatabase(context: Context, syncDao: com.renly.rmf.data.local.dao.SyncDao) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val all = prefs.all
+            for ((k, v) in all) {
+                if (v != null) {
+                    syncDao.setSetting(com.renly.rmf.data.local.entity.TimetableSettingEntity(k, v.toString()))
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     /**

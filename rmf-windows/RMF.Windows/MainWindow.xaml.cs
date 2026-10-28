@@ -101,6 +101,25 @@ public partial class MainWindow : Window
             var appConfig = ConfigService.Load();
             ThemeService.ApplyTheme(this, appConfig);
 
+            // 监听底层数据库变更：每操作一次，防抖3秒自动保存一个时间戳命名的云端版本
+            DatabaseService.OnDatabaseMutated += () =>
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    GoogleDriveSyncService.RequestAutoSync(status =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (GoogleDriveActionStatusText != null)
+                            {
+                                GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                                GoogleDriveActionStatusText.Text = status;
+                            }
+                        });
+                    });
+                });
+            };
+
             BuildWeekHourGrid();
             BuildDayHourGrid();
 
@@ -6353,12 +6372,15 @@ public partial class MainWindow : Window
                 GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
                 GoogleDriveActionStatusText.Text = $"✓ {message}";
 
-                // 重新刷新界面上所有数据视图
+                // 重新刷新界面上所有数据视图与课表
                 RenderAllCalendarViews();
                 RefreshTimePnlData();
                 UpdateCognitiveLoadQuota();
-                if (_activePrimaryPage == "Timetable") RenderTimetablePage();
-                else if (_activePrimaryPage == "Summary") RenderSummaryPage();
+                RefreshGoalTree();
+                RefreshBacklogList();
+                RefreshDeferredQueue();
+                RenderTimetablePage();
+                if (_activePrimaryPage == "Summary") RenderSummaryPage();
                 else if (_activePrimaryPage == "Study") RenderStudyPage();
                 else if (_activePrimaryPage == "DailyReport") RenderDailyReportPage();
 

@@ -17,6 +17,63 @@ public class GoogleDriveSyncService
     private const string ApplicationName = "Renly Management Platform";
     private const string BackupFileName = "rmf_cloud_backup.db";
     private const string BackupFolderName = "RMF_CloudSync";
+    private const int MaxCloudRetentionVersions = 50;
+
+    private static CancellationTokenSource? _autoSyncCts;
+    private static readonly object _autoSyncLock = new();
+    public static bool IsAutoSyncing { get; private set; }
+
+    /// <summary>
+    /// 请求触发一次防抖自动云端同步（每操作一次自动在专属文件夹保存时间戳命名版本）
+    /// </summary>
+    public static void RequestAutoSync(Action<string>? statusCallback = null)
+    {
+        var config = ConfigService.Load();
+        if (!config.IsGoogleDriveLinked || string.IsNullOrWhiteSpace(config.GoogleClientId) || string.IsNullOrWhiteSpace(config.GoogleClientSecret))
+        {
+            return;
+        }
+
+        lock (_autoSyncLock)
+        {
+            _autoSyncCts?.Cancel();
+            _autoSyncCts?.Dispose();
+            _autoSyncCts = new CancellationTokenSource();
+            var token = _autoSyncCts.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(3000, token); // 3秒防抖窗口
+                    if (token.IsCancellationRequested) return;
+
+                    IsAutoSyncing = true;
+                    statusCallback?.Invoke("⏳ 正在自动同步新版本至云端专属目录...");
+                    var (success, fileId, message) = await UploadBackupToDriveAsync(
+                        config.GoogleClientId,
+                        config.GoogleClientSecret,
+                        s => statusCallback?.Invoke(s),
+                        token
+                    );
+
+                    if (success)
+                    {
+                        statusCallback?.Invoke($"✓ 云端已自动保存新版本 ({DateTime.Now:HH:mm:ss})");
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[AutoSync] Background upload error: {ex.Message}");
+                }
+                finally
+                {
+                    IsAutoSyncing = false;
+                }
+            }, token);
+        }
+    }
 
     private static readonly string TokenFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -115,91 +172,74 @@ public class GoogleDriveSyncService
 
             try
             {
-                // 2. 检查云端是否已存在历史同名备份文件
-                progressCallback?.Invoke("正在检查云端现有版本...");
-                var listReq = service.Files.List();
-                listReq.Q = $"name = '{BackupFileName}' and '{folderId}' in parents and trashed = false";
-                listReq.Spaces = "drive";
-                listReq.Fields = "files(id, name, modifiedTime)";
-
-                var searchRes = await listReq.ExecuteAsync(cancellationToken);
-                string? existingFileId = (searchRes.Files != null && searchRes.Files.Count > 0) ? searchRes.Files[0].Id : null;
+                // 2. 生成带时间戳的云端数据包文件名（每操作一次自动保存一个云端版本）
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string newBackupFileName = $"rmf_backup_{timestamp}.db";
+                progressCallback?.Invoke($"正在上传新时间戳版本 ({newBackupFileName})...");
 
                 using var stream = new FileStream(snapshotPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
-                if (!string.IsNullOrEmpty(existingFileId))
+                var fileMetadata = new Google.Apis.Drive.v3.Data.File
                 {
-                    progressCallback?.Invoke("正在将增量数据流更新至云端现存文件...");
-                    var updateMeta = new Google.Apis.Drive.v3.Data.File
-                    {
-                        Name = BackupFileName,
-                        Description = $"RMF Local Database Snapshot ({DateTime.Now:yyyy-MM-dd HH:mm:ss})"
-                    };
+                    Name = newBackupFileName,
+                    Parents = new List<string> { folderId },
+                    Description = $"RMF Cloud Database Snapshot ({Environment.MachineName} - {DateTime.Now:yyyy-MM-dd HH:mm:ss})"
+                };
 
-                    var updateReq = service.Files.Update(updateMeta, existingFileId, stream, "application/x-sqlite3");
-                    updateReq.Fields = "id, modifiedTime";
-                    var updatedFile = await updateReq.UploadAsync(cancellationToken);
+                var createReq = service.Files.Create(fileMetadata, stream, "application/x-sqlite3");
+                createReq.Fields = "id, name, createdTime";
+                var uploadProgress = await createReq.UploadAsync(cancellationToken);
 
-                    if (updatedFile.Status == Google.Apis.Upload.UploadStatus.Completed)
-                    {
-                        var config = ConfigService.Load();
-                        config.GoogleClientId = clientId.Trim();
-                        config.GoogleClientSecret = clientSecret.Trim();
-                        config.GoogleDriveFolderId = folderId;
-                        config.GoogleDriveFileId = existingFileId;
-                        config.IsGoogleDriveLinked = true;
-                        config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                        ConfigService.Save(config);
+                if (uploadProgress.Status != Google.Apis.Upload.UploadStatus.Completed)
+                {
+                    return (false, string.Empty, $"上传失败: {uploadProgress.Exception?.Message ?? uploadProgress.Status.ToString()}");
+                }
 
-                        return (true, existingFileId, $"已成功覆盖更新至 Google Drive！时间: {config.LastSyncTime}");
-                    }
-                    else
+                string newFileId = createReq.ResponseBody.Id;
+                var config = ConfigService.Load();
+                config.GoogleClientId = clientId.Trim();
+                config.GoogleClientSecret = clientSecret.Trim();
+                config.GoogleDriveFolderId = folderId;
+                config.GoogleDriveFileId = newFileId;
+                config.IsGoogleDriveLinked = true;
+                config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                ConfigService.Save(config);
+
+                // 3. 云端历史版本维护：保持专属文件夹最新 50 个时间戳版本，修剪超额陈旧快照
+                try
+                {
+                    var pruneReq = service.Files.List();
+                    pruneReq.Q = $"'{folderId}' in parents and trashed = false and name contains 'rmf_backup_'";
+                    pruneReq.Spaces = "drive";
+                    pruneReq.Fields = "files(id, name, createdTime)";
+                    pruneReq.OrderBy = "createdTime asc";
+                    var pruneRes = await pruneReq.ExecuteAsync(cancellationToken);
+                    if (pruneRes.Files != null && pruneRes.Files.Count > MaxCloudRetentionVersions)
                     {
-                        return (false, string.Empty, $"上传未完全完成: {updatedFile.Exception?.Message ?? updatedFile.Status.ToString()}");
+                        int toDelete = pruneRes.Files.Count - MaxCloudRetentionVersions;
+                        for (int i = 0; i < toDelete; i++)
+                        {
+                            try
+                            {
+                                await service.Files.Delete(pruneRes.Files[i].Id).ExecuteAsync(cancellationToken);
+                            }
+                            catch { }
+                        }
                     }
                 }
-                else
-                {
-                    progressCallback?.Invoke("正在创建并上传云端数据库文件...");
-                    var fileMetadata = new Google.Apis.Drive.v3.Data.File
-                    {
-                        Name = BackupFileName,
-                        Parents = new List<string> { folderId },
-                        Description = $"RMF Local Database Backup ({DateTime.Now:yyyy-MM-dd HH:mm:ss})"
-                    };
+                catch { }
 
-                    var createReq = service.Files.Create(fileMetadata, stream, "application/x-sqlite3");
-                    createReq.Fields = "id, modifiedTime";
-                    var uploadProgress = await createReq.UploadAsync(cancellationToken);
-
-                    if (uploadProgress.Status == Google.Apis.Upload.UploadStatus.Completed)
-                    {
-                        string newFileId = createReq.ResponseBody.Id;
-                        var config = ConfigService.Load();
-                        config.GoogleClientId = clientId.Trim();
-                        config.GoogleClientSecret = clientSecret.Trim();
-                        config.GoogleDriveFolderId = folderId;
-                        config.GoogleDriveFileId = newFileId;
-                        config.IsGoogleDriveLinked = true;
-                        config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                        ConfigService.Save(config);
-
-                        return (true, newFileId, $"已成功新建上传至 Google Drive 文件夹！时间: {config.LastSyncTime}");
-                    }
-                    else
-                    {
-                        return (false, string.Empty, $"上传失败: {uploadProgress.Exception?.Message ?? uploadProgress.Status.ToString()}");
-                    }
-                }
+                return (true, newFileId, $"已成功保存云端时间戳版本「{newBackupFileName}」！时间: {config.LastSyncTime}");
             }
             finally
             {
-                // 确保释放连接池并清理临时本地只读副本
+                // 确保释放连接池并清理临时本地只读副本，保证本地严格只有一个 active 数据库
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
                 if (File.Exists(snapshotPath))
                 {
                     try { File.Delete(snapshotPath); } catch { }
                 }
+                DatabaseService.CleanupLocalBackupFiles();
             }
         }
         catch (Exception ex)
@@ -209,7 +249,7 @@ public class GoogleDriveSyncService
     }
 
     /// <summary>
-    /// 从 Google Drive 下载并恢复本地数据库
+    /// 从 Google Drive 专属同步文件夹检索并恢复最新时间戳备份数据库
     /// </summary>
     public static async Task<(bool success, string message)> DownloadBackupFromDriveAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
     {
@@ -220,11 +260,12 @@ public class GoogleDriveSyncService
 
             string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
 
-            progressCallback?.Invoke("正在检索云端备份镜像...");
+            progressCallback?.Invoke("正在检索云端专属目录最新镜像...");
             var listReq = service.Files.List();
-            listReq.Q = $"name = '{BackupFileName}' and '{folderId}' in parents and trashed = false";
+            listReq.Q = $"'{folderId}' in parents and trashed = false and (name contains 'rmf_backup_' or name = '{BackupFileName}')";
             listReq.Spaces = "drive";
-            listReq.Fields = "files(id, name, modifiedTime, size)";
+            listReq.Fields = "files(id, name, createdTime, modifiedTime, size)";
+            listReq.OrderBy = "createdTime desc";
 
             var searchRes = await listReq.ExecuteAsync(cancellationToken);
             if (searchRes.Files == null || searchRes.Files.Count == 0)
@@ -232,10 +273,11 @@ public class GoogleDriveSyncService
                 return (false, "在 Google Drive 对应目录中未发现可还原的备份文件。");
             }
 
+            // 选择最新的一份云端时间戳快照
             var remoteFile = searchRes.Files[0];
             string tempDownloaded = Path.Combine(DatabaseService.DbDir, "rmf_downloaded_temp.db");
 
-            progressCallback?.Invoke($"正在拉取云端数据 ({remoteFile.Name})...");
+            progressCallback?.Invoke($"正在拉取最新云端快照 ({remoteFile.Name})...");
             var getReq = service.Files.Get(remoteFile.Id);
 
             using (var fileStream = new FileStream(tempDownloaded, FileMode.Create, FileAccess.Write))
@@ -312,7 +354,7 @@ public class GoogleDriveSyncService
                 return (false, $"⚠️ 检测到多设备快照分叉冲突！远程修改来自设备 [{remoteMeta.DeviceId}]，而本地存在尚未同步的新变更。为保障本地数据安全，已自动留存冲突快照副本「{conflictFileName}」，未覆盖本地数据库！");
             }
 
-            // 安全覆盖本地主数据库：先备份旧库为 .bak
+            // 安全热载入覆盖本地数据库
             progressCallback?.Invoke("正在将云端镜像热应用到本地工作区...");
             string currentDb = DatabaseService.DbPath;
             string backupOld = Path.Combine(DatabaseService.DbDir, $"rmf_pre_restore_{DateTime.Now:yyyyMMddHHmmss}.bak");
@@ -335,18 +377,29 @@ public class GoogleDriveSyncService
             }
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
+            // 还原成功后，立即清理临时文件及回滚副本，贯彻“本地就一个版本”
             try { File.Delete(tempDownloaded); } catch { }
+            if (File.Exists(backupOld))
+            {
+                try { File.Delete(backupOld); } catch { }
+            }
+            DatabaseService.CleanupLocalBackupFiles();
 
             // 重新刷新本地数据库缓存与连接
             DatabaseService.Initialize();
 
-            // 閲嶆柊鍒锋柊骞舵帓鏈?Windows Action Center 鎵€鏈夊緟鍔炴彁閱?            WindowsReminderScheduler.RescheduleAll();
+            // 重新刷新并排期 Windows Action Center 所有待办提醒
+            WindowsReminderScheduler.RescheduleAll();
 
             var config = ConfigService.Load();
             config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             ConfigService.Save(config);
 
-            return (true, $"已成功从 Google Drive 云端恢复数据！更新时间: {remoteFile.ModifiedTimeDateTimeOffset?.LocalDateTime:yyyy-MM-dd HH:mm:ss}");
+            string fileTimeDisplay = remoteFile.CreatedTimeDateTimeOffset?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+                ?? remoteFile.ModifiedTimeDateTimeOffset?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+                ?? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            return (true, $"已成功从 Google Drive 云端恢复最新快照「{remoteFile.Name}」！快照时间: {fileTimeDisplay}");
         }
         catch (Exception ex)
         {

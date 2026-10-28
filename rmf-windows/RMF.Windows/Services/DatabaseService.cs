@@ -16,12 +16,51 @@ public class DatabaseService
     public static readonly string DbPath = Path.Combine(DbDir, "rmf.db");
     public static readonly string ConnectionString = $"Data Source={DbPath}";
 
+    /// <summary>
+    /// 数据发生变更时的全局通知事件（供自动云端同步等模块监听，支持防抖）
+    /// </summary>
+    public static event Action? OnDatabaseMutated;
+
+    public static void NotifyDataChanged()
+    {
+        try
+        {
+            OnDatabaseMutated?.Invoke();
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 清理本地遗留的历史备份与临时快照文件，严格贯彻“本地就一个版本 (rmf.db)”的极简原则
+    /// </summary>
+    public static void CleanupLocalBackupFiles()
+    {
+        try
+        {
+            if (Directory.Exists(DbDir))
+            {
+                var files = Directory.GetFiles(DbDir, "rmf_*.bak")
+                    .Concat(Directory.GetFiles(DbDir, "rmf_*.tmp"))
+                    .Concat(Directory.GetFiles(DbDir, "*_temp*.db"))
+                    .Concat(Directory.GetFiles(DbDir, "rmf_downloaded_*.db"))
+                    .Concat(Directory.GetFiles(DbDir, "RMF_Conflict_*.db"));
+                foreach (var f in files)
+                {
+                    try { File.Delete(f); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
     public static void Initialize()
     {
         if (!Directory.Exists(DbDir))
         {
             Directory.CreateDirectory(DbDir);
         }
+
+        CleanupLocalBackupFiles();
 
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
@@ -795,6 +834,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@confidence", item.Confidence);
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteGoal(string id)
@@ -806,6 +846,7 @@ public class DatabaseService
         using var cmd = new SqliteCommand(sql, conn);
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 日程管理 (Schedules) ====================
@@ -1314,6 +1355,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
 
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void AddSchedule(ScheduleItem item)
@@ -1332,6 +1374,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void UpdateScheduleProgress(string id, int actualMinutes, int interruptionMinutes, string? newStatus = null)
@@ -1356,6 +1399,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void MarkScheduleDeferred(string id, bool isDeferred)
@@ -1377,6 +1421,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void ScheduleBacklogTask(string id, DateTime startTime, DateTime endTime, string? defaultSource = null)
@@ -1407,6 +1452,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteSchedule(string id)
@@ -1419,6 +1465,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 认知负荷与 P&L 计算 (Analytics & Metrics) ====================
@@ -2119,6 +2166,7 @@ public class DatabaseService
             cmd.Parameters.AddWithValue("@created_at", course.CreatedAt.ToString("s"));
             cmd.Parameters.AddWithValue("@updated_at", DateTime.UtcNow.ToString("s"));
             cmd.ExecuteNonQuery();
+            NotifyDataChanged();
         }
         catch { }
     }
@@ -2133,6 +2181,7 @@ public class DatabaseService
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
             cmd.ExecuteNonQuery();
+            NotifyDataChanged();
         }
         catch { }
     }
@@ -2166,6 +2215,7 @@ public class DatabaseService
             cmd.Parameters.AddWithValue("@key", key);
             cmd.Parameters.AddWithValue("@value", value);
             cmd.ExecuteNonQuery();
+            NotifyDataChanged();
         }
         catch { }
     }
@@ -2270,6 +2320,7 @@ public class DatabaseService
             cmd.Parameters.AddWithValue("@created_at", item.CreatedAt.ToString("s"));
             cmd.Parameters.AddWithValue("@updated_at", DateTime.UtcNow.ToString("s"));
             cmd.ExecuteNonQuery();
+            NotifyDataChanged();
         }
         catch { }
     }
@@ -2284,6 +2335,7 @@ public class DatabaseService
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
             cmd.ExecuteNonQuery();
+            NotifyDataChanged();
         }
         catch { }
     }
@@ -3022,6 +3074,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
         cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteNote(string id, bool softDelete = true)
@@ -3035,6 +3088,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void TogglePinNote(string id)
@@ -3046,6 +3100,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 提醒事项 (Reminders) ====================
@@ -3169,6 +3224,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
         cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void SetReminderCompleted(string id, bool isCompleted)
@@ -3181,6 +3237,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@is_completed", isCompleted ? 1 : 0);
         cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void AdvanceReminderRepeat(string id, string nextIso)
@@ -3193,6 +3250,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@newTime", nextIso);
         cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteReminder(string id, bool softDelete = true)
@@ -3206,6 +3264,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 实际时间锚点 (Time Markers) ====================
@@ -3328,6 +3387,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
         cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteTimeMarker(string id, bool softDelete = true)
@@ -3341,6 +3401,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 习惯打卡 (Habits) ====================
@@ -3421,6 +3482,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
         cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteHabit(string id, bool softDelete = true)
@@ -3434,6 +3496,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     // ==================== 倒数日 / 目标胶囊 (Countdowns) ====================
@@ -3502,6 +3565,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@created_at", item.CreatedAt);
         cmd.Parameters.AddWithValue("@updated_at", item.UpdatedAt);
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void DeleteCountdown(string id, bool softDelete = true)
@@ -3515,6 +3579,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         if (softDelete) cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 
     public static void TogglePinCountdown(string id)
@@ -3526,6 +3591,7 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
         cmd.ExecuteNonQuery();
+        NotifyDataChanged();
     }
 }
 

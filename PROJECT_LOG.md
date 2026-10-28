@@ -34,6 +34,26 @@
 
 ## 📝 3. 变更与行动历史 (Changelog & Session Records)
 
+### [2026-10-28 10:40] - 自动防抖云端同步与时间戳版本归档：双端专属目录、课表双向互通与本地单版本极简贯彻 (v1.5.8.4)
+* **执行角色**：AI 全栈工程师 (Antigravity)
+* **用户诉求**：“同步机制改一下，每操作一次自动保存一个云端版本，本地就一个版本，云端创一个文件夹，然后里面放数据，每个数据文件都用时间戳命名，你懂我的意思了吗，就按这样，记得把课表也弄进同步哦”
+* **核心成果与设计落地**：
+  1. **每操作一次自动保存云端版本（3秒防抖后台静默同步）**：
+     - **Windows 端**：在 `DatabaseService` 核心底层嵌入 `OnDatabaseMutated` 广播通知，覆盖日程、课表、调停课、作息设置、习惯打卡、倒数日、提醒、笔记、收支与目标等全业务写入方法；并在 `GoogleDriveSyncService` 中实装 `RequestAutoSync`（3秒防抖窗口），用户连续编辑时自动重置计时器，闲置3秒后异步静默将最新快照推送至云端，杜绝卡顿与 API 滥用。
+     - **Android 端**：在 `MainActivity` 中挂载 Room 原生 `InvalidationTracker.Observer` 监听全部业务数据表（schedules, courses, course_adjustments, timetable_settings, reminders, notes, habits, goals, expenses, time_markers 等），并在每个界面操作回调中双重唤醒 `GoogleDriveAutoSyncManager.requestAutoSync(context)`，3秒防抖后自适应执行后台异步上传。
+  2. **云端专属文件夹 + 时间戳版本历史（Cloud Dedicated Folder + Timestamp Versioning）**：
+     - 云端统一在 Google Drive 根目录下创建并维护专属同步文件夹 `RMF_CloudSync`。
+     - 每次自动或手动上传时，生成以本地时间戳命名的独立数据文件：`rmf_backup_yyyyMMdd_HHmmss.db`（例如 `rmf_backup_20261028_103015.db`），并在元数据中附带设备标识与时间描述。
+     - **云端智能版本保留策略**：每次上传成功后，自动保留最新的 50 个时间戳版本，修剪并清理超出 50 个的陈旧历史快照，防止云端空间无限膨胀，同时为用户提供长效灾备追溯能力。
+     - **云端恢复与拉取**：查询 `RMF_CloudSync` 目录中所有时间戳快照，默认自动定位并拉取最新（Newest）的时间戳快照进行数据还原。
+  3. **贯彻“本地就一个版本”的极简安全哲学**：
+     - 上传时生成的安全只读原子快照（基于 SQLite Online Backup 或 WAL Checkpoint）在上传完成后立即自动清理；
+     - 还原过程中生成的临时比对副本与回滚包在替换成功并校验通过后立即用毕即焚；
+     - 双端均新增启动/还原后的历史垃圾清理函数（`CleanupLocalBackupFiles` / `cleanupLocalBackupFiles`），定期清空本地残存的 `.bak`、`.tmp`、临时 `.db` 文件，保证本地存储中严格仅保留唯一的活跃主库 `rmf.db`。
+  4. **课表与学期作息设置全量双端同步互通**：
+     - **双端配置对齐**：Android 端在保存学期配置时，自动将双学期开学月日、周数及作息规则同步持久化至 SQLite `timetable_settings` 表中，与 Windows 桌面端无缝共享。
+     - **还原即时映射**：在任何一端从云端拉取最新快照还原后，自动重新读取 `timetable_settings`，并触发 `TimetableProjectionService.syncAllToSchedule` 将全学期课程即时投影到日程时间流，并调用 `CourseReminderScheduler` / `WindowsReminderScheduler` 全量重排未来上课前提醒与桌面小组件。
+
 ### [2026-10-28 00:50] - 多端同步全链路闭环加固：补齐 Windows 端无损数据包与 JSON 还原能力 (v1.5.8.3)
 * **执行角色**：AI 全栈工程师 (Antigravity)
 * **用户诉求**：“我怎么实现多端同步呢”
