@@ -18,6 +18,9 @@ public class AppConfig
     // Google Drive 云端同步配置
     public string GoogleClientId { get; set; } = string.Empty;
     public string GoogleClientSecret { get; set; } = string.Empty;
+    public string GoogleDriveClientId { get => GoogleClientId; set => GoogleClientId = value; }
+    public string GoogleDriveClientSecret { get => GoogleClientSecret; set => GoogleClientSecret = value; }
+    public string GoogleDriveRefreshToken { get; set; } = string.Empty;
     public string GoogleDriveFolderId { get; set; } = string.Empty;
     public string GoogleDriveFileId { get; set; } = string.Empty;
     public bool IsGoogleDriveLinked { get; set; } = false;

@@ -163,6 +163,12 @@ public class ScheduleItem
     [JsonPropertyName("reminder_type")]
     public string ReminderType { get; set; } = "ALL";
 
+    [JsonPropertyName("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [JsonPropertyName("updated_at")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
     [JsonIgnore]
     public string ReminderSummaryText => ReminderMinutes < 0 ? "🔕 不提醒" :
         $"{(ReminderType == "ALARM" ? "⏰ 闹钟" : (ReminderType == "CAPSULE" ? "💊 胶囊" : (ReminderType == "VIBRATE" ? "📳 震动" : "🔔 通知")))} (提前 {ReminderMinutes} 分)";

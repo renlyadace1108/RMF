@@ -2019,6 +2019,52 @@ public class DatabaseService
         return list;
     }
 
+    public static StudyTopicItem? GetStudyTopicById(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        try
+        {
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            string sql = @"
+                SELECT id, title, category, status, progress_percent, target_hours, completed_hours, current_checkpoint, notes, is_deleted, created_at, updated_at,
+                       progress_type, custom_unit, target_value, completed_value
+                FROM study_topics
+                WHERE id = @id AND is_deleted = 0
+                LIMIT 1;
+            ";
+
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@id", id);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                return new StudyTopicItem
+                {
+                    Id = reader.GetString(0),
+                    Title = reader.GetString(1),
+                    Category = reader.IsDBNull(2) ? "技术栈" : reader.GetString(2),
+                    Status = reader.IsDBNull(3) ? "IN_PROGRESS" : reader.GetString(3),
+                    ProgressPercent = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                    TargetHours = reader.IsDBNull(5) ? 10.0 : reader.GetDouble(5),
+                    CompletedHours = reader.IsDBNull(6) ? 0.0 : reader.GetDouble(6),
+                    CurrentCheckpoint = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                    Notes = reader.IsDBNull(8) ? "" : reader.GetString(8),
+                    IsDeleted = reader.GetInt32(9) == 1,
+                    CreatedAt = DateTime.TryParse(reader.GetString(10), out var ca) ? ca : DateTime.UtcNow,
+                    UpdatedAt = DateTime.TryParse(reader.GetString(11), out var ua) ? ua : DateTime.UtcNow,
+                    ProgressType = reader.FieldCount > 12 && !reader.IsDBNull(12) ? reader.GetString(12) : "HOURS",
+                    CustomUnit = reader.FieldCount > 13 && !reader.IsDBNull(13) ? reader.GetString(13) : "",
+                    TargetValue = reader.FieldCount > 14 && !reader.IsDBNull(14) ? reader.GetDouble(14) : (reader.IsDBNull(5) ? 10.0 : reader.GetDouble(5)),
+                    CompletedValue = reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetDouble(15) : (reader.IsDBNull(6) ? 0.0 : reader.GetDouble(6))
+                };
+            }
+        }
+        catch { }
+        return null;
+    }
+
     public static void UpsertStudyTopic(StudyTopicItem item)
     {
         try

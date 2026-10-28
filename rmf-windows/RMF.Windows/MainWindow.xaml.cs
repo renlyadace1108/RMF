@@ -340,7 +340,7 @@ public partial class MainWindow : Window
                     var updatedCfg = ConfigService.Load();
                     UpdateCloudSyncIndicator(CloudSyncState.Success, "双向增量同步完成", updatedCfg.LastSyncTime);
                     RenderAllCalendarViews();
-                    RenderTimetableGrid();
+                    RenderTimetablePage();
                     RefreshGoalTree();
                     RefreshBacklogList();
                     RefreshDeferredQueue();
@@ -512,7 +512,7 @@ public partial class MainWindow : Window
         if (success)
         {
             RenderAllCalendarViews();
-            RenderTimetableGrid();
+            RenderTimetablePage();
             RefreshGoalTree();
             RefreshBacklogList();
             RefreshDeferredQueue();
@@ -6596,7 +6596,7 @@ public partial class MainWindow : Window
                     Background = new SolidColorBrush(Color.FromArgb(0x25, badgeColor.R, badgeColor.G, badgeColor.B)),
                     BorderBrush = new SolidColorBrush(badgeColor),
                     BorderThickness = new Thickness(1),
-                    Padding = new Thickness(10, 8),
+                    Padding = new Thickness(10, 8, 10, 8),
                     Margin = new Thickness(0, 0, 0, 10)
                 };
                 badge.Child = new TextBlock
@@ -6636,7 +6636,7 @@ public partial class MainWindow : Window
                     Background = new SolidColorBrush(Color.FromArgb(0x18, 0x10, 0xB9, 0x81)),
                     BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0x10, 0xB9, 0x81)),
                     BorderThickness = new Thickness(1),
-                    CornerRadius = 10,
+                    CornerRadius = new CornerRadius(10),
                     Padding = new Thickness(16),
                     Margin = new Thickness(0, 4, 0, 8)
                 };
@@ -6670,7 +6670,7 @@ public partial class MainWindow : Window
                 var card2 = new Border
                 {
                     Background = (Brush)FindResource("ControlBackground"),
-                    CornerRadius = 10,
+                    CornerRadius = new CornerRadius(10),
                     Padding = new Thickness(16),
                     Margin = new Thickness(0, 4, 0, 8)
                 };
@@ -6762,7 +6762,7 @@ public partial class MainWindow : Window
                 var card3 = new Border
                 {
                     Background = (Brush)FindResource("ControlBackground"),
-                    CornerRadius = 10,
+                    CornerRadius = new CornerRadius(10),
                     Padding = new Thickness(16),
                     Margin = new Thickness(0, 4, 0, 8)
                 };
@@ -6808,7 +6808,7 @@ public partial class MainWindow : Window
                     Background = new SolidColorBrush(Color.FromArgb(0x18, 0x7C, 0x3A, 0xED)),
                     BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0x7C, 0x3A, 0xED)),
                     BorderThickness = new Thickness(1),
-                    CornerRadius = 10,
+                    CornerRadius = new CornerRadius(10),
                     Padding = new Thickness(20),
                     Margin = new Thickness(0, 4, 0, 8)
                 };
@@ -6843,7 +6843,7 @@ public partial class MainWindow : Window
             Background = new SolidColorBrush(Color.FromArgb(0x18, col.R, col.G, col.B)),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, col.R, col.G, col.B)),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(8, 6),
+            Padding = new Thickness(8, 6, 8, 6),
             Margin = new Thickness(4)
         };
         var sp = new StackPanel();
@@ -8125,6 +8125,10 @@ public partial class MainWindow : Window
 
         if (isOverview)
         {
+            if (_calendarViewsDirty)
+            {
+                _calendarViewsDirty = false;
+            }
             RenderAllCalendarViews();
         }
         else
