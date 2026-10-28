@@ -376,6 +376,10 @@ public partial class MainWindow : Window
     private static readonly SolidColorBrush SyncAmberBrush = GetFrozenBrush(0xFF, 0xF5, 0x9E, 0x0B);
     private static readonly SolidColorBrush SyncGrayBrush = GetFrozenBrush(0xFF, 0x9C, 0xA3, 0xAF);
 
+    public static readonly SolidColorBrush RestBufferDefaultBrush = GetFrozenBrush(230, 0x05, 0x96, 0x69);
+    public static readonly SolidColorBrush ShallowWorkDefaultBrush = GetFrozenBrush(230, 0x47, 0x55, 0x69);
+    public static readonly SolidColorBrush DeepWorkDefaultBrush = GetFrozenBrush(230, 0x7C, 0x3A, 0xED);
+
     public void UpdateCloudSyncIndicator(CloudSyncState state, string? message = null, string? lastSync = null)
     {
         try
@@ -1345,11 +1349,21 @@ public partial class MainWindow : Window
             catch { }
         }
 
+        if (opacity == 230)
+        {
+            return item.WorkType switch
+            {
+                "REST_BUFFER" => RestBufferDefaultBrush,
+                "SHALLOW_WORK" => ShallowWorkDefaultBrush,
+                _ => DeepWorkDefaultBrush
+            };
+        }
+
         return item.WorkType switch
         {
-            "REST_BUFFER" => RestBufferDefaultBrush,
-            "SHALLOW_WORK" => ShallowWorkDefaultBrush,
-            _ => DeepWorkDefaultBrush
+            "REST_BUFFER" => GetFrozenBrush(opacity, 0x05, 0x96, 0x69),
+            "SHALLOW_WORK" => GetFrozenBrush(opacity, 0x47, 0x55, 0x69),
+            _ => GetFrozenBrush(opacity, 0x7C, 0x3A, 0xED)
         };
     }
 
