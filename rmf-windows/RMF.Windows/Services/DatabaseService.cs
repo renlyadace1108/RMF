@@ -423,6 +423,11 @@ public class DatabaseService
                 using var c6 = new SqliteCommand("ALTER TABLE courses ADD COLUMN room_code TEXT;", conn);
                 c6.ExecuteNonQuery();
             }
+            if (!courseCols.Contains("reminder_minutes"))
+            {
+                using var c7 = new SqliteCommand("ALTER TABLE courses ADD COLUMN reminder_minutes INTEGER DEFAULT 15;", conn);
+                c7.ExecuteNonQuery();
+            }
 
             var adjCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (var cmd = new SqliteCommand("PRAGMA table_info(course_adjustments);", conn))

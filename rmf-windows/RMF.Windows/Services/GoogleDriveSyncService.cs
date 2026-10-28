@@ -21,6 +21,8 @@ public class GoogleDriveSyncService
 
     private static CancellationTokenSource? _autoSyncCts;
     private static readonly object _autoSyncLock = new();
+    private static readonly SemaphoreSlim _uploadSemaphore = new(1, 1);
+    private static volatile bool _hasPendingAutoSync = false;
     public static bool IsAutoSyncing { get; private set; }
 
     /// <summary>
@@ -36,8 +38,8 @@ public class GoogleDriveSyncService
 
         lock (_autoSyncLock)
         {
-            _autoSyncCts?.Cancel();
-            _autoSyncCts?.Dispose();
+            _hasPendingAutoSync = true;
+            try { _autoSyncCts?.Cancel(); } catch { }
             _autoSyncCts = new CancellationTokenSource();
             var token = _autoSyncCts.Token;
 
@@ -48,28 +50,36 @@ public class GoogleDriveSyncService
                     await Task.Delay(3000, token); // 3秒防抖窗口
                     if (token.IsCancellationRequested) return;
 
-                    IsAutoSyncing = true;
-                    statusCallback?.Invoke("⏳ 正在自动同步新版本至云端专属目录...");
-                    var (success, fileId, message) = await UploadBackupToDriveAsync(
-                        config.GoogleClientId,
-                        config.GoogleClientSecret,
-                        s => statusCallback?.Invoke(s),
-                        token
-                    );
-
-                    if (success)
+                    await _uploadSemaphore.WaitAsync(token);
+                    try
                     {
-                        statusCallback?.Invoke($"✓ 云端已自动保存新版本 ({DateTime.Now:HH:mm:ss})");
+                        if (!_hasPendingAutoSync || token.IsCancellationRequested) return;
+                        _hasPendingAutoSync = false;
+
+                        IsAutoSyncing = true;
+                        statusCallback?.Invoke("⏳ 正在自动同步新版本至云端专属目录...");
+                        var (success, fileId, message) = await UploadBackupToDriveAsync(
+                            config.GoogleClientId,
+                            config.GoogleClientSecret,
+                            s => statusCallback?.Invoke(s),
+                            token
+                        );
+
+                        if (success)
+                        {
+                            statusCallback?.Invoke($"✓ 云端已自动保存新版本 ({DateTime.Now:HH:mm:ss})");
+                        }
+                    }
+                    finally
+                    {
+                        IsAutoSyncing = false;
+                        _uploadSemaphore.Release();
                     }
                 }
                 catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[AutoSync] Background upload error: {ex.Message}");
-                }
-                finally
-                {
-                    IsAutoSyncing = false;
                 }
             }, token);
         }
@@ -211,17 +221,19 @@ public class GoogleDriveSyncService
                     var pruneReq = service.Files.List();
                     pruneReq.Q = $"'{folderId}' in parents and trashed = false and name contains 'rmf_backup_'";
                     pruneReq.Spaces = "drive";
+                    pruneReq.PageSize = 1000;
                     pruneReq.Fields = "files(id, name, createdTime)";
-                    pruneReq.OrderBy = "createdTime asc";
+                    pruneReq.OrderBy = "name asc";
                     var pruneRes = await pruneReq.ExecuteAsync(cancellationToken);
                     if (pruneRes.Files != null && pruneRes.Files.Count > MaxCloudRetentionVersions)
                     {
-                        int toDelete = pruneRes.Files.Count - MaxCloudRetentionVersions;
+                        var sortedToPrune = pruneRes.Files.OrderBy(f => f.Name).ToList();
+                        int toDelete = sortedToPrune.Count - MaxCloudRetentionVersions;
                         for (int i = 0; i < toDelete; i++)
                         {
                             try
                             {
-                                await service.Files.Delete(pruneRes.Files[i].Id).ExecuteAsync(cancellationToken);
+                                await service.Files.Delete(sortedToPrune[i].Id).ExecuteAsync(cancellationToken);
                             }
                             catch { }
                         }
@@ -273,8 +285,10 @@ public class GoogleDriveSyncService
                 return (false, "在 Google Drive 对应目录中未发现可还原的备份文件。");
             }
 
-            // 选择最新的一份云端时间戳快照
-            var remoteFile = searchRes.Files[0];
+            // 选择最新的一份云端时间戳快照（名称按时间戳降序排序，确保准确度）
+            var remoteFile = searchRes.Files
+                .OrderByDescending(f => f.Name)
+                .First();
             string tempDownloaded = Path.Combine(DatabaseService.DbDir, "rmf_downloaded_temp.db");
 
             progressCallback?.Invoke($"正在拉取最新云端快照 ({remoteFile.Name})...");

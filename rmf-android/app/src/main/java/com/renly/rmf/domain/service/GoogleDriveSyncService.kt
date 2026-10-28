@@ -37,7 +37,11 @@ object GoogleDriveAutoSyncManager {
     @Volatile
     var isRestoring: Boolean = false
 
-    private var syncJob: kotlinx.coroutines.Job? = null
+    @Volatile
+    private var hasPendingChange = false
+
+    private var debounceJob: kotlinx.coroutines.Job? = null
+    private val syncMutex = kotlinx.coroutines.sync.Mutex()
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
     fun requestAutoSync(context: Context) {
@@ -45,16 +49,22 @@ object GoogleDriveAutoSyncManager {
         if (isRestoring || !GoogleDrivePreferences.isAuthorized(appContext)) {
             return
         }
-        syncJob?.cancel()
-        syncJob = scope.launch {
+        hasPendingChange = true
+        debounceJob?.cancel()
+        debounceJob = scope.launch {
             kotlinx.coroutines.delay(3000L) // 3秒防抖
-            if (isRestoring) return@launch
-            try {
-                val db = RmfDatabase.getInstance(appContext)
-                val syncService = GoogleDriveSyncService(appContext, db)
-                syncService.uploadBackupToDrive()
-            } catch (e: Exception) {
-                android.util.Log.w("GoogleDriveAutoSync", "Auto upload error: ${e.message}")
+            if (isRestoring || !hasPendingChange) return@launch
+
+            syncMutex.withLock {
+                if (isRestoring || !hasPendingChange) return@withLock
+                hasPendingChange = false
+                try {
+                    val db = RmfDatabase.getInstance(appContext)
+                    val syncService = GoogleDriveSyncService(appContext, db)
+                    syncService.uploadBackupToDrive()
+                } catch (e: Exception) {
+                    android.util.Log.w("GoogleDriveAutoSync", "Auto upload error: ${e.message}")
+                }
             }
         }
     }
@@ -327,14 +337,16 @@ class GoogleDriveSyncService(
                 val pruneReq = driveService.files().list()
                     .setQ("'$folderId' in parents and trashed = false and name contains 'rmf_backup_'")
                     .setSpaces("drive")
+                    .setPageSize(100)
                     .setFields("files(id, name, createdTime)")
-                    .setOrderBy("createdTime asc")
+                    .setOrderBy("name asc")
                 val pruneRes = pruneReq.execute()
                 if (pruneRes.files != null && pruneRes.files.size > MAX_CLOUD_RETENTION_VERSIONS) {
-                    val toDelete = pruneRes.files.size - MAX_CLOUD_RETENTION_VERSIONS
+                    val sortedToPrune = pruneRes.files.sortedBy { it.name }
+                    val toDelete = sortedToPrune.size - MAX_CLOUD_RETENTION_VERSIONS
                     for (i in 0 until toDelete) {
                         try {
-                            driveService.files().delete(pruneRes.files[i].id).execute()
+                            driveService.files().delete(sortedToPrune[i].id).execute()
                         } catch (_: Exception) {}
                     }
                 }
@@ -377,7 +389,7 @@ class GoogleDriveSyncService(
                 .setOrderBy("createdTime desc")
 
             val searchRes = listReq.execute()
-            val remoteFile = searchRes.files?.firstOrNull()
+            val remoteFile = searchRes.files?.sortedByDescending { it.name }?.firstOrNull()
                 ?: return@withContext SyncResult.Error("在 Google Drive 对应目录中未发现可还原的备份文件")
 
             onProgress?.invoke("正在拉取最新云端快照 (${remoteFile.name})...")
