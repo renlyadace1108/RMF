@@ -131,10 +131,10 @@
                     </Grid>
                 </Border>
 
-                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="SpaceBetween" Margin="2,5,2,0">
-                    <TextBlock x:Name="PinModeHintText" Text="模式: 普通浮窗" FontSize="9.5" Foreground="#64748B" VerticalAlignment="Center"/>
-                    <TextBlock Text="拖拽吸附 · 实时对齐" FontSize="9.5" Foreground="#64748B" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Grid Grid.Row="1" Margin="2,5,2,0">
+                    <TextBlock x:Name="PinModeHintText" Text="模式: 普通浮窗" FontSize="9.5" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                    <TextBlock Text="拖拽吸附 · 实时对齐" FontSize="9.5" Foreground="#64748B" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
             </Grid>
         </Grid>
     </Border>
