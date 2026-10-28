@@ -146,6 +146,7 @@ fun ScheduleScreen(
     }
 
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
     var isTableLocked by rememberSaveable { mutableStateOf(true) }
 
@@ -190,6 +191,15 @@ fun ScheduleScreen(
         }
     }
     var isSpilloverBannerDismissed by remember { mutableStateOf(false) }
+    var isGapFillBannerDismissed by remember { mutableStateOf(false) }
+    val recommendedGapSlot = remember(schedules, backlogSchedules, selectedDate) {
+        val gaps = com.renly.rmf.domain.service.GapTimeBoxingService.findDailyFreeGaps(
+            date = selectedDate,
+            daySchedules = schedules,
+            backlogItems = backlogSchedules
+        )
+        gaps.firstOrNull { it.suggestedBacklog != null }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -584,6 +594,65 @@ fun ScheduleScreen(
                             }
                             IconButton(
                                 onClick = { isSpilloverBannerDismissed = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Text("✕", fontSize = 11.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 碎片空隙时间盒智能填空推荐横幅
+            if (recommendedGapSlot != null && !isGapFillBannerDismissed) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopamineGreen.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("💡", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = recommendedGapSlot.summaryText,
+                                fontSize = 11.5.sp,
+                                color = DopamineGreen,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val success = com.renly.rmf.domain.service.GapTimeBoxingService.fillGapWithBacklog(
+                                            com.renly.rmf.data.database.RmfDatabase.getInstance(context),
+                                            recommendedGapSlot
+                                        )
+                                        if (success) {
+                                            android.widget.Toast.makeText(context, "✓ 已将待办「${recommendedGapSlot.suggestedBacklog?.title}」填入时间盒！", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(26.dp)
+                            ) {
+                                Text("⚡ 填入时间盒", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                            IconButton(
+                                onClick = { isGapFillBannerDismissed = true },
                                 modifier = Modifier.size(24.dp)
                             ) {
                                 Text("✕", fontSize = 11.sp, color = TextMuted)
@@ -5764,6 +5833,8 @@ fun ScheduleDetailModal(
     }
 
     val isFitnessItem = item.id.startsWith("fitness_") || item.category == "HEALTH" || item.title.contains("健身")
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val workspaceAsset = remember(item) { com.renly.rmf.domain.service.WorkspaceLauncher.detectAsset(item) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -5904,6 +5975,21 @@ fun ScheduleDetailModal(
                             lineHeight = 16.sp,
                             modifier = Modifier.padding(10.dp)
                         )
+                    }
+                }
+                if (workspaceAsset != null) {
+                    Button(
+                        onClick = {
+                            com.renly.rmf.domain.service.WorkspaceLauncher.launchAsset(context, workspaceAsset)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan.copy(alpha = 0.18f)),
+                        border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("📂 直达工作区: ${workspaceAsset.displayName}", color = DopamineCyan, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (isFitnessItem) {

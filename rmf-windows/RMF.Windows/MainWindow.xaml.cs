@@ -1661,6 +1661,8 @@ public partial class MainWindow : Window
         {
             DaySpilloverBanner.Visibility = Visibility.Collapsed;
         }
+
+        UpdateDayGapFillBanner();
     }
 
     private void RenderDayEvents()
@@ -3976,6 +3978,20 @@ public partial class MainWindow : Window
             QuickDetailGoToFitnessBtn.Visibility = isFitness ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        var asset = WorkspaceLauncherService.DetectAsset(item);
+        if (asset != null && QuickDetailWorkspaceBtn != null)
+        {
+            QuickDetailWorkspaceBtn.Visibility = Visibility.Visible;
+            QuickDetailWorkspaceBtn.Content = $"📂 直达工作区: {asset.DisplayName}";
+            QuickDetailWorkspaceBtn.ToolTip = $"打开目标: {asset.Target}";
+            QuickDetailWorkspaceBtn.Tag = asset.Target;
+        }
+        else if (QuickDetailWorkspaceBtn != null)
+        {
+            QuickDetailWorkspaceBtn.Visibility = Visibility.Collapsed;
+            QuickDetailWorkspaceBtn.Tag = null;
+        }
+
         QuickDetailTentativeConfirmBtn.Visibility = item.IsTentative ? Visibility.Visible : Visibility.Collapsed;
         QuickDetailLockToggleBtn.Content = item.IsLocked ? "🔓 解锁日程" : "🔒 锁定日程";
 
@@ -3986,6 +4002,14 @@ public partial class MainWindow : Window
     {
         EventQuickDetailModal.Visibility = Visibility.Collapsed;
         SwitchPrimaryPage("Fitness");
+    }
+
+    private void OnQuickDetailWorkspaceClicked(object sender, RoutedEventArgs e)
+    {
+        if (QuickDetailWorkspaceBtn?.Tag is string target && !string.IsNullOrWhiteSpace(target))
+        {
+            WorkspaceLauncherService.LaunchAsset(target);
+        }
     }
 
     private void OnCloseQuickDetailClicked(object sender, RoutedEventArgs e)
@@ -5848,12 +5872,84 @@ public partial class MainWindow : Window
         DaySpilloverBanner.Visibility = Visibility.Collapsed;
     }
 
+    private TimeGapSlot? _activeGapSlot;
+    private bool _isGapFillDismissed = false;
+
+    private void UpdateDayGapFillBanner()
+    {
+        if (DayGapFillBanner == null) return;
+
+        if (_isGapFillDismissed)
+        {
+            DayGapFillBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        try
+        {
+            var daySchedules = DatabaseService.GetSchedulesForDate(_currentDate);
+            var dayCourses = TimetableProjectionService.GetEffectiveCoursesForDate(_currentDate);
+            var backlog = DatabaseService.GetBacklogSchedules();
+
+            var gaps = GapTimeBoxingService.FindDailyFreeGaps(_currentDate, daySchedules, dayCourses, backlog);
+            var recommendedGap = gaps.FirstOrDefault(g => g.SuggestedBacklog != null);
+
+            if (recommendedGap != null)
+            {
+                _activeGapSlot = recommendedGap;
+                DayGapFillBanner.Visibility = Visibility.Visible;
+                DayGapFillText.Text = recommendedGap.SummaryText;
+            }
+            else
+            {
+                _activeGapSlot = null;
+                DayGapFillBanner.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch
+        {
+            DayGapFillBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnFillGapTimeBoxClicked(object sender, RoutedEventArgs e)
+    {
+        if (_activeGapSlot?.SuggestedBacklog == null) return;
+
+        var task = _activeGapSlot.SuggestedBacklog;
+        var start = _activeGapSlot.SuggestedTimeBoxStart;
+        var end = _activeGapSlot.SuggestedTimeBoxEnd;
+
+        bool success = GapTimeBoxingService.FillGapWithBacklog(_activeGapSlot);
+        if (success)
+        {
+            DayGapFillBanner.Visibility = Visibility.Collapsed;
+            _activeGapSlot = null;
+            RenderAllCalendarViews();
+            RefreshBacklogList();
+            RefreshTimePnlData();
+            UpdateCognitiveLoadQuota();
+            MessageBox.Show(
+                $"已成功将待办「{task.Title}」填入空闲时间盒 ({start:HH:mm} ~ {end:HH:mm})！",
+                "时间盒装填成功",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
+    private void OnDismissGapFillBannerClicked(object sender, RoutedEventArgs e)
+    {
+        _isGapFillDismissed = true;
+        DayGapFillBanner.Visibility = Visibility.Collapsed;
+    }
+
     // =========================================================================
     // ===================== TOP NAVIGATION & VIEW SWITCHING ===================
     // =========================================================================
 
     private void OnCalTodayClicked(object sender, RoutedEventArgs e)
     {
+        _isGapFillDismissed = false;
         _currentDate = DateTime.Today;
         _miniCalMonth = DateTime.Today;
         if (_currentView == "Custom")
@@ -5867,6 +5963,7 @@ public partial class MainWindow : Window
 
     private void OnCalPrevClicked(object sender, RoutedEventArgs e)
     {
+        _isGapFillDismissed = false;
         if (_currentView == "Day") _currentDate = _currentDate.AddDays(-1);
         else if (_currentView == "Week") _currentDate = _currentDate.AddDays(-7);
         else if (_currentView == "Month") _currentDate = _currentDate.AddMonths(-1);
@@ -5885,6 +5982,7 @@ public partial class MainWindow : Window
 
     private void OnCalNextClicked(object sender, RoutedEventArgs e)
     {
+        _isGapFillDismissed = false;
         if (_currentView == "Day") _currentDate = _currentDate.AddDays(1);
         else if (_currentView == "Week") _currentDate = _currentDate.AddDays(7);
         else if (_currentView == "Month") _currentDate = _currentDate.AddMonths(1);

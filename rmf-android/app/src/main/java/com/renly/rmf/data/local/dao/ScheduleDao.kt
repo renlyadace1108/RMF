@@ -28,6 +28,12 @@ interface ScheduleDao {
     @Query("SELECT * FROM schedules WHERE is_deleted = 0 AND is_backlog = 0 AND status != 'COMPLETED' AND status != 'ABANDONED' AND start_time < :beforeTime ORDER BY start_time ASC")
     suspend fun getOverdueUnfinishedSchedules(beforeTime: String): List<ScheduleEntity>
 
+    @Query("SELECT * FROM schedules WHERE is_deleted = 0 AND is_backlog = 1 AND status != 'COMPLETED' AND status != 'ABANDONED' ORDER BY priority DESC")
+    fun observeBacklogSchedules(): Flow<List<ScheduleEntity>>
+
+    @Query("SELECT * FROM schedules WHERE is_deleted = 0 AND is_backlog = 1 AND status != 'COMPLETED' AND status != 'ABANDONED' ORDER BY priority DESC")
+    suspend fun getBacklogSchedules(): List<ScheduleEntity>
+
     @Query("SELECT * FROM schedules WHERE id = :id LIMIT 1")
     suspend fun getScheduleById(id: String): ScheduleEntity?
 

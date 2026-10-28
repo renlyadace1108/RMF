@@ -87,6 +87,11 @@
                             <TextBlock Text="📋" FontSize="13" Foreground="#60A5FA"/>
                         </Button>
 
+                        <!-- 工作区直达 -->
+                        <Button x:Name="WorkspaceButton" Style="{StaticResource HudButton}" ToolTip="一键直达关联工作区/文档/资产" Click="OnOpenWorkspaceClicked" Visibility="Collapsed">
+                            <TextBlock Text="📂" FontSize="13" Foreground="#38BDF8"/>
+                        </Button>
+
                         <!-- 番茄钟 / 秒表 双轨切换 -->
                         <Button x:Name="TimerModeButton" Style="{StaticResource HudButton}" ToolTip="切换计时模式 (番茄钟 25m / 正向秒表)" Click="OnToggleTimerModeClicked">
                             <TextBlock x:Name="TimerModeIcon" Text="⏱" FontSize="13" Foreground="#A78BFA"/>

@@ -706,23 +706,43 @@
                         </Grid>
                     </Border>
 
-                    <!-- 过去未完成排期智能自愈顺延横幅 (Row 2) -->
-                    <Border Grid.Row="2" x:Name="DaySpilloverBanner" Background="#261E10" BorderBrush="#D97706" BorderThickness="0,0,0,1" Padding="12,6" Visibility="Collapsed">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="⚡" FontSize="13" Foreground="#F59E0B" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock x:Name="DaySpilloverText" Grid.Column="1" Text="检测到历史遗留未完成任务" FontSize="11.5" Foreground="#FDE68A" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Content="⏩ 顺延至今日" Style="{StaticResource GoogleTopBtnStyle}" Background="#D97706" Foreground="#FFFFFF" Padding="8,3" FontSize="10.5" FontWeight="SemiBold" Margin="0,0,6,0" Click="OnSpilloverToTodayClicked" />
-                                <Button Content="📦 移入待办箱" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextSecondary}" Padding="8,3" FontSize="10.5" Margin="0,0,6,0" Click="OnSpilloverToBacklogClicked" />
-                                <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Background="Transparent" Foreground="{DynamicResource TextMuted}" Padding="4,2" FontSize="11" Click="OnDismissSpilloverBannerClicked" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                    <!-- 智能横幅组 (Row 2): 遗留顺延横幅 + 碎片空当时间盒填空推荐 -->
+                    <StackPanel Grid.Row="2">
+                        <!-- 过去未完成排期智能自愈顺延横幅 -->
+                        <Border x:Name="DaySpilloverBanner" Background="#261E10" BorderBrush="#D97706" BorderThickness="0,0,0,1" Padding="12,6" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="⚡" FontSize="13" Foreground="#F59E0B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock x:Name="DaySpilloverText" Grid.Column="1" Text="检测到历史遗留未完成任务" FontSize="11.5" Foreground="#FDE68A" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="⏩ 顺延至今日" Style="{StaticResource GoogleTopBtnStyle}" Background="#D97706" Foreground="#FFFFFF" Padding="8,3" FontSize="10.5" FontWeight="SemiBold" Margin="0,0,6,0" Click="OnSpilloverToTodayClicked" />
+                                    <Button Content="📦 移入待办箱" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextSecondary}" Padding="8,3" FontSize="10.5" Margin="0,0,6,0" Click="OnSpilloverToBacklogClicked" />
+                                    <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Background="Transparent" Foreground="{DynamicResource TextMuted}" Padding="4,2" FontSize="11" Click="OnDismissSpilloverBannerClicked" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 碎片空隙时间盒智能填空推荐横幅 -->
+                        <Border x:Name="DayGapFillBanner" Background="#064E3B" BorderBrush="#059669" BorderThickness="0,0,0,1" Padding="12,6" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="💡" FontSize="13" Foreground="#34D399" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock x:Name="DayGapFillText" Grid.Column="1" Text="发现碎片空闲，推荐填入待办..." FontSize="11.5" Foreground="#A7F3D0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="DayGapFillActionBtn" Content="⚡ 一键填入时间盒" Style="{StaticResource GoogleTopBtnStyle}" Background="#059669" Foreground="#FFFFFF" Padding="8,3" FontSize="10.5" FontWeight="SemiBold" Margin="0,0,6,0" Click="OnFillGapTimeBoxClicked" />
+                                    <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Background="Transparent" Foreground="#6EE7B7" Padding="4,2" FontSize="11" Click="OnDismissGapFillBannerClicked" ToolTip="暂时关闭推荐" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
 
                     <!-- 24-Hour Day Grid (Row 3) -->
                     <ScrollViewer Grid.Row="3" x:Name="DayScrollViewer" VerticalScrollBarVisibility="Hidden">
@@ -3690,6 +3710,8 @@
                     </Grid>
 
                     <Button x:Name="QuickDetailGoToFitnessBtn" Content="🏋️ 直达健身模块查看与打卡" Background="#581C87" Foreground="#E9D5FF" BorderBrush="#A855F7" BorderThickness="1" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,10,0,0" ToolTip="直接跳转至健身页面进行动作与组数记录" Visibility="Collapsed" Click="OnQuickDetailGoToFitnessClicked" />
+
+                    <Button x:Name="QuickDetailWorkspaceBtn" Content="📂 直达关联工作区 / 资产" Background="#0F172A" Foreground="#38BDF8" BorderBrush="#0284C7" BorderThickness="1" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,10,0,0" ToolTip="打开任务绑定的代码仓库、本地文件或在线文档" Visibility="Collapsed" Click="OnQuickDetailWorkspaceClicked" />
 
                     <Button Content="🎯 开启专注" Background="#1E3A8A" Foreground="#93C5FD" BorderBrush="#3B82F6" BorderThickness="1" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,10,0,0" ToolTip="进入常驻桌面置顶悬浮胶囊专注模式" Click="OnQuickDetailStartFocusHudClicked" />
 

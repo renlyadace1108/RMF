@@ -30,6 +30,7 @@ public partial class FocusHudWindow : Window
     private bool _isPomodoro = true;
     private bool _isBreak = false;
     private readonly PassiveTrackingService _tracker;
+    private WorkspaceAsset? _workspaceAsset;
 
     // Win32 API 鼠标穿透
     private const int GWL_EXSTYLE = -20;
@@ -53,6 +54,7 @@ public partial class FocusHudWindow : Window
         _schedule = newSchedule;
         TaskTitleText.Text = string.IsNullOrEmpty(_schedule.Title) ? "专注时段" : _schedule.Title;
         RenderDodList();
+        RefreshWorkspaceAsset();
         _onRefreshMain?.Invoke();
     }
 
@@ -112,7 +114,38 @@ public partial class FocusHudWindow : Window
 
         UpdateTimerDisplay();
         RenderDodList();
+        RefreshWorkspaceAsset();
         FocusAssistService.EnableFocusMode();
+    }
+
+    private void RefreshWorkspaceAsset()
+    {
+        try
+        {
+            _workspaceAsset = WorkspaceLauncherService.DetectAsset(_schedule);
+            if (_workspaceAsset != null)
+            {
+                WorkspaceButton.Visibility = Visibility.Visible;
+                WorkspaceButton.ToolTip = $"一键直达工作区: {_workspaceAsset.DisplayName}\n({_workspaceAsset.Target})";
+            }
+            else
+            {
+                WorkspaceButton.Visibility = Visibility.Collapsed;
+                WorkspaceButton.ToolTip = null;
+            }
+        }
+        catch
+        {
+            WorkspaceButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnOpenWorkspaceClicked(object sender, RoutedEventArgs e)
+    {
+        if (_workspaceAsset != null)
+        {
+            WorkspaceLauncherService.LaunchAsset(_workspaceAsset.Target);
+        }
     }
 
     private void OnTimerTick(object? sender, EventArgs e)

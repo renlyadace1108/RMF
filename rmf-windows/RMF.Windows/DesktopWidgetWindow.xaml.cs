@@ -241,6 +241,29 @@ public partial class DesktopWidgetWindow : Window
                 Grid.SetColumn(contentStack, 1);
                 row.Children.Add(contentStack);
 
+                // 右侧操作组 (工作区直达 + 专注 HUD)
+                var actionStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+                var asset = WorkspaceLauncherService.DetectAsset(item);
+                if (asset != null)
+                {
+                    var wsBtn = new TextBlock
+                    {
+                        Text = "📂",
+                        FontSize = 10.5,
+                        Cursor = Cursors.Hand,
+                        ToolTip = $"一键直达工作区: {asset.DisplayName}\n({asset.Target})",
+                        Margin = new Thickness(4, 0, 2, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    wsBtn.MouseLeftButtonDown += (s, e) =>
+                    {
+                        e.Handled = true;
+                        WorkspaceLauncherService.LaunchAsset(asset.Target);
+                    };
+                    actionStack.Children.Add(wsBtn);
+                }
+
                 // 快捷专注 HUD 启动按钮
                 var focusBtn = new TextBlock
                 {
@@ -248,7 +271,7 @@ public partial class DesktopWidgetWindow : Window
                     FontSize = 11,
                     Cursor = Cursors.Hand,
                     ToolTip = "针对此任务启动专注 HUD",
-                    Margin = new Thickness(6, 0, 0, 0),
+                    Margin = new Thickness(4, 0, 0, 0),
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 focusBtn.MouseLeftButtonDown += (s, e) =>
@@ -261,8 +284,10 @@ public partial class DesktopWidgetWindow : Window
                     }
                     catch { }
                 };
-                Grid.SetColumn(focusBtn, 2);
-                row.Children.Add(focusBtn);
+                actionStack.Children.Add(focusBtn);
+
+                Grid.SetColumn(actionStack, 2);
+                row.Children.Add(actionStack);
 
                 ScheduleItemsList.Children.Add(row);
             }
