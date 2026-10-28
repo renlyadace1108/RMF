@@ -162,18 +162,21 @@ object GapTimeBoxingService {
 
     private fun parseDateTime(str: String?): LocalDateTime? {
         if (str.isNullOrBlank()) return null
-        return runCatching { LocalDateTime.parse(str, DateTimeFormatter.ISO_DATE_TIME) }.getOrNull()
-            ?: runCatching { LocalDateTime.parse(str) }.getOrNull()
+        val clean = str.trim().replace(" ", "T")
+        return runCatching { LocalDateTime.parse(clean, DateTimeFormatter.ISO_DATE_TIME) }.getOrNull()
+            ?: runCatching { LocalDateTime.parse(clean) }.getOrNull()
     }
 
     suspend fun fillGapWithBacklog(database: RmfDatabase, gapSlot: TimeGapSlot): Boolean = withContext(Dispatchers.IO) {
         val backlog = gapSlot.suggestedBacklog ?: return@withContext false
         val scheduleDao = database.scheduleDao()
         val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+        val est = if (backlog.estimatedMinutes > 0) backlog.estimatedMinutes else gapSlot.durationMinutes
 
         val updated = backlog.copy(
             startTime = gapSlot.suggestedStart.format(DateTimeFormatter.ISO_DATE_TIME),
             endTime = gapSlot.suggestedEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+            estimatedMinutes = est,
             isBacklog = 0,
             status = "PENDING",
             syncVersion = (backlog.syncVersion ?: 1) + 1,

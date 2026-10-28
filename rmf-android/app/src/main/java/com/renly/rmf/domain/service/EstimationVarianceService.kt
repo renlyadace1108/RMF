@@ -99,7 +99,9 @@ object EstimationVarianceService {
             val updated = task.copy(
                 startTime = nextStart.format(DateTimeFormatter.ISO_DATE_TIME),
                 endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                estimatedMinutes = duration,
                 isDeferred = 1,
+                syncVersion = (task.syncVersion ?: 1) + 1,
                 updatedAt = nowIso
             )
             scheduleDao.insertOrUpdate(updated)
@@ -117,6 +119,7 @@ object EstimationVarianceService {
         for (task in tasks) {
             val updated = task.copy(
                 isBacklog = 1,
+                syncVersion = (task.syncVersion ?: 1) + 1,
                 updatedAt = nowIso
             )
             scheduleDao.insertOrUpdate(updated)

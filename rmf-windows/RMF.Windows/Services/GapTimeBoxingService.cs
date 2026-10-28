@@ -212,6 +212,10 @@ public static class GapTimeBoxingService
         var item = gapSlot.SuggestedBacklog;
         item.StartTime = gapSlot.SuggestedTimeBoxStart;
         item.EndTime = gapSlot.SuggestedTimeBoxEnd;
+        if (item.EstimatedMinutes <= 0)
+        {
+            item.EstimatedMinutes = Math.Max(15, (int)(item.EndTime - item.StartTime).TotalMinutes);
+        }
         item.IsBacklog = false;
         item.Status = "PENDING";
         item.IsDirty = true;

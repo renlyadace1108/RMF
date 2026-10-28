@@ -111,8 +111,11 @@ public static class EstimationVarianceService
 
             task.StartTime = nextStart;
             task.EndTime = nextStart.AddMinutes(duration);
+            task.EstimatedMinutes = duration;
             task.IsDeferred = true;
-            task.UpdatedAt = DateTime.Now;
+            task.IsDirty = true;
+            task.SyncVersion++;
+            task.UpdatedAt = DateTime.UtcNow;
             DatabaseService.UpsertSchedule(task);
 
             nextStart = task.EndTime.AddMinutes(5);
@@ -133,7 +136,9 @@ public static class EstimationVarianceService
         foreach (var task in tasks)
         {
             task.IsBacklog = true;
-            task.UpdatedAt = DateTime.Now;
+            task.IsDirty = true;
+            task.SyncVersion++;
+            task.UpdatedAt = DateTime.UtcNow;
             DatabaseService.UpsertSchedule(task);
             count++;
         }

@@ -123,8 +123,20 @@ public partial class MainWindow : Window
             BuildWeekHourGrid();
             BuildDayHourGrid();
 
-            WeekEventsCanvas.SizeChanged += (sender, args) => RenderWeekEvents();
-            DayEventsCanvas.SizeChanged += (sender, args) => RenderDayEvents();
+            WeekEventsCanvas.SizeChanged += (sender, args) =>
+            {
+                if (Math.Abs(args.PreviousSize.Width - args.NewSize.Width) > 3 || Math.Abs(args.PreviousSize.Height - args.NewSize.Height) > 3)
+                {
+                    RenderWeekEvents();
+                }
+            };
+            DayEventsCanvas.SizeChanged += (sender, args) =>
+            {
+                if (Math.Abs(args.PreviousSize.Width - args.NewSize.Width) > 3 || Math.Abs(args.PreviousSize.Height - args.NewSize.Height) > 3)
+                {
+                    RenderDayEvents();
+                }
+            };
 
             RenderAllCalendarViews();
             RefreshGoalTree();
@@ -6011,6 +6023,7 @@ public partial class MainWindow : Window
     private int _ritualStep = 1;
     private readonly HashSet<string> _selectedBacklogForToday = new();
     private TextBox? _shutdownReflectionInputBox;
+    private string _shutdownReflectionText = "";
 
     private void OnOpenMorningPlanningClicked(object sender, RoutedEventArgs e)
     {
@@ -6034,6 +6047,7 @@ public partial class MainWindow : Window
     {
         _ritualMode = "SHUTDOWN";
         _ritualStep = 1;
+        _shutdownReflectionText = DatabaseService.GetDailyReport(DateTime.Today.ToString("yyyy-MM-dd"))?.Reflection ?? "";
 
         RitualModalTitle.Text = "🌇 晚间关机仪式 (Daily Shutdown)";
         RitualModalSubtitle.Text = "Sunsama 仪式流 · 结项卸下心智负担，心安理得休息";
@@ -6054,6 +6068,10 @@ public partial class MainWindow : Window
 
     private void OnRitualPrevStepClicked(object sender, RoutedEventArgs e)
     {
+        if (_shutdownReflectionInputBox != null)
+        {
+            _shutdownReflectionText = _shutdownReflectionInputBox.Text.Trim();
+        }
         if (_ritualStep > 1)
         {
             _ritualStep--;
@@ -6063,6 +6081,10 @@ public partial class MainWindow : Window
 
     private void OnRitualNextStepClicked(object sender, RoutedEventArgs e)
     {
+        if (_shutdownReflectionInputBox != null)
+        {
+            _shutdownReflectionText = _shutdownReflectionInputBox.Text.Trim();
+        }
         if (_ritualStep < 4)
         {
             if (_ritualMode == "MORNING" && _ritualStep == 3)
@@ -6076,6 +6098,7 @@ public partial class MainWindow : Window
                     item.StartTime = schedStart;
                     int est = item.EstimatedMinutes > 0 ? item.EstimatedMinutes : 45;
                     item.EndTime = schedStart.AddMinutes(est);
+                    item.EstimatedMinutes = est;
                     item.IsBacklog = false;
                     item.Status = "PENDING";
                     item.IsDirty = true;
@@ -6105,7 +6128,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                string reflection = _shutdownReflectionInputBox?.Text?.Trim() ?? "";
+                string reflection = !string.IsNullOrWhiteSpace(_shutdownReflectionText) ? _shutdownReflectionText : (_shutdownReflectionInputBox?.Text?.Trim() ?? "");
                 if (!string.IsNullOrEmpty(reflection))
                 {
                     var report = DatabaseService.GetDailyReport(DateTime.Today.ToString("yyyy-MM-dd")) ?? new DailyReportItem
@@ -6576,7 +6599,7 @@ public partial class MainWindow : Window
 
                 _shutdownReflectionInputBox = new TextBox
                 {
-                    Text = report?.Reflection ?? "",
+                    Text = !string.IsNullOrEmpty(_shutdownReflectionText) ? _shutdownReflectionText : (report?.Reflection ?? ""),
                     Background = (Brush)FindResource("InputBackground"),
                     Foreground = (Brush)FindResource("TextPrimary"),
                     BorderBrush = (Brush)FindResource("CardBorderBrush"),
@@ -6587,6 +6610,7 @@ public partial class MainWindow : Window
                     TextWrapping = TextWrapping.Wrap,
                     AcceptsReturn = true
                 };
+                _shutdownReflectionInputBox.TextChanged += (s, e) => _shutdownReflectionText = _shutdownReflectionInputBox.Text;
                 sp3.Children.Add(_shutdownReflectionInputBox);
                 card3.Child = sp3;
                 RitualStepContentPanel.Children.Add(card3);

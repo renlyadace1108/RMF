@@ -28,6 +28,21 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
+private fun safeParseDate(str: String?): LocalDate? {
+    if (str.isNullOrBlank()) return null
+    val clean = str.trim().replace(" ", "T")
+    return runCatching { LocalDateTime.parse(clean, DateTimeFormatter.ISO_DATE_TIME).toLocalDate() }.getOrNull()
+        ?: runCatching { LocalDateTime.parse(clean).toLocalDate() }.getOrNull()
+        ?: runCatching { LocalDate.parse(clean.substringBefore('T')) }.getOrNull()
+}
+
+private fun safeParseDateTime(str: String?): LocalDateTime? {
+    if (str.isNullOrBlank()) return null
+    val clean = str.trim().replace(" ", "T")
+    return runCatching { LocalDateTime.parse(clean, DateTimeFormatter.ISO_DATE_TIME) }.getOrNull()
+        ?: runCatching { LocalDateTime.parse(clean) }.getOrNull()
+}
+
 @Composable
 fun DailyRitualDialog(
     initialMode: String = "MORNING", // "MORNING" or "SHUTDOWN"
@@ -41,31 +56,39 @@ fun DailyRitualDialog(
     val coroutineScope = rememberCoroutineScope()
 
     val todayDate = remember { LocalDate.now() }
-    val todayStartIso = remember { todayDate.atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME) }
-    val todayEndIso = remember { todayDate.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME) }
 
-    val overdueTasks = remember(schedules, todayStartIso) {
+    val overdueTasks = remember(schedules, todayDate) {
         schedules.filter {
             it.isDeleted == 0 &&
             it.status != "COMPLETED" &&
             it.status != "ABANDONED" &&
             it.status != "BACKLOG" &&
             (it.isBacklog ?: 0) == 0 &&
-            it.startTime < todayStartIso
+            (safeParseDate(it.startTime)?.isBefore(todayDate) == true)
         }
     }
 
-    val todaySchedules = remember(schedules, todayStartIso, todayEndIso) {
+    val todaySchedules = remember(schedules, todayDate) {
         schedules.filter {
             it.isDeleted == 0 &&
             (it.isBacklog ?: 0) == 0 &&
-            it.startTime >= todayStartIso &&
-            it.startTime < todayEndIso
+            (safeParseDate(it.startTime) == todayDate)
         }
     }
 
     val selectedBacklogIds = remember { mutableStateListOf<String>() }
     var reflectionText by remember { mutableStateOf("") }
+
+    LaunchedEffect(mode) {
+        if (mode == "SHUTDOWN") {
+            val db = RmfDatabase.getInstance(context)
+            val dateStr = todayDate.toString()
+            val existing = db.dailyReportDao().getReportByDate(dateStr)
+            if (existing != null && !existing.reflection.isNullOrBlank() && reflectionText.isBlank()) {
+                reflectionText = existing.reflection
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -393,14 +416,19 @@ fun DailyRitualDialog(
                                                 onClick = {
                                                     coroutineScope.launch {
                                                         val db = RmfDatabase.getInstance(context)
+                                                        val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                                         unfinished.forEach { u ->
-                                                            val startDt = LocalDateTime.parse(u.startTime).plusDays(1)
-                                                            val endDt = LocalDateTime.parse(u.endTime).plusDays(1)
+                                                            val startDt = safeParseDateTime(u.startTime) ?: LocalDateTime.now()
+                                                            val duration = if (u.estimatedMinutes > 0) u.estimatedMinutes.toLong() else 30L
+                                                            val endDt = safeParseDateTime(u.endTime) ?: startDt.plusMinutes(duration)
+                                                            val nextStart = startDt.plusDays(1)
+                                                            val nextEnd = endDt.plusDays(1)
                                                             db.scheduleDao().insertOrUpdate(
                                                                 u.copy(
-                                                                    startTime = startDt.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                    endTime = endDt.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                    syncVersion = (u.syncVersion ?: 1) + 1
+                                                                    startTime = nextStart.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                    endTime = nextEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                                                    syncVersion = (u.syncVersion ?: 1) + 1,
+                                                                    updatedAt = nowIso
                                                                 )
                                                             )
                                                         }
@@ -488,6 +516,7 @@ fun DailyRitualDialog(
                                 val db = RmfDatabase.getInstance(context)
                                 val toSched = backlogSchedules.filter { selectedBacklogIds.contains(it.id) }
                                 var schedStart = LocalDateTime.now().plusMinutes(15)
+                                val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                 toSched.forEach { item ->
                                     val duration = if (item.estimatedMinutes > 0) item.estimatedMinutes else 45
                                     val newEnd = schedStart.plusMinutes(duration.toLong())
@@ -495,9 +524,11 @@ fun DailyRitualDialog(
                                         item.copy(
                                             startTime = schedStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                             endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                                            estimatedMinutes = duration,
                                             isBacklog = 0,
                                             status = "PENDING",
-                                            syncVersion = (item.syncVersion ?: 1) + 1
+                                            syncVersion = (item.syncVersion ?: 1) + 1,
+                                            updatedAt = nowIso
                                         )
                                     )
                                     schedStart = newEnd.plusMinutes(15)
@@ -510,13 +541,16 @@ fun DailyRitualDialog(
                         if (mode == "SHUTDOWN" && reflectionText.isNotBlank()) {
                             coroutineScope.launch {
                                 val db = RmfDatabase.getInstance(context)
+                                val dateStr = todayDate.toString()
+                                val existing = db.dailyReportDao().getReportByDate(dateStr)
+                                val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                                 db.dailyReportDao().insertOrUpdate(
                                     DailyReportEntity(
-                                        date = todayDate.toString(),
+                                        date = dateStr,
                                         reflection = reflectionText,
-                                        aiSummary = "",
-                                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        aiSummary = existing?.aiSummary ?: "",
+                                        createdAt = existing?.createdAt ?: nowIso,
+                                        updatedAt = nowIso
                                     )
                                 )
                             }

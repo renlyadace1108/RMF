@@ -1594,6 +1594,24 @@ fun DragRangeScheduleDialog(
                         }
                     }
 
+                    val startMinuteOfDay = range.startHour * 60 + range.startMinute
+                    if (workType == "DEEP_WORK" && startMinuteOfDay in 810..900) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = DopamineAmber.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.35f)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "💡 昼夜节律提示：13:30~15:00 处于人体常规餐后认知低谷期，若有条件建议调配为浅层事务或留白小憩。",
+                                fontSize = 10.5.sp,
+                                color = DopamineAmber,
+                                modifier = Modifier.padding(6.dp),
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+
                     Text("分类标签:", fontSize = 11.sp, color = TextSecondary)
                     if (availableTags.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -5589,6 +5607,27 @@ fun EditScheduleDialog(
                     }
                 }
 
+                val itemStart = remember(item.startTime) { parseDateTime(item.startTime) }
+                if (workType == "DEEP_WORK" && itemStart != null) {
+                    val minuteOfDay = itemStart.hour * 60 + itemStart.minute
+                    if (minuteOfDay in 810..900) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = DopamineAmber.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.35f)),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "💡 昼夜节律提示：13:30~15:00 处于人体常规餐后认知低谷期，若有条件建议调配为浅层事务或留白小憩。",
+                                fontSize = 11.sp,
+                                color = DopamineAmber,
+                                modifier = Modifier.padding(6.dp),
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+
                 if (availableTags.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -6066,7 +6105,8 @@ fun ScheduleDetailModal(
                 Button(
                     onClick = {
                         val parsedStart = parseDateTime(item.startTime) ?: LocalDateTime.now()
-                        val parsedEnd = parseDateTime(item.endTime) ?: parsedStart.plusMinutes(item.estimatedMinutes.toLong())
+                        val duration = if (item.estimatedMinutes > 0) item.estimatedMinutes.toLong() else 30L
+                        val parsedEnd = parseDateTime(item.endTime) ?: parsedStart.plusMinutes(duration)
                         val bufferEnd = parsedEnd.plusMinutes(15)
                         val bufferEntity = ScheduleEntity(
                             id = java.util.UUID.randomUUID().toString(),
@@ -6118,11 +6158,12 @@ fun ScheduleDetailModal(
 }
 
 fun parseDateTime(str: String): LocalDateTime? {
+    val clean = str.trim().replace(" ", "T")
     return try {
-        LocalDateTime.parse(str, DateTimeFormatter.ISO_DATE_TIME)
+        LocalDateTime.parse(clean, DateTimeFormatter.ISO_DATE_TIME)
     } catch (_: Exception) {
         try {
-            LocalDateTime.parse(str)
+            LocalDateTime.parse(clean)
         } catch (_: Exception) {
             null
         }

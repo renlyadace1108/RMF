@@ -179,45 +179,52 @@ public static class WorkspaceLauncherService
             };
         }
 
-        // 2. 本地文件夹
-        if (Directory.Exists(target))
+        try
         {
-            string folderName = Path.GetFileName(target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            if (string.IsNullOrWhiteSpace(folderName)) folderName = target;
-
-            return new WorkspaceAsset
+            // 2. 本地文件夹
+            if (Directory.Exists(target))
             {
-                Type = WorkspaceAssetType.Folder,
-                Target = target,
-                DisplayName = folderName
-            };
+                string folderName = Path.GetFileName(target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (string.IsNullOrWhiteSpace(folderName)) folderName = target;
+
+                return new WorkspaceAsset
+                {
+                    Type = WorkspaceAssetType.Folder,
+                    Target = target,
+                    DisplayName = folderName
+                };
+            }
+
+            // 3. 本地文件
+            if (File.Exists(target))
+            {
+                string fileName = Path.GetFileName(target);
+                return new WorkspaceAsset
+                {
+                    Type = WorkspaceAssetType.File,
+                    Target = target,
+                    DisplayName = fileName
+                };
+            }
+
+            // 4. 路径格式符合本地路径规则 (即使目前未挂载或驱动器断开)
+            if (WindowsPathRegex.IsMatch(target))
+            {
+                bool hasExt = Path.HasExtension(target);
+                string name = Path.GetFileName(target);
+                if (string.IsNullOrWhiteSpace(name)) name = target;
+
+                return new WorkspaceAsset
+                {
+                    Type = hasExt ? WorkspaceAssetType.File : WorkspaceAssetType.Folder,
+                    Target = target,
+                    DisplayName = name
+                };
+            }
         }
-
-        // 3. 本地文件
-        if (File.Exists(target))
+        catch
         {
-            string fileName = Path.GetFileName(target);
-            return new WorkspaceAsset
-            {
-                Type = WorkspaceAssetType.File,
-                Target = target,
-                DisplayName = fileName
-            };
-        }
-
-        // 4. 路径格式符合本地路径规则 (即使目前未挂载或驱动器断开)
-        if (WindowsPathRegex.IsMatch(target))
-        {
-            bool hasExt = Path.HasExtension(target);
-            string name = Path.GetFileName(target);
-            if (string.IsNullOrWhiteSpace(name)) name = target;
-
-            return new WorkspaceAsset
-            {
-                Type = hasExt ? WorkspaceAssetType.File : WorkspaceAssetType.Folder,
-                Target = target,
-                DisplayName = name
-            };
+            // 忽略包含非法文件路径字符的无效匹配
         }
 
         return null;
