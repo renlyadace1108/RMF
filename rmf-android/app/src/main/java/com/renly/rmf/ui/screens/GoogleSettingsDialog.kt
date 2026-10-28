@@ -56,7 +56,7 @@ fun GoogleSettingsDialog(
     var icsUrlInput by remember { mutableStateOf(GoogleDrivePreferences.getCalendarIcsUrl(context)) }
     var lastCalSyncTime by remember { mutableStateOf(GoogleDrivePreferences.getCalendarLastSyncTime(context)) }
 
-    val isAuthorized = GoogleDrivePreferences.isAuthorized(context)
+    var isAuthorized by remember { mutableStateOf(GoogleDrivePreferences.isAuthorized(context)) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -67,6 +67,7 @@ fun GoogleSettingsDialog(
             color = DarkCard,
             border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.92f)
                 .padding(vertical = 12.dp)
@@ -172,6 +173,7 @@ fun GoogleSettingsDialog(
                                     OutlinedButton(
                                         onClick = {
                                             GoogleDrivePreferences.clearAuth(context)
+                                            isAuthorized = false
                                             driveStatusText = "已解除授权并清除本地凭据 Token"
                                         },
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineRed),
@@ -230,8 +232,16 @@ fun GoogleSettingsDialog(
                             ) {
                                 Button(
                                     onClick = {
-                                        GoogleDrivePreferences.setClientId(context, googleClientId.trim())
-                                        GoogleDrivePreferences.setClientSecret(context, googleClientSecret.trim())
+                                        val oldCId = GoogleDrivePreferences.getClientId(context)
+                                        val oldSec = GoogleDrivePreferences.getClientSecret(context)
+                                        val newCId = googleClientId.trim()
+                                        val newSec = googleClientSecret.trim()
+                                        if (oldCId != newCId || oldSec != newSec) {
+                                            GoogleDrivePreferences.clearAuth(context)
+                                            isAuthorized = false
+                                        }
+                                        GoogleDrivePreferences.setClientId(context, newCId)
+                                        GoogleDrivePreferences.setClientSecret(context, newSec)
                                         driveStatusText = "✓ OAuth 凭据已成功保存！"
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
@@ -628,6 +638,7 @@ fun GoogleSettingsDialog(
                         if (code.isNotBlank()) {
                             if (code.startsWith("ya29.")) {
                                 GoogleDrivePreferences.setAccessToken(context, code)
+                                isAuthorized = true
                                 driveStatusText = "✓ Access Token 已保存生效！"
                                 showAuthCodeDialog = false
                             } else {
@@ -643,6 +654,7 @@ fun GoogleSettingsDialog(
                                             val (acc, ref) = res.getOrThrow()
                                             GoogleDrivePreferences.setAccessToken(context, acc)
                                             if (ref != null) GoogleDrivePreferences.setRefreshToken(context, ref)
+                                            isAuthorized = true
                                             driveStatusText = "✓ Google 授权成功！"
                                             showAuthCodeDialog = false
                                         } else {

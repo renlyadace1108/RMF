@@ -99,6 +99,7 @@ fun DailyRitualDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
         containerColor = DarkCard,
         title = {
             Column {

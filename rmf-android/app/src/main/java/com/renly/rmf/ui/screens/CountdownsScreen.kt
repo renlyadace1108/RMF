@@ -114,17 +114,44 @@ fun CountdownsScreen(
                     }
                 }
             } else {
+                val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                val isPad = com.renly.rmf.BuildConfig.IS_PAD_EDITION || configuration.screenWidthDp >= 600
+                val columns = if (configuration.screenWidthDp >= 840) 3 else if (isPad) 2 else 1
+
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(countdowns, key = { it.id }) { item ->
-                        CountdownCard(
-                            item = item,
-                            today = today,
-                            onTogglePin = { onTogglePin(item) },
-                            onDelete = { onDeleteCountdown(item.id) }
-                        )
+                    if (columns == 1) {
+                        items(countdowns, key = { it.id }) { item ->
+                            CountdownCard(
+                                item = item,
+                                today = today,
+                                onTogglePin = { onTogglePin(item) },
+                                onDelete = { onDeleteCountdown(item.id) }
+                            )
+                        }
+                    } else {
+                        items(countdowns.chunked(columns), key = { chunk -> chunk.first().id }) { chunk ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                chunk.forEach { item ->
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        CountdownCard(
+                                            item = item,
+                                            today = today,
+                                            onTogglePin = { onTogglePin(item) },
+                                            onDelete = { onDeleteCountdown(item.id) }
+                                        )
+                                    }
+                                }
+                                repeat(columns - chunk.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
                     }
                     item { Spacer(modifier = Modifier.height(80.dp)) }
                 }

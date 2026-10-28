@@ -171,8 +171,16 @@ class GoogleDriveSyncService(
                 if (refreshRes.isSuccess) {
                     accessToken = refreshRes.getOrThrow()
                     GoogleDrivePreferences.setAccessToken(context, accessToken)
-                } else if (accessToken.isBlank()) {
-                    return@withContext Result.failure(Exception("Access Token 刷新失败: ${refreshRes.exceptionOrNull()?.message}"))
+                } else {
+                    val errMessage = refreshRes.exceptionOrNull()?.message ?: ""
+                    if (errMessage.contains("invalid_grant", ignoreCase = true)) {
+                        GoogleDrivePreferences.clearAuth(context)
+                        GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.IDLE, "Google 授权已过期，请重新登录")
+                        return@withContext Result.failure(Exception("Google 授权凭据已过期或失效 (invalid_grant)。已自动重置本地凭据，请重新登录授权。\n\n💡 提示：若 Google Cloud 应用处于「测试 (Testing)」状态，授权每 7 天会失效。设为「发布应用 (In Production)」即可永久有效。"))
+                    }
+                    if (accessToken.isBlank()) {
+                        return@withContext Result.failure(Exception("Access Token 刷新失败: $errMessage"))
+                    }
                 }
             }
             Result.success(accessToken)
@@ -400,6 +408,13 @@ class GoogleDriveSyncService(
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "云端已保存新快照", nowStr)
             return@withContext SyncResult.Success("已成功保存云端时间戳版本「$newBackupFileName」！", nowStr)
         } catch (e: Exception) {
+            val isInvalidGrant = e.message?.contains("invalid_grant", ignoreCase = true) == true
+            if (isInvalidGrant) {
+                GoogleDrivePreferences.clearAuth(context)
+                val friendly = "Google 授权已过期或失效 (invalid_grant)。已自动重置本地缓存，请重新登录授权。\n\n💡 提示：若 Google Cloud 处于测试 (Testing) 模式，授权每 7 天会过期。在 Google Cloud 控制台「OAuth 同意屏幕」中将发布状态改为「发布应用 (In Production)」即可永久有效。"
+                GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.IDLE, "Google 授权已过期，请重新登录", error = friendly)
+                return@withContext SyncResult.Error(friendly)
+            }
             val err = "云端上传失败: ${e.localizedMessage}"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = e.localizedMessage)
             return@withContext SyncResult.Error(err)
@@ -747,6 +762,13 @@ class GoogleDriveSyncService(
 
             return@withContext SyncResult.Success("已成功从云端完成双向增量合并「${remoteFile.name}」！全量数据已实时对齐生效。", nowStr)
         } catch (e: Exception) {
+            val isInvalidGrant = e.message?.contains("invalid_grant", ignoreCase = true) == true
+            if (isInvalidGrant) {
+                GoogleDrivePreferences.clearAuth(context)
+                val friendly = "Google 授权已过期或失效 (invalid_grant)。已自动重置本地缓存，请在「设置 - Google 服务与多端互通」中重新登录授权。\n\n💡 提示：若 Google Cloud 处于测试 (Testing) 模式，授权每 7 天会过期。在 Google Cloud 控制台「OAuth 同意屏幕」中将发布状态改为「发布应用 (In Production)」即可永久有效。"
+                GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.IDLE, "Google 授权已过期，请重新登录", error = friendly)
+                return@withContext SyncResult.Error(friendly)
+            }
             val err = "拉取合并失败: ${e.localizedMessage}"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = e.localizedMessage)
             return@withContext SyncResult.Error(err)

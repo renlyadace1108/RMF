@@ -59,6 +59,7 @@ fun QuickCaptureDialog(
     AlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = Modifier
+            .widthIn(max = 560.dp)
             .fillMaxWidth()
             .padding(16.dp),
         content = {

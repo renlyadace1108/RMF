@@ -84,9 +84,15 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 840.dp)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
         // 顶部手势下拉指示条：向下拉动或点击可快速收回设置
         var topDragDelta by remember { mutableFloatStateOf(0f) }
 
@@ -2215,6 +2221,7 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+        }
     }
 
 

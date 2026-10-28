@@ -300,7 +300,7 @@ public partial class MainWindow : Window
         try
         {
             var config = ConfigService.Load();
-            if (config.IsGoogleDriveLinked && !string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+            if (GoogleDriveSyncService.IsAuthorized(config))
             {
                 UpdateCloudSyncIndicator(
                     CloudSyncState.Success,
@@ -321,7 +321,7 @@ public partial class MainWindow : Window
         try
         {
             var cfg = ConfigService.Load();
-            if (!cfg.IsGoogleDriveLinked || string.IsNullOrEmpty(cfg.GoogleDriveRefreshToken))
+            if (!GoogleDriveSyncService.IsAuthorized(cfg))
             {
                 Dispatcher.Invoke(() => UpdateCloudSyncIndicator(CloudSyncState.Idle));
                 return;
@@ -418,7 +418,7 @@ public partial class MainWindow : Window
     private async void OnTopCloudSyncBtnClicked(object sender, RoutedEventArgs e)
     {
         var config = ConfigService.Load();
-        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        if (!GoogleDriveSyncService.IsAuthorized(config))
         {
             SwitchPrimaryPage("Settings");
             SwitchSettingsTab(1);
@@ -432,7 +432,7 @@ public partial class MainWindow : Window
     private async void OnMenuPullAndMergeClicked(object sender, RoutedEventArgs e)
     {
         var config = ConfigService.Load();
-        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        if (!GoogleDriveSyncService.IsAuthorized(config))
         {
             SwitchPrimaryPage("Settings");
             SwitchSettingsTab(1);
@@ -445,7 +445,7 @@ public partial class MainWindow : Window
     private void OnMenuUploadSnapshotClicked(object sender, RoutedEventArgs e)
     {
         var config = ConfigService.Load();
-        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        if (!GoogleDriveSyncService.IsAuthorized(config))
         {
             SwitchPrimaryPage("Settings");
             SwitchSettingsTab(1);
@@ -7617,7 +7617,7 @@ public partial class MainWindow : Window
     private void UpdateGoogleDriveUiState(AppConfig? config = null)
     {
         config ??= ConfigService.Load();
-        bool isLinked = config.IsGoogleDriveLinked;
+        bool isLinked = GoogleDriveSyncService.IsAuthorized(config);
         if (isLinked)
         {
             GoogleDriveStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0x06, 0x4E, 0x3B));
@@ -7642,10 +7642,16 @@ public partial class MainWindow : Window
         string cId = GoogleDriveClientIdInput.Text.Trim();
         string cSec = GoogleDriveClientSecretInput.Text.Trim();
         var config = ConfigService.Load();
+        if (config.GoogleClientId != cId || config.GoogleClientSecret != cSec)
+        {
+            GoogleDriveSyncService.ClearLocalCredentials();
+            config = ConfigService.Load();
+        }
         config.GoogleClientId = cId;
         config.GoogleClientSecret = cSec;
         ConfigService.Save(config);
 
+        UpdateGoogleDriveUiState(config);
         GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
         GoogleDriveActionStatusText.Text = "✓ OAuth 凭据已保存到本地配置！";
     }
@@ -7698,8 +7704,9 @@ public partial class MainWindow : Window
             }
             else
             {
+                UpdateGoogleDriveUiState();
                 GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-                GoogleDriveActionStatusText.Text = $"✗ {message}";
+                GoogleDriveActionStatusText.Text = $"✗ {message.Split('\n')[0]}";
                 System.Windows.MessageBox.Show(message, "云端备份未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -7763,8 +7770,9 @@ public partial class MainWindow : Window
             }
             else
             {
+                UpdateGoogleDriveUiState();
                 GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-                GoogleDriveActionStatusText.Text = $"✗ {message}";
+                GoogleDriveActionStatusText.Text = $"✗ {message.Split('\n')[0]}";
                 System.Windows.MessageBox.Show(message, "恢复失败", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }

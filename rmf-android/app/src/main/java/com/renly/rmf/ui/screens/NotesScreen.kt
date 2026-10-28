@@ -263,8 +263,11 @@ fun NotesScreen(
                     }
                 }
             } else {
+                val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                val noteColumns = if (configuration.screenWidthDp >= 840) 4 else if (configuration.screenWidthDp >= 600) 3 else 2
+
                 LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(2),
+                    columns = StaggeredGridCells.Fixed(noteColumns),
                     verticalItemSpacing = 10.dp,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),

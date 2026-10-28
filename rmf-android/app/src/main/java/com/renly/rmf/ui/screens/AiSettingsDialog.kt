@@ -58,6 +58,7 @@ fun AiSettingsDialog(
             color = DarkCard,
             border = BorderStroke(1.dp, DarkBorder),
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.88f)
                 .padding(vertical = 16.dp)

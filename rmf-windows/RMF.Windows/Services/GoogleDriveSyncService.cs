@@ -44,12 +44,24 @@ public class GoogleDriveSyncService
     public static bool IsAutoSyncing { get; private set; }
 
     /// <summary>
+    /// 判断本地 Google Drive 是否已处于可用且已授权状态
+    /// </summary>
+    public static bool IsAuthorized(AppConfig? config = null)
+    {
+        config ??= ConfigService.Load();
+        if (!config.IsGoogleDriveLinked) return false;
+        if (string.IsNullOrWhiteSpace(config.GoogleClientId) || string.IsNullOrWhiteSpace(config.GoogleClientSecret)) return false;
+        if (!string.IsNullOrEmpty(config.GoogleDriveRefreshToken)) return true;
+        return Directory.Exists(TokenFolder) && Directory.GetFiles(TokenFolder).Length > 0;
+    }
+
+    /// <summary>
     /// 请求触发一次防抖自动云端同步（每操作一次自动在专属文件夹保存时间戳命名版本）
     /// </summary>
     public static void RequestAutoSync(Action<string>? statusCallback = null)
     {
         var config = ConfigService.Load();
-        if (!config.IsGoogleDriveLinked || string.IsNullOrWhiteSpace(config.GoogleClientId) || string.IsNullOrWhiteSpace(config.GoogleClientSecret))
+        if (!IsAuthorized(config))
         {
             return;
         }
@@ -130,13 +142,54 @@ public class GoogleDriveSyncService
             ClientSecret = clientSecret.Trim()
         };
 
-        var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-            clientSecrets,
-            Scopes,
-            "user",
-            cancellationToken,
-            new FileDataStore(TokenFolder, true)
-        );
+        UserCredential credential;
+        try
+        {
+            credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                clientSecrets,
+                Scopes,
+                "user",
+                cancellationToken,
+                new FileDataStore(TokenFolder, true)
+            );
+
+            // 预先探测 Token 是否已陈旧/过期；若已过期 (如超过 7 天测试期 invalid_grant)，主动探测刷新
+            if (credential.Token.IsStale)
+            {
+                bool refreshed = await credential.RefreshTokenAsync(cancellationToken);
+                if (!refreshed)
+                {
+                    throw new InvalidOperationException("Token refresh returned false (invalid_grant)");
+                }
+            }
+        }
+        catch (Exception ex) when (ex.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) ||
+                                  ex.InnerException?.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // 授权已过期：彻底清理过期缓存文件，触发浏览器重新登录授权
+            ClearLocalCredentials();
+            Directory.CreateDirectory(TokenFolder);
+
+            credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                clientSecrets,
+                Scopes,
+                "user",
+                cancellationToken,
+                new FileDataStore(TokenFolder, true)
+            );
+        }
+
+        try
+        {
+            var config = ConfigService.Load();
+            config.IsGoogleDriveLinked = true;
+            if (!string.IsNullOrEmpty(credential.Token.RefreshToken))
+            {
+                config.GoogleDriveRefreshToken = credential.Token.RefreshToken;
+            }
+            ConfigService.Save(config);
+        }
+        catch { }
 
         return new DriveService(new BaseClientService.Initializer
         {
@@ -285,6 +338,15 @@ public class GoogleDriveSyncService
         }
         catch (Exception ex)
         {
+            bool isInvalidGrant = ex.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) ||
+                                  ex.InnerException?.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) == true;
+            if (isInvalidGrant)
+            {
+                ClearLocalCredentials();
+                string errMsg = "Google 授权凭据已过期或失效 (invalid_grant)。\n\n已自动重置本地凭据缓存。请重新在浏览器中登录授权。\n\n💡 提示：若 Google Cloud 处于测试 (Testing) 模式，授权每 7 天会失效。在 Google Cloud 控制台将应用发布状态设为「生产 (In Production)」，即可永久有效。";
+                NotifySyncState(CloudSyncState.Error, "Google 授权已过期，请重新登录");
+                return (false, string.Empty, errMsg);
+            }
             NotifySyncState(CloudSyncState.Error, $"同步上传异常: {ex.Message}");
             return (false, string.Empty, $"同步上传异常: {ex.Message}");
         }
@@ -586,6 +648,15 @@ public class GoogleDriveSyncService
         }
         catch (Exception ex)
         {
+            bool isInvalidGrant = ex.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) ||
+                                  ex.InnerException?.Message.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase) == true;
+            if (isInvalidGrant)
+            {
+                ClearLocalCredentials();
+                string errMsg = "Google 授权已过期或失效 (invalid_grant)。\n\n已自动清理过期授权缓存。请再次点击「从云端拉取恢复」或「上传完整备份」，系统将自动在浏览器中打开 Google 授权页面，登录后即可恢复正常同步。\n\n💡 永久免过期技巧：若你在 Google Cloud 控制台创建的凭据处于「测试 (Testing)」状态，Google 会限制 Refresh Token 有效期为 7 天。在 Google Cloud 控制台「OAuth 同意屏幕」中将发布状态改为「发布应用 (In Production)」，授权将永久有效无需每周重登。";
+                NotifySyncState(CloudSyncState.Error, "Google 授权已过期，请重新登录");
+                return (false, errMsg);
+            }
             NotifySyncState(CloudSyncState.Error, $"云端下载合并异常: {ex.Message}");
             return (false, $"云端下载合并异常: {ex.Message}");
         }
@@ -606,7 +677,7 @@ public class GoogleDriveSyncService
         try
         {
             var config = ConfigService.Load();
-            if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+            if (!IsAuthorized(config))
             {
                 NotifySyncState(CloudSyncState.Idle, "未连接");
                 return (false, "Google Drive 未关联授权。");
@@ -687,10 +758,15 @@ public class GoogleDriveSyncService
         {
             if (Directory.Exists(TokenFolder))
             {
-                Directory.Delete(TokenFolder, true);
+                foreach (var file in Directory.GetFiles(TokenFolder))
+                {
+                    try { File.Delete(file); } catch { }
+                }
+                try { Directory.Delete(TokenFolder, true); } catch { }
             }
             var config = ConfigService.Load();
             config.IsGoogleDriveLinked = false;
+            config.GoogleDriveRefreshToken = string.Empty;
             config.GoogleDriveFileId = string.Empty;
             ConfigService.Save(config);
         }

@@ -131,12 +131,19 @@ fun DailyReportScreen(
         }
     }
 
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
-            .padding(16.dp)
+            .background(DarkBg),
+        contentAlignment = Alignment.TopCenter
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxHeight()
+                .widthIn(max = 760.dp)
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
         // 1. 顶部日期与操作栏
         item {
             Row(
@@ -347,5 +354,6 @@ $reflectionText
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
     }
 }
