@@ -155,7 +155,9 @@ abstract class RmfDatabase : RoomDatabase() {
                 ),
                 indices = listOf(
                     IndexSpec("idx_schedules_time", false, listOf("start_time", "end_time", "is_deleted")),
-                    IndexSpec("idx_schedules_status", false, listOf("status", "is_deleted"))
+                    IndexSpec("idx_schedules_status", false, listOf("status", "is_deleted")),
+                    IndexSpec("idx_schedules_active_start", false, listOf("is_deleted", "is_backlog", "start_time")),
+                    IndexSpec("idx_schedules_backlog", false, listOf("is_backlog", "is_deleted", "status"))
                 )
             ),
             TableSpec(

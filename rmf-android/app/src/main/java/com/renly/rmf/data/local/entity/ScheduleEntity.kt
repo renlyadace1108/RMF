@@ -10,7 +10,9 @@ import java.util.UUID
     tableName = "schedules",
     indices = [
         Index(value = ["start_time", "end_time", "is_deleted"], name = "idx_schedules_time"),
-        Index(value = ["status", "is_deleted"], name = "idx_schedules_status")
+        Index(value = ["status", "is_deleted"], name = "idx_schedules_status"),
+        Index(value = ["is_deleted", "is_backlog", "start_time"], name = "idx_schedules_active_start"),
+        Index(value = ["is_backlog", "is_deleted", "status"], name = "idx_schedules_backlog")
     ]
 )
 data class ScheduleEntity(

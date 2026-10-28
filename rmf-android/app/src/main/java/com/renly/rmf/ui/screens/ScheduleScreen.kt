@@ -620,7 +620,7 @@ fun ScheduleScreen(
                             Button(
                                 onClick = {
                                     coroutineScope.launch {
-                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.spilloverTasksToToday(com.renly.rmf.data.database.RmfDatabase.getInstance(context), pastUnfinishedTasks)
+                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.spilloverTasksToToday(com.renly.rmf.data.local.RmfDatabase.getInstance(context), pastUnfinishedTasks)
                                         android.widget.Toast.makeText(context, "✓ 已自愈顺延 ${count} 项任务至今日排期！", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -634,7 +634,7 @@ fun ScheduleScreen(
                             OutlinedButton(
                                 onClick = {
                                     coroutineScope.launch {
-                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.movePastTasksToBacklog(com.renly.rmf.data.database.RmfDatabase.getInstance(context), pastUnfinishedTasks)
+                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.movePastTasksToBacklog(com.renly.rmf.data.local.RmfDatabase.getInstance(context), pastUnfinishedTasks)
                                         android.widget.Toast.makeText(context, "✓ 已将 ${count} 项未完成任务移入待办箱！", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -694,7 +694,7 @@ fun ScheduleScreen(
                                     coroutineScope.launch {
                                         val slot = recommendedGapSlot ?: return@launch
                                         val success = com.renly.rmf.domain.service.GapTimeBoxingService.fillGapWithBacklog(
-                                            com.renly.rmf.data.database.RmfDatabase.getInstance(context),
+                                            com.renly.rmf.data.local.RmfDatabase.getInstance(context),
                                             slot
                                         )
                                         if (success) {
@@ -6134,7 +6134,7 @@ fun ScheduleDetailModal(
                             status = "PENDING"
                         )
                         modalScope.launch {
-                            val db = com.renly.rmf.data.database.RmfDatabase.getInstance(context)
+                            val db = com.renly.rmf.data.local.RmfDatabase.getInstance(context)
                             db.scheduleDao().insertOrUpdate(bufferEntity)
                             android.widget.Toast.makeText(context, "已在任务后插入 15 分钟弹性呼吸缓冲带！", android.widget.Toast.LENGTH_SHORT).show()
                             onDismiss()

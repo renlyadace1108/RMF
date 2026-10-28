@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.renly.rmf.data.database.RmfDatabase
+import com.renly.rmf.data.local.RmfDatabase
 import com.renly.rmf.data.local.entity.DailyReportEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.domain.service.EstimationVarianceService
@@ -545,7 +545,10 @@ fun DailyRitualDialog(
             Button(
                 onClick = {
                     if (step < 4) {
-                        if (mode == "MORNING" && step == 3 && selectedBacklogIds.isNotEmpty()) {
+                        step++
+                    } else {
+                        // 完成仪式：在最终锁定确认时统一排期入库
+                        if (mode == "MORNING" && selectedBacklogIds.isNotEmpty()) {
                             coroutineScope.launch {
                                 val db = RmfDatabase.getInstance(context)
                                 val toSched = backlogSchedules.filter { selectedBacklogIds.contains(it.id) }
@@ -568,11 +571,7 @@ fun DailyRitualDialog(
                                     schedStart = newEnd.plusMinutes(15)
                                 }
                             }
-                        }
-                        step++
-                    } else {
-                        // 完成仪式
-                        if (mode == "SHUTDOWN" && reflectionText.isNotBlank()) {
+                        } else if (mode == "SHUTDOWN" && reflectionText.isNotBlank()) {
                             coroutineScope.launch {
                                 val db = RmfDatabase.getInstance(context)
                                 val dateStr = todayDate.toString()

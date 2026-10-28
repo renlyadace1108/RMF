@@ -354,6 +354,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private static readonly Dictionary<uint, SolidColorBrush> _frozenBrushCache = new();
+    private static readonly Dictionary<(string, byte), SolidColorBrush> _colorHexBrushCache = new();
+
+    private static SolidColorBrush GetFrozenBrush(byte a, byte r, byte g, byte b)
+    {
+        uint key = ((uint)a << 24) | ((uint)r << 16) | ((uint)g << 8) | b;
+        if (!_frozenBrushCache.TryGetValue(key, out var brush))
+        {
+            brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            brush.Freeze();
+            _frozenBrushCache[key] = brush;
+        }
+        return brush;
+    }
+
+    private static SolidColorBrush GetFrozenBrush(Color c) => GetFrozenBrush(c.A, c.R, c.G, c.B);
+
+    private static readonly SolidColorBrush SyncBlueBrush = GetFrozenBrush(0xFF, 0x3B, 0x82, 0xF6);
+    private static readonly SolidColorBrush SyncGreenBrush = GetFrozenBrush(0xFF, 0x10, 0xB9, 0x81);
+    private static readonly SolidColorBrush SyncAmberBrush = GetFrozenBrush(0xFF, 0xF5, 0x9E, 0x0B);
+    private static readonly SolidColorBrush SyncGrayBrush = GetFrozenBrush(0xFF, 0x9C, 0xA3, 0xAF);
+
     public void UpdateCloudSyncIndicator(CloudSyncState state, string? message = null, string? lastSync = null)
     {
         try
@@ -363,24 +385,24 @@ public partial class MainWindow : Window
             switch (state)
             {
                 case CloudSyncState.Syncing:
-                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6));
+                    TopCloudSyncDot.Fill = SyncBlueBrush;
                     TopCloudSyncText.Text = "同步中";
                     TopCloudSyncBtn.ToolTip = "Google Drive: 正在执行行级时间戳双向增量合并...";
                     break;
                 case CloudSyncState.Success:
-                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81));
+                    TopCloudSyncDot.Fill = SyncGreenBrush;
                     TopCloudSyncText.Text = "已同步";
                     var timeDisplay = !string.IsNullOrEmpty(lastSync) ? lastSync : (ConfigService.Load().LastSyncTime ?? "刚刚");
                     TopCloudSyncBtn.ToolTip = $"Google Drive: 数据已是最新 (上次同步: {timeDisplay})\n点击立即触发双向合并拉取，右键更多选项";
                     break;
                 case CloudSyncState.Error:
-                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    TopCloudSyncDot.Fill = SyncAmberBrush;
                     TopCloudSyncText.Text = "待同步";
                     TopCloudSyncBtn.ToolTip = $"Google Drive: 同步提示/异常 ({message ?? "请检查网络或代理节点"})\n点击重试双向合并同步";
                     break;
                 case CloudSyncState.Idle:
                 default:
-                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF));
+                    TopCloudSyncDot.Fill = SyncGrayBrush;
                     TopCloudSyncText.Text = "云同步";
                     TopCloudSyncBtn.ToolTip = "Google Drive: 尚未配置或绑定账号，点击前往设置进行绑定";
                     break;
@@ -588,6 +610,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private readonly StringBuilder _telemetrySb = new(256);
+
     private void UpdateTelemetry()
     {
         try
@@ -614,9 +638,9 @@ public partial class MainWindow : Window
                     _cachedForegroundProcName = procName;
                 }
 
-                var sb = new StringBuilder(256);
-                GetWindowText(handle, sb, sb.Capacity);
-                string title = sb.ToString();
+                _telemetrySb.Clear();
+                GetWindowText(handle, _telemetrySb, _telemetrySb.Capacity);
+                string title = _telemetrySb.ToString();
                 if (string.IsNullOrWhiteSpace(title)) title = "桌面 / 无标题";
 
                 if (procName != "Unknown" && procName != "RMF.Windows")
@@ -1299,26 +1323,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 解析日程颜色画刷 (优先采用 ColorHex，其次按三级认知负荷分配)
+    /// 解析日程颜色画刷 (优先采用 ColorHex，其次按三级认知负荷分配，带高性能冻结画刷缓存)
     /// </summary>
     private static Brush GetEventBrush(ScheduleItem item, byte opacity = 230)
     {
         if (!string.IsNullOrEmpty(item.ColorHex))
         {
+            var key = (item.ColorHex, opacity);
+            if (_colorHexBrushCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
             try
             {
                 var color = (Color)ColorConverter.ConvertFromString(item.ColorHex);
                 color.A = opacity;
-                return new SolidColorBrush(color);
+                var brush = GetFrozenBrush(color);
+                _colorHexBrushCache[key] = brush;
+                return brush;
             }
             catch { }
         }
 
         return item.WorkType switch
         {
-            "REST_BUFFER" => new SolidColorBrush(Color.FromArgb(180, 0x06, 0x4E, 0x3B)),
-            "SHALLOW_WORK" => new SolidColorBrush(Color.FromArgb(200, 0x1E, 0x29, 0x3B)),
-            _ => new SolidColorBrush(Color.FromArgb(230, 0x2E, 0x10, 0x65))
+            "REST_BUFFER" => RestBufferDefaultBrush,
+            "SHALLOW_WORK" => ShallowWorkDefaultBrush,
+            _ => DeepWorkDefaultBrush
         };
     }
 
@@ -1504,22 +1535,22 @@ public partial class MainWindow : Window
 
         if (item.IsTentative)
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
+            borderBrush = GetFrozenBrush(0xFF, 0x94, 0xA3, 0xB8);
             workTypeBadge = "👻 ";
         }
         else if (item.WorkType == "REST_BUFFER")
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            borderBrush = GetFrozenBrush(0xFF, 0x10, 0xB9, 0x81);
             workTypeBadge = "☕ ";
         }
         else if (item.WorkType == "SHALLOW_WORK")
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
+            borderBrush = GetFrozenBrush(0xFF, 0x64, 0x74, 0x8B);
             workTypeBadge = "⚡ ";
         }
         else
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
+            borderBrush = GetFrozenBrush(0xFF, 0x8B, 0x5C, 0xF6);
             workTypeBadge = "🎯 ";
         }
 
@@ -1532,8 +1563,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                var c = (Color)ColorConverter.ConvertFromString(item.ColorHex);
-                borderBrush = new SolidColorBrush(c);
+                borderBrush = GetEventBrush(item, 255);
             }
             catch { }
         }
@@ -1542,10 +1572,10 @@ public partial class MainWindow : Window
         bool isIsolated = string.IsNullOrEmpty(item.GoalId) && item.WorkType != "REST_BUFFER";
 
         double cardOpacity = item.Status == "COMPLETED" ? 0.65 : (item.IsTentative ? 0.70 : 1.0);
-        Brush cardBg = item.IsTentative ? new SolidColorBrush(Color.FromArgb(160, 0x47, 0x55, 0x69)) : bgBrush;
+        Brush cardBg = item.IsTentative ? GetFrozenBrush(160, 0x47, 0x55, 0x69) : bgBrush;
         Brush cardBorder = item.IsTentative 
-            ? new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)) 
-            : (isIsolated ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) : (item.Status == "IN_PROGRESS" ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : borderBrush));
+            ? GetFrozenBrush(0xFF, 0x94, 0xA3, 0xB8) 
+            : (isIsolated ? GetFrozenBrush(0xFF, 0xF5, 0x9E, 0x0B) : (item.Status == "IN_PROGRESS" ? GetFrozenBrush(0xFF, 0x38, 0xBD, 0xF8) : borderBrush));
 
         var border = new Border
         {
@@ -1971,20 +2001,20 @@ public partial class MainWindow : Window
 
         if (item.IsTentative)
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
+            borderBrush = GetFrozenBrush(0xFF, 0x94, 0xA3, 0xB8);
             badge = "👻 待确认";
         }
         else if (item.WorkType == "REST_BUFFER")
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            borderBrush = GetFrozenBrush(0xFF, 0x10, 0xB9, 0x81);
         }
         else if (item.WorkType == "SHALLOW_WORK")
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
+            borderBrush = GetFrozenBrush(0xFF, 0x64, 0x74, 0x8B);
         }
         else
         {
-            borderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
+            borderBrush = GetFrozenBrush(0xFF, 0x8B, 0x5C, 0xF6);
         }
 
         if (item.IsLocked)
@@ -1996,8 +2026,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                var c = (Color)ColorConverter.ConvertFromString(item.ColorHex);
-                borderBrush = new SolidColorBrush(c);
+                borderBrush = GetEventBrush(item, 255);
             }
             catch { }
         }
@@ -2005,10 +2034,10 @@ public partial class MainWindow : Window
         bool isIsolated = string.IsNullOrEmpty(item.GoalId) && item.WorkType != "REST_BUFFER";
 
         double cardOpacity = item.Status == "COMPLETED" ? 0.7 : (item.IsTentative ? 0.70 : 1.0);
-        Brush cardBg = item.IsTentative ? new SolidColorBrush(Color.FromArgb(160, 0x47, 0x55, 0x69)) : bgBrush;
+        Brush cardBg = item.IsTentative ? GetFrozenBrush(160, 0x47, 0x55, 0x69) : bgBrush;
         Brush cardBorder = item.IsTentative 
-            ? new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)) 
-            : (isIsolated ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)) : (item.Status == "IN_PROGRESS" ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) : borderBrush));
+            ? GetFrozenBrush(0xFF, 0x94, 0xA3, 0xB8) 
+            : (isIsolated ? GetFrozenBrush(0xFF, 0xF5, 0x9E, 0x0B) : (item.Status == "IN_PROGRESS" ? GetFrozenBrush(0xFF, 0x38, 0xBD, 0xF8) : borderBrush));
 
         var border = new Border
         {
@@ -6240,32 +6269,6 @@ public partial class MainWindow : Window
         }
         if (_ritualStep < 4)
         {
-            if (_ritualMode == "MORNING" && _ritualStep == 3)
-            {
-                var allBacklog = DatabaseService.GetBacklogSchedules();
-                var toSchedule = allBacklog.Where(b => _selectedBacklogForToday.Contains(b.Id)).ToList();
-                var now = DateTime.Now;
-                var schedStart = DateTime.Today.AddHours(Math.Max(now.Hour + (now.Minute > 30 ? 1 : 0), 9));
-                foreach (var item in toSchedule)
-                {
-                    item.StartTime = schedStart;
-                    int est = item.EstimatedMinutes > 0 ? item.EstimatedMinutes : 45;
-                    item.EndTime = schedStart.AddMinutes(est);
-                    item.EstimatedMinutes = est;
-                    item.IsBacklog = false;
-                    item.Status = "PENDING";
-                    item.IsDirty = true;
-                    item.SyncVersion++;
-                    item.UpdatedAt = DateTime.UtcNow;
-                    DatabaseService.UpsertSchedule(item);
-                    schedStart = item.EndTime.AddMinutes(15);
-                }
-                if (toSchedule.Count > 0)
-                {
-                    RenderAllCalendarViews();
-                    RefreshBacklogList();
-                }
-            }
             _ritualStep++;
             RenderRitualStep();
         }
@@ -6273,9 +6276,33 @@ public partial class MainWindow : Window
         {
             if (_ritualMode == "MORNING")
             {
+                if (_selectedBacklogForToday.Count > 0)
+                {
+                    var allBacklog = DatabaseService.GetBacklogSchedules();
+                    var toSchedule = allBacklog.Where(b => _selectedBacklogForToday.Contains(b.Id)).ToList();
+                    var now = DateTime.Now;
+                    var schedStart = DateTime.Today.AddHours(Math.Max(now.Hour + (now.Minute > 30 ? 1 : 0), 9));
+                    foreach (var item in toSchedule)
+                    {
+                        item.StartTime = schedStart;
+                        int est = item.EstimatedMinutes > 0 ? item.EstimatedMinutes : 45;
+                        item.EndTime = schedStart.AddMinutes(est);
+                        item.EstimatedMinutes = est;
+                        item.IsBacklog = false;
+                        item.Status = "PENDING";
+                        item.IsDirty = true;
+                        item.SyncVersion++;
+                        item.UpdatedAt = DateTime.UtcNow;
+                        DatabaseService.UpsertSchedule(item);
+                        schedStart = item.EndTime.AddMinutes(15);
+                    }
+                    _selectedBacklogForToday.Clear();
+                }
+
                 AnimateModalClose(DailyRitualModal, DailyRitualModalCard, () =>
                 {
                     RenderAllCalendarViews();
+                    RefreshBacklogList();
                     RefreshTimePnlData();
                     UpdateCognitiveLoadQuota();
                     MessageBox.Show("🚀 今日排期已锁定，专注执行，祝你拥有高效而充实的一天！", "晨间规划完成", MessageBoxButton.OK, MessageBoxImage.Information);

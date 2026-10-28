@@ -2,7 +2,7 @@ package com.renly.rmf.domain.service
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import com.renly.rmf.data.database.RmfDatabase
+import com.renly.rmf.data.local.RmfDatabase
 import kotlinx.coroutines.*
 import java.io.*
 import java.net.*

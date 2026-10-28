@@ -1,6 +1,6 @@
 package com.renly.rmf.domain.service
 
-import com.renly.rmf.data.database.RmfDatabase
+import com.renly.rmf.data.local.RmfDatabase
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

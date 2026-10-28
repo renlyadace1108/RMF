@@ -14,7 +14,12 @@ public class DatabaseService
         "RMF"
     );
     public static readonly string DbPath = Path.Combine(DbDir, "rmf.db");
-    public static readonly string ConnectionString = $"Data Source={DbPath}";
+    public static readonly string ConnectionString = new SqliteConnectionStringBuilder
+    {
+        DataSource = DbPath,
+        Mode = SqliteOpenMode.ReadWriteCreate,
+        DefaultTimeout = 5
+    }.ToString();
 
     /// <summary>
     /// 数据发生变更时的全局通知事件（供自动云端同步等模块监听，支持防抖）

@@ -106,7 +106,7 @@ public partial class FocusHudWindow : Window
             {
                 _isPaused = true;
                 PlayPauseIcon.Text = "▶";
-                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)); // 灰色闲置
+                StatusDot.Fill = GrayBrush; // 灰色闲置
                 ModeBadgeText.Text = "离席挂起";
             }
         };
@@ -167,12 +167,12 @@ public partial class FocusHudWindow : Window
                 if (_isBreak)
                 {
                     ModeBadgeText.Text = "☕ 番茄休息";
-                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                    StatusDot.Fill = GreenBrush;
                 }
                 else
                 {
                     ModeBadgeText.Text = "🧠 番茄专注";
-                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+                    StatusDot.Fill = BlueBrush;
                 }
             }
         }
@@ -184,6 +184,9 @@ public partial class FocusHudWindow : Window
     private static readonly SolidColorBrush GreenBrush = CreateFrozenBrush(0x10, 0xB9, 0x81);
     private static readonly SolidColorBrush BlueBrush = CreateFrozenBrush(0x38, 0xBD, 0xF8);
     private static readonly SolidColorBrush AmberBrush = CreateFrozenBrush(0xF5, 0x9E, 0x0B);
+    private static readonly SolidColorBrush GrayBrush = CreateFrozenBrush(0x94, 0xA3, 0xB8);
+    private static readonly SolidColorBrush RedBrush = CreateFrozenBrush(0xEF, 0x44, 0x44);
+    private static readonly SolidColorBrush WhiteTextBrush = CreateFrozenBrush(0xF1, 0xF5, 0xF9);
 
     private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
     {
@@ -257,13 +260,13 @@ public partial class FocusHudWindow : Window
         if (_isPaused)
         {
             PlayPauseIcon.Text = "▶";
-            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)); // 黄色暂停
+            StatusDot.Fill = AmberBrush; // 黄色暂停
             ModeBadgeText.Text = "已暂停";
         }
         else
         {
             PlayPauseIcon.Text = "⏸";
-            StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)); // 绿色继续
+            StatusDot.Fill = GreenBrush; // 绿色继续
             ModeBadgeText.Text = "深度专注";
         }
     }
@@ -310,7 +313,7 @@ public partial class FocusHudWindow : Window
         // 打断时自动暂停 3 分钟给用户缓冲
         _isPaused = true;
         PlayPauseIcon.Text = "▶";
-        StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+        StatusDot.Fill = RedBrush;
         ModeBadgeText.Text = "打断中";
     }
 
@@ -340,7 +343,7 @@ public partial class FocusHudWindow : Window
             {
                 Text = dod.Text,
                 FontSize = 11.5,
-                Foreground = dod.Done ? new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)) : new SolidColorBrush(Color.FromRgb(0xF1, 0xF5, 0xF9)),
+                Foreground = dod.Done ? GrayBrush : WhiteTextBrush,
                 TextDecorations = dod.Done ? TextDecorations.Strikethrough : null,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(4, 0, 0, 0)
@@ -349,7 +352,7 @@ public partial class FocusHudWindow : Window
             cb.Click += (s, e) =>
             {
                 dod.Done = (cb.IsChecked == true);
-                tb.Foreground = dod.Done ? new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)) : new SolidColorBrush(Color.FromRgb(0xF1, 0xF5, 0xF9));
+                tb.Foreground = dod.Done ? GrayBrush : WhiteTextBrush;
                 tb.TextDecorations = dod.Done ? TextDecorations.Strikethrough : null;
 
                 _schedule.Dod = DataLineageService.SerializeDodItems(items);
