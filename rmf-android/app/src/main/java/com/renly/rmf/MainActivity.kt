@@ -1809,7 +1809,8 @@ class MainActivity : ComponentActivity() {
                                         Screen.Summary,
                                         Screen.Settings
                                     )
-                                    allScreens.chunked(2).forEach { rowScreens ->
+                                    val navCols = if (configuration.screenWidthDp >= 600) 3 else 2
+                                    allScreens.chunked(navCols).forEach { rowScreens ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -1851,6 +1852,9 @@ class MainActivity : ComponentActivity() {
                                                         )
                                                     }
                                                 }
+                                            }
+                                            repeat(navCols - rowScreens.size) {
+                                                Spacer(modifier = Modifier.weight(1f))
                                             }
                                         }
                                     }

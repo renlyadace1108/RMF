@@ -196,7 +196,11 @@ fun WorkbenchScreen(
             )
         }
 
-        functionalCards.chunked(2).forEach { rowItems ->
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val isPad = com.renly.rmf.BuildConfig.IS_PAD_EDITION || configuration.screenWidthDp >= 600
+        val columns = if (configuration.screenWidthDp >= 840) 4 else if (isPad) 3 else 2
+
+        functionalCards.chunked(columns).forEach { rowItems ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -254,6 +258,9 @@ fun WorkbenchScreen(
                             }
                         }
                     }
+                }
+                repeat(columns - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }

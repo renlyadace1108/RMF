@@ -265,7 +265,7 @@ fun DailyRitualDialog(
                             }
                         }
                         2 -> { // 今日格局
-                            val freeGaps = remember {
+                            val freeGaps = remember(todayDate, todaySchedules, backlogSchedules) {
                                 GapTimeBoxingService.findDailyFreeGaps(todayDate, todaySchedules, backlogSchedules)
                             }
                             val totalFreeMins = freeGaps.sumOf { it.durationMinutes }
