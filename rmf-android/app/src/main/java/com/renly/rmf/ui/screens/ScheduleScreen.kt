@@ -178,6 +178,19 @@ fun ScheduleScreen(
         if (totalCount > 0) (completedCount * 100 / totalCount) else 0
     }
 
+    val todayStartIso = remember { LocalDate.now().atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME) }
+    val pastUnfinishedTasks = remember(schedules, todayStartIso) {
+        schedules.filter {
+            it.isDeleted == 0 &&
+            it.status != "COMPLETED" &&
+            it.status != "ABANDONED" &&
+            it.status != "BACKLOG" &&
+            (it.isBacklog ?: 0) == 0 &&
+            it.startTime < todayStartIso
+        }
+    }
+    var isSpilloverBannerDismissed by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -514,6 +527,71 @@ fun ScheduleScreen(
             }
 
             Spacer(modifier = Modifier.height(2.dp))
+
+            // 过去未完成排期智能自愈顺延横幅
+            if (pastUnfinishedTasks.isNotEmpty() && !isSpilloverBannerDismissed && selectedDate == java.time.LocalDate.now()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopamineAmber.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("⚡", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "历史遗留 ${pastUnfinishedTasks.size} 项未完成排期",
+                                fontSize = 11.5.sp,
+                                color = DopamineAmber,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.spilloverTasksToToday(com.renly.rmf.data.database.RmfDatabase.getInstance(context), pastUnfinishedTasks)
+                                        android.widget.Toast.makeText(context, "✓ 已自愈顺延 ${count} 项任务至今日排期！", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DopamineAmber),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(26.dp)
+                            ) {
+                                Text("顺延今日", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val count = com.renly.rmf.domain.service.EstimationVarianceService.movePastTasksToBacklog(com.renly.rmf.data.database.RmfDatabase.getInstance(context), pastUnfinishedTasks)
+                                        android.widget.Toast.makeText(context, "✓ 已将 ${count} 项未完成任务移入待办箱！", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, TextMuted),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(26.dp)
+                            ) {
+                                Text("入待办", fontSize = 10.5.sp, color = TextSecondary)
+                            }
+                            IconButton(
+                                onClick = { isSpilloverBannerDismissed = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Text("✕", fontSize = 11.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                }
+            }
 
             // 3. 核心视图区（全屏自适应，紧贴底部导航栏）
             Box(
@@ -5737,6 +5815,31 @@ fun ScheduleDetailModal(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = "📅 预估起止: $timeStr · ${item.estimatedMinutes}分钟", fontSize = 12.5.sp, color = TextSecondary)
+                if (item.actualMinutes > 0) {
+                    val diff = item.actualMinutes - item.estimatedMinutes
+                    val diffText = if (diff > 0) "超时 +${diff}分钟" else if (diff < 0) "提前 ${-diff}分钟完成" else "准点完成"
+                    val diffColor = if (diff > 0) DopamineAmber else DopamineGreen
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = diffColor.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, diffColor.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("⏱️", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "实际耗时: ${item.actualMinutes}分钟 ($diffText)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = diffColor
+                            )
+                        }
+                    }
+                }
                 val rType = ReminderType.fromCode(item.reminderType)
                 val reminderText = when (item.reminderMinutes) {
                     -1 -> "🔕 未开启提前提醒"

@@ -670,6 +670,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="64" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -705,8 +706,26 @@
                         </Grid>
                     </Border>
 
-                    <!-- 24-Hour Day Grid (Row 2) -->
-                    <ScrollViewer Grid.Row="2" x:Name="DayScrollViewer" VerticalScrollBarVisibility="Hidden">
+                    <!-- 过去未完成排期智能自愈顺延横幅 (Row 2) -->
+                    <Border Grid.Row="2" x:Name="DaySpilloverBanner" Background="#261E10" BorderBrush="#D97706" BorderThickness="0,0,0,1" Padding="12,6" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="⚡" FontSize="13" Foreground="#F59E0B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock x:Name="DaySpilloverText" Grid.Column="1" Text="检测到历史遗留未完成任务" FontSize="11.5" Foreground="#FDE68A" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="⏩ 顺延至今日" Style="{StaticResource GoogleTopBtnStyle}" Background="#D97706" Foreground="#FFFFFF" Padding="8,3" FontSize="10.5" FontWeight="SemiBold" Margin="0,0,6,0" Click="OnSpilloverToTodayClicked" />
+                                <Button Content="📦 移入待办箱" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextSecondary}" Padding="8,3" FontSize="10.5" Margin="0,0,6,0" Click="OnSpilloverToBacklogClicked" />
+                                <Button Content="✕" Style="{StaticResource GoogleTopBtnStyle}" Background="Transparent" Foreground="{DynamicResource TextMuted}" Padding="4,2" FontSize="11" Click="OnDismissSpilloverBannerClicked" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 24-Hour Day Grid (Row 3) -->
+                    <ScrollViewer Grid.Row="3" x:Name="DayScrollViewer" VerticalScrollBarVisibility="Hidden">
                         <Grid x:Name="DayGridTrack">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="54" />
@@ -4184,6 +4203,29 @@
                                     <TextBlock x:Name="AnalyticsDodRateText" Text="100% (目标已量化)" FontSize="13" FontWeight="SemiBold" Foreground="#C084FC" Margin="0,4,0,0" />
                                 </StackPanel>
                             </Grid>
+                        </Border>
+
+                        <!-- ⏱️ 计划 vs 实际耗时偏差复盘与感知模型 -->
+                        <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="⏱️ 计划 vs 实际耗时" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock x:Name="AnalyticsPlannedVsActualText" Text="计划 0h / 实际 0h" FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="🎯 时间预估准确率" FontSize="11" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock x:Name="AnalyticsAccuracyScoreText" Text="0% (偏差 ≤10m 占比)" FontSize="13" FontWeight="SemiBold" Foreground="#10B981" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Background="{DynamicResource InputBackground}" CornerRadius="6" Padding="8,6" Margin="0,4,0,0">
+                                    <TextBlock x:Name="AnalyticsVarianceAdviceText" Text="暂无偏差数据" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
                         </Border>
 
                         <!-- Category Distribution Bars -->

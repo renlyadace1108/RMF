@@ -1643,6 +1643,24 @@ public partial class MainWindow : Window
         bool isToday = _currentDate.Date == DateTime.Today;
         DayHeaderDateBadge.Background = isToday ? new SolidColorBrush(Color.FromRgb(0x1A, 0x73, 0xE8)) : Brushes.Transparent;
         DayHeaderDateNumText.Foreground = isToday ? Brushes.White : ThemeService.CurrentTextBrush;
+
+        if (isToday)
+        {
+            var pastTasks = EstimationVarianceService.GetPastUnfinishedTasks();
+            if (pastTasks.Count > 0)
+            {
+                DaySpilloverBanner.Visibility = Visibility.Visible;
+                DaySpilloverText.Text = $"检测到历史遗留 {pastTasks.Count} 项未完成排期，可一键顺延或归入待办箱：";
+            }
+            else
+            {
+                DaySpilloverBanner.Visibility = Visibility.Collapsed;
+            }
+        }
+        else
+        {
+            DaySpilloverBanner.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void RenderDayEvents()
@@ -5720,6 +5738,11 @@ public partial class MainWindow : Window
         AnalyticsCompletionRateText.Text = $"{completionRate:F0}% ({completedCount}/{totalCount} 项已完成)";
         AnalyticsDodRateText.Text = $"{dodRate:F0}% ({dodCount}/{totalCount} 项设定了 DoD)";
 
+        var varianceReport = EstimationVarianceService.Analyze(validEvents);
+        AnalyticsPlannedVsActualText.Text = $"计划 {varianceReport.TotalEstimatedMinutes / 60.0:F1}h / 实际 {varianceReport.TotalActualMinutes / 60.0:F1}h ({(varianceReport.VarianceMinutes >= 0 ? "+" : "")}{varianceReport.VarianceMinutes}m)";
+        AnalyticsAccuracyScoreText.Text = $"{varianceReport.AccuracyScore:F0}% ({varianceReport.TotalTasksEvaluated} 项样本)";
+        AnalyticsVarianceAdviceText.Text = varianceReport.Recommendation;
+
         // 渲染分类工时条形图
         AnalyticsCategoryBarsPanel.Children.Clear();
         var catGroups = validEvents.GroupBy(ev => string.IsNullOrWhiteSpace(ev.Category) ? "未分类" : ev.Category)
@@ -5799,6 +5822,30 @@ public partial class MainWindow : Window
     private void OnCloseAnalyticsModalClicked(object sender, RoutedEventArgs e)
     {
         AnalyticsModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnSpilloverToTodayClicked(object sender, RoutedEventArgs e)
+    {
+        var tasks = EstimationVarianceService.GetPastUnfinishedTasks();
+        int count = EstimationVarianceService.SpilloverTasksToToday(tasks);
+        DaySpilloverBanner.Visibility = Visibility.Collapsed;
+        RenderAllCalendarViews();
+        System.Windows.MessageBox.Show($"✓ 已成功将 {count} 项未完成任务智能顺延至今日排期！", "自愈顺延成功", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OnSpilloverToBacklogClicked(object sender, RoutedEventArgs e)
+    {
+        var tasks = EstimationVarianceService.GetPastUnfinishedTasks();
+        int count = EstimationVarianceService.MovePastTasksToBacklog(tasks);
+        DaySpilloverBanner.Visibility = Visibility.Collapsed;
+        RenderAllCalendarViews();
+        RefreshBacklogList();
+        System.Windows.MessageBox.Show($"✓ 已将 {count} 项未完成任务安全移入待办箱备选！", "整理成功", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OnDismissSpilloverBannerClicked(object sender, RoutedEventArgs e)
+    {
+        DaySpilloverBanner.Visibility = Visibility.Collapsed;
     }
 
     // =========================================================================

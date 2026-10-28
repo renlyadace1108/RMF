@@ -813,7 +813,18 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
                                         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                        db.scheduleDao().updateStatus(schedule.id, newStatus, nowStr)
+                                        if (newStatus == "COMPLETED" && schedule.actualMinutes == 0) {
+                                            val actMins = try {
+                                                val sDt = LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                                                val dur = java.time.Duration.between(sDt, LocalDateTime.now()).toMinutes().toInt()
+                                                if (dur in 5..360) dur else schedule.estimatedMinutes
+                                            } catch (_: Exception) {
+                                                schedule.estimatedMinutes
+                                            }
+                                            db.scheduleDao().insertOrUpdate(schedule.copy(status = newStatus, actualMinutes = actMins, updatedAt = nowStr))
+                                        } else {
+                                            db.scheduleDao().updateStatus(schedule.id, newStatus, nowStr)
+                                        }
                                         if (newStatus == "COMPLETED") {
                                             com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, schedule.id)
                                         } else if (schedule.reminderMinutes >= 0 && schedule.startTime.isNotBlank()) {

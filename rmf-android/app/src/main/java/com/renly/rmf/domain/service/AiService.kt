@@ -99,7 +99,8 @@ object AiService {
         interruptionCount: Int,
         studySummary: String,
         customNote: String = "",
-        timeMarkersSummary: String = ""
+        timeMarkersSummary: String = "",
+        taskVarianceSummary: String = ""
     ): AiResult<String> = withContext(Dispatchers.IO) {
         if (!AiPreferences.isAiEnabled(context)) {
             return@withContext AiResult.Error("数据分析功能已在系统设置中停用。")
@@ -120,22 +121,32 @@ object AiService {
             "- 实际时间标记与作息执行: 暂无单独时间标记记录"
         }
 
+        val variancePart = if (taskVarianceSummary.isNotBlank()) {
+            """
+            - 计划用时 vs 实际耗时偏差分析:
+            $taskVarianceSummary
+            """.trimIndent()
+        } else ""
+
         val prompt = """
-            你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据与实际时间标记，生成一份结构清晰、有洞察力的高质量复盘报告：
+            你是一名专业的精力管理与效能规划助手。请基于用户今天的实际执行数据、实际时间标记以及计划vs实际耗时偏差，生成一份结构清晰、有洞察力的高质量复盘报告：
             - 今日日程完成率: $completedCount / $totalSchedules
             - 专注总时长: $focusMinutes 分钟
             - 打断发生次数: $interruptionCount 次
             - 学习与技能进展: $studySummary
             - 用户今日个人心得: $customNote
             $markersPart
+            $variancePart
 
             分析要求：
             1. 请重点对比用户的【计划日程】与【实际时间标记】（如起床、睡觉、午休等真实作息节点），精准指出实际执行与预期规划之间的偏差、精力波峰与波谷重叠或冲突情况；
-            2. 给出切实可行的日程排期与作息改善建议。
+            2. 结合任务【预估时长】与【实际耗时】偏差，指出用户在排期预估上是否存在系统性过松或过紧，并给出明日预估校准系数与缓冲建议；
+            3. 给出切实可行的日程排期与作息改善建议。
 
             请按以下规范输出排版精美的 Markdown 内容：
             ### 🌟 今日高光与成就盘点
-            ### ⚡ 实际作息与预计日程偏差诊断 (重点结合时间标记与执行差异)
+            ### ⚡ 实际作息与预计日程偏差诊断 (结合时间标记与耗时差异)
+            ### ⏱️ 时间预估自愈与校准建议
             ### 🎯 明日精力节奏与日程优化建议
         """.trimIndent()
 

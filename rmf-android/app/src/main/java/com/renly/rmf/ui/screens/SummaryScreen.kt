@@ -38,6 +38,7 @@ import com.renly.rmf.data.local.entity.ExpenseEntity
 import com.renly.rmf.data.local.entity.InterruptionEntity
 import com.renly.rmf.data.local.entity.ScheduleEntity
 import com.renly.rmf.data.local.entity.TimeMarkerEntity
+import com.renly.rmf.domain.service.EstimationVarianceService
 import com.renly.rmf.domain.service.TimetablePreferences
 import com.renly.rmf.ui.theme.LocalAppColors
 import kotlinx.coroutines.flow.Flow
@@ -647,6 +648,13 @@ fun SummaryScreen(
             )
         }
 
+        // 4.3 ⏱️ 计划 vs 实际耗时偏差复盘与感知模型
+        item {
+            TaskEstimationVarianceCard(
+                schedules = schedules
+            )
+        }
+
         // 4.5 🤖 AI 智能效能与精力深度分析
         item {
             Card(
@@ -710,6 +718,11 @@ fun SummaryScreen(
                                         }
                                     } else ""
 
+                                    val varianceReport = EstimationVarianceService.analyze(schedules)
+                                    val varianceSummary = if (varianceReport.totalTasksEvaluated > 0) {
+                                        "预估总时长 ${varianceReport.totalEstimatedMinutes}分钟，实际用时 ${varianceReport.totalActualMinutes}分钟（偏差 ${varianceReport.varianceMinutes}分钟，准确率 ${varianceReport.accuracyScore.toInt()}%）。${varianceReport.recommendation}"
+                                    } else ""
+
                                     val res = com.renly.rmf.domain.service.AiService.generateDailyReview(
                                         context = context,
                                         completedCount = completedSchedules,
@@ -718,7 +731,8 @@ fun SummaryScreen(
                                         interruptionCount = interruptions.size,
                                         studySummary = catSummary.ifBlank { "全天均衡排期" },
                                         customNote = "${selectedDate} 效能全盘分析，包含 ${dailyBlocks.size} 个作息时间块",
-                                        timeMarkersSummary = markersSummary
+                                        timeMarkersSummary = markersSummary,
+                                        taskVarianceSummary = varianceSummary
                                     )
                                     isGeneratingAiAudit = false
                                     when (res) {
@@ -1737,4 +1751,128 @@ fun RealityVsScheduleContrastCard(
         }
     }
 }
+
+/**
+ * 计划 vs 实际耗时偏差复盘与感知模型卡片
+ */
+@Composable
+fun TaskEstimationVarianceCard(
+    schedules: List<ScheduleEntity>,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalAppColors.current
+    val report = remember(schedules) {
+        EstimationVarianceService.analyze(schedules)
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colors.card),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, colors.dopamineBlue.copy(alpha = 0.35f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("⏱️", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "计划 vs 实际耗时偏差复盘",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = colors.dopamineBlue.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, colors.dopamineBlue.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = "样本: ${report.totalTasksEvaluated} 项",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.dopamineBlue,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 计划与实际总时长
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = colors.bg),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, colors.border.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("用时对比", fontSize = 11.sp, color = colors.textSecondary)
+                        val estHours = "%.1f".format(report.totalEstimatedMinutes / 60.0)
+                        val actHours = "%.1f".format(report.totalActualMinutes / 60.0)
+                        Text(
+                            text = "${actHours}h / 估${estHours}h",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                        val diffMins = report.varianceMinutes
+                        val diffText = if (diffMins > 0) "+${diffMins}m 超时" else if (diffMins < 0) "${diffMins}m 提前" else "准点"
+                        val diffColor = if (diffMins > 0) colors.dopamineOrange else colors.dopamineGreen
+                        Text(diffText, fontSize = 10.5.sp, color = diffColor, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                // 预估准确率
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = colors.bg),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, colors.border.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("预估准确率", fontSize = 11.sp, color = colors.textSecondary)
+                        Text(
+                            text = "${report.accuracyScore.toInt()}%",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.dopamineGreen,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                        Text("偏差 ≤10m 占比", fontSize = 10.sp, color = colors.textMuted)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 建议提示
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = colors.bg,
+                border = BorderStroke(1.dp, colors.border.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = report.recommendation,
+                    fontSize = 11.sp,
+                    color = colors.textSecondary,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
+    }
+}
+
 
