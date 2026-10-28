@@ -3346,6 +3346,37 @@ public partial class MainWindow : Window
                 EventEndTimeCombo.Text = $"{newEnd.Hours:D2}:{newEnd.Minutes:D2}";
             }
         }
+
+        CheckCircadianTip();
+    }
+
+    private void OnEventWorkTypeComboSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        CheckCircadianTip();
+    }
+
+    private void CheckCircadianTip()
+    {
+        if (EventCircadianTipBorder == null) return;
+        try
+        {
+            string wt = (EventWorkTypeCombo?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DEEP_WORK";
+            string startStr = EventStartTimeCombo?.Text?.Trim() ?? "";
+            if (TryParseUserTime(startStr, out var ts))
+            {
+                if (wt == "DEEP_WORK" && ts >= TimeSpan.FromHours(13.5) && ts <= TimeSpan.FromHours(15.0))
+                {
+                    EventCircadianTipBorder.Visibility = Visibility.Visible;
+                    EventCircadianTipText.Text = "💡 昼夜节律提示：13:30~15:00 处于人体常规餐后认知低谷期，若有条件建议调配为浅层事务或留白小憩。";
+                    return;
+                }
+            }
+            EventCircadianTipBorder.Visibility = Visibility.Collapsed;
+        }
+        catch
+        {
+            EventCircadianTipBorder.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void OnEventIsAllDayChecked(object sender, RoutedEventArgs e)
@@ -4010,6 +4041,35 @@ public partial class MainWindow : Window
         {
             WorkspaceLauncherService.LaunchAsset(target);
         }
+    }
+
+    private void OnQuickDetailAddBufferClicked(object sender, RoutedEventArgs e)
+    {
+        if (_quickDetailItem == null) return;
+
+        var start = _quickDetailItem.EndTime;
+        var end = start.AddMinutes(15);
+        var bufferItem = new ScheduleItem
+        {
+            Title = "☕ 呼吸缓冲休息",
+            Category = "日常",
+            WorkType = "REST_BUFFER",
+            StartTime = start,
+            EndTime = end,
+            EstimatedMinutes = 15,
+            ColorHex = "#10B981",
+            Status = "PENDING"
+        };
+
+        DatabaseService.AddSchedule(bufferItem);
+        EventQuickDetailModal.Visibility = Visibility.Collapsed;
+        _quickDetailItem = null;
+
+        RenderAllCalendarViews();
+        RefreshTimePnlData();
+        UpdateCognitiveLoadQuota();
+
+        MessageBox.Show($"已在日程后自动插入 15 分钟弹性呼吸缓冲带 ({start:HH:mm} ~ {end:HH:mm})！", "呼吸缓冲带", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnCloseQuickDetailClicked(object sender, RoutedEventArgs e)
@@ -5941,6 +6001,646 @@ public partial class MainWindow : Window
     {
         _isGapFillDismissed = true;
         DayGapFillBanner.Visibility = Visibility.Collapsed;
+    }
+
+    // =========================================================================
+    // ================= SUNSAMA 每日仪式流 (晨间规划 & 晚间关机) ================
+    // =========================================================================
+
+    private string _ritualMode = "MORNING";
+    private int _ritualStep = 1;
+    private readonly HashSet<string> _selectedBacklogForToday = new();
+    private TextBox? _shutdownReflectionInputBox;
+
+    private void OnOpenMorningPlanningClicked(object sender, RoutedEventArgs e)
+    {
+        _ritualMode = "MORNING";
+        _ritualStep = 1;
+        _selectedBacklogForToday.Clear();
+
+        RitualModalTitle.Text = "🌅 晨间规划仪式 (Daily Planning)";
+        RitualModalSubtitle.Text = "Sunsama 仪式流 · 掌控今日节奏，消除决策瘫痪";
+
+        RitualStep1Text.Text = "① 遗留清点";
+        RitualStep2Text.Text = "② 今日格局";
+        RitualStep3Text.Text = "③ 战役挑选";
+        RitualStep4Text.Text = "④ 负荷质检";
+
+        RenderRitualStep();
+        DailyRitualModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnOpenEveningShutdownClicked(object sender, RoutedEventArgs e)
+    {
+        _ritualMode = "SHUTDOWN";
+        _ritualStep = 1;
+
+        RitualModalTitle.Text = "🌇 晚间关机仪式 (Daily Shutdown)";
+        RitualModalSubtitle.Text = "Sunsama 仪式流 · 结项卸下心智负担，心安理得休息";
+
+        RitualStep1Text.Text = "① 今日战果";
+        RitualStep2Text.Text = "② 遗留归档";
+        RitualStep3Text.Text = "③ 一言复盘";
+        RitualStep4Text.Text = "④ 关机休眠";
+
+        RenderRitualStep();
+        DailyRitualModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseDailyRitualModalClicked(object sender, RoutedEventArgs e)
+    {
+        DailyRitualModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnRitualPrevStepClicked(object sender, RoutedEventArgs e)
+    {
+        if (_ritualStep > 1)
+        {
+            _ritualStep--;
+            RenderRitualStep();
+        }
+    }
+
+    private void OnRitualNextStepClicked(object sender, RoutedEventArgs e)
+    {
+        if (_ritualStep < 4)
+        {
+            if (_ritualMode == "MORNING" && _ritualStep == 3)
+            {
+                var allBacklog = DatabaseService.GetBacklogSchedules();
+                var toSchedule = allBacklog.Where(b => _selectedBacklogForToday.Contains(b.Id)).ToList();
+                var now = DateTime.Now;
+                var schedStart = DateTime.Today.AddHours(Math.Max(now.Hour + (now.Minute > 30 ? 1 : 0), 9));
+                foreach (var item in toSchedule)
+                {
+                    item.StartTime = schedStart;
+                    int est = item.EstimatedMinutes > 0 ? item.EstimatedMinutes : 45;
+                    item.EndTime = schedStart.AddMinutes(est);
+                    item.IsBacklog = false;
+                    item.Status = "PENDING";
+                    item.IsDirty = true;
+                    item.SyncVersion++;
+                    item.UpdatedAt = DateTime.UtcNow;
+                    DatabaseService.UpsertSchedule(item);
+                    schedStart = item.EndTime.AddMinutes(15);
+                }
+                if (toSchedule.Count > 0)
+                {
+                    RenderAllCalendarViews();
+                    RefreshBacklogList();
+                }
+            }
+            _ritualStep++;
+            RenderRitualStep();
+        }
+        else
+        {
+            if (_ritualMode == "MORNING")
+            {
+                DailyRitualModal.Visibility = Visibility.Collapsed;
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+                MessageBox.Show("🚀 今日排期已锁定，专注执行，祝你拥有高效而充实的一天！", "晨间规划完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                string reflection = _shutdownReflectionInputBox?.Text?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(reflection))
+                {
+                    var report = DatabaseService.GetDailyReport(DateTime.Today.ToString("yyyy-MM-dd")) ?? new DailyReportItem
+                    {
+                        Date = DateTime.Today.ToString("yyyy-MM-dd")
+                    };
+                    report.Reflection = reflection;
+                    report.UpdatedAt = DateTime.UtcNow;
+                    DatabaseService.UpsertDailyReport(report);
+                }
+
+                DailyRitualModal.Visibility = Visibility.Collapsed;
+                MessageBox.Show("🌙 今日工作全部妥善结项！电脑合上，放下一切焦虑，心安理得享受休息与睡眠吧。", "晚间关机完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+    }
+
+    private void RenderRitualStep()
+    {
+        if (RitualStepContentPanel == null) return;
+        RitualStepContentPanel.Children.Clear();
+
+        var activeBg = new SolidColorBrush(Color.FromArgb(0x33, 0x38, 0xBD, 0xF8));
+        var activeFg = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+        var inactiveBg = Brushes.Transparent;
+        var inactiveFg = (Brush)FindResource("TextSecondary");
+
+        RitualStep1Badge.Background = _ritualStep == 1 ? activeBg : inactiveBg;
+        RitualStep1Text.Foreground = _ritualStep == 1 ? activeFg : inactiveFg;
+        RitualStep1Text.FontWeight = _ritualStep == 1 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        RitualStep2Badge.Background = _ritualStep == 2 ? activeBg : inactiveBg;
+        RitualStep2Text.Foreground = _ritualStep == 2 ? activeFg : inactiveFg;
+        RitualStep2Text.FontWeight = _ritualStep == 2 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        RitualStep3Badge.Background = _ritualStep == 3 ? activeBg : inactiveBg;
+        RitualStep3Text.Foreground = _ritualStep == 3 ? activeFg : inactiveFg;
+        RitualStep3Text.FontWeight = _ritualStep == 3 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        RitualStep4Badge.Background = _ritualStep == 4 ? activeBg : inactiveBg;
+        RitualStep4Text.Foreground = _ritualStep == 4 ? activeFg : inactiveFg;
+        RitualStep4Text.FontWeight = _ritualStep == 4 ? FontWeights.SemiBold : FontWeights.Normal;
+
+        RitualPrevStepBtn.Visibility = _ritualStep > 1 ? Visibility.Visible : Visibility.Collapsed;
+        RitualNextStepBtn.Content = _ritualStep == 4
+            ? (_ritualMode == "MORNING" ? "🚀 锁定排期，开启今日" : "🌙 关机完成，心安理得休息")
+            : "下一步 ›";
+
+        if (_ritualMode == "MORNING")
+        {
+            RenderMorningStep();
+        }
+        else
+        {
+            RenderShutdownStep();
+        }
+    }
+
+    private void RenderMorningStep()
+    {
+        switch (_ritualStep)
+        {
+            case 1: // 遗留清点
+                var past = EstimationVarianceService.GetPastUnfinishedTasks();
+                var card1 = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x18, 0xD9, 0x77, 0x06)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0xD9, 0x77, 0x06)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp1 = new StackPanel();
+                if (past.Count > 0)
+                {
+                    sp1.Children.Add(new TextBlock
+                    {
+                        Text = $"⚡ 发现昨日遗留 {past.Count} 项未完成任务",
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
+                        Margin = new Thickness(0, 0, 0, 8)
+                    });
+                    sp1.Children.Add(new TextBlock
+                    {
+                        Text = "请选择清理方式，彻底卸下昨天的心理欠债：",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("TextSecondary"),
+                        Margin = new Thickness(0, 0, 0, 12)
+                    });
+
+                    var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
+                    var btnSpill = new Button
+                    {
+                        Content = "⏩ 一键顺延至今日",
+                        Style = (Style)FindResource("GoogleTopBtnStyle"),
+                        Background = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06)),
+                        Foreground = Brushes.White,
+                        Padding = new Thickness(12, 6, 12, 6),
+                        FontSize = 11.5,
+                        FontWeight = FontWeights.SemiBold,
+                        Margin = new Thickness(0, 0, 10, 0)
+                    };
+                    btnSpill.Click += (s, e) =>
+                    {
+                        EstimationVarianceService.SpilloverTasksToToday(past);
+                        RenderRitualStep();
+                    };
+                    btnRow.Children.Add(btnSpill);
+
+                    var btnBacklog = new Button
+                    {
+                        Content = "📦 移入待办池备选",
+                        Style = (Style)FindResource("GoogleTopBtnStyle"),
+                        Background = (Brush)FindResource("ControlBackground"),
+                        Foreground = (Brush)FindResource("TextPrimary"),
+                        Padding = new Thickness(12, 6, 12, 6),
+                        FontSize = 11.5,
+                        Margin = new Thickness(0, 0, 10, 0)
+                    };
+                    btnBacklog.Click += (s, e) =>
+                    {
+                        EstimationVarianceService.MovePastTasksToBacklog(past);
+                        RenderRitualStep();
+                    };
+                    btnRow.Children.Add(btnBacklog);
+
+                    sp1.Children.Add(btnRow);
+                }
+                else
+                {
+                    sp1.Children.Add(new TextBlock
+                    {
+                        Text = "🎉 历史排期已 100% 全部清空！",
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)),
+                        Margin = new Thickness(0, 0, 0, 6)
+                    });
+                    sp1.Children.Add(new TextBlock
+                    {
+                        Text = "没有任何拖延包袱，你可以轻装上阵开启崭新的一天。",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("TextSecondary")
+                    });
+                }
+                card1.Child = sp1;
+                RitualStepContentPanel.Children.Add(card1);
+                break;
+
+            case 2: // 今日格局
+                var courses = TimetableProjectionService.GetEffectiveCoursesForDate(DateTime.Today);
+                var scheds = DatabaseService.GetSchedulesForDate(DateTime.Today);
+                var activeScheds = scheds.Where(s => !s.IsBacklog && !s.IsAllDay && s.Status != "CANCELLED").ToList();
+                var backlogs = DatabaseService.GetBacklogSchedules();
+                var gaps = GapTimeBoxingService.FindDailyFreeGaps(DateTime.Today, scheds, courses, backlogs);
+                int totalFreeMins = gaps.Sum(g => g.DurationMinutes);
+
+                var card2 = new Border
+                {
+                    Background = (Brush)FindResource("ControlBackground"),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp2 = new StackPanel();
+                sp2.Children.Add(new TextBlock
+                {
+                    Text = $"📅 {DateTime.Today:M月d日 dddd} · 今日时空格局",
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = (Brush)FindResource("TextPrimary"),
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                var gridInfo = new UniformGrid { Columns = 3, Margin = new Thickness(0, 0, 0, 12) };
+                gridInfo.Children.Add(CreateInfoPill("📚 今日课程", $"{courses.Count} 节", "#38BDF8"));
+                gridInfo.Children.Add(CreateInfoPill("📌 固定日程", $"{activeScheds.Count} 项", "#A78BFA"));
+                gridInfo.Children.Add(CreateInfoPill("⏳ 自由空当", $"{totalFreeMins / 60.0:F1} 小时", "#34D399"));
+                sp2.Children.Add(gridInfo);
+
+                sp2.Children.Add(new TextBlock
+                {
+                    Text = "💡 Sunsama 黄金法则：一天留白 30% 是防止崩盘的关键。请审视今日空档，合理挑选要攻坚的任务。",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("TextSecondary"),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                card2.Child = sp2;
+                RitualStepContentPanel.Children.Add(card2);
+                break;
+
+            case 3: // 战役挑选
+                var card3 = new Border
+                {
+                    Background = (Brush)FindResource("ControlBackground"),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp3 = new StackPanel();
+                sp3.Children.Add(new TextBlock
+                {
+                    Text = "🎯 挑选今日最重要的 1~3 件核心战役 (Rule of 3)",
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = (Brush)FindResource("TextPrimary"),
+                    Margin = new Thickness(0, 0, 0, 4)
+                });
+                sp3.Children.Add(new TextBlock
+                {
+                    Text = "勾选的任务将在下一步自动排入今日日程时间盒：",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("TextSecondary"),
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                var backlogItems = DatabaseService.GetBacklogSchedules().Where(b => b.Status != "COMPLETED").Take(6).ToList();
+                if (backlogItems.Count == 0)
+                {
+                    sp3.Children.Add(new TextBlock
+                    {
+                        Text = "敏捷池中暂无待办事项，你可以在主界面随时随地按 Ctrl+Shift+Space 极速闪记！",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("TextMuted"),
+                        Margin = new Thickness(0, 10, 0, 10)
+                    });
+                }
+                else
+                {
+                    foreach (var item in backlogItems)
+                    {
+                        var chk = new CheckBox
+                        {
+                            Content = $"{item.Title} (需{item.EstimatedMinutes}m · {item.Priority})",
+                            FontSize = 12,
+                            Foreground = (Brush)FindResource("TextPrimary"),
+                            Margin = new Thickness(0, 4, 0, 4),
+                            IsChecked = _selectedBacklogForToday.Contains(item.Id)
+                        };
+                        chk.Checked += (s, e) => _selectedBacklogForToday.Add(item.Id);
+                        chk.Unchecked += (s, e) => _selectedBacklogForToday.Remove(item.Id);
+                        sp3.Children.Add(chk);
+                    }
+                }
+                card3.Child = sp3;
+                RitualStepContentPanel.Children.Add(card3);
+                break;
+
+            case 4: // 负荷质检
+                var todayAll = DatabaseService.GetSchedulesForDate(DateTime.Today);
+                int plannedDeepMins = todayAll.Where(s => s.WorkType == "DEEP_WORK" && s.Status != "CANCELLED").Sum(s => s.EstimatedMinutes > 0 ? s.EstimatedMinutes : 30);
+                double deepHours = plannedDeepMins / 60.0;
+
+                var card4 = new Border
+                {
+                    Background = (Brush)FindResource("ControlBackground"),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp4 = new StackPanel();
+                sp4.Children.Add(new TextBlock
+                {
+                    Text = "⚖️ 认知负荷与红线质检 (Capacity Audit)",
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = (Brush)FindResource("TextPrimary"),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+
+                string healthStatus = deepHours <= 4.5 ? "🟢 负荷健康 · 节奏充实而有余量" : (deepHours <= 5.5 ? "🟡 负荷饱和 · 需全力以赴" : "🔴 负荷严重超载 · 极易疲劳延误，强烈建议精简");
+                var badgeColor = deepHours <= 4.5 ? Color.FromRgb(0x10, 0xB9, 0x81) : (deepHours <= 5.5 ? Color.FromRgb(0xF5, 0x9E, 0x0B) : Color.FromRgb(0xEF, 0x44, 0x44));
+
+                var badge = new Border
+                {
+                    CornerRadius = new CornerRadius(6),
+                    Background = new SolidColorBrush(Color.FromArgb(0x25, badgeColor.R, badgeColor.G, badgeColor.B)),
+                    BorderBrush = new SolidColorBrush(badgeColor),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(10, 8),
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                badge.Child = new TextBlock
+                {
+                    Text = $"今日深度工作排期: {deepHours:F1} 小时 / 推荐上限 5.0 小时\n当前状态: {healthStatus}",
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(badgeColor),
+                    LineHeight = 18
+                };
+                sp4.Children.Add(badge);
+
+                sp4.Children.Add(new TextBlock
+                {
+                    Text = "点击下方按钮完成晨间规划仪式，所有排期将正式生效锁定！",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("TextSecondary")
+                });
+
+                card4.Child = sp4;
+                RitualStepContentPanel.Children.Add(card4);
+                break;
+        }
+    }
+
+    private void RenderShutdownStep()
+    {
+        switch (_ritualStep)
+        {
+            case 1: // 今日战果
+                var scheds = DatabaseService.GetSchedulesForDate(DateTime.Today);
+                var done = scheds.Where(s => s.Status == "COMPLETED").ToList();
+                int actualMins = done.Sum(d => d.ActualMinutes > 0 ? d.ActualMinutes : d.EstimatedMinutes);
+
+                var card1 = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x18, 0x10, 0xB9, 0x81)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0x10, 0xB9, 0x81)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = 10,
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp1 = new StackPanel();
+                sp1.Children.Add(new TextBlock
+                {
+                    Text = $"🏆 今日战果结项：达成 {done.Count} 项任务，专注 {actualMins} 分钟！",
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+                foreach (var d in done.Take(6))
+                {
+                    sp1.Children.Add(new TextBlock
+                    {
+                        Text = $"✓ {d.Title} ({d.ActualMinutes}m)",
+                        FontSize = 11.5,
+                        Foreground = (Brush)FindResource("TextSecondary"),
+                        Margin = new Thickness(0, 2, 0, 2)
+                    });
+                }
+                card1.Child = sp1;
+                RitualStepContentPanel.Children.Add(card1);
+                break;
+
+            case 2: // 遗留归档
+                var todayScheds = DatabaseService.GetSchedulesForDate(DateTime.Today);
+                var unfinished = todayScheds.Where(s => s.Status != "COMPLETED" && !s.IsAllDay && !s.IsBacklog && s.Status != "CANCELLED").ToList();
+
+                var card2 = new Border
+                {
+                    Background = (Brush)FindResource("ControlBackground"),
+                    CornerRadius = 10,
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp2 = new StackPanel();
+                if (unfinished.Count > 0)
+                {
+                    sp2.Children.Add(new TextBlock
+                    {
+                        Text = $"今日尚有 {unfinished.Count} 个未完成事项",
+                        FontSize = 13.5,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
+                        Margin = new Thickness(0, 0, 0, 6)
+                    });
+                    sp2.Children.Add(new TextBlock
+                    {
+                        Text = "没关系，今天已经全力以赴了。选择归档方式，安心交接给明天：",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("TextSecondary"),
+                        Margin = new Thickness(0, 0, 0, 10)
+                    });
+
+                    var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
+                    var btnTomorrow = new Button
+                    {
+                        Content = "⏩ 顺延至明天",
+                        Style = (Style)FindResource("GoogleTopBtnStyle"),
+                        Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                        Foreground = Brushes.White,
+                        Padding = new Thickness(12, 6, 12, 6),
+                        FontSize = 11.5,
+                        FontWeight = FontWeights.SemiBold,
+                        Margin = new Thickness(0, 0, 10, 0)
+                    };
+                    btnTomorrow.Click += (s, e) =>
+                    {
+                        foreach (var u in unfinished)
+                        {
+                            u.StartTime = u.StartTime.AddDays(1);
+                            u.EndTime = u.EndTime.AddDays(1);
+                            u.IsDirty = true;
+                            u.SyncVersion++;
+                            DatabaseService.UpsertSchedule(u);
+                        }
+                        RenderRitualStep();
+                    };
+                    btnRow.Children.Add(btnTomorrow);
+
+                    var btnBacklog = new Button
+                    {
+                        Content = "📦 放回待办池",
+                        Style = (Style)FindResource("GoogleTopBtnStyle"),
+                        Background = (Brush)FindResource("ControlBackground"),
+                        Foreground = (Brush)FindResource("TextPrimary"),
+                        Padding = new Thickness(12, 6, 12, 6),
+                        FontSize = 11.5
+                    };
+                    btnBacklog.Click += (s, e) =>
+                    {
+                        EstimationVarianceService.MovePastTasksToBacklog(unfinished);
+                        RenderRitualStep();
+                    };
+                    btnRow.Children.Add(btnBacklog);
+                    sp2.Children.Add(btnRow);
+                }
+                else
+                {
+                    sp2.Children.Add(new TextBlock
+                    {
+                        Text = "✨ 今日排期已 100% 全部圆满达成！",
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)),
+                        Margin = new Thickness(0, 0, 0, 6)
+                    });
+                    sp2.Children.Add(new TextBlock
+                    {
+                        Text = "完美收官，无需处理任何遗留琐事。",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("TextSecondary")
+                    });
+                }
+                card2.Child = sp2;
+                RitualStepContentPanel.Children.Add(card2);
+                break;
+
+            case 3: // 一言复盘
+                var report = DatabaseService.GetDailyReport(DateTime.Today.ToString("yyyy-MM-dd"));
+                var card3 = new Border
+                {
+                    Background = (Brush)FindResource("ControlBackground"),
+                    CornerRadius = 10,
+                    Padding = new Thickness(16),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp3 = new StackPanel();
+                sp3.Children.Add(new TextBlock
+                {
+                    Text = "📝 一言复盘与明日备忘",
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = (Brush)FindResource("TextPrimary"),
+                    Margin = new Thickness(0, 0, 0, 6)
+                });
+                sp3.Children.Add(new TextBlock
+                {
+                    Text = "记录今天最满意的一件事，或给明天第一件做的事留个提醒：",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("TextSecondary"),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+
+                _shutdownReflectionInputBox = new TextBox
+                {
+                    Text = report?.Reflection ?? "",
+                    Background = (Brush)FindResource("InputBackground"),
+                    Foreground = (Brush)FindResource("TextPrimary"),
+                    BorderBrush = (Brush)FindResource("CardBorderBrush"),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(8),
+                    FontSize = 12,
+                    Height = 60,
+                    TextWrapping = TextWrapping.Wrap,
+                    AcceptsReturn = true
+                };
+                sp3.Children.Add(_shutdownReflectionInputBox);
+                card3.Child = sp3;
+                RitualStepContentPanel.Children.Add(card3);
+                break;
+
+            case 4: // 关机休眠
+                var card4 = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0x18, 0x7C, 0x3A, 0xED)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0x7C, 0x3A, 0xED)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = 10,
+                    Padding = new Thickness(20),
+                    Margin = new Thickness(0, 4, 0, 8)
+                };
+                var sp4 = new StackPanel();
+                sp4.Children.Add(new TextBlock
+                {
+                    Text = "🌙 晚间关机完成，心安理得休息！",
+                    FontSize = 15,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x84, 0xFC)),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+                sp4.Children.Add(new TextBlock
+                {
+                    Text = "今日工作已全部妥善归档。合上电脑，放下一切焦虑。\n充足的睡眠与休息是明天继续卓越的最佳基石。",
+                    FontSize = 12,
+                    Foreground = (Brush)FindResource("TextSecondary"),
+                    LineHeight = 18
+                });
+                card4.Child = sp4;
+                RitualStepContentPanel.Children.Add(card4);
+                break;
+        }
+    }
+
+    private static Border CreateInfoPill(string label, string val, string hex)
+    {
+        var col = (Color)ColorConverter.ConvertFromString(hex);
+        var b = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromArgb(0x18, col.R, col.G, col.B)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, col.R, col.G, col.B)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 6),
+            Margin = new Thickness(4)
+        };
+        var sp = new StackPanel();
+        sp.Children.Add(new TextBlock { Text = label, FontSize = 10, Foreground = (Brush)Application.Current.FindResource("TextSecondary") });
+        sp.Children.Add(new TextBlock { Text = val, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(col), Margin = new Thickness(0, 2, 0, 0) });
+        b.Child = sp;
+        return b;
     }
 
     // =========================================================================

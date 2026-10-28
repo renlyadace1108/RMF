@@ -168,6 +168,8 @@ fun ScheduleScreen(
     var showTimeMarkerDialog by remember { mutableStateOf(false) }
     var showRoutineTemplateDialog by remember { mutableStateOf(false) }
     var defaultQuadrantForNewSchedule by remember { mutableStateOf("Q2") }
+    var showDailyRitualDialog by remember { mutableStateOf(false) }
+    var ritualMode by remember { mutableStateOf("MORNING") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
     val calendarSchedules = remember(schedules) { schedules.filter { it.status != "BACKLOG" } }
@@ -355,6 +357,48 @@ fun ScheduleScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     color = DopamineCyan
                                 )
+                            }
+                        }
+
+                        // 🌅 晨间规划仪式入口 (Sunsama 风格)
+                        Surface(
+                            onClick = {
+                                ritualMode = "MORNING"
+                                showDailyRitualDialog = true
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DopamineAmber.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("🌅", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("晨间", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
+                            }
+                        }
+
+                        // 🌇 晚间关机仪式入口 (Sunsama 风格)
+                        Surface(
+                            onClick = {
+                                ritualMode = "SHUTDOWN"
+                                showDailyRitualDialog = true
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DopaminePurple.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("🌇", fontSize = 10.5.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("关机", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
                             }
                         }
 
@@ -1256,6 +1300,16 @@ fun ScheduleScreen(
         if (showLanSyncDialog) {
             LanSyncModal(
                 onDismiss = { showLanSyncDialog = false }
+            )
+        }
+
+        // 🌅 / 🌇 每日规划与关机仪式弹窗 (Sunsama 风格)
+        if (showDailyRitualDialog) {
+            DailyRitualDialog(
+                initialMode = ritualMode,
+                schedules = schedules,
+                backlogSchedules = backlogSchedules,
+                onDismiss = { showDailyRitualDialog = false }
             )
         }
 
@@ -5834,6 +5888,7 @@ fun ScheduleDetailModal(
 
     val isFitnessItem = item.id.startsWith("fitness_") || item.category == "HEALTH" || item.title.contains("健身")
     val context = androidx.compose.ui.platform.LocalContext.current
+    val modalScope = rememberCoroutineScope()
     val workspaceAsset = remember(item) { com.renly.rmf.domain.service.WorkspaceLauncher.detectAsset(item) }
 
     AlertDialog(
@@ -6007,6 +6062,38 @@ fun ScheduleDetailModal(
                     ) {
                         Text("🏋️ 直达健身模块查看与打卡", color = DopaminePurple, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+                Button(
+                    onClick = {
+                        val parsedStart = parseDateTime(item.startTime) ?: LocalDateTime.now()
+                        val parsedEnd = parseDateTime(item.endTime) ?: parsedStart.plusMinutes(item.estimatedMinutes.toLong())
+                        val bufferEnd = parsedEnd.plusMinutes(15)
+                        val bufferEntity = ScheduleEntity(
+                            id = java.util.UUID.randomUUID().toString(),
+                            title = "☕ 呼吸缓冲休息",
+                            category = "日常",
+                            workType = "REST_BUFFER",
+                            startTime = parsedEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                            endTime = bufferEnd.format(DateTimeFormatter.ISO_DATE_TIME),
+                            estimatedMinutes = 15,
+                            colorHex = "#10B981",
+                            status = "PENDING"
+                        )
+                        modalScope.launch {
+                            val db = com.renly.rmf.data.database.RmfDatabase.getInstance(context)
+                            db.scheduleDao().insertOrUpdate(bufferEntity)
+                            android.widget.Toast.makeText(context, "已在任务后插入 15 分钟弹性呼吸缓冲带！", android.widget.Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen.copy(alpha = 0.15f)),
+                    border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🧘 插入 15m 呼吸缓冲带", color = DopamineGreen, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
         },

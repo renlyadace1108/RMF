@@ -289,6 +289,8 @@
                     <Button Content="⚡ 闪念" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="全局闪念极速捕获 (快捷键: Ctrl + Shift + Space)" Click="OnTopQuickCaptureClicked" />
                     <Button Content="🚀 专注胶囊" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="呼出 Mini Focus HUD 桌面置顶胶囊 (快捷键: Ctrl + Shift + F)" Click="OnTopFocusHudClicked" />
                     <Button Content="🪟 桌面挂件" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="打开常驻桌面透明小组件 (今日北极星/课表/待办)" Click="OnTopDesktopWidgetClicked" />
+                    <Button x:Name="MorningPlanningBtn" Content="🌅 晨间规划" Style="{StaticResource GoogleTopBtnStyle}" Background="#251C10" Foreground="#F59E0B" BorderThickness="1" BorderBrush="#D97706" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="Sunsama 风格晨间规划仪式：清点昨日遗留、设定今日攻坚核心、审查深度负荷" Click="OnOpenMorningPlanningClicked" />
+                    <Button x:Name="EveningShutdownBtn" Content="🌇 晚间关机" Style="{StaticResource GoogleTopBtnStyle}" Background="#1E1B4B" Foreground="#A78BFA" BorderThickness="1" BorderBrush="#7C3AED" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="Sunsama 风格晚间关机仪式：结项今日战报、心得秒记、清空焦虑安心休息" Click="OnOpenEveningShutdownClicked" />
                     <Button x:Name="DualTrackToggleBtn" Content="⚖️ 双轨对照" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,6,0" ToolTip="切换日程与课表/作息实际双轨对照模式" Click="OnDualTrackToggleClicked" />
                     <Button x:Name="TimeMarkerModalBtn" Content="📍 作息/偏差" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource AccentBlue}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,4" FontSize="11" FontWeight="SemiBold" Margin="0,0,10,0" ToolTip="记录作息锚点 (起床/就寝/实际开工) 与计划 vs 实际偏差复盘" Click="OnOpenTimeMarkerModalClicked" />
                     <Border x:Name="ViewSelectorBorder" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,8,0" VerticalAlignment="Center">
@@ -3715,6 +3717,8 @@
 
                     <Button Content="🎯 开启专注" Background="#1E3A8A" Foreground="#93C5FD" BorderBrush="#3B82F6" BorderThickness="1" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,10,0,0" ToolTip="进入常驻桌面置顶悬浮胶囊专注模式" Click="OnQuickDetailStartFocusHudClicked" />
 
+                    <Button x:Name="QuickDetailAddBufferBtn" Content="🧘 插入 15m 呼吸缓冲带" Background="#064E3B" Foreground="#34D399" BorderBrush="#059669" BorderThickness="1" Padding="10,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Margin="0,8,0,0" ToolTip="在当前日程结束后自动插入 15 分钟缓冲休息，防止背靠背疲劳" Click="OnQuickDetailAddBufferClicked" />
+
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button x:Name="QuickDetailTentativeConfirmBtn" Content="👻 转为正式日程" Background="#065F46" Foreground="#34D399" BorderThickness="0" Padding="8,5" FontSize="11" FontWeight="SemiBold" Cursor="Hand" Margin="0,0,6,0" Visibility="Collapsed" Click="OnQuickDetailConfirmTentativeClicked" />
                         <Button x:Name="QuickDetailLockToggleBtn" Content="🔒 锁定日程" Background="{DynamicResource ControlBackground}" Foreground="{DynamicResource TextPrimary}" BorderThickness="1" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,5" FontSize="11" Cursor="Hand" Click="OnQuickDetailToggleLockClicked" />
@@ -3820,11 +3824,19 @@
 
                             <!-- 事项类型 (WorkType) -->
                             <TextBlock Text="事项类型：" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
-                            <ComboBox x:Name="EventWorkTypeCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="10,6" FontSize="12" Margin="0,0,0,12" SelectedIndex="0">
+                            <ComboBox x:Name="EventWorkTypeCombo" SelectionChanged="OnEventWorkTypeComboSelectionChanged" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="10,6" FontSize="12" Margin="0,0,0,12" SelectedIndex="0">
                                 <ComboBoxItem Content="🎯 深度工作" Tag="DEEP_WORK" />
                                 <ComboBoxItem Content="⚡ 浅层事务" Tag="SHALLOW_WORK" />
                                 <ComboBoxItem Content="☕ 缓冲休息" Tag="REST_BUFFER" />
                             </ComboBox>
+
+                            <!-- 昼夜节律认知峰值提示 (Reclaim.ai 风格) -->
+                            <Border x:Name="EventCircadianTipBorder" Background="#261E10" BorderBrush="#D97706" BorderThickness="1" CornerRadius="6" Padding="8,4" Margin="0,0,0,10" Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="💡" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="EventCircadianTipText" Text="提示：该时段处于午后认知低谷期，若有条件建议安排浅层事务或恢复缓冲" FontSize="11" Foreground="#FDE68A" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
 
                             <!-- 目标层级绑定 (Parent Goal) -->
                             <TextBlock Text="关联父级战略目标 (OKR 穿透)：" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
@@ -6113,6 +6125,78 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Content="完成复盘" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="24,6" FontSize="12" FontWeight="SemiBold" Click="OnCloseTimeMarkerModalClicked" />
                         </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= MODAL: 每日仪式向导 (SUNSAMA 晨间规划 & 晚间关机) ================= -->
+        <Grid x:Name="DailyRitualModal" Visibility="Collapsed" Background="#99000000" Grid.RowSpan="2" Panel.ZIndex="1300">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="14" Width="580" MaxHeight="620" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="22,18">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="4" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" /> <!-- Header -->
+                        <RowDefinition Height="Auto" /> <!-- Stepper Pill Header -->
+                        <RowDefinition Height="*" />    <!-- Content Area -->
+                        <RowDefinition Height="Auto" /> <!-- Footer Actions -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="RitualModalTitle" Text="🌅 晨间规划仪式" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
+                            <TextBlock x:Name="RitualModalSubtitle" Text="Sunsama 仪式流 · 掌控今日节奏，告别决策瘫痪" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{DynamicResource GoogleModalCloseBtnStyle}" Click="OnCloseDailyRitualModalClicked" ToolTip="关闭 (Esc)" />
+                    </Grid>
+
+                    <!-- Stepper Bar -->
+                    <Border Grid.Row="1" Background="{DynamicResource ControlBackground}" CornerRadius="8" Padding="6,4" Margin="0,0,0,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="RitualStep1Badge" Grid.Column="0" Background="#3338BDF8" CornerRadius="6" Padding="6,3" Margin="2,0">
+                                <TextBlock x:Name="RitualStep1Text" Text="① 遗留清点" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" HorizontalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="RitualStep2Badge" Grid.Column="1" Background="Transparent" CornerRadius="6" Padding="6,3" Margin="2,0">
+                                <TextBlock x:Name="RitualStep2Text" Text="② 今日格局" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="RitualStep3Badge" Grid.Column="2" Background="Transparent" CornerRadius="6" Padding="6,3" Margin="2,0">
+                                <TextBlock x:Name="RitualStep3Text" Text="③ 战役挑选" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="RitualStep4Badge" Grid.Column="3" Background="Transparent" CornerRadius="6" Padding="6,3" Margin="2,0">
+                                <TextBlock x:Name="RitualStep4Text" Text="④ 负荷质检" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Scrollable Step Body -->
+                    <ScrollViewer Grid.Row="2" MaxHeight="380" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="RitualStepContentPanel">
+                            <!-- Dynamic Step View loaded here -->
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Footer Actions -->
+                    <Border Grid.Row="3" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,10,0,0">
+                        <Grid>
+                            <Button x:Name="RitualPrevStepBtn" Content="‹ 上一步" Background="Transparent" Foreground="{DynamicResource TextSecondary}" BorderThickness="0" Padding="14,6" FontSize="12" HorizontalAlignment="Left" Click="OnRitualPrevStepClicked" Visibility="Collapsed" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="稍后再做" Background="Transparent" Foreground="{DynamicResource TextSecondary}" BorderThickness="0" Padding="14,6" FontSize="12" Margin="0,0,8,0" Click="OnCloseDailyRitualModalClicked" />
+                                <Button x:Name="RitualNextStepBtn" Content="下一步 ›" Style="{DynamicResource GoogleActionBtnStyle}" Background="{DynamicResource AccentBlue}" Padding="20,6" FontSize="12" FontWeight="SemiBold" Click="OnRitualNextStepClicked" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>
