@@ -439,13 +439,62 @@ class GoogleDriveSyncService(
     )
 
     /**
+     * 对外部开放的从 SQLite 快照文件合并至当前数据库的接口
+     */
+    suspend fun mergeFromSnapshotFile(snapshotFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        val writableDb = database.openHelper.writableDatabase
+        val hasLocalUnpushed = performBiDirectionalMerge(writableDb, snapshotFile.absolutePath)
+
+        try {
+            database.invalidationTracker.refreshVersionsAsync()
+        } catch (_: Exception) {}
+
+        TimetablePreferences.syncFromDatabase(context, database.syncDao())
+
+        if (TimetablePreferences.isSemesterConfigured(context)) {
+            try {
+                TimetableProjectionService.syncAllToSchedule(
+                    context = context,
+                    courseDao = database.courseDao(),
+                    scheduleDao = database.scheduleDao()
+                )
+            } catch (_: Exception) {}
+        }
+
+        try {
+            CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                context = context,
+                courseDao = database.courseDao(),
+                daysAhead = 7
+            )
+            ScheduleReminderManager.rescheduleAll(context)
+            com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
+        } catch (_: Exception) {}
+
+        return@withContext hasLocalUnpushed
+    }
+
+    /**
+     * 生成当前数据库的安全快照文件（执行 WAL checkpoint 刷盘并导出副本）
+     */
+    fun createSafeDatabaseSnapshot(targetFile: java.io.File): Boolean {
+        val dbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
+        if (!dbFile.exists()) return false
+        try {
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+        } catch (_: Exception) {}
+        dbFile.copyTo(targetFile, overwrite = true)
+        return true
+    }
+
+    /**
      * 核心行级时间戳双向增量合并引擎 (Bi-directional Merge Engine):
      * 1. 采用 SQLite ATTACH DATABASE 机制，零全量暴力替换，零死锁无损对齐。
      * 2. 云端新增记录无损合入本地 (INSERT OR IGNORE)。
      * 3. 冲突记录基于更新时间戳 LWW (Last-Write-Wins) 判定，保留更新的一方。
      * 4. 若本地包含离线新记录或更新的修改，标记 hasLocalUnpushed = true 并反向同步，实现全数据链无缝自愈收敛！
      */
-    private fun performBiDirectionalMerge(
+    fun performBiDirectionalMerge(
         db: androidx.sqlite.db.SupportSQLiteDatabase,
         tempDbPath: String
     ): Boolean {

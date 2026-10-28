@@ -161,6 +161,7 @@ fun ScheduleScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showCalendarSyncDialog by remember { mutableStateOf(false) }
     var showDriveSyncDialog by remember { mutableStateOf(false) }
+    var showLanSyncDialog by remember { mutableStateOf(false) }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showManageTagsDialog by remember { mutableStateOf(false) }
     var showTimeMarkerDialog by remember { mutableStateOf(false) }
@@ -1096,7 +1097,18 @@ fun ScheduleScreen(
         // ☁️ Google Drive 专属云端同步详情与状态弹窗
         if (showDriveSyncDialog) {
             GoogleDriveSyncStatusModal(
-                onDismiss = { showDriveSyncDialog = false }
+                onDismiss = { showDriveSyncDialog = false },
+                onOpenLanSync = {
+                    showDriveSyncDialog = false
+                    showLanSyncDialog = true
+                }
+            )
+        }
+
+        // 📡 局域网 Wi-Fi 直连极速双向同步弹窗
+        if (showLanSyncDialog) {
+            LanSyncModal(
+                onDismiss = { showLanSyncDialog = false }
             )
         }
 
@@ -6631,7 +6643,8 @@ fun ManageScheduleTagsDialog(
 
 @Composable
 fun GoogleDriveSyncStatusModal(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenLanSync: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -6717,6 +6730,31 @@ fun GoogleDriveSyncStatusModal(
                         Text("• 云端滚动保留最近 50 个时间戳版本快照", fontSize = 11.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(3.dp))
                         Text("• 切回前台 60 秒轻检测，本地就一个版本 (rmf.db)", fontSize = 11.sp, color = TextSecondary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    onClick = onOpenLanSync,
+                    shape = RoundedCornerShape(10.dp),
+                    color = DopamineBlue.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📡", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("局域网 Wi-Fi 直连极速同步", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("同 Wi-Fi / 热点免节点 0.1 秒秒级双向合并", fontSize = 10.5.sp, color = TextSecondary)
+                            }
+                        }
+                        Text("进入 ›", fontSize = 12.sp, color = DopamineBlue, fontWeight = FontWeight.SemiBold)
                     }
                 }
 

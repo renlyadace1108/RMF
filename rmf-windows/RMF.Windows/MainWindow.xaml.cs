@@ -260,6 +260,13 @@ public partial class MainWindow : Window
         // 初始化顶部云端同步状态指示器
         InitializeCloudSyncIndicator();
 
+        // 启动局域网 Wi-Fi 直连极速双向同步微服务与探测信标
+        try
+        {
+            LanSyncService.StartServer();
+        }
+        catch { }
+
         // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
         _ = CheckAndPullCloudSyncSilentAsync();
     }
@@ -416,6 +423,74 @@ public partial class MainWindow : Window
         SwitchSettingsTab(1);
     }
 
+    private void OnMenuOpenLanSyncClicked(object sender, RoutedEventArgs e)
+    {
+        if (LanSyncModal == null) return;
+        LanLocalIpBox.Text = $"{LanSyncService.GetPreferredLocalIp()} : {LanSyncService.Port}";
+        LanServerStatusDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81));
+        LanServerStatusText.Text = "局域网服务运行中 · UDP 广播信标已激活";
+        LanSyncProgressText.Visibility = Visibility.Collapsed;
+        LanSyncModal.Visibility = Visibility.Visible;
+    }
+
+    private void OnCloseLanSyncModalClicked(object sender, RoutedEventArgs e)
+    {
+        if (LanSyncModal != null)
+        {
+            LanSyncModal.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCopyLanIpClicked(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(LanLocalIpBox.Text.Replace(" ", ""));
+            System.Windows.MessageBox.Show("✓ 局域网同步 IP 地址已复制到剪贴板！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch { }
+    }
+
+    private async void OnInitiateLanSyncToTargetClicked(object sender, RoutedEventArgs e)
+    {
+        string target = LanTargetIpBox.Text.Trim();
+        if (string.IsNullOrEmpty(target) || !target.Contains('.'))
+        {
+            System.Windows.MessageBox.Show("请输入合法的对端局域网 IPv4 地址 (如 192.168.1.100)", "输入提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string ip = target;
+        int port = LanSyncService.DefaultPort;
+        if (target.Contains(':'))
+        {
+            var parts = target.Split(':');
+            ip = parts[0].Trim();
+            if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out var p)) port = p;
+        }
+
+        LanSyncProgressText.Visibility = Visibility.Visible;
+        LanSyncProgressText.Text = "正在连接并执行局域网双向增量同步...";
+
+        var (success, msg) = await LanSyncService.SyncWithTargetAsync(ip, port, s => Dispatcher.Invoke(() => LanSyncProgressText.Text = s));
+
+        LanSyncProgressText.Text = msg;
+        if (success)
+        {
+            RenderAllCalendarViews();
+            RenderTimetableGrid();
+            RefreshGoalTree();
+            RefreshBacklogList();
+            RefreshDeferredQueue();
+            WindowsReminderScheduler.RescheduleAll();
+            System.Windows.MessageBox.Show("✓ 局域网双向合并同步成功！双端数据已完全对齐。", "局域网同步成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            System.Windows.MessageBox.Show($"局域网同步失败: {msg}\n请确认手机端已开启同步或连接同一 Wi-Fi。", "同步提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void RestoreFromTray()
     {
         Show();
@@ -430,6 +505,7 @@ public partial class MainWindow : Window
     private void ExitApplicationDirectly()
     {
         _isForceExit = true;
+        try { LanSyncService.StopServer(); } catch { }
         _hotKeyService?.Dispose();
         _trayIconService?.Dispose();
         System.Windows.Application.Current.Shutdown();

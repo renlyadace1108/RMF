@@ -74,6 +74,7 @@ fun SettingsScreen(
     var showTagModal by remember { mutableStateOf(false) }
     var showAiConfigDialog by remember { mutableStateOf(false) }
     var showGoogleSettingsDialog by remember { mutableStateOf(false) }
+    var showLanSyncDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showUserAgreementDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -1248,6 +1249,71 @@ fun SettingsScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 📡 局域网 Wi-Fi 直连极速双向同步入口
+        Surface(
+            onClick = { showLanSyncDialog = true },
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = BorderStroke(1.dp, DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DopamineBlue.copy(alpha = 0.15f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("📡", fontSize = 20.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "局域网 Wi-Fi 直连同步",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = DopamineBlue.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "免代理节点",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DopamineBlue,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "同 Wi-Fi / 热点下 0.1 秒秒级双向增量合并，100% 本地互传",
+                        fontSize = 11.5.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "进入同步",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         // ---------------------------------------------------------------------------------
@@ -2173,6 +2239,13 @@ fun SettingsScreen(
             onDismiss = { showGoogleSettingsDialog = false },
             onTriggerUpload = onTriggerUpload,
             onTriggerDownload = onTriggerDownload
+        )
+    }
+
+    // 📡 局域网 Wi-Fi 直连极速双向同步弹窗
+    if (showLanSyncDialog) {
+        LanSyncModal(
+            onDismiss = { showLanSyncDialog = false }
         )
     }
 

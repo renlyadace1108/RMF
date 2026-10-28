@@ -275,6 +275,8 @@
                                 <MenuItem Header="🔄 立即执行双向增量合并拉取" Click="OnMenuPullAndMergeClicked" />
                                 <MenuItem Header="⬆️ 立即强制保存云端新快照" Click="OnMenuUploadSnapshotClicked" />
                                 <Separator />
+                                <MenuItem Header="📡 局域网 Wi-Fi 直连极速同步 (同 Wi-Fi 免节点)..." Click="OnMenuOpenLanSyncClicked" />
+                                <Separator />
                                 <MenuItem Header="⚙️ Google Drive 同步与授权设置..." Click="OnMenuOpenDriveSettingsClicked" />
                             </ContextMenu>
                         </Button.ContextMenu>
@@ -4022,6 +4024,76 @@
 
         <!-- ================= MODAL 7: 系统与日历设置已迁移至独立主页面 (SettingsPageContainer) ================= -->
         <Grid x:Name="SettingsModal" Visibility="Collapsed" />
+
+        <!-- ================= LAN SYNC MODAL: 局域网 Wi-Fi 直连极速双向同步 ================= -->
+        <Grid x:Name="LanSyncModal" Visibility="Collapsed" Background="#80000000" Grid.RowSpan="2" Panel.ZIndex="2000">
+            <Border Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="12" Width="480" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.5" Color="Black" />
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📡" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock Text="局域网 Wi-Fi 直连极速同步" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource GoogleModalCloseBtnStyle}" HorizontalAlignment="Right" Click="OnCloseLanSyncModalClicked" ToolTip="关闭 (Esc)" />
+                    </Grid>
+
+                    <Border Background="{DynamicResource InputBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,14">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Ellipse x:Name="LanServerStatusDot" Width="8" Height="8" Fill="#10B981" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock x:Name="LanServerStatusText" Text="局域网服务运行中 · UDP 广播信标已激活" FontSize="12" FontWeight="SemiBold" Foreground="#10B981" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="电脑本机内网 IP 地址与同步端口：" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,4,0,4" />
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LanLocalIpBox" Grid.Column="0" IsReadOnly="True" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,5" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Content="📋 复制 IP" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource ControlBackground}" Padding="10,5" FontSize="11" Margin="6,0,0,0" Click="OnCopyLanIpClicked" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{DynamicResource ControlBackground}" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="💡 手机连接方式：" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4" />
+                            <TextBlock Text="1. 确保手机与电脑连接同一 Wi-Fi 或开启手机热点；" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,2" />
+                            <TextBlock Text="2. 打开手机端 RMF 顶栏【☁️】图标 ->【📡 局域网极速同步】；" FontSize="11" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,2" />
+                            <TextBlock Text="3. 手机将自动感知到当前电脑，点击【立即同步】即可 0.1 秒完成行级双向增量合并，无需梯子与外网！" FontSize="11" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 手动向手机发起同步通道 (备用) -->
+                    <Expander Header="🔧 高级：电脑主动向手机发起同步" Foreground="{DynamicResource TextSecondary}" FontSize="11" Margin="0,0,0,16">
+                        <StackPanel Margin="0,8,0,0">
+                            <TextBlock Text="输入手机端显示的 IP 地址 (若手机亦开启了热点或端口)：" FontSize="10.5" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LanTargetIpBox" Grid.Column="0" Text="192.168.1." FontSize="11" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" Padding="6,4" />
+                                <Button Grid.Column="1" Content="发起对端同步" Style="{StaticResource GoogleTopBtnStyle}" Background="{DynamicResource GoogleBlue}" Foreground="#FFFFFF" Padding="10,4" FontSize="11" Margin="6,0,0,0" Click="OnInitiateLanSyncToTargetClicked" />
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <TextBlock x:Name="LanSyncProgressText" Text="" FontSize="11" Foreground="{DynamicResource AccentBlue}" Margin="0,0,0,8" HorizontalAlignment="Center" Visibility="Collapsed" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="关闭" Style="{StaticResource GoogleActionBtnStyle}" Padding="18,6" FontSize="12" FontWeight="SemiBold" Click="OnCloseLanSyncModalClicked" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- ================= 8. 本周时间投入与效能复盘模态卡片 (ANALYTICS MODAL) ================= -->
         <Grid x:Name="AnalyticsModal" Visibility="Collapsed" Background="#80000000" Grid.RowSpan="2">
