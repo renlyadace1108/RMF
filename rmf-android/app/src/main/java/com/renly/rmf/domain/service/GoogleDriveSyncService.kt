@@ -475,4 +475,61 @@ class GoogleDriveSyncService(
             GoogleDriveAutoSyncManager.isRestoring = false
         }
     }
+
+    /**
+     * 冷启动无后台静默自动拉取云端数据：
+     * 校验云端镜像时间戳与本地 LastSyncTime，若云端版本更新则自动在后台拉取并生效。
+     */
+    suspend fun pullLatestBackupIfNewer(): SyncResult = withContext(Dispatchers.IO) {
+        if (!GoogleDrivePreferences.isAuthorized(context)) {
+            return@withContext SyncResult.Error("Google Drive 未授权")
+        }
+
+        try {
+            val driveRes = getDriveService()
+            if (driveRes.isFailure) {
+                return@withContext SyncResult.Error("连接 Drive 失败: ${driveRes.exceptionOrNull()?.message}")
+            }
+            val driveService = driveRes.getOrThrow()
+            val folderId = ensureBackupFolder(driveService)
+
+            val listReq = driveService.files().list()
+                .setQ("'$folderId' in parents and trashed = false and (name contains 'rmf_backup_' or name = '$BACKUP_FILE_NAME')")
+                .setSpaces("drive")
+                .setFields("files(id, name, createdTime, modifiedTime, size)")
+                .setOrderBy("createdTime desc")
+
+            val searchRes = listReq.execute()
+            val remoteFile = searchRes.files?.sortedByDescending { it.name }?.firstOrNull()
+                ?: return@withContext SyncResult.Error("云端暂无备份文件")
+
+            val lastSync = GoogleDrivePreferences.getLastSyncTime(context)
+            val remoteTimestamp = extractTimestampFromBackupName(remoteFile.name)
+
+            val shouldPull = if (remoteTimestamp != null && lastSync.isNotBlank() && !lastSync.contains("未同步")) {
+                remoteTimestamp > lastSync
+            } else if (lastSync.isBlank() || lastSync.contains("未同步")) {
+                true
+            } else {
+                val localDb = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
+                val remoteEpoch = remoteFile.modifiedTime?.value ?: 0L
+                remoteEpoch > (if (localDb.exists()) localDb.lastModified() else 0L)
+            }
+
+            if (shouldPull) {
+                return@withContext downloadBackupFromDrive()
+            } else {
+                return@withContext SyncResult.Success("本地数据已是最新，无需拉取", lastSync)
+            }
+        } catch (e: Exception) {
+            return@withContext SyncResult.Error("冷启动拉取检测异常: ${e.message}")
+        }
+    }
+
+    private fun extractTimestampFromBackupName(name: String): String? {
+        val regex = Regex("""rmf_backup_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.db""")
+        val match = regex.find(name) ?: return null
+        val (y, m, d, h, min, s) = match.destructured
+        return "$y-$m-$d $h:$min:$s"
+    }
 }

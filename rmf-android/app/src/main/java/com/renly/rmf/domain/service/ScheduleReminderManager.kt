@@ -67,6 +67,7 @@ object ScheduleReminderManager {
                 putExtra(ScheduleAlarmReceiver.EXTRA_TITLE, title)
                 putExtra(ScheduleAlarmReceiver.EXTRA_MESSAGE, msg)
                 putExtra(ScheduleAlarmReceiver.EXTRA_ID, scheduleId.hashCode())
+                putExtra(ScheduleAlarmReceiver.EXTRA_SCHEDULE_ID, scheduleId)
                 putExtra(ScheduleAlarmReceiver.EXTRA_IS_COURSE, false)
                 putExtra(ScheduleAlarmReceiver.EXTRA_COURSE_START_MILLIS, startMillis)
                 putExtra(ScheduleAlarmReceiver.EXTRA_REMINDER_TYPE, actualReminderType.code)

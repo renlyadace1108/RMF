@@ -6,10 +6,11 @@ import android.content.SharedPreferences
 /**
  * 提醒模式枚举与全局偏好管理
  * 支持：
- * - ALL: 闹钟与震动 (两者兼有，默认)
- * - ALARM: 仅闹钟 (仅响铃声音，无震动)
- * - VIBRATE: 仅震动 (仅震动，无响铃声音)
- * - NONE: 无提醒 (静音通知，不响铃不震动)
+ * - ALL: 系统通知+响铃 (默认系统通知与横幅)
+ * - ALARM: 强提醒闹钟 (系统闹钟响铃，持续唤醒与防漏)
+ * - CAPSULE: 流体胶囊 (实时状态栏/通知流体胶囊倒计时)
+ * - VIBRATE: 仅震动 (静音震动，安静环境适用)
+ * - NONE: 静默通知 (不响铃不震动)
  */
 enum class ReminderType(
     val code: String,
@@ -17,16 +18,17 @@ enum class ReminderType(
     val emoji: String,
     val description: String
 ) {
-    ALL("ALL", "闹钟+震动", "🔔", "铃声响铃并触发高强度震动提醒"),
-    ALARM("ALARM", "仅闹钟", "⏰", "仅播放响铃声音，不触发手机震动"),
+    ALL("ALL", "通知+响铃", "🔔", "系统横幅通知并播放提示音与震动"),
+    ALARM("ALARM", "强提醒闹钟", "⏰", "系统闹钟级别强提醒，高优先级持续响铃与防漏唤醒"),
+    CAPSULE("CAPSULE", "流体胶囊", "💊", "状态栏/通知实时倒计时流体胶囊"),
     VIBRATE("VIBRATE", "仅震动", "📳", "仅触发手机震动，保持环境安静"),
-    NONE("NONE", "无提醒", "🔕", "静音通知呈现，不响铃也不震动");
+    NONE("NONE", "静默通知", "🔕", "静音通知呈现，不响铃也不震动");
 
     val isSoundEnabled: Boolean
         get() = this == ALL || this == ALARM
 
     val isVibrateEnabled: Boolean
-        get() = this == ALL || this == VIBRATE
+        get() = this == ALL || this == ALARM || this == VIBRATE
 
     companion object {
         fun fromCode(code: String?): ReminderType {

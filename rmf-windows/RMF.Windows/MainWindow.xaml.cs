@@ -247,6 +247,35 @@ public partial class MainWindow : Window
             onNavigateToReminders: (remId) => Dispatcher.Invoke(() => SwitchPrimaryPage("Reminders"))
         );
         WindowsReminderScheduler.RescheduleAll();
+
+        // 软件冷启动无后台静默检查并拉取云端最新数据同步
+        Task.Run(async () =>
+        {
+            try
+            {
+                var cfg = ConfigService.Load();
+                if (cfg.IsGoogleDriveLinked && !string.IsNullOrEmpty(cfg.GoogleDriveRefreshToken))
+                {
+                    var pullRes = await GoogleDriveSyncService.PullLatestBackupIfNewerAsync(
+                        cfg.GoogleDriveClientId,
+                        cfg.GoogleDriveClientSecret
+                    );
+                    if (pullRes.success)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            RenderAllCalendarViews();
+                            RenderTimetableGrid();
+                            RefreshGoalTree();
+                            RefreshBacklogList();
+                            RefreshDeferredQueue();
+                            WindowsReminderScheduler.RescheduleAll();
+                        });
+                    }
+                }
+            }
+            catch { }
+        });
     }
 
     private void RestoreFromTray()
@@ -3121,6 +3150,15 @@ public partial class MainWindow : Window
         EventColorCombo.SelectedIndex = 0;
         OnEventIsAllDayChecked(null!, null!);
 
+        if (EventReminderMinutesCombo != null)
+        {
+            EventReminderMinutesCombo.SelectedIndex = 3; // 默认提前10分钟
+        }
+        if (EventReminderTypeCombo != null)
+        {
+            EventReminderTypeCombo.SelectedIndex = 0; // 默认系统通知
+        }
+
         if (EventDatePicker != null)
         {
             EventDatePicker.SelectedDate = date.Date;
@@ -3232,6 +3270,34 @@ public partial class MainWindow : Window
         PopulateEventGoalsCombo(item.GoalId);
         RefreshEventCategoryCombo(item.Category);
         UpdateEventColorPreview(item.ColorHex);
+
+        if (EventReminderMinutesCombo != null)
+        {
+            int remIdx = 3;
+            for (int i = 0; i < EventReminderMinutesCombo.Items.Count; i++)
+            {
+                if (EventReminderMinutesCombo.Items[i] is ComboBoxItem cbi && int.TryParse(cbi.Tag?.ToString(), out int m) && m == item.ReminderMinutes)
+                {
+                    remIdx = i;
+                    break;
+                }
+            }
+            EventReminderMinutesCombo.SelectedIndex = remIdx;
+        }
+
+        if (EventReminderTypeCombo != null)
+        {
+            int typeIdx = 0;
+            for (int i = 0; i < EventReminderTypeCombo.Items.Count; i++)
+            {
+                if (EventReminderTypeCombo.Items[i] is ComboBoxItem cbi && string.Equals(cbi.Tag?.ToString(), item.ReminderType, StringComparison.OrdinalIgnoreCase))
+                {
+                    typeIdx = i;
+                    break;
+                }
+            }
+            EventReminderTypeCombo.SelectedIndex = typeIdx;
+        }
 
         EventDeleteBtn.Visibility = Visibility.Visible;
         EventSaveBtn.Content = "更新保存";
@@ -3453,6 +3519,18 @@ public partial class MainWindow : Window
             status = st;
         }
 
+        int reminderMinutes = 10;
+        if (EventReminderMinutesCombo?.SelectedItem is ComboBoxItem remMinCbi && int.TryParse(remMinCbi.Tag?.ToString(), out int rMins))
+        {
+            reminderMinutes = rMins;
+        }
+
+        string reminderType = "ALL";
+        if (EventReminderTypeCombo?.SelectedItem is ComboBoxItem remTypeCbi && remTypeCbi.Tag is string rType && !string.IsNullOrEmpty(rType))
+        {
+            reminderType = rType;
+        }
+
         var item = new ScheduleItem
         {
             Id = _editingEventId ?? Guid.NewGuid().ToString(),
@@ -3476,10 +3554,23 @@ public partial class MainWindow : Window
             IsBacklog = false,
             Source = itemSource,
             IsTentative = EventIsTentativeCheck?.IsChecked == true,
-            IsLocked = EventIsLockedCheck?.IsChecked == true
+            IsLocked = EventIsLockedCheck?.IsChecked == true,
+            ReminderMinutes = reminderMinutes,
+            ReminderType = reminderType
         };
 
         DatabaseService.UpsertSchedule(item);
+
+        // 准时/强提醒闹钟调度至 Windows OS 核心 Action Center
+        if (item.ReminderMinutes >= 0 && item.Status != "COMPLETED" && item.Status != "ABANDONED")
+        {
+            WindowsReminderScheduler.ScheduleScheduleReminder(item);
+        }
+        else
+        {
+            WindowsReminderScheduler.CancelScheduledScheduleReminder(item.Id);
+        }
+
         if (item.Status == "COMPLETED")
         {
             DataLineageService.OnScheduleCompleted(item);
@@ -3517,6 +3608,7 @@ public partial class MainWindow : Window
     {
         if (!string.IsNullOrEmpty(_editingEventId))
         {
+            WindowsReminderScheduler.CancelScheduledScheduleReminder(_editingEventId);
             DatabaseService.DeleteSchedule(_editingEventId);
         }
         EventModal.Visibility = Visibility.Collapsed;

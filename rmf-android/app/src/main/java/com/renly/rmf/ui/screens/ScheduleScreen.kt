@@ -1359,21 +1359,19 @@ fun DragRangeScheduleDialog(
                     }
 
                     if (reminderMinutes >= 0) {
-                        Text("🔔 提醒方式 (响铃/震动):", fontSize = 11.sp, color = TextSecondary)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            ReminderType.entries.forEach { typeOption ->
+                        Text("🔔 提醒形式与闹铃模式:", fontSize = 11.sp, color = TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(ReminderType.entries) { typeOption ->
                                 val isSel = reminderType == typeOption.code
                                 FilterChip(
                                     selected = isSel,
                                     onClick = { reminderType = typeOption.code },
-                                    label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 10.5.sp) },
-                                    modifier = Modifier.weight(1f)
+                                    label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 11.sp) }
                                 )
                             }
                         }
+                        val selType = ReminderType.fromCode(reminderType)
+                        Text(selType.description, fontSize = 10.5.sp, color = DopamineAmber)
                     }
                 } else {
                     if (backlogItems.isEmpty()) {
@@ -5511,21 +5509,19 @@ fun EditScheduleDialog(
                 }
 
                 if (reminderMinutes >= 0) {
-                    Text("🔔 提醒方式选择 (响铃/震动):", fontSize = 12.sp, color = TextSecondary)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ReminderType.entries.forEach { typeOption ->
+                    Text("🔔 提醒形式与闹铃模式:", fontSize = 12.sp, color = TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(ReminderType.entries) { typeOption ->
                             val isSel = reminderType == typeOption.code
                             FilterChip(
                                 selected = isSel,
                                 onClick = { reminderType = typeOption.code },
-                                label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f)
+                                label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 11.5.sp) }
                             )
                         }
                     }
+                    val selType = ReminderType.fromCode(reminderType)
+                    Text(selType.description, fontSize = 11.sp, color = DopamineAmber)
                 }
             }
         },
@@ -6162,21 +6158,19 @@ fun AddScheduleDialog(
                 }
 
                 if (reminderMinutes >= 0) {
-                    Text("🔔 提醒方式选择 (响铃/震动):", fontSize = 12.sp, color = TextSecondary)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ReminderType.entries.forEach { typeOption ->
+                    Text("🔔 提醒形式与闹铃模式:", fontSize = 12.sp, color = TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(ReminderType.entries) { typeOption ->
                             val isSel = reminderType == typeOption.code
                             FilterChip(
                                 selected = isSel,
                                 onClick = { reminderType = typeOption.code },
-                                label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f)
+                                label = { Text("${typeOption.emoji} ${typeOption.title}", fontSize = 11.5.sp) }
                             )
                         }
                     }
+                    val selType = ReminderType.fromCode(reminderType)
+                    Text(selType.description, fontSize = 11.sp, color = DopamineAmber)
                 }
             }
         },

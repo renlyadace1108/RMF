@@ -3726,6 +3726,39 @@
                                 <ComboBox Grid.Column="4" x:Name="EventEndTimeCombo" IsEditable="True" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Height="32" FontSize="12" VerticalAlignment="Center" Text="10:00" ToolTip="结束时间 (可下拉选取或直接输入，如 10:00 或 10)" />
                             </Grid>
 
+                            <!-- 提前提醒与提醒形式 (闹铃/强提醒/胶囊/静音) -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="⏰ 到期提前提醒：" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                    <ComboBox x:Name="EventReminderMinutesCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="10,6" FontSize="12" SelectedIndex="3">
+                                        <ComboBoxItem Content="🔕 不提醒" Tag="-1" />
+                                        <ComboBoxItem Content="⏱️ 准时开始 (0分)" Tag="0" />
+                                        <ComboBoxItem Content="⏳ 提前 5 分钟" Tag="5" />
+                                        <ComboBoxItem Content="⏰ 提前 10 分钟 (推荐)" Tag="10" />
+                                        <ComboBoxItem Content="⏳ 提前 15 分钟" Tag="15" />
+                                        <ComboBoxItem Content="⏳ 提前 30 分钟" Tag="30" />
+                                        <ComboBoxItem Content="⌛ 提前 1 小时" Tag="60" />
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="🔔 提醒形式 / 闹铃模式：" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                    <ComboBox x:Name="EventReminderTypeCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="10,6" FontSize="12" SelectedIndex="0">
+                                        <ComboBoxItem Content="🔔 系统通知 (横幅与提示音)" Tag="ALL" />
+                                        <ComboBoxItem Content="⏰ 强提醒闹钟 (持续响铃唤醒)" Tag="ALARM" />
+                                        <ComboBoxItem Content="💊 桌面流体胶囊/横幅" Tag="CAPSULE" />
+                                        <ComboBoxItem Content="📳 静音/仅震动" Tag="VIBRATE" />
+                                        <ComboBoxItem Content="🔕 静默通知" Tag="NONE" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+
                             <!-- 事项类型 (WorkType) -->
                             <TextBlock Text="事项类型：" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
                             <ComboBox x:Name="EventWorkTypeCombo" Background="{DynamicResource InputBackground}" Foreground="{DynamicResource TextPrimary}" Padding="10,6" FontSize="12" Margin="0,0,0,12" SelectedIndex="0">

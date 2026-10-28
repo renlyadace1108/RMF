@@ -20,7 +20,9 @@ namespace RMF.Windows.Services;
 public static class WindowsReminderScheduler
 {
     private const string ReminderToastGroup = "RMF_REMINDERS";
+    private const string ScheduleToastGroup = "RMF_SCHEDULE_REMINDERS";
     private static readonly HashSet<string> _alertedReminderIds = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> _alertedScheduleIds = new(StringComparer.OrdinalIgnoreCase);
     private static Action? _onRestoreWindow;
     private static Action<string>? _onNavigateToReminders;
     private static bool _isInitialized = false;
@@ -40,9 +42,23 @@ public static class WindowsReminderScheduler
                 try
                 {
                     var args = ToastArguments.Parse(toastArgs.Argument);
-                    if (args.TryGetValue("action", out string? action) && args.TryGetValue("reminderId", out string? reminderId))
+                    if (args.TryGetValue("action", out string? action))
                     {
-                        HandleToastAction(action, reminderId);
+                        if (args.TryGetValue("reminderId", out string? reminderId))
+                        {
+                            HandleToastAction(action, reminderId);
+                        }
+                        else if (args.TryGetValue("scheduleId", out string? scheduleId))
+                        {
+                            HandleScheduleToastAction(action, scheduleId);
+                        }
+                        else
+                        {
+                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                            {
+                                _onRestoreWindow?.Invoke();
+                            });
+                        }
                     }
                     else
                     {
@@ -90,7 +106,7 @@ public static class WindowsReminderScheduler
                 var builder = new ToastContentBuilder()
                     .AddArgument("action", "viewReminder")
                     .AddArgument("reminderId", reminder.Id)
-                    .AddText($"🔔 {reminder.Title}")
+                    .AddText(reminder.ReminderType == "ALARM" ? $"⏰ [强提醒闹钟] {reminder.Title}" : $"🔔 {reminder.Title}")
                     .AddText(string.IsNullOrWhiteSpace(reminder.Content)
                         ? $"到期时间：{reminder.DisplayTime}"
                         : $"{reminder.Content} ({reminder.DisplayTime})")
@@ -104,6 +120,20 @@ public static class WindowsReminderScheduler
                         .AddArgument("action", "snooze")
                         .AddArgument("reminderId", reminder.Id)
                         .SetBackgroundActivation());
+
+                if (reminder.ReminderType.Equals("ALARM", StringComparison.OrdinalIgnoreCase))
+                {
+                    builder.SetToastScenario(ToastScenario.Alarm);
+                    builder.AddAudio(new ToastAudio() { Src = new Uri("ms-winsoundevent:Notification.Looping.Alarm"), Loop = true });
+                }
+                else if (reminder.ReminderType.Equals("VIBRATE", StringComparison.OrdinalIgnoreCase) || reminder.ReminderType.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+                {
+                    builder.AddAudio(new ToastAudio() { Silent = true });
+                }
+                else
+                {
+                    builder.AddAudio(new ToastAudio() { Src = new Uri("ms-winsoundevent:Notification.Default") });
+                }
 
                 if (File.Exists(logoPath))
                 {
@@ -144,6 +174,154 @@ public static class WindowsReminderScheduler
     }
 
     /// <summary>
+    /// 将日程时间块注册至 Windows OS 底层 Action Center 调度队列中 (支持强提醒闹钟与普通通知)
+    /// </summary>
+    public static void ScheduleScheduleReminder(ScheduleItem schedule)
+    {
+        if (schedule == null || schedule.IsDeleted || schedule.Status == "COMPLETED" || schedule.Status == "ABANDONED" || schedule.ReminderMinutes < 0)
+        {
+            if (schedule != null) CancelScheduledScheduleReminder(schedule.Id);
+            return;
+        }
+
+        try
+        {
+            var triggerTime = schedule.StartTime.AddMinutes(-schedule.ReminderMinutes);
+
+            if (triggerTime > DateTime.Now)
+            {
+                CancelScheduledScheduleReminder(schedule.Id);
+
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string logoPath = Path.Combine(baseDir, "app_logo_256.png");
+                if (!File.Exists(logoPath)) logoPath = Path.Combine(baseDir, "app.ico");
+
+                bool isAlarm = schedule.ReminderType.Equals("ALARM", StringComparison.OrdinalIgnoreCase);
+                string titlePrefix = isAlarm ? "⏰ [日程闹钟]" : (schedule.ReminderType.Equals("CAPSULE", StringComparison.OrdinalIgnoreCase) ? "💊 [流体胶囊]" : "🔔 [日程提醒]");
+
+                var builder = new ToastContentBuilder()
+                    .AddArgument("action", "viewSchedule")
+                    .AddArgument("scheduleId", schedule.Id)
+                    .AddText($"{titlePrefix} {schedule.Title}")
+                    .AddText(schedule.ReminderMinutes == 0
+                        ? $"日程现已开始 ({schedule.StartTime:HH:mm} - {schedule.EndTime:HH:mm})"
+                        : $"将在 {schedule.StartTime:HH:mm} 开始 (提前 {schedule.ReminderMinutes} 分钟，耗时约 {schedule.EstimatedMinutes} 分钟)")
+                    .AddButton(new ToastButton()
+                        .SetContent("✓ 标记完成")
+                        .AddArgument("action", "completeSchedule")
+                        .AddArgument("scheduleId", schedule.Id)
+                        .SetBackgroundActivation())
+                    .AddButton(new ToastButton()
+                        .SetContent("⏰ 稍后推迟 10分钟")
+                        .AddArgument("action", "snoozeSchedule")
+                        .AddArgument("scheduleId", schedule.Id)
+                        .SetBackgroundActivation());
+
+                if (isAlarm)
+                {
+                    builder.SetToastScenario(ToastScenario.Alarm);
+                    builder.AddAudio(new ToastAudio() { Src = new Uri("ms-winsoundevent:Notification.Looping.Alarm"), Loop = true });
+                }
+                else if (schedule.ReminderType.Equals("VIBRATE", StringComparison.OrdinalIgnoreCase) || schedule.ReminderType.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+                {
+                    builder.AddAudio(new ToastAudio() { Silent = true });
+                }
+                else
+                {
+                    builder.AddAudio(new ToastAudio() { Src = new Uri("ms-winsoundevent:Notification.Default") });
+                }
+
+                if (File.Exists(logoPath))
+                {
+                    builder.AddAppLogoOverride(new Uri(logoPath), ToastGenericAppLogoCrop.Circle);
+                }
+
+                var scheduledToast = new ScheduledToastNotification(builder.GetXml(), new DateTimeOffset(triggerTime))
+                {
+                    Tag = schedule.Id,
+                    Group = ScheduleToastGroup
+                };
+
+                ToastNotificationManagerCompat.CreateToastNotifier().AddToSchedule(scheduledToast);
+            }
+            else if (triggerTime <= DateTime.Now && schedule.StartTime > DateTime.Now.AddHours(-1))
+            {
+                // 到期未提醒兜底
+                if (!_alertedScheduleIds.Contains(schedule.Id))
+                {
+                    _alertedScheduleIds.Add(schedule.Id);
+                    ShowOverdueScheduleNotification(schedule);
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 取消日程时间块在 Windows Action Center 的底层调度
+    /// </summary>
+    public static void CancelScheduledScheduleReminder(string scheduleId)
+    {
+        try
+        {
+            var notifier = ToastNotificationManagerCompat.CreateToastNotifier();
+            var scheduledToasts = notifier.GetScheduledToastNotifications();
+            foreach (var toast in scheduledToasts)
+            {
+                if (toast.Group == ScheduleToastGroup && (string.IsNullOrEmpty(scheduleId) || toast.Tag == scheduleId))
+                {
+                    notifier.RemoveFromSchedule(toast);
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 触发日程即刻/逾期提醒
+    /// </summary>
+    public static void ShowOverdueScheduleNotification(ScheduleItem schedule)
+    {
+        try
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string logoPath = Path.Combine(baseDir, "app_logo_256.png");
+            if (!File.Exists(logoPath)) logoPath = Path.Combine(baseDir, "app.ico");
+
+            bool isAlarm = schedule.ReminderType.Equals("ALARM", StringComparison.OrdinalIgnoreCase);
+            var builder = new ToastContentBuilder()
+                .AddArgument("action", "viewSchedule")
+                .AddArgument("scheduleId", schedule.Id)
+                .AddText(isAlarm ? $"⏰ [日程强提醒] {schedule.Title}" : $"🔔 [日程到期] {schedule.Title}")
+                .AddText($"原定时间: {schedule.StartTime:HH:mm} - {schedule.EndTime:HH:mm}，请准备进入专注")
+                .AddButton(new ToastButton()
+                    .SetContent("✓ 标记完成")
+                    .AddArgument("action", "completeSchedule")
+                    .AddArgument("scheduleId", schedule.Id)
+                    .SetBackgroundActivation())
+                .AddButton(new ToastButton()
+                    .SetContent("⏰ 稍后推迟 10分钟")
+                    .AddArgument("action", "snoozeSchedule")
+                    .AddArgument("scheduleId", schedule.Id)
+                    .SetBackgroundActivation());
+
+            if (isAlarm)
+            {
+                builder.SetToastScenario(ToastScenario.Alarm);
+                builder.AddAudio(new ToastAudio() { Src = new Uri("ms-winsoundevent:Notification.Looping.Alarm"), Loop = true });
+            }
+
+            if (File.Exists(logoPath))
+            {
+                builder.AddAppLogoOverride(new Uri(logoPath), ToastGenericAppLogoCrop.Circle);
+            }
+
+            builder.Show();
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// 从 Windows Action Center 取消指定提醒的系统底层调度
     /// </summary>
     public static void CancelScheduledReminder(string reminderId)
@@ -164,17 +342,29 @@ public static class WindowsReminderScheduler
     }
 
     /// <summary>
-    /// 全量核验并重新向 Windows Action Center 注册所有待办提醒 (用于开机、同步恢复或数据导入)
+    /// 全量核验并重新向 Windows Action Center 注册所有待办提醒与日程时间块 (用于开机、同步恢复或数据导入)
     /// </summary>
     public static void RescheduleAll()
     {
         try
         {
-            CancelScheduledReminder(string.Empty); // 清空旧调度
+            CancelScheduledReminder(string.Empty); // 清空旧待办调度
+            CancelScheduledScheduleReminder(string.Empty); // 清空旧日程调度
+
             var pendingReminders = DatabaseService.GetPendingReminders();
             foreach (var reminder in pendingReminders)
             {
                 ScheduleReminder(reminder);
+            }
+
+            // 排期未来 7 天内有效待进行的日程时间块
+            var upcomingSchedules = DatabaseService.GetSchedulesForDateRange(DateTime.Today, DateTime.Today.AddDays(7));
+            foreach (var schedule in upcomingSchedules)
+            {
+                if (schedule.ReminderMinutes >= 0 && schedule.Status != "COMPLETED" && schedule.Status != "ABANDONED")
+                {
+                    ScheduleScheduleReminder(schedule);
+                }
             }
         }
         catch { }
@@ -267,6 +457,44 @@ public static class WindowsReminderScheduler
                 {
                     _onRestoreWindow?.Invoke();
                     _onNavigateToReminders?.Invoke(reminderId);
+                });
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 处理用户在日程横幅/闹铃上的按钮动作 (完成 / 稍后推迟 / 查看日程)
+    /// </summary>
+    public static void HandleScheduleToastAction(string action, string scheduleId)
+    {
+        if (string.IsNullOrEmpty(scheduleId)) return;
+
+        try
+        {
+            var schedule = DatabaseService.GetScheduleById(scheduleId);
+            if (schedule == null) return;
+
+            if (action.Equals("completeSchedule", StringComparison.OrdinalIgnoreCase))
+            {
+                schedule.Status = "COMPLETED";
+                DatabaseService.UpsertSchedule(schedule);
+                CancelScheduledScheduleReminder(scheduleId);
+            }
+            else if (action.Equals("snoozeSchedule", StringComparison.OrdinalIgnoreCase))
+            {
+                int duration = schedule.EstimatedMinutes > 0 ? schedule.EstimatedMinutes : 45;
+                schedule.StartTime = DateTime.Now.AddMinutes(10);
+                schedule.EndTime = schedule.StartTime.AddMinutes(duration);
+                schedule.ReminderMinutes = 0;
+                DatabaseService.UpsertSchedule(schedule);
+                ScheduleScheduleReminder(schedule);
+            }
+            else if (action.Equals("viewSchedule", StringComparison.OrdinalIgnoreCase))
+            {
+                System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                {
+                    _onRestoreWindow?.Invoke();
                 });
             }
         }

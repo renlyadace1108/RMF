@@ -150,4 +150,20 @@ public class ScheduleItem
     /// </summary>
     [JsonPropertyName("eisenhower_quadrant")]
     public string EisenhowerQuadrant { get; set; } = "Q2";
+
+    /// <summary>
+    /// 到期提前提醒分钟数 (-1: 不提醒, 0: 准时, 5: 提前5分钟, 10: 提前10分钟, 15: 提前15分钟, 30: 提前30分钟, 60: 提前1小时)
+    /// </summary>
+    [JsonPropertyName("reminder_minutes")]
+    public int ReminderMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// 提醒形式: ALL (系统通知+响铃), ALARM (强提醒闹钟), CAPSULE (桌面流体胶囊), VIBRATE (仅震动/静音), NONE (静默通知)
+    /// </summary>
+    [JsonPropertyName("reminder_type")]
+    public string ReminderType { get; set; } = "ALL";
+
+    [JsonIgnore]
+    public string ReminderSummaryText => ReminderMinutes < 0 ? "🔕 不提醒" :
+        $"{(ReminderType == "ALARM" ? "⏰ 闹钟" : (ReminderType == "CAPSULE" ? "💊 胶囊" : (ReminderType == "VIBRATE" ? "📳 震动" : "🔔 通知")))} (提前 {ReminderMinutes} 分)";
 }

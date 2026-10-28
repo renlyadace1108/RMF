@@ -182,6 +182,26 @@ class RmfApplication : Application() {
                 setShowBadge(false)
             }
 
+            val alarmSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            val alarmAudioAttrs = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .build()
+
+            val alarmChannel = NotificationChannel(
+                CHANNEL_ALARM_CLOCK,
+                "日程闹钟 (系统强提醒)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "日程时间块到期强提醒闹钟，持续响铃与全屏唤醒"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 250, 500, 250, 1000)
+                setSound(alarmSoundUri, alarmAudioAttrs)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+                enableLights(true)
+            }
+
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
             manager.createNotificationChannel(fluidChannel)
@@ -189,6 +209,7 @@ class RmfApplication : Application() {
             manager.createNotificationChannel(vibrateChannel)
             manager.createNotificationChannel(silentChannel)
             manager.createNotificationChannel(quickActionChannel)
+            manager.createNotificationChannel(alarmChannel)
         }
     }
 
@@ -199,5 +220,6 @@ class RmfApplication : Application() {
         const val CHANNEL_REMINDER_VIBRATE_ONLY = "rmf_reminder_vibrate_channel"
         const val CHANNEL_REMINDER_SILENT = "rmf_reminder_silent_channel"
         const val CHANNEL_QUICK_ACTION = "rmf_quick_action_channel"
+        const val CHANNEL_ALARM_CLOCK = "rmf_alarm_clock_channel"
     }
 }

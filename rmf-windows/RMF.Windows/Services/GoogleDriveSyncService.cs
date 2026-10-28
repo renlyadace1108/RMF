@@ -422,6 +422,78 @@ public class GoogleDriveSyncService
     }
 
     /// <summary>
+    /// 冷启动无后台静默自动拉取云端数据：
+    /// 比较云端专属目录最新镜像时间戳与本地 LastSyncTime，若云端版本更新则自动静默拉取并合并覆盖。
+    /// </summary>
+    public static async Task<(bool success, string message)> PullLatestBackupIfNewerAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var config = ConfigService.Load();
+            if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+            {
+                return (false, "Google Drive 未关联授权。");
+            }
+
+            using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
+            string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
+
+            var listReq = service.Files.List();
+            listReq.Q = $"'{folderId}' in parents and trashed = false and (name contains 'rmf_backup_' or name = '{BackupFileName}')";
+            listReq.Spaces = "drive";
+            listReq.Fields = "files(id, name, createdTime, modifiedTime, size)";
+            listReq.OrderBy = "createdTime desc";
+
+            var searchRes = await listReq.ExecuteAsync(cancellationToken);
+            if (searchRes.Files == null || searchRes.Files.Count == 0)
+            {
+                return (false, "在 Google Drive 对应目录中未发现备份文件。");
+            }
+
+            var remoteFile = searchRes.Files.OrderByDescending(f => f.Name).First();
+            string? remoteTimestamp = ExtractTimestampFromBackupName(remoteFile.Name);
+            string lastSync = config.LastSyncTime ?? string.Empty;
+
+            bool shouldPull = false;
+            if (!string.IsNullOrEmpty(remoteTimestamp) && !string.IsNullOrEmpty(lastSync) && !lastSync.Contains("未同步"))
+            {
+                shouldPull = string.Compare(remoteTimestamp, lastSync, StringComparison.Ordinal) > 0;
+            }
+            else if (string.IsNullOrEmpty(lastSync) || lastSync.Contains("未同步"))
+            {
+                shouldPull = true;
+            }
+            else
+            {
+                long remoteEpoch = remoteFile.ModifiedTimeDateTimeOffset?.ToUnixTimeMilliseconds() ?? 0L;
+                long localEpoch = File.Exists(DatabaseService.DbPath) ? new DateTimeOffset(File.GetLastWriteTimeUtc(DatabaseService.DbPath)).ToUnixTimeMilliseconds() : 0L;
+                shouldPull = remoteEpoch > localEpoch;
+            }
+
+            if (shouldPull)
+            {
+                return await DownloadBackupFromDriveAsync(clientId, clientSecret, progressCallback, cancellationToken);
+            }
+            return (false, "本地数据已与云端最新快照保持一致。");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"冷启动云端拉取失败: {ex.Message}");
+        }
+    }
+
+    private static string? ExtractTimestampFromBackupName(string name)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"rmf_backup_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.db");
+        if (match.Success)
+        {
+            var g = match.Groups;
+            return $"{g[1].Value}-{g[2].Value}-{g[3].Value} {g[4].Value}:{g[5].Value}:{g[6].Value}";
+        }
+        return null;
+    }
+
+    /// <summary>
     /// 解绑 Google Drive 本地缓存授权凭证
     /// </summary>
     public static void ClearLocalCredentials()

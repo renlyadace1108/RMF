@@ -24,6 +24,47 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val intentAction = intent.action
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        // 处理日程闹铃交互动作 (关闭 / 稍后推迟)
+        if (intentAction == ACTION_DISMISS_SCHEDULE_ALARM) {
+            val notifId = intent.getIntExtra(EXTRA_ID, 1001)
+            manager.cancel(notifId)
+            return
+        }
+
+        if (intentAction == ACTION_SNOOZE_SCHEDULE_ALARM) {
+            val scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID) ?: return
+            val notifId = intent.getIntExtra(EXTRA_ID, 1001)
+            manager.cancel(notifId)
+
+            val app = context.applicationContext as? RmfApplication
+            if (app != null) {
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val schedule = app.database.scheduleDao().getScheduleById(scheduleId)
+                        if (schedule != null) {
+                            val snoozedTime = LocalDateTime.now().plusMinutes(10)
+                            val snoozedIso = snoozedTime.format(DateTimeFormatter.ISO_DATE_TIME)
+                            val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                            val updated = schedule.copy(startTime = snoozedIso, reminderMinutes = 0, updatedAt = nowStr)
+                            app.database.scheduleDao().insertOrUpdate(updated)
+                            ScheduleReminderManager.scheduleReminder(
+                                context = context,
+                                scheduleId = updated.id,
+                                title = updated.title,
+                                startTimeStr = updated.startTime,
+                                advanceMinutes = 0,
+                                reminderType = ReminderType.fromCode(updated.reminderType)
+                            )
+                        }
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
+            return
+        }
+
         // 处理自定义事件提醒的交互动作 (完成 / 稍后提醒)
         if (intentAction == ACTION_COMPLETE_REMINDER) {
             val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: return
@@ -107,6 +148,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val isCourse = intent.getBooleanExtra(EXTRA_IS_COURSE, false)
         val isDirectReminder = intent.getBooleanExtra(EXTRA_IS_DIRECT_REMINDER, false)
         val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID) ?: ""
+        val scheduleId = intent.getStringExtra(EXTRA_SCHEDULE_ID) ?: ""
         val courseLocation = intent.getStringExtra(EXTRA_COURSE_LOCATION) ?: ""
         val courseTeacher = intent.getStringExtra(EXTRA_COURSE_TEACHER) ?: ""
         val courseStartTimeMillis = intent.getLongExtra(EXTRA_COURSE_START_MILLIS, 0L)
@@ -133,34 +175,44 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val channelId = if (isCourse) {
             when (reminderType) {
                 ReminderType.ALL -> RmfApplication.CHANNEL_FLUID_CLOUD
-                ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
+                ReminderType.ALARM -> RmfApplication.CHANNEL_ALARM_CLOCK
+                ReminderType.CAPSULE -> RmfApplication.CHANNEL_FLUID_CLOUD
                 ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
                 ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
             }
         } else {
             when (reminderType) {
                 ReminderType.ALL -> RmfApplication.CHANNEL_SCHEDULE_REMINDER
-                ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
+                ReminderType.ALARM -> RmfApplication.CHANNEL_ALARM_CLOCK
+                ReminderType.CAPSULE -> RmfApplication.CHANNEL_FLUID_CLOUD
                 ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
                 ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
             }
         }
 
         val defaultSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+        val alarmSound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_logo)
             .setColor(0xFF00F0FF.toInt())
             .setPriority(if (reminderType == ReminderType.NONE) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MAX)
-            .setCategory(if (isCourse) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
+            .setCategory(
+                when {
+                    reminderType == ReminderType.ALARM -> NotificationCompat.CATEGORY_ALARM
+                    isCourse -> NotificationCompat.CATEGORY_EVENT
+                    else -> NotificationCompat.CATEGORY_REMINDER
+                }
+            )
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .setOngoing(true)
+            .setOngoing(reminderType == ReminderType.ALARM || isCourse)
             .setContentIntent(pendingIntent)
 
         val brandLabel = FluidCloudHelper.getSystemBrandLabel()
-        builder.setFullScreenIntent(pendingIntent, reminderType != ReminderType.NONE)
+        builder.setFullScreenIntent(pendingIntent, reminderType == ReminderType.ALARM || reminderType != ReminderType.NONE)
         builder.setSubText(
             when {
+                reminderType == ReminderType.ALARM -> "$brandLabel · 强提醒闹钟"
                 isCourse -> "$brandLabel · 上课提醒"
                 isDirectReminder -> "$brandLabel · 事件提醒"
                 else -> "$brandLabel · 日程提醒"
@@ -175,9 +227,14 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 builder.setDefaults(NotificationCompat.DEFAULT_ALL)
             }
             ReminderType.ALARM -> {
+                builder.setSound(alarmSound)
+                builder.setVibrate(longArrayOf(0, 500, 250, 500, 250, 1000))
+                builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_LIGHTS)
+            }
+            ReminderType.CAPSULE -> {
                 builder.setSound(defaultSound)
-                builder.setVibrate(longArrayOf(0))
-                builder.setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
+                builder.setVibrate(longArrayOf(0, 250, 150, 250))
+                builder.setDefaults(NotificationCompat.DEFAULT_ALL)
             }
             ReminderType.VIBRATE -> {
                 builder.setSound(null)
@@ -422,22 +479,49 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 )
             }
 
-            builder.addAction(
-                NotificationCompat.Action.Builder(
-                    0,
-                    "开启专注",
-                    focusPendingIntent
-                ).build()
-            )
-            builder.addAction(
-                NotificationCompat.Action.Builder(
-                    0,
-                    "查看日程",
-                    pendingIntent
-                ).build()
-            )
+            if (reminderType == ReminderType.ALARM) {
+                val dismissIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                    action = ACTION_DISMISS_SCHEDULE_ALARM
+                    putExtra(EXTRA_ID, notificationId)
+                }
+                val dismissPi = PendingIntent.getBroadcast(
+                    context,
+                    notificationId + 80,
+                    dismissIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val snoozeIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                    action = ACTION_SNOOZE_SCHEDULE_ALARM
+                    putExtra(EXTRA_SCHEDULE_ID, scheduleId)
+                    putExtra(EXTRA_ID, notificationId)
+                }
+                val snoozePi = PendingIntent.getBroadcast(
+                    context,
+                    notificationId + 81,
+                    snoozeIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
 
-            builder.setContentTitle(title)
+                builder.addAction(NotificationCompat.Action.Builder(0, "✓ 关闭闹铃", dismissPi).build())
+                builder.addAction(NotificationCompat.Action.Builder(0, "⏰ 稍后推迟 (+10分)", snoozePi).build())
+            } else {
+                builder.addAction(
+                    NotificationCompat.Action.Builder(
+                        0,
+                        "开启专注",
+                        focusPendingIntent
+                    ).build()
+                )
+                builder.addAction(
+                    NotificationCompat.Action.Builder(
+                        0,
+                        "查看日程",
+                        pendingIntent
+                    ).build()
+                )
+            }
+
+            builder.setContentTitle(if (reminderType == ReminderType.ALARM) "⏰ 闹钟响铃: $title" else title)
                 .setContentText(message)
 
             if (remMillis > 0) {
@@ -512,10 +596,13 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_COMPLETE_REMINDER = "com.renly.rmf.ACTION_COMPLETE_REMINDER"
         const val ACTION_SNOOZE_REMINDER = "com.renly.rmf.ACTION_SNOOZE_REMINDER"
+        const val ACTION_DISMISS_SCHEDULE_ALARM = "com.renly.rmf.ACTION_DISMISS_SCHEDULE_ALARM"
+        const val ACTION_SNOOZE_SCHEDULE_ALARM = "com.renly.rmf.ACTION_SNOOZE_SCHEDULE_ALARM"
 
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_MESSAGE = "extra_message"
         const val EXTRA_ID = "extra_id"
+        const val EXTRA_SCHEDULE_ID = "extra_schedule_id"
         const val EXTRA_IS_COURSE = "extra_is_course"
         const val EXTRA_IS_DIRECT_REMINDER = "extra_is_direct_reminder"
         const val EXTRA_REMINDER_ID = "extra_reminder_id"

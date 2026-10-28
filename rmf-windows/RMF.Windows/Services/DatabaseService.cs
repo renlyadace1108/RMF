@@ -553,7 +553,9 @@ public class DatabaseService
             ["is_locked"] = "INTEGER DEFAULT 0",
             ["depends_on_task_id"] = "TEXT",
             ["postpone_count"] = "INTEGER DEFAULT 0",
-            ["eisenhower_quadrant"] = "TEXT DEFAULT 'Q2'"
+            ["eisenhower_quadrant"] = "TEXT DEFAULT 'Q2'",
+            ["reminder_minutes"] = "INTEGER DEFAULT 10",
+            ["reminder_type"] = "TEXT DEFAULT 'ALL'"
         };
 
         foreach (var (col, def) in missingCols)
@@ -856,16 +858,22 @@ public class DatabaseService
 
     // ==================== 日程管理 (Schedules) ====================
 
+    private const string ScheduleSelectColumns = @"
+        id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
+        goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
+        is_all_day, recurrence, color_hex, source, study_topic_id,
+        is_tentative, is_locked, depends_on_task_id, postpone_count, eisenhower_quadrant,
+        reminder_minutes, reminder_type
+    ";
+
     public static List<ScheduleItem> GetAllSchedules()
     {
         var list = new List<ScheduleItem>();
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string sql = @"
-            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex, source, study_topic_id
+        string sql = $@"
+            SELECT {ScheduleSelectColumns}
             FROM schedules
             WHERE is_deleted = 0
             ORDER BY start_time ASC;
@@ -900,10 +908,8 @@ public class DatabaseService
         string startIso = start.ToString("s");
         string endIso = end.ToString("s");
 
-        string sql = @"
-            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex, source, study_topic_id
+        string sql = $@"
+            SELECT {ScheduleSelectColumns}
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 0 AND is_deferred = 0 
               AND (
@@ -984,7 +990,14 @@ public class DatabaseService
                                 Recurrence = item.Recurrence,
                                 ColorHex = item.ColorHex,
                                 Source = item.Source,
-                                StudyTopicId = item.StudyTopicId
+                                StudyTopicId = item.StudyTopicId,
+                                IsTentative = item.IsTentative,
+                                IsLocked = item.IsLocked,
+                                DependsOnTaskId = item.DependsOnTaskId,
+                                PostponeCount = item.PostponeCount,
+                                EisenhowerQuadrant = item.EisenhowerQuadrant,
+                                ReminderMinutes = item.ReminderMinutes,
+                                ReminderType = item.ReminderType
                             };
                             projected.Add(clone);
                         }
@@ -1002,10 +1015,8 @@ public class DatabaseService
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string sql = @"
-            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex, source, study_topic_id
+        string sql = $@"
+            SELECT {ScheduleSelectColumns}
             FROM schedules
             WHERE is_deleted = 0 AND is_backlog = 1 AND is_deferred = 0
             ORDER BY priority DESC, created_at DESC;
@@ -1027,10 +1038,8 @@ public class DatabaseService
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string sql = @"
-            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex, source, study_topic_id
+        string sql = $@"
+            SELECT {ScheduleSelectColumns}
             FROM schedules
             WHERE is_deleted = 0 AND is_deferred = 1
             ORDER BY updated_at DESC;
@@ -1051,10 +1060,8 @@ public class DatabaseService
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        string sql = @"
-            SELECT id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted,
-                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
-                   is_all_day, recurrence, color_hex, source, study_topic_id
+        string sql = $@"
+            SELECT {ScheduleSelectColumns}
             FROM schedules
             WHERE id = @id AND is_deleted = 0
             LIMIT 1;
@@ -1103,7 +1110,9 @@ public class DatabaseService
             IsLocked = reader.FieldCount > 25 && !reader.IsDBNull(25) && reader.GetInt32(25) == 1,
             DependsOnTaskId = reader.FieldCount > 26 && !reader.IsDBNull(26) ? reader.GetString(26) : null,
             PostponeCount = reader.FieldCount > 27 && !reader.IsDBNull(27) ? reader.GetInt32(27) : 0,
-            EisenhowerQuadrant = reader.FieldCount > 28 && !reader.IsDBNull(28) ? reader.GetString(28) : "Q2"
+            EisenhowerQuadrant = reader.FieldCount > 28 && !reader.IsDBNull(28) ? reader.GetString(28) : "Q2",
+            ReminderMinutes = reader.FieldCount > 29 && !reader.IsDBNull(29) ? reader.GetInt32(29) : 10,
+            ReminderType = reader.FieldCount > 30 && !reader.IsDBNull(30) ? reader.GetString(30) : "ALL"
         };
     }
 
@@ -1293,11 +1302,13 @@ public class DatabaseService
             INSERT INTO schedules (id, title, description, category, priority, status, start_time, end_time, estimated_minutes, is_deleted, created_at, updated_at,
                                   goal_id, work_type, dod, actual_minutes, interruption_minutes, is_deferred, is_backlog, sync_version, is_dirty,
                                   is_all_day, recurrence, color_hex, source, study_topic_id,
-                                  is_tentative, is_locked, depends_on_task_id, postpone_count, eisenhower_quadrant)
+                                  is_tentative, is_locked, depends_on_task_id, postpone_count, eisenhower_quadrant,
+                                  reminder_minutes, reminder_type)
             VALUES (@id, @title, @description, @category, @priority, @status, @start_time, @end_time, @estimated_minutes, 0, @now, @now,
                     @goal_id, @work_type, @dod, @actual_minutes, @interruption_minutes, @is_deferred, @is_backlog, @sync_version, 1,
                     @is_all_day, @recurrence, @color_hex, @source, @study_topic_id,
-                    @is_tentative, @is_locked, @depends_on_task_id, @postpone_count, @eisenhower_quadrant)
+                    @is_tentative, @is_locked, @depends_on_task_id, @postpone_count, @eisenhower_quadrant,
+                    @reminder_minutes, @reminder_type)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -1326,6 +1337,8 @@ public class DatabaseService
                 depends_on_task_id = excluded.depends_on_task_id,
                 postpone_count = excluded.postpone_count,
                 eisenhower_quadrant = excluded.eisenhower_quadrant,
+                reminder_minutes = excluded.reminder_minutes,
+                reminder_type = excluded.reminder_type,
                 updated_at = excluded.updated_at;
         ";
 
@@ -1357,6 +1370,8 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("@depends_on_task_id", (object?)item.DependsOnTaskId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@postpone_count", item.PostponeCount);
         cmd.Parameters.AddWithValue("@eisenhower_quadrant", item.EisenhowerQuadrant ?? "Q2");
+        cmd.Parameters.AddWithValue("@reminder_minutes", item.ReminderMinutes);
+        cmd.Parameters.AddWithValue("@reminder_type", item.ReminderType ?? "ALL");
         cmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("s"));
 
         cmd.ExecuteNonQuery();

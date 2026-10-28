@@ -380,6 +380,23 @@ class MainActivity : ComponentActivity() {
                     daysAhead = 7
                 )
             }
+
+            // 软件冷启动无后台静默检查并拉取云端最新数据同步
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this@MainActivity)) {
+                        val syncService = com.renly.rmf.domain.service.GoogleDriveSyncService(this@MainActivity)
+                        val pullResult = syncService.pullLatestBackupIfNewer()
+                        if (pullResult is com.renly.rmf.domain.service.SyncResult.Success && !pullResult.message.contains("无需拉取")) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                android.widget.Toast.makeText(this@MainActivity, "✓ 已自动同步云端最新数据", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("RMF_Sync", "Cold start cloud pull error (silent): ${e.message}")
+                }
+            }
         }
 
         setContent {
