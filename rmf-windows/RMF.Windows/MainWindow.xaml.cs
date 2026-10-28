@@ -4153,7 +4153,7 @@ public partial class MainWindow : Window
                 }
 
                 // 备份当前库
-                string backupOld = Path.Combine(DatabaseService.DbDir, $"rmf_pre_import_{DateTime.Now:yyyyMMddHHmmss}.bak");
+                string backupOld = System.IO.Path.Combine(DatabaseService.DbDir, $"rmf_pre_import_{DateTime.Now:yyyyMMddHHmmss}.bak");
                 if (File.Exists(DatabaseService.DbPath))
                 {
                     File.Copy(DatabaseService.DbPath, backupOld, true);
