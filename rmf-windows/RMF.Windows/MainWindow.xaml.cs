@@ -1027,23 +1027,75 @@ public partial class MainWindow : Window
             double nowH = DateTime.Now.Hour + DateTime.Now.Minute / 60.0;
             double lineTop = nowH * HourHeight;
 
-            // 红点
+            // 雷达呼吸外环 (微光晕)
+            var pulseRing = new Ellipse
+            {
+                Width = 20,
+                Height = 20,
+                Fill = new SolidColorBrush(Color.FromArgb(0x35, 0xEA, 0x43, 0x35)),
+                Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0xEA, 0x43, 0x35)),
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+                RenderTransformOrigin = new Point(0.5, 0.5)
+            };
+            var pulseScale = new ScaleTransform(1.0, 1.0);
+            pulseRing.RenderTransform = pulseScale;
+            var pulseAnim = new DoubleAnimation
+            {
+                From = 0.85,
+                To = 1.45,
+                Duration = TimeSpan.FromSeconds(1.8),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            pulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
+            pulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+
+            var pulseOpacityAnim = new DoubleAnimation
+            {
+                From = 0.7,
+                To = 0.15,
+                Duration = TimeSpan.FromSeconds(1.8),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            pulseRing.BeginAnimation(UIElement.OpacityProperty, pulseOpacityAnim);
+
+            Canvas.SetLeft(pulseRing, todayCol * colWidth - 10);
+            Canvas.SetTop(pulseRing, lineTop - 9);
+            WeekEventsCanvas.Children.Add(pulseRing);
+
+            // 红点实心内核 (白色边缘高光)
             var dot = new Ellipse
             {
                 Width = 10,
                 Height = 10,
                 Fill = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.5,
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(dot, todayCol * colWidth - 5);
             Canvas.SetTop(dot, lineTop - 4.5);
             WeekEventsCanvas.Children.Add(dot);
 
-            // 红线
+            // 动态微渐变红线
+            var lineGrad = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0)
+            };
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromRgb(0xEA, 0x43, 0x35), 0.0));
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromArgb(0xDD, 0xEA, 0x43, 0x35), 0.65));
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromArgb(0x44, 0xEA, 0x43, 0x35), 1.0));
+            lineGrad.Freeze();
+
             var line = new Border
             {
                 Height = 2,
-                Background = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                Background = lineGrad,
                 Width = colWidth,
                 IsHitTestVisible = false
             };
@@ -1715,21 +1767,75 @@ public partial class MainWindow : Window
             double nowH = DateTime.Now.Hour + DateTime.Now.Minute / 60.0;
             double lineTop = nowH * HourHeight;
 
+            // 雷达呼吸外环 (微光晕)
+            var pulseRing = new Ellipse
+            {
+                Width = 20,
+                Height = 20,
+                Fill = new SolidColorBrush(Color.FromArgb(0x35, 0xEA, 0x43, 0x35)),
+                Stroke = new SolidColorBrush(Color.FromArgb(0x70, 0xEA, 0x43, 0x35)),
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+                RenderTransformOrigin = new Point(0.5, 0.5)
+            };
+            var pulseScale = new ScaleTransform(1.0, 1.0);
+            pulseRing.RenderTransform = pulseScale;
+            var pulseAnim = new DoubleAnimation
+            {
+                From = 0.85,
+                To = 1.45,
+                Duration = TimeSpan.FromSeconds(1.8),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            pulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, pulseAnim);
+            pulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, pulseAnim);
+
+            var pulseOpacityAnim = new DoubleAnimation
+            {
+                From = 0.7,
+                To = 0.15,
+                Duration = TimeSpan.FromSeconds(1.8),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+            pulseRing.BeginAnimation(UIElement.OpacityProperty, pulseOpacityAnim);
+
+            Canvas.SetLeft(pulseRing, -10);
+            Canvas.SetTop(pulseRing, lineTop - 9);
+            DayEventsCanvas.Children.Add(pulseRing);
+
+            // 红点实心内核 (白色边缘高光)
             var dot = new Ellipse
             {
                 Width = 10,
                 Height = 10,
                 Fill = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                Stroke = Brushes.White,
+                StrokeThickness = 1.5,
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(dot, -5);
             Canvas.SetTop(dot, lineTop - 4.5);
             DayEventsCanvas.Children.Add(dot);
 
+            // 动态微渐变红线
+            var lineGrad = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0),
+                EndPoint = new Point(1, 0)
+            };
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromRgb(0xEA, 0x43, 0x35), 0.0));
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromArgb(0xDD, 0xEA, 0x43, 0x35), 0.7));
+            lineGrad.GradientStops.Add(new GradientStop(Color.FromArgb(0x44, 0xEA, 0x43, 0x35), 1.0));
+            lineGrad.Freeze();
+
             var line = new Border
             {
                 Height = 2,
-                Background = new SolidColorBrush(Color.FromRgb(0xEA, 0x43, 0x35)),
+                Background = lineGrad,
                 Width = canvasWidth,
                 IsHitTestVisible = false
             };
@@ -3477,7 +3583,7 @@ public partial class MainWindow : Window
         EventDeleteBtn.Visibility = Visibility.Collapsed;
         EventSaveBtn.Content = "保存";
 
-        EventModal.Visibility = Visibility.Visible;
+        AnimateModalOpen(EventModal, EventModalCard);
         EventTitleInput.Focus();
     }
 
@@ -3599,8 +3705,13 @@ public partial class MainWindow : Window
 
         EventDeleteBtn.Visibility = Visibility.Visible;
         EventSaveBtn.Content = "更新保存";
-        EventModal.Visibility = Visibility.Visible;
+        AnimateModalOpen(EventModal, EventModalCard);
         EventTitleInput.Focus();
+    }
+
+    private void CloseEventModal(Action? onClosed = null)
+    {
+        AnimateModalClose(EventModal, EventModalCard, onClosed);
     }
 
     private void PopulateEventGoalsCombo(string? selectedGoalId)
@@ -3634,7 +3745,7 @@ public partial class MainWindow : Window
 
     private void OnCloseEventModalClicked(object sender, RoutedEventArgs e)
     {
-        EventModal.Visibility = Visibility.Collapsed;
+        CloseEventModal();
     }
 
     private void OnSaveEventModalClicked(object sender, RoutedEventArgs e)
@@ -3782,10 +3893,12 @@ public partial class MainWindow : Window
                         Source = itemSource
                     };
                     DatabaseService.UpsertSchedule(deferredItem);
-                    EventModal.Visibility = Visibility.Collapsed;
-                    RefreshDeferredQueue();
-                    RenderAllCalendarViews();
-                    MessageBox.Show("✅ 已将该任务自动归入「次要任务延期冻结池」，今日锁定不排入主时间轴。", "已归入延期冻结池", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CloseEventModal(() =>
+                    {
+                        RefreshDeferredQueue();
+                        RenderAllCalendarViews();
+                        MessageBox.Show("✅ 已将该任务自动归入「次要任务延期冻结池」，今日锁定不排入主时间轴。", "已归入延期冻结池", MessageBoxButton.OK, MessageBoxImage.Information);
+                    });
                     return;
                 }
             }
@@ -3873,14 +3986,15 @@ public partial class MainWindow : Window
         {
             DataLineageService.OnScheduleCompleted(item);
         }
-        EventModal.Visibility = Visibility.Collapsed;
-
-        RenderAllCalendarViews();
-        RefreshGoalTree();
-        RefreshBacklogList();
-        RefreshDeferredQueue();
-        UpdateCognitiveLoadQuota();
-        RefreshTimePnlData();
+        CloseEventModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshGoalTree();
+            RefreshBacklogList();
+            RefreshDeferredQueue();
+            UpdateCognitiveLoadQuota();
+            RefreshTimePnlData();
+        });
     }
 
     private bool CheckRestBufferConflict(DateTime date, DateTime start, DateTime end, string? excludeId)
@@ -3909,12 +4023,14 @@ public partial class MainWindow : Window
             WindowsReminderScheduler.CancelScheduledScheduleReminder(_editingEventId);
             DatabaseService.DeleteSchedule(_editingEventId);
         }
-        EventModal.Visibility = Visibility.Collapsed;
-        RenderAllCalendarViews();
-        RefreshBacklogList();
-        RefreshDeferredQueue();
-        UpdateCognitiveLoadQuota();
-        RefreshTimePnlData();
+        CloseEventModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshBacklogList();
+            RefreshDeferredQueue();
+            UpdateCognitiveLoadQuota();
+            RefreshTimePnlData();
+        });
     }
 
     // =========================================================================
@@ -4059,13 +4175,21 @@ public partial class MainWindow : Window
         QuickDetailTentativeConfirmBtn.Visibility = item.IsTentative ? Visibility.Visible : Visibility.Collapsed;
         QuickDetailLockToggleBtn.Content = item.IsLocked ? "🔓 解锁日程" : "🔒 锁定日程";
 
-        EventQuickDetailModal.Visibility = Visibility.Visible;
+        AnimateModalOpen(EventQuickDetailModal, EventQuickDetailCard);
+    }
+
+    private void CloseQuickDetailModal(Action? onClosed = null)
+    {
+        AnimateModalClose(EventQuickDetailModal, EventQuickDetailCard, () =>
+        {
+            _quickDetailItem = null;
+            onClosed?.Invoke();
+        });
     }
 
     private void OnQuickDetailGoToFitnessClicked(object sender, RoutedEventArgs e)
     {
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        SwitchPrimaryPage("Fitness");
+        CloseQuickDetailModal(() => SwitchPrimaryPage("Fitness"));
     }
 
     private void OnQuickDetailWorkspaceClicked(object sender, RoutedEventArgs e)
@@ -4095,28 +4219,25 @@ public partial class MainWindow : Window
         };
 
         DatabaseService.AddSchedule(bufferItem);
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        _quickDetailItem = null;
-
-        RenderAllCalendarViews();
-        RefreshTimePnlData();
-        UpdateCognitiveLoadQuota();
-
-        MessageBox.Show($"已在日程后自动插入 15 分钟弹性呼吸缓冲带 ({start:HH:mm} ~ {end:HH:mm})！", "呼吸缓冲带", MessageBoxButton.OK, MessageBoxImage.Information);
+        CloseQuickDetailModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            UpdateCognitiveLoadQuota();
+            MessageBox.Show($"已在日程后自动插入 15 分钟弹性呼吸缓冲带 ({start:HH:mm} ~ {end:HH:mm})！", "呼吸缓冲带", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
     }
 
     private void OnCloseQuickDetailClicked(object sender, RoutedEventArgs e)
     {
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        _quickDetailItem = null;
+        CloseQuickDetailModal();
     }
 
     private void OnQuickDetailEditClicked(object sender, RoutedEventArgs e)
     {
         if (_quickDetailItem == null) return;
         var target = _quickDetailItem;
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        OpenEventEditModal(target);
+        CloseQuickDetailModal(() => OpenEventEditModal(target));
     }
 
     private void OnQuickDetailToggleStatusClicked(object sender, RoutedEventArgs e)
@@ -4136,10 +4257,12 @@ public partial class MainWindow : Window
             DataLineageService.OnScheduleCompleted(_quickDetailItem);
         }
         DatabaseService.UpsertSchedule(_quickDetailItem);
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        RenderAllCalendarViews();
-        RefreshTimePnlData();
-        UpdateCognitiveLoadQuota();
+        CloseQuickDetailModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            UpdateCognitiveLoadQuota();
+        });
     }
 
     private void OnQuickDetailDeleteClicked(object sender, RoutedEventArgs e)
@@ -4149,11 +4272,12 @@ public partial class MainWindow : Window
         if (res == MessageBoxResult.Yes)
         {
             DatabaseService.DeleteSchedule(_quickDetailItem.Id);
-            EventQuickDetailModal.Visibility = Visibility.Collapsed;
-            _quickDetailItem = null;
-            RenderAllCalendarViews();
-            RefreshTimePnlData();
-            UpdateCognitiveLoadQuota();
+            CloseQuickDetailModal(() =>
+            {
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+            });
         }
     }
 
@@ -4405,8 +4529,8 @@ public partial class MainWindow : Window
     private void OnQuickDetailStartFocusHudClicked(object sender, RoutedEventArgs e)
     {
         if (_quickDetailItem == null) return;
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        LaunchFocusHudForSchedule(_quickDetailItem);
+        var target = _quickDetailItem;
+        CloseQuickDetailModal(() => LaunchFocusHudForSchedule(target));
     }
 
     private void OnQuickDetailConfirmTentativeClicked(object sender, RoutedEventArgs e)
@@ -4414,10 +4538,13 @@ public partial class MainWindow : Window
         if (_quickDetailItem == null) return;
         _quickDetailItem.IsTentative = false;
         DatabaseService.UpsertSchedule(_quickDetailItem);
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        RenderAllCalendarViews();
-        RefreshTimePnlData();
-        MessageBox.Show($"日程「{_quickDetailItem.Title}」已成功转为正式确认日程！", "日程确认", MessageBoxButton.OK, MessageBoxImage.Information);
+        var targetTitle = _quickDetailItem.Title;
+        CloseQuickDetailModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            MessageBox.Show($"日程「{targetTitle}」已成功转为正式确认日程！", "日程确认", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
     }
 
     private void OnQuickDetailToggleLockClicked(object sender, RoutedEventArgs e)
@@ -4425,11 +4552,14 @@ public partial class MainWindow : Window
         if (_quickDetailItem == null) return;
         _quickDetailItem.IsLocked = !_quickDetailItem.IsLocked;
         DatabaseService.UpsertSchedule(_quickDetailItem);
-        EventQuickDetailModal.Visibility = Visibility.Collapsed;
-        RenderAllCalendarViews();
-        RefreshTimePnlData();
         string statusText = _quickDetailItem.IsLocked ? "已锁定坐标（禁止缩放拖动调整）" : "已解除锁定";
-        MessageBox.Show($"日程「{_quickDetailItem.Title}」{statusText}。", "坐标锁定状态", MessageBoxButton.OK, MessageBoxImage.Information);
+        var targetTitle = _quickDetailItem.Title;
+        CloseQuickDetailModal(() =>
+        {
+            RenderAllCalendarViews();
+            RefreshTimePnlData();
+            MessageBox.Show($"日程「{targetTitle}」{statusText}。", "坐标锁定状态", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
     }
 
     private void OnExportWeeklyAuditMarkdownClicked(object sender, RoutedEventArgs e)
@@ -5668,11 +5798,13 @@ public partial class MainWindow : Window
             };
 
             DatabaseService.AddSchedule(clone);
-            EventQuickDetailModal.Visibility = Visibility.Collapsed;
-            RenderAllCalendarViews();
-            RefreshTimePnlData();
-            UpdateCognitiveLoadQuota();
-            MessageBox.Show($"已成功复制日程「{clone.Title}」！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            CloseQuickDetailModal(() =>
+            {
+                RenderAllCalendarViews();
+                RefreshTimePnlData();
+                UpdateCognitiveLoadQuota();
+                MessageBox.Show($"已成功复制日程「{clone.Title}」！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            });
         }
         catch (Exception ex)
         {
@@ -6061,7 +6193,7 @@ public partial class MainWindow : Window
         RitualStep4Text.Text = "④ 负荷质检";
 
         RenderRitualStep();
-        DailyRitualModal.Visibility = Visibility.Visible;
+        AnimateModalOpen(DailyRitualModal, DailyRitualModalCard);
     }
 
     private void OnOpenEveningShutdownClicked(object sender, RoutedEventArgs e)
@@ -6079,12 +6211,12 @@ public partial class MainWindow : Window
         RitualStep4Text.Text = "④ 关机休眠";
 
         RenderRitualStep();
-        DailyRitualModal.Visibility = Visibility.Visible;
+        AnimateModalOpen(DailyRitualModal, DailyRitualModalCard);
     }
 
     private void OnCloseDailyRitualModalClicked(object sender, RoutedEventArgs e)
     {
-        DailyRitualModal.Visibility = Visibility.Collapsed;
+        AnimateModalClose(DailyRitualModal, DailyRitualModalCard);
     }
 
     private void OnRitualPrevStepClicked(object sender, RoutedEventArgs e)
@@ -6141,11 +6273,13 @@ public partial class MainWindow : Window
         {
             if (_ritualMode == "MORNING")
             {
-                DailyRitualModal.Visibility = Visibility.Collapsed;
-                RenderAllCalendarViews();
-                RefreshTimePnlData();
-                UpdateCognitiveLoadQuota();
-                MessageBox.Show("🚀 今日排期已锁定，专注执行，祝你拥有高效而充实的一天！", "晨间规划完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                AnimateModalClose(DailyRitualModal, DailyRitualModalCard, () =>
+                {
+                    RenderAllCalendarViews();
+                    RefreshTimePnlData();
+                    UpdateCognitiveLoadQuota();
+                    MessageBox.Show("🚀 今日排期已锁定，专注执行，祝你拥有高效而充实的一天！", "晨间规划完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                });
             }
             else
             {
@@ -6161,8 +6295,10 @@ public partial class MainWindow : Window
                     DatabaseService.UpsertDailyReport(report);
                 }
 
-                DailyRitualModal.Visibility = Visibility.Collapsed;
-                MessageBox.Show("🌙 今日工作全部妥善结项！电脑合上，放下一切焦虑，心安理得享受休息与睡眠吧。", "晚间关机完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                AnimateModalClose(DailyRitualModal, DailyRitualModalCard, () =>
+                {
+                    MessageBox.Show("🌙 今日工作全部妥善结项！电脑合上，放下一切焦虑，心安理得享受休息与睡眠吧。", "晚间关机完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                });
             }
         }
     }
@@ -6206,6 +6342,8 @@ public partial class MainWindow : Window
         {
             RenderShutdownStep();
         }
+
+        AnimateStepContentTransition(RitualStepContentPanel);
     }
 
     private void RenderMorningStep()
@@ -7676,6 +7814,129 @@ public partial class MainWindow : Window
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
         PrimaryNavRail.BeginAnimation(FrameworkElement.WidthProperty, anim);
+    }
+
+    private void AnimateModalOpen(FrameworkElement? overlay, FrameworkElement? card = null)
+    {
+        if (overlay == null) return;
+        overlay.Visibility = Visibility.Visible;
+        var fade = new DoubleAnimation
+        {
+            From = 0.0,
+            To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(180),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        overlay.BeginAnimation(UIElement.OpacityProperty, fade);
+
+        if (card != null)
+        {
+            card.RenderTransformOrigin = new Point(0.5, 0.5);
+            var scale = card.RenderTransform as ScaleTransform;
+            if (scale == null)
+            {
+                scale = new ScaleTransform(0.95, 0.95);
+                card.RenderTransform = scale;
+            }
+            var scaleAnim = new DoubleAnimation
+            {
+                From = 0.94,
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(220),
+                EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 }
+            };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+
+            var cardFade = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(200),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            card.BeginAnimation(UIElement.OpacityProperty, cardFade);
+        }
+    }
+
+    private void AnimateModalClose(FrameworkElement? overlay, FrameworkElement? card = null, Action? onClosed = null)
+    {
+        if (overlay == null) return;
+        if (overlay.Visibility != Visibility.Visible)
+        {
+            onClosed?.Invoke();
+            return;
+        }
+
+        var fade = new DoubleAnimation
+        {
+            From = overlay.Opacity,
+            To = 0.0,
+            Duration = TimeSpan.FromMilliseconds(130),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        if (card != null && card.RenderTransform is ScaleTransform scale)
+        {
+            var scaleAnim = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.96,
+                Duration = TimeSpan.FromMilliseconds(120),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+            };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+        }
+
+        fade.Completed += (s, e) =>
+        {
+            overlay.Visibility = Visibility.Collapsed;
+            overlay.Opacity = 1.0;
+            if (card != null)
+            {
+                card.Opacity = 1.0;
+                if (card.RenderTransform is ScaleTransform scaleTr)
+                {
+                    scaleTr.ScaleX = 1.0;
+                    scaleTr.ScaleY = 1.0;
+                }
+            }
+            onClosed?.Invoke();
+        };
+        overlay.BeginAnimation(UIElement.OpacityProperty, fade);
+    }
+
+    private void AnimateStepContentTransition(FrameworkElement? panel)
+    {
+        if (panel == null) return;
+        if (panel.RenderTransform is not TranslateTransform tt)
+        {
+            tt = new TranslateTransform(14, 0);
+            panel.RenderTransform = tt;
+        }
+        else
+        {
+            tt.X = 14;
+        }
+
+        var slide = new DoubleAnimation
+        {
+            From = 14,
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(220),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        tt.BeginAnimation(TranslateTransform.XProperty, slide);
+
+        var fade = new DoubleAnimation
+        {
+            From = 0.0,
+            To = 1.0,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        panel.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
     private void OnNavRailMouseEnter(object sender, MouseEventArgs e)

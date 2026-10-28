@@ -1,6 +1,13 @@
 package com.renly.rmf.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -132,17 +139,30 @@ fun DailyRitualDialog(
                     stepTitles.forEachIndexed { index, label ->
                         val stepIndex = index + 1
                         val isActive = step == stepIndex
+                        val themeColor = if (mode == "MORNING") DopamineAmber else DopaminePurple
+                        val bgColor by animateColorAsState(
+                            targetValue = if (isActive) themeColor.copy(alpha = 0.22f) else Color.Transparent,
+                            label = "stepperBg"
+                        )
+                        val borderColor by animateColorAsState(
+                            targetValue = if (isActive) themeColor else DarkBorder,
+                            label = "stepperBorder"
+                        )
+                        val textColor by animateColorAsState(
+                            targetValue = if (isActive) themeColor else TextMuted,
+                            label = "stepperText"
+                        )
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (isActive) (if (mode == "MORNING") DopamineAmber else DopaminePurple).copy(alpha = 0.2f) else Color.Transparent,
-                            border = BorderStroke(1.dp, if (isActive) (if (mode == "MORNING") DopamineAmber else DopaminePurple) else DarkBorder),
+                            color = bgColor,
+                            border = BorderStroke(1.dp, borderColor),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 text = label,
                                 fontSize = 10.5.sp,
                                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isActive) (if (mode == "MORNING") DopamineAmber else DopaminePurple) else TextMuted,
+                                color = textColor,
                                 modifier = Modifier.padding(vertical = 4.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -152,14 +172,27 @@ fun DailyRitualDialog(
             }
         },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (mode == "MORNING") {
-                    when (step) {
+            AnimatedContent(
+                targetState = step to mode,
+                transitionSpec = {
+                    if (targetState.first >= initialState.first) {
+                        (slideInHorizontally { width -> width / 4 } + fadeIn())
+                            .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut())
+                    } else {
+                        (slideInHorizontally { width -> -width / 4 } + fadeIn())
+                            .togetherWith(slideOutHorizontally { width -> width / 4 } + fadeOut())
+                    }
+                },
+                label = "dailyRitualStepTransition"
+            ) { (currentStep, currentMode) ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (currentMode == "MORNING") {
+                        when (currentStep) {
                         1 -> { // 遗留清点
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -364,7 +397,7 @@ fun DailyRitualDialog(
                     }
                 } else {
                     // SHUTDOWN MODE
-                    when (step) {
+                    when (currentStep) {
                         1 -> { // 今日战果
                             val done = todaySchedules.filter { it.status == "COMPLETED" }
                             val totalMins = done.sumOf { if (it.actualMinutes > 0) it.actualMinutes else it.estimatedMinutes }
@@ -506,7 +539,8 @@ fun DailyRitualDialog(
                     }
                 }
             }
-        },
+        }
+    },
         confirmButton = {
             Button(
                 onClick = {

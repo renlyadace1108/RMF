@@ -587,8 +587,12 @@ fun ScheduleScreen(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 过去未完成排期智能自愈顺延横幅
-            if (pastUnfinishedTasks.isNotEmpty() && !isSpilloverBannerDismissed && selectedDate == java.time.LocalDate.now()) {
+            // 过去未完成排期智能自愈顺延横幅 (平滑展开/折叠动效)
+            AnimatedVisibility(
+                visible = pastUnfinishedTasks.isNotEmpty() && !isSpilloverBannerDismissed && selectedDate == java.time.LocalDate.now(),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = DopamineAmber.copy(alpha = 0.12f),
@@ -652,8 +656,12 @@ fun ScheduleScreen(
                 }
             }
 
-            // 碎片空隙时间盒智能填空推荐横幅
-            if (recommendedGapSlot != null && !isGapFillBannerDismissed) {
+            // 碎片空隙时间盒智能填空推荐横幅 (平滑展开/折叠动效)
+            AnimatedVisibility(
+                visible = recommendedGapSlot != null && !isGapFillBannerDismissed,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = DopamineGreen.copy(alpha = 0.12f),
@@ -671,7 +679,7 @@ fun ScheduleScreen(
                             Text("💡", fontSize = 13.sp)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = recommendedGapSlot.summaryText,
+                                text = recommendedGapSlot?.summaryText ?: "",
                                 fontSize = 11.5.sp,
                                 color = DopamineGreen,
                                 fontWeight = FontWeight.SemiBold,
@@ -684,12 +692,13 @@ fun ScheduleScreen(
                             Button(
                                 onClick = {
                                     coroutineScope.launch {
+                                        val slot = recommendedGapSlot ?: return@launch
                                         val success = com.renly.rmf.domain.service.GapTimeBoxingService.fillGapWithBacklog(
                                             com.renly.rmf.data.database.RmfDatabase.getInstance(context),
-                                            recommendedGapSlot
+                                            slot
                                         )
                                         if (success) {
-                                            android.widget.Toast.makeText(context, "✓ 已将待办「${recommendedGapSlot.suggestedBacklog?.title}」填入时间盒！", android.widget.Toast.LENGTH_SHORT).show()
+                                            android.widget.Toast.makeText(context, "✓ 已将待办「${slot.suggestedBacklog?.title}」填入时间盒！", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 },
