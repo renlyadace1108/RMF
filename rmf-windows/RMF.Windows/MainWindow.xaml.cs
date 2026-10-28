@@ -573,6 +573,8 @@ public partial class MainWindow : Window
     private string _lastTrackedProc = "";
     private string _lastTrackedTitle = "";
     private int _accumulatedTrackedSeconds = 0;
+    private IntPtr _lastForegroundHandle = IntPtr.Zero;
+    private string _cachedForegroundProcName = "Unknown";
 
     private void FlushPendingActivityTelemetry()
     {
@@ -593,18 +595,27 @@ public partial class MainWindow : Window
             IntPtr handle = GetForegroundWindow();
             if (handle != IntPtr.Zero)
             {
+                string procName;
+                if (handle == _lastForegroundHandle && !string.IsNullOrEmpty(_cachedForegroundProcName))
+                {
+                    procName = _cachedForegroundProcName;
+                }
+                else
+                {
+                    GetWindowThreadProcessId(handle, out uint pid);
+                    procName = "Unknown";
+                    try
+                    {
+                        using var proc = Process.GetProcessById((int)pid);
+                        procName = proc.ProcessName;
+                    }
+                    catch { }
+                    _lastForegroundHandle = handle;
+                    _cachedForegroundProcName = procName;
+                }
+
                 var sb = new StringBuilder(256);
                 GetWindowText(handle, sb, sb.Capacity);
-                GetWindowThreadProcessId(handle, out uint pid);
-
-                string procName = "Unknown";
-                try
-                {
-                    using var proc = Process.GetProcessById((int)pid);
-                    procName = proc.ProcessName;
-                }
-                catch { }
-
                 string title = sb.ToString();
                 if (string.IsNullOrWhiteSpace(title)) title = "桌面 / 无标题";
 
@@ -639,8 +650,18 @@ public partial class MainWindow : Window
     // =================== GOOGLE CALENDAR MAIN RENDERING ======================
     // =========================================================================
 
+    private bool _calendarViewsDirty = false;
+
     private void RenderAllCalendarViews()
     {
+        // 性能防护：若当前不在概览主日历视图（如正在专注、学习、健身、便签），避免无谓重构 Canvas 视觉树
+        if (_activePrimaryPage != "Overview")
+        {
+            _calendarViewsDirty = true;
+            return;
+        }
+        _calendarViewsDirty = false;
+
         // 1. 更新顶部日期大标题 (仅在概要视图下生效)
         if (_activePrimaryPage == "Overview")
         {

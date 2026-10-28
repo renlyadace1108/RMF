@@ -99,6 +99,11 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
+private val FORMATTER_HH_MM = DateTimeFormatter.ofPattern("HH:mm")
+private val FORMATTER_MONTH_DAY = DateTimeFormatter.ofPattern("M月d日")
+private val FORMATTER_YEAR_MONTH_DAY = DateTimeFormatter.ofPattern("yyyy年M月d日")
+private val FORMATTER_MONTH_DAY_WEEKDAY = DateTimeFormatter.ofPattern("M月d日 EEEE")
+
 enum class ScheduleViewMode(val title: String, val icon: String) {
     DAY_GRID("日网格", "⏱️"),
     WEEK_GRID("周网格", "📅"),
@@ -172,8 +177,8 @@ fun ScheduleScreen(
     var ritualMode by remember { mutableStateOf("MORNING") }
 
     // 过滤掉待办箱中的项目用于日历排期统计
-    val calendarSchedules = remember(schedules) { schedules.filter { it.status != "BACKLOG" } }
-    val backlogSchedules = remember(schedules) { schedules.filter { it.status == "BACKLOG" } }
+    val calendarSchedules = remember(schedules) { schedules.filter { it.status != "BACKLOG" && (it.isBacklog ?: 0) == 0 } }
+    val backlogSchedules = remember(schedules) { schedules.filter { it.status == "BACKLOG" || (it.isBacklog ?: 0) == 1 } }
 
     val completedCount = remember(calendarSchedules) { calendarSchedules.count { it.status == "COMPLETED" } }
     val totalCount = calendarSchedules.size
@@ -3156,8 +3161,8 @@ fun ScheduleDayGridView(
     onAddScheduleWithRange: (String, String, String, Int, String, String, Int, String) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onUpdateSchedule: (ScheduleEntity) -> Unit = {}
 ) {
-    val currentWeekMonday = selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val weekDates = (0..6).map { currentWeekMonday.plusDays(it.toLong()) }
+    val currentWeekMonday = remember(selectedDate) { selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
+    val weekDates = remember(currentWeekMonday) { (0..6).map { currentWeekMonday.plusDays(it.toLong()) } }
 
     // 日视图缩放支持 (Zoom Scale State: 0.7x ~ 2.5x)
     var dayZoomFactor by rememberSaveable { mutableFloatStateOf(1.0f) }
@@ -6191,18 +6196,18 @@ fun ScheduleItemCard(
             val s = parseDateTime(item.startTime)
             val e = parseDateTime(item.endTime)
             if (s != null && e != null) {
-                val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
-                val dateStr = s.format(DateTimeFormatter.ofPattern(datePattern))
+                val dateFmt = if (s.year != LocalDate.now().year) FORMATTER_YEAR_MONTH_DAY else FORMATTER_MONTH_DAY
+                val dateStr = s.format(dateFmt)
                 if (s.toLocalDate() == e.toLocalDate()) {
-                    "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                    "$dateStr ${s.format(FORMATTER_HH_MM)} - ${e.format(FORMATTER_HH_MM)}"
                 } else {
-                    val endDatePattern = if (e.year != s.year) "yyyy年M月d日" else "M月d日"
-                    val endDateStr = e.format(DateTimeFormatter.ofPattern(endDatePattern))
-                    "$dateStr ${s.format(DateTimeFormatter.ofPattern("HH:mm"))} - $endDateStr ${e.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                    val endFmt = if (e.year != s.year) FORMATTER_YEAR_MONTH_DAY else FORMATTER_MONTH_DAY
+                    val endDateStr = e.format(endFmt)
+                    "$dateStr ${s.format(FORMATTER_HH_MM)} - $endDateStr ${e.format(FORMATTER_HH_MM)}"
                 }
             } else if (s != null) {
-                val datePattern = if (s.year != LocalDate.now().year) "yyyy年M月d日" else "M月d日"
-                "${s.format(DateTimeFormatter.ofPattern(datePattern))} ${s.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                val dateFmt = if (s.year != LocalDate.now().year) FORMATTER_YEAR_MONTH_DAY else FORMATTER_MONTH_DAY
+                "${s.format(dateFmt)} ${s.format(FORMATTER_HH_MM)}"
             } else {
                 ""
             }

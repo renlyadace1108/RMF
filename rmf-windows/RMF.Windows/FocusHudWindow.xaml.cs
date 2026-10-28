@@ -180,6 +180,18 @@ public partial class FocusHudWindow : Window
         UpdateTimerDisplay();
     }
 
+    private static readonly SolidColorBrush PurpleBrush = CreateFrozenBrush(0xA7, 0x8B, 0xFA);
+    private static readonly SolidColorBrush GreenBrush = CreateFrozenBrush(0x10, 0xB9, 0x81);
+    private static readonly SolidColorBrush BlueBrush = CreateFrozenBrush(0x38, 0xBD, 0xF8);
+    private static readonly SolidColorBrush AmberBrush = CreateFrozenBrush(0xF5, 0x9E, 0x0B);
+
+    private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
     private void UpdateTimerDisplay()
     {
         if (!_isPomodoro)
@@ -188,7 +200,7 @@ public partial class FocusHudWindow : Window
             int m = _elapsedSeconds / 60;
             int s = _elapsedSeconds % 60;
             TimerText.Text = $"{m:D2}:{s:D2}";
-            TimerText.Foreground = new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA));
+            TimerText.Foreground = PurpleBrush;
             ModeBadgeText.Text = "正向秒表";
             return;
         }
@@ -198,7 +210,7 @@ public partial class FocusHudWindow : Window
             int m = _remainingSeconds / 60;
             int s = _remainingSeconds % 60;
             TimerText.Text = $"{m:D2}:{s:D2}";
-            TimerText.Foreground = _isBreak ? new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)) : new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+            TimerText.Foreground = _isBreak ? GreenBrush : BlueBrush;
             if (!_isBreak) ModeBadgeText.Text = "深度专注";
         }
         else
@@ -206,7 +218,7 @@ public partial class FocusHudWindow : Window
             int m = _elapsedSeconds / 60;
             int s = _elapsedSeconds % 60;
             TimerText.Text = $"+{m:D2}:{s:D2}";
-            TimerText.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+            TimerText.Foreground = AmberBrush;
             ModeBadgeText.Text = "超时加时";
         }
     }
@@ -216,13 +228,13 @@ public partial class FocusHudWindow : Window
         _isPomodoro = !_isPomodoro;
         if (_isPomodoro)
         {
-            TimerModeIcon.Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+            TimerModeIcon.Foreground = BlueBrush;
             _remainingSeconds = 25 * 60;
             _isBreak = false;
         }
         else
         {
-            TimerModeIcon.Foreground = new SolidColorBrush(Color.FromRgb(0xA7, 0x8B, 0xFA));
+            TimerModeIcon.Foreground = PurpleBrush;
         }
         UpdateTimerDisplay();
     }

@@ -71,6 +71,8 @@ public class DatabaseService
             PRAGMA synchronous = NORMAL;
             PRAGMA foreign_keys = ON;
             PRAGMA busy_timeout = 5000;
+            PRAGMA cache_size = -8000;
+            PRAGMA temp_store = MEMORY;
         ", conn))
         {
             pragmaCmd.ExecuteNonQuery();
@@ -344,6 +346,9 @@ public class DatabaseService
 
             -- 高性能查询索引优化 (优化高频日期检索与未删除过滤)
             CREATE INDEX IF NOT EXISTS idx_schedules_time ON schedules (start_time, end_time, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_schedules_active_range ON schedules (is_deleted, is_backlog, is_deferred, start_time, end_time);
+            CREATE INDEX IF NOT EXISTS idx_schedules_backlog ON schedules (is_backlog, is_deleted);
+            CREATE INDEX IF NOT EXISTS idx_schedules_deferred ON schedules (is_deferred, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules (status, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_courses_day_sec ON courses (day_of_week, start_section, is_deleted);
             CREATE INDEX IF NOT EXISTS idx_course_adj_week ON course_adjustments (target_week, is_deleted);
