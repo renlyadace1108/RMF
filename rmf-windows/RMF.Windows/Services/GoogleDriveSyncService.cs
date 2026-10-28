@@ -11,8 +11,26 @@ using RMF.Windows.Models;
 
 namespace RMF.Windows.Services;
 
+public enum CloudSyncState
+{
+    Idle,       // 未连接/空闲
+    Syncing,    // 正在双向同步
+    Success,    // 同步完成/已与云端保持最新 (🟢)
+    Error       // 离线/连接超时/异常 (🟡)
+}
+
 public class GoogleDriveSyncService
 {
+    public static event Action<CloudSyncState, string, string?>? OnSyncStateChanged;
+
+    public static void NotifySyncState(CloudSyncState state, string message, string? lastSync = null)
+    {
+        try
+        {
+            OnSyncStateChanged?.Invoke(state, message, lastSync);
+        }
+        catch { }
+    }
     private static readonly string[] Scopes = { DriveService.Scope.DriveFile };
     private const string ApplicationName = "Renly Management Platform";
     private const string BackupFileName = "rmf_cloud_backup.db";
@@ -241,6 +259,17 @@ public class GoogleDriveSyncService
                 }
                 catch { }
 
+                // 清理 schedules 中的本地 dirty 标记
+                try
+                {
+                    using var cleanConn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString);
+                    cleanConn.Open();
+                    using var clrCmd = new Microsoft.Data.Sqlite.SqliteCommand("UPDATE schedules SET is_dirty = 0 WHERE is_dirty = 1;", cleanConn);
+                    clrCmd.ExecuteNonQuery();
+                }
+                catch { }
+
+                NotifySyncState(CloudSyncState.Success, "云端已保存新快照", config.LastSyncTime);
                 return (true, newFileId, $"已成功保存云端时间戳版本「{newBackupFileName}」！时间: {config.LastSyncTime}");
             }
             finally
@@ -256,17 +285,210 @@ public class GoogleDriveSyncService
         }
         catch (Exception ex)
         {
+            NotifySyncState(CloudSyncState.Error, $"同步上传异常: {ex.Message}");
             return (false, string.Empty, $"同步上传异常: {ex.Message}");
         }
     }
 
+    public record MergeTableDef(string TableName, string PkCol, string? TsCol);
+
+    private static readonly List<MergeTableDef> TablesToMerge = new()
+    {
+        new("goals", "id", "created_at"),
+        new("study_topics", "id", "updated_at"),
+        new("schedules", "id", "updated_at"),
+        new("courses", "id", "updated_at"),
+        new("course_adjustments", "id", "updated_at"),
+        new("interruptions", "id", "timestamp"),
+        new("expenses", "id", "created_at"),
+        new("daily_reports", "date", "updated_at"),
+        new("schedule_tags", "id", "created_at"),
+        new("fitness_plans", "id", "updated_at"),
+        new("fitness_records", "id", "updated_at"),
+        new("habits", "id", "updated_at"),
+        new("countdowns", "id", "updated_at"),
+        new("reminders", "id", "updated_at"),
+        new("notes", "id", "updated_at"),
+        new("time_markers", "id", "updated_at"),
+        new("focus_logs", "id", "timestamp"),
+        new("timetable_settings", "key", null)
+    };
+
     /// <summary>
-    /// 从 Google Drive 专属同步文件夹检索并恢复最新时间戳备份数据库
+    /// 核心行级时间戳双向增量合并引擎 (Bi-directional Merge Engine):
+    /// 1. 采用 SQLite ATTACH DATABASE 机制，零全量暴力替换，零死锁无损对齐。
+    /// 2. 云端新增记录无损合入本地 (INSERT OR IGNORE)。
+    /// 3. 冲突记录基于更新时间戳 LWW (Last-Write-Wins) 判定，保留更新的一方。
+    /// 4. 若本地包含离线新记录或更新的修改，标记 hasLocalUnpushed = true 并反向同步，实现全数据链双向自愈收敛！
+    /// </summary>
+    public static bool PerformBiDirectionalMerge(string tempDownloadedPath)
+    {
+        bool hasLocalUnpushed = false;
+        string escapedPath = tempDownloadedPath.Replace("'", "''");
+
+        using var conn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString);
+        conn.Open();
+
+        try
+        {
+            using var detachOld = new Microsoft.Data.Sqlite.SqliteCommand("DETACH DATABASE remote_db;", conn);
+            detachOld.ExecuteNonQuery();
+        }
+        catch { }
+
+        using (var attachCmd = new Microsoft.Data.Sqlite.SqliteCommand($"ATTACH DATABASE '{escapedPath}' AS remote_db;", conn))
+        {
+            attachCmd.ExecuteNonQuery();
+        }
+
+        try
+        {
+            using var tx = conn.BeginTransaction();
+            try
+            {
+                using (var fkOff = new Microsoft.Data.Sqlite.SqliteCommand("PRAGMA foreign_keys = OFF;", conn, tx))
+                {
+                    fkOff.ExecuteNonQuery();
+                }
+
+                foreach (var tableDef in TablesToMerge)
+                {
+                    string table = tableDef.TableName;
+                    string pk = tableDef.PkCol;
+                    string? ts = tableDef.TsCol;
+
+                    bool mainExists = false;
+                    using (var chkMain = new Microsoft.Data.Sqlite.SqliteCommand("SELECT COUNT(*) FROM main.sqlite_master WHERE type='table' AND name=@t;", conn, tx))
+                    {
+                        chkMain.Parameters.AddWithValue("@t", table);
+                        mainExists = Convert.ToInt64(chkMain.ExecuteScalar()) > 0;
+                    }
+
+                    bool remoteExists = false;
+                    using (var chkRemote = new Microsoft.Data.Sqlite.SqliteCommand("SELECT COUNT(*) FROM remote_db.sqlite_master WHERE type='table' AND name=@t;", conn, tx))
+                    {
+                        chkRemote.Parameters.AddWithValue("@t", table);
+                        remoteExists = Convert.ToInt64(chkRemote.ExecuteScalar()) > 0;
+                    }
+
+                    if (!mainExists || !remoteExists) continue;
+
+                    var mainCols = new List<string>();
+                    using (var pragmaMain = new Microsoft.Data.Sqlite.SqliteCommand($"PRAGMA main.table_info('{table}');", conn, tx))
+                    using (var rdr = pragmaMain.ExecuteReader())
+                    {
+                        while (rdr.Read()) mainCols.Add(rdr.GetString(1));
+                    }
+
+                    var remoteCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var pragmaRemote = new Microsoft.Data.Sqlite.SqliteCommand($"PRAGMA remote_db.table_info('{table}');", conn, tx))
+                    using (var rdr = pragmaRemote.ExecuteReader())
+                    {
+                        while (rdr.Read()) remoteCols.Add(rdr.GetString(1));
+                    }
+
+                    var commonCols = mainCols.Where(c => remoteCols.Contains(c)).ToList();
+                    string? actualPk = commonCols.FirstOrDefault(c => string.Equals(c, pk, StringComparison.OrdinalIgnoreCase));
+                    if (actualPk == null) continue;
+
+                    string? actualTs = ts != null ? commonCols.FirstOrDefault(c => string.Equals(c, ts, StringComparison.OrdinalIgnoreCase)) : null;
+                    string colListSql = string.Join(", ", commonCols.Select(c => $"`{c}`"));
+
+                    // 检测本地是否有远程不存在的孤立行
+                    using (var chkLocalOnly = new Microsoft.Data.Sqlite.SqliteCommand(
+                        $"SELECT COUNT(*) FROM main.`{table}` m WHERE NOT EXISTS (SELECT 1 FROM remote_db.`{table}` r WHERE r.`{actualPk}` = m.`{actualPk}`);", conn, tx))
+                    {
+                        long count = Convert.ToInt64(chkLocalOnly.ExecuteScalar());
+                        if (count > 0) hasLocalUnpushed = true;
+                    }
+
+                    // 检测本地是否包含更新的修改
+                    if (actualTs != null)
+                    {
+                        using var chkLocalNewer = new Microsoft.Data.Sqlite.SqliteCommand(
+                            $"SELECT COUNT(*) FROM main.`{table}` m JOIN remote_db.`{table}` r ON m.`{actualPk}` = r.`{actualPk}` WHERE (m.`{actualTs}` > r.`{actualTs}` OR ((r.`{actualTs}` IS NULL OR r.`{actualTs}` = '') AND (m.`{actualTs}` IS NOT NULL AND m.`{actualTs}` != '')));", conn, tx);
+                        long count = Convert.ToInt64(chkLocalNewer.ExecuteScalar());
+                        if (count > 0) hasLocalUnpushed = true;
+                    }
+
+                    // 1. 将远程新增行插入本地 (INSERT OR IGNORE)
+                    using (var insertCmd = new Microsoft.Data.Sqlite.SqliteCommand($@"
+                        INSERT OR IGNORE INTO main.`{table}` ({colListSql})
+                        SELECT {colListSql} FROM remote_db.`{table}` r
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM main.`{table}` m WHERE m.`{actualPk}` = r.`{actualPk}`
+                        );", conn, tx))
+                    {
+                        insertCmd.ExecuteNonQuery();
+                    }
+
+                    // 2. 将远程较新行更新替换本地 (INSERT OR REPLACE)
+                    if (actualTs != null)
+                    {
+                        using var updateCmd = new Microsoft.Data.Sqlite.SqliteCommand($@"
+                            INSERT OR REPLACE INTO main.`{table}` ({colListSql})
+                            SELECT {colListSql} FROM remote_db.`{table}` r
+                            WHERE r.`{actualPk}` IN (
+                                SELECT r2.`{actualPk}`
+                                FROM remote_db.`{table}` r2
+                                JOIN main.`{table}` m2 ON r2.`{actualPk}` = m2.`{actualPk}`
+                                WHERE (r2.`{actualTs}` > m2.`{actualTs}` OR ((m2.`{actualTs}` IS NULL OR m2.`{actualTs}` = '') AND (r2.`{actualTs}` IS NOT NULL AND r2.`{actualTs}` != '')))
+                            );", conn, tx);
+                        updateCmd.ExecuteNonQuery();
+                    }
+                    else if (table == "timetable_settings")
+                    {
+                        using var updateSettingsCmd = new Microsoft.Data.Sqlite.SqliteCommand($@"
+                            INSERT OR REPLACE INTO main.`{table}` ({colListSql})
+                            SELECT {colListSql} FROM remote_db.`{table}`;", conn, tx);
+                        updateSettingsCmd.ExecuteNonQuery();
+                    }
+                }
+
+                // 更新本地快照物理版本计数器
+                using (var metaCmd = new Microsoft.Data.Sqlite.SqliteCommand(@"
+                    INSERT OR REPLACE INTO main.snapshot_metadata (id, device_id, version_counter, file_hash, updated_at)
+                    VALUES ('current', @dev, COALESCE((SELECT version_counter + 1 FROM main.snapshot_metadata WHERE id='current'), 1), '', @now);", conn, tx))
+                {
+                    metaCmd.Parameters.AddWithValue("@dev", Environment.MachineName);
+                    metaCmd.Parameters.AddWithValue("@now", DateTime.UtcNow.ToString("o"));
+                    metaCmd.ExecuteNonQuery();
+                }
+
+                using (var fkOn = new Microsoft.Data.Sqlite.SqliteCommand("PRAGMA foreign_keys = ON;", conn, tx))
+                {
+                    fkOn.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
+        }
+        finally
+        {
+            try
+            {
+                using var detachCmd = new Microsoft.Data.Sqlite.SqliteCommand("DETACH DATABASE remote_db;", conn);
+                detachCmd.ExecuteNonQuery();
+            }
+            catch { }
+        }
+
+        return hasLocalUnpushed;
+    }
+
+    /// <summary>
+    /// 从 Google Drive 专属同步文件夹检索并拉取最新时间戳备份数据库，执行行级双向增量合并 (LWW)
     /// </summary>
     public static async Task<(bool success, string message)> DownloadBackupFromDriveAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
     {
         try
         {
+            NotifySyncState(CloudSyncState.Syncing, "正在拉取云端快照...");
             progressCallback?.Invoke("正在连接 Google Drive API...");
             using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
 
@@ -282,6 +504,7 @@ public class GoogleDriveSyncService
             var searchRes = await listReq.ExecuteAsync(cancellationToken);
             if (searchRes.Files == null || searchRes.Files.Count == 0)
             {
+                NotifySyncState(CloudSyncState.Error, "未发现云端快照文件");
                 return (false, "在 Google Drive 对应目录中未发现可还原的备份文件。");
             }
 
@@ -310,7 +533,9 @@ public class GoogleDriveSyncService
                     string? checkResult = cmd.ExecuteScalar()?.ToString();
                     if (checkResult != "ok")
                     {
-                        return (false, "云端下载的数据库完整性检验未通过，已取消覆盖。");
+                        try { File.Delete(tempDownloaded); } catch { }
+                        NotifySyncState(CloudSyncState.Error, "云端快照完整性校验未通过");
+                        return (false, "云端下载的数据库完整性检验未通过，已取消合并。");
                     }
                     verifyConn.Close();
                 }
@@ -318,85 +543,17 @@ public class GoogleDriveSyncService
             }
             catch (Exception ex)
             {
+                try { File.Delete(tempDownloaded); } catch { }
+                NotifySyncState(CloudSyncState.Error, $"云端数据库校验失败: {ex.Message}");
                 return (false, $"云端数据库校验失败: {ex.Message}");
             }
 
-            // 校验通过，提取远程快照元数据进行多端分叉仲裁检测
-            SnapshotMetadata? remoteMeta = null;
-            try
-            {
-                using var tempConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempDownloaded};Pooling=False");
-                tempConn.Open();
-                using var metaCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT id, device_id, version_counter, file_hash, updated_at FROM snapshot_metadata WHERE id = 'current';", tempConn);
-                using var metaReader = metaCmd.ExecuteReader();
-                if (metaReader.Read())
-                {
-                    remoteMeta = new SnapshotMetadata
-                    {
-                        DeviceId = metaReader.IsDBNull(1) ? "" : metaReader.GetString(1),
-                        VersionCounter = metaReader.GetInt64(2),
-                        FileHash = metaReader.IsDBNull(3) ? "" : metaReader.GetString(3),
-                        UpdatedAt = DateTime.TryParse(metaReader.GetString(4), out var dt) ? dt : DateTime.UtcNow
-                    };
-                }
-                tempConn.Close();
-                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-            }
-            catch { }
+            // 执行核心行级时间戳双向增量合并 (Bi-directional Merge)
+            progressCallback?.Invoke("正在执行核心数据表行级时间戳双向增量合并...");
+            bool hasLocalUnpushed = PerformBiDirectionalMerge(tempDownloaded);
 
-            var localMeta = DatabaseService.GetSnapshotMetadata();
-
-            // 检查是否存在非线性分叉冲突: 远程设备与本地设备不同，且本地有更新的未同步修改 (dirty)
-            bool hasLocalDirty = false;
-            try
-            {
-                using var chkConn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString);
-                chkConn.Open();
-                using var chkCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT COUNT(*) FROM schedules WHERE is_dirty = 1;", chkConn);
-                hasLocalDirty = Convert.ToInt32(chkCmd.ExecuteScalar()) > 0;
-            }
-            catch { }
-
-            if (remoteMeta != null && !string.IsNullOrEmpty(remoteMeta.DeviceId) && remoteMeta.DeviceId != localMeta.DeviceId && hasLocalDirty)
-            {
-                // 触发冲突保护：禁止覆盖，保留冲突副本
-                string conflictFileName = $"RMF_Conflict_{DateTime.Now:yyyyMMdd_HHmmss}.db";
-                string conflictPath = Path.Combine(DatabaseService.DbDir, conflictFileName);
-                File.Copy(tempDownloaded, conflictPath, true);
-                try { File.Delete(tempDownloaded); } catch { }
-
-                return (false, $"⚠️ 检测到多设备快照分叉冲突！远程修改来自设备 [{remoteMeta.DeviceId}]，而本地存在尚未同步的新变更。为保障本地数据安全，已自动留存冲突快照副本「{conflictFileName}」，未覆盖本地数据库！");
-            }
-
-            // 安全热载入覆盖本地数据库
-            progressCallback?.Invoke("正在将云端镜像热应用到本地工作区...");
-            string currentDb = DatabaseService.DbPath;
-            string backupOld = Path.Combine(DatabaseService.DbDir, $"rmf_pre_restore_{DateTime.Now:yyyyMMddHHmmss}.bak");
-            if (File.Exists(currentDb))
-            {
-                try { File.Copy(currentDb, backupOld, true); } catch { }
-            }
-
-            // 使用 SQLite Online Backup 机制安全热载入目标库，避免文件锁冲突
-            using (var downloadConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempDownloaded};Pooling=False"))
-            {
-                downloadConn.Open();
-                using (var targetConn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString))
-                {
-                    targetConn.Open();
-                    downloadConn.BackupDatabase(targetConn);
-                    targetConn.Close();
-                }
-                downloadConn.Close();
-            }
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-
-            // 还原成功后，立即清理临时文件及回滚副本，贯彻“本地就一个版本”
+            // 合并成功后，立即清理下载的临时文件，坚决保证“本地就一个版本”
             try { File.Delete(tempDownloaded); } catch { }
-            if (File.Exists(backupOld))
-            {
-                try { File.Delete(backupOld); } catch { }
-            }
             DatabaseService.CleanupLocalBackupFiles();
 
             // 重新刷新本地数据库缓存与连接
@@ -404,6 +561,9 @@ public class GoogleDriveSyncService
 
             // 重新刷新并排期 Windows Action Center 所有待办提醒
             WindowsReminderScheduler.RescheduleAll();
+
+            // 触发全局数据变更通知以驱动日历画布即刻重绘
+            DatabaseService.NotifyDataChanged();
 
             var config = ConfigService.Load();
             config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -413,28 +573,46 @@ public class GoogleDriveSyncService
                 ?? remoteFile.ModifiedTimeDateTimeOffset?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
                 ?? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            return (true, $"已成功从 Google Drive 云端恢复最新快照「{remoteFile.Name}」！快照时间: {fileTimeDisplay}");
+            // 若本地包含离线未推送的较新变更，自动反向推送合并后的完整快照至云端
+            if (hasLocalUnpushed)
+            {
+                progressCallback?.Invoke("检测到本地包含离线新变更，正在反向增量合并推送至云端...");
+                RequestAutoSync();
+            }
+
+            NotifySyncState(CloudSyncState.Success, hasLocalUnpushed ? "双向合并完成 (已同步本地新变更)" : "已与云端最新快照保持一致", config.LastSyncTime);
+
+            return (true, $"已成功从 Google Drive 完成双向增量合并「{remoteFile.Name}」！快照时间: {fileTimeDisplay}。全量数据已实时对齐生效。");
         }
         catch (Exception ex)
         {
-            return (false, $"云端下载恢复异常: {ex.Message}");
+            NotifySyncState(CloudSyncState.Error, $"云端下载合并异常: {ex.Message}");
+            return (false, $"云端下载合并异常: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// 冷启动无后台静默自动拉取云端数据：
-    /// 比较云端专属目录最新镜像时间戳与本地 LastSyncTime，若云端版本更新则自动静默拉取并合并覆盖。
+    /// 静默/前台智能轻检测与拉取合并：
+    /// 比较云端专属目录最新镜像时间戳与本地 LastSyncTime，若云端版本更新则自动静默拉取并执行行级双向增量合并。
+    /// 支持 force 参数强制触发一次完整云端轻检测与合并。
     /// </summary>
-    public static async Task<(bool success, string message)> PullLatestBackupIfNewerAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
+    public static async Task<(bool success, string message)> PullLatestBackupIfNewerAsync(
+        string clientId,
+        string clientSecret,
+        Action<string>? progressCallback = null,
+        CancellationToken cancellationToken = default,
+        bool force = false)
     {
         try
         {
             var config = ConfigService.Load();
             if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
             {
+                NotifySyncState(CloudSyncState.Idle, "未连接");
                 return (false, "Google Drive 未关联授权。");
             }
 
+            NotifySyncState(CloudSyncState.Syncing, "正在检查云端快照更新...");
             using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
             string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
 
@@ -447,6 +625,7 @@ public class GoogleDriveSyncService
             var searchRes = await listReq.ExecuteAsync(cancellationToken);
             if (searchRes.Files == null || searchRes.Files.Count == 0)
             {
+                NotifySyncState(CloudSyncState.Error, "云端专属目录未发现快照备份");
                 return (false, "在 Google Drive 对应目录中未发现备份文件。");
             }
 
@@ -455,7 +634,11 @@ public class GoogleDriveSyncService
             string lastSync = config.LastSyncTime ?? string.Empty;
 
             bool shouldPull = false;
-            if (!string.IsNullOrEmpty(remoteTimestamp) && !string.IsNullOrEmpty(lastSync) && !lastSync.Contains("未同步"))
+            if (force)
+            {
+                shouldPull = true;
+            }
+            else if (!string.IsNullOrEmpty(remoteTimestamp) && !string.IsNullOrEmpty(lastSync) && !lastSync.Contains("未同步"))
             {
                 shouldPull = string.Compare(remoteTimestamp, lastSync, StringComparison.Ordinal) > 0;
             }
@@ -474,10 +657,12 @@ public class GoogleDriveSyncService
             {
                 return await DownloadBackupFromDriveAsync(clientId, clientSecret, progressCallback, cancellationToken);
             }
+            NotifySyncState(CloudSyncState.Success, "数据已是最新", lastSync);
             return (false, "本地数据已与云端最新快照保持一致。");
         }
         catch (Exception ex)
         {
+            NotifySyncState(CloudSyncState.Error, $"云端检查异常: {ex.Message}");
             return (false, $"冷启动云端拉取失败: {ex.Message}");
         }
     }

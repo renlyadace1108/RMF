@@ -248,34 +248,172 @@ public partial class MainWindow : Window
         );
         WindowsReminderScheduler.RescheduleAll();
 
-        // 软件冷启动无后台静默检查并拉取云端最新数据同步
-        Task.Run(async () =>
+        // 绑定全局云端同步状态变更通知
+        GoogleDriveSyncService.OnSyncStateChanged += (state, msg, time) =>
         {
-            try
+            Dispatcher.Invoke(() => UpdateCloudSyncIndicator(state, msg, time));
+        };
+
+        // 注册窗口激活事件 (切回前台 60 秒轻检测，零感双向增量对齐)
+        this.Activated += OnWindowActivated;
+
+        // 初始化顶部云端同步状态指示器
+        InitializeCloudSyncIndicator();
+
+        // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
+        _ = CheckAndPullCloudSyncSilentAsync();
+    }
+
+    private DateTime _lastActivatedSyncCheck = DateTime.MinValue;
+
+    private void OnWindowActivated(object? sender, EventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _lastActivatedSyncCheck).TotalSeconds >= 60)
+        {
+            _lastActivatedSyncCheck = now;
+            _ = CheckAndPullCloudSyncSilentAsync();
+        }
+    }
+
+    private void InitializeCloudSyncIndicator()
+    {
+        try
+        {
+            var config = ConfigService.Load();
+            if (config.IsGoogleDriveLinked && !string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
             {
-                var cfg = ConfigService.Load();
-                if (cfg.IsGoogleDriveLinked && !string.IsNullOrEmpty(cfg.GoogleDriveRefreshToken))
-                {
-                    var pullRes = await GoogleDriveSyncService.PullLatestBackupIfNewerAsync(
-                        cfg.GoogleDriveClientId,
-                        cfg.GoogleDriveClientSecret
-                    );
-                    if (pullRes.success)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            RenderAllCalendarViews();
-                            RenderTimetableGrid();
-                            RefreshGoalTree();
-                            RefreshBacklogList();
-                            RefreshDeferredQueue();
-                            WindowsReminderScheduler.RescheduleAll();
-                        });
-                    }
-                }
+                UpdateCloudSyncIndicator(
+                    CloudSyncState.Success,
+                    "已同步最新快照",
+                    config.LastSyncTime
+                );
             }
-            catch { }
-        });
+            else
+            {
+                UpdateCloudSyncIndicator(CloudSyncState.Idle, "未连接");
+            }
+        }
+        catch { }
+    }
+
+    private async Task CheckAndPullCloudSyncSilentAsync(bool force = false)
+    {
+        try
+        {
+            var cfg = ConfigService.Load();
+            if (!cfg.IsGoogleDriveLinked || string.IsNullOrEmpty(cfg.GoogleDriveRefreshToken))
+            {
+                Dispatcher.Invoke(() => UpdateCloudSyncIndicator(CloudSyncState.Idle));
+                return;
+            }
+
+            var pullRes = await GoogleDriveSyncService.PullLatestBackupIfNewerAsync(
+                cfg.GoogleDriveClientId,
+                cfg.GoogleDriveClientSecret,
+                force: force
+            );
+
+            Dispatcher.Invoke(() =>
+            {
+                if (pullRes.success)
+                {
+                    var updatedCfg = ConfigService.Load();
+                    UpdateCloudSyncIndicator(CloudSyncState.Success, "双向增量同步完成", updatedCfg.LastSyncTime);
+                    RenderAllCalendarViews();
+                    RenderTimetableGrid();
+                    RefreshGoalTree();
+                    RefreshBacklogList();
+                    RefreshDeferredQueue();
+                    WindowsReminderScheduler.RescheduleAll();
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => UpdateCloudSyncIndicator(CloudSyncState.Error, ex.Message));
+        }
+    }
+
+    public void UpdateCloudSyncIndicator(CloudSyncState state, string? message = null, string? lastSync = null)
+    {
+        try
+        {
+            if (TopCloudSyncDot == null || TopCloudSyncText == null || TopCloudSyncBtn == null) return;
+
+            switch (state)
+            {
+                case CloudSyncState.Syncing:
+                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3B, 0x82, 0xF6));
+                    TopCloudSyncText.Text = "同步中";
+                    TopCloudSyncBtn.ToolTip = "Google Drive: 正在执行行级时间戳双向增量合并...";
+                    break;
+                case CloudSyncState.Success:
+                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x10, 0xB9, 0x81));
+                    TopCloudSyncText.Text = "已同步";
+                    var timeDisplay = !string.IsNullOrEmpty(lastSync) ? lastSync : (ConfigService.Load().LastSyncTime ?? "刚刚");
+                    TopCloudSyncBtn.ToolTip = $"Google Drive: 数据已是最新 (上次同步: {timeDisplay})\n点击立即触发双向合并拉取，右键更多选项";
+                    break;
+                case CloudSyncState.Error:
+                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    TopCloudSyncText.Text = "待同步";
+                    TopCloudSyncBtn.ToolTip = $"Google Drive: 同步提示/异常 ({message ?? "请检查网络或代理节点"})\n点击重试双向合并同步";
+                    break;
+                case CloudSyncState.Idle:
+                default:
+                    TopCloudSyncDot.Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF));
+                    TopCloudSyncText.Text = "云同步";
+                    TopCloudSyncBtn.ToolTip = "Google Drive: 尚未配置或绑定账号，点击前往设置进行绑定";
+                    break;
+            }
+        }
+        catch { }
+    }
+
+    private async void OnTopCloudSyncBtnClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        {
+            SwitchPrimaryPage("Settings");
+            SwitchSettingsTab(1);
+            return;
+        }
+
+        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在执行双向增量合并同步...");
+        await CheckAndPullCloudSyncSilentAsync(force: true);
+    }
+
+    private async void OnMenuPullAndMergeClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        {
+            SwitchPrimaryPage("Settings");
+            SwitchSettingsTab(1);
+            return;
+        }
+        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在拉取并执行行级双向合并...");
+        await CheckAndPullCloudSyncSilentAsync(force: true);
+    }
+
+    private void OnMenuUploadSnapshotClicked(object sender, RoutedEventArgs e)
+    {
+        var config = ConfigService.Load();
+        if (!config.IsGoogleDriveLinked || string.IsNullOrEmpty(config.GoogleDriveRefreshToken))
+        {
+            SwitchPrimaryPage("Settings");
+            SwitchSettingsTab(1);
+            return;
+        }
+        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在上传本地数据快照至云端...");
+        GoogleDriveSyncService.RequestAutoSync();
+    }
+
+    private void OnMenuOpenDriveSettingsClicked(object sender, RoutedEventArgs e)
+    {
+        SwitchPrimaryPage("Settings");
+        SwitchSettingsTab(1);
     }
 
     private void RestoreFromTray()

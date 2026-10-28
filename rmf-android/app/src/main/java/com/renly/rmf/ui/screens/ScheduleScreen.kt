@@ -22,6 +22,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
@@ -154,6 +160,7 @@ fun ScheduleScreen(
     var editingSchedule by remember { mutableStateOf<ScheduleEntity?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showCalendarSyncDialog by remember { mutableStateOf(false) }
+    var showDriveSyncDialog by remember { mutableStateOf(false) }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showManageTagsDialog by remember { mutableStateOf(false) }
     var showTimeMarkerDialog by remember { mutableStateOf(false) }
@@ -213,6 +220,76 @@ fun ScheduleScreen(
                             .weight(1f)
                             .horizontalScroll(rememberScrollState())
                     ) {
+                        // ☁️ Google Drive 极简云端同步状态指示灯 (极简小云朵 / 状态圆点)
+                        val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
+                        Surface(
+                            onClick = { showDriveSyncDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = DarkSurface,
+                            border = BorderStroke(
+                                1.dp,
+                                when (syncStatusInfo.state) {
+                                    com.renly.rmf.domain.service.CloudSyncState.SYNCING -> DopamineBlue.copy(alpha = 0.8f)
+                                    com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen.copy(alpha = 0.5f)
+                                    com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber.copy(alpha = 0.8f)
+                                    com.renly.rmf.domain.service.CloudSyncState.IDLE -> DarkBorder
+                                }
+                            ),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                if (syncStatusInfo.state == com.renly.rmf.domain.service.CloudSyncState.SYNCING) {
+                                    val infiniteTransition = rememberInfiniteTransition(label = "syncSpin")
+                                    val angle by infiniteTransition.animateFloat(
+                                        initialValue = 0f,
+                                        targetValue = 360f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(1000, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Restart
+                                        ),
+                                        label = "syncSpinAngle"
+                                    )
+                                    Text(
+                                        "🔄",
+                                        fontSize = 10.5.sp,
+                                        modifier = Modifier.graphicsLayer { rotationZ = angle }
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("同步中", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
+                                } else {
+                                    val dotColor = when (syncStatusInfo.state) {
+                                        com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen
+                                        com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber
+                                        com.renly.rmf.domain.service.CloudSyncState.IDLE -> TextMuted
+                                        else -> DopamineBlue
+                                    }
+                                    Text("☁️", fontSize = 10.5.sp)
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = when (syncStatusInfo.state) {
+                                            com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> "已同步"
+                                            com.renly.rmf.domain.service.CloudSyncState.ERROR -> "待同步"
+                                            com.renly.rmf.domain.service.CloudSyncState.IDLE -> "云同步"
+                                            else -> "同步中"
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = dotColor
+                                    )
+                                }
+                            }
+                        }
+
                         // ⚡ 闪念胶囊速记入口
                         Surface(
                             onClick = onOpenQuickCapture,
@@ -1013,6 +1090,13 @@ fun ScheduleScreen(
         if (showCalendarSyncDialog) {
             GoogleCalendarSyncModal(
                 onDismiss = { showCalendarSyncDialog = false }
+            )
+        }
+
+        // ☁️ Google Drive 专属云端同步详情与状态弹窗
+        if (showDriveSyncDialog) {
+            GoogleDriveSyncStatusModal(
+                onDismiss = { showDriveSyncDialog = false }
             )
         }
 
@@ -6540,6 +6624,193 @@ fun ManageScheduleTagsDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
             ) {
                 Text("完成", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+fun GoogleDriveSyncStatusModal(
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
+    var isOperating by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("☁️", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Google Drive 云端同步",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = DarkBg,
+                    border = BorderStroke(1.dp, DarkBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val dotColor = when (syncStatusInfo.state) {
+                                com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen
+                                com.renly.rmf.domain.service.CloudSyncState.SYNCING -> DopamineBlue
+                                com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber
+                                com.renly.rmf.domain.service.CloudSyncState.IDLE -> TextMuted
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (syncStatusInfo.state) {
+                                    com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> "🟢 状态正常：已与云端保持最新"
+                                    com.renly.rmf.domain.service.CloudSyncState.SYNCING -> "🔵 正在执行双向增量同步..."
+                                    com.renly.rmf.domain.service.CloudSyncState.ERROR -> "🟡 离线/同步异常"
+                                    com.renly.rmf.domain.service.CloudSyncState.IDLE -> "⚪ 尚未绑定 Google 账号"
+                                },
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = dotColor
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "上次同步: ${if (syncStatusInfo.lastSyncTime.isNotBlank()) syncStatusInfo.lastSyncTime else "未检测到同步记录"}",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = "专属目录: ${com.renly.rmf.domain.service.GoogleDriveSyncService.BACKUP_FOLDER_NAME} (Google Drive 根目录)",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = DarkBg.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("• 行级时间戳双向增量合并 (LWW 无损融合)", fontSize = 11.sp, color = TextSecondary)
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text("• 云端滚动保留最近 50 个时间戳版本快照", fontSize = 11.sp, color = TextSecondary)
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text("• 切回前台 60 秒轻检测，本地就一个版本 (rmf.db)", fontSize = 11.sp, color = TextSecondary)
+                    }
+                }
+
+                if (syncStatusInfo.errorDetails != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "异常原因: ${syncStatusInfo.errorDetails}",
+                        fontSize = 10.5.sp,
+                        color = DopamineRed
+                    )
+                }
+
+                if (isOperating) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = DopamineBlue
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("正在处理云端同步，请稍候...", fontSize = 11.sp, color = DopamineBlue)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(context)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        enabled = !isOperating,
+                        onClick = {
+                            isOperating = true
+                            coroutineScope.launch {
+                                try {
+                                    val syncService = com.renly.rmf.domain.service.GoogleDriveSyncService(context)
+                                    val res = syncService.pullLatestBackupIfNewer(force = true)
+                                    if (res is com.renly.rmf.domain.service.SyncResult.Success) {
+                                        android.widget.Toast.makeText(context, "✓ ${res.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else if (res is com.renly.rmf.domain.service.SyncResult.Error) {
+                                        android.widget.Toast.makeText(context, "✗ ${res.error}", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                } finally {
+                                    isOperating = false
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("🔄 双向合并拉取", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        enabled = !isOperating,
+                        onClick = {
+                            isOperating = true
+                            coroutineScope.launch {
+                                try {
+                                    val syncService = com.renly.rmf.domain.service.GoogleDriveSyncService(context)
+                                    val res = syncService.uploadBackupToDrive()
+                                    if (res is com.renly.rmf.domain.service.SyncResult.Success) {
+                                        android.widget.Toast.makeText(context, "✓ ${res.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else if (res is com.renly.rmf.domain.service.SyncResult.Error) {
+                                        android.widget.Toast.makeText(context, "✗ ${res.error}", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                } finally {
+                                    isOperating = false
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("⬆️ 强制上传快照", fontSize = 11.5.sp)
+                    }
+                }
+            } else {
+                TextButton(onClick = onDismiss) {
+                    Text("知道了", color = TextPrimary)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                enabled = !isOperating,
+                onClick = onDismiss
+            ) {
+                Text("关闭", color = TextSecondary)
             }
         }
     )

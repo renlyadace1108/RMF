@@ -270,10 +270,44 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var lastResumeCheckMillis: Long = 0L
+
     override fun onResume() {
         super.onResume()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             isInPipMode = isInPictureInPictureMode
+        }
+
+        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却)，零感后台静默检测与行级增量合并
+        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
+            val now = System.currentTimeMillis()
+            if (now - lastResumeCheckMillis >= 60_000L) {
+                lastResumeCheckMillis = now
+                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    checkAndPullCloudSyncSilent()
+                }
+            }
+        }
+    }
+
+    private suspend fun checkAndPullCloudSyncSilent(force: Boolean = false) {
+        if (!com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this)) {
+            com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.updateStatus(
+                com.renly.rmf.domain.service.CloudSyncState.IDLE,
+                "未连接"
+            )
+            return
+        }
+
+        try {
+            val pullResult = googleDriveSyncService.pullLatestBackupIfNewer(force = force)
+            if (pullResult is com.renly.rmf.domain.service.SyncResult.Success && !pullResult.message.contains("无需拉取")) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(this@MainActivity, "✓ 已自动完成云端数据双向增量同步", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("RMF_Sync", "Cloud sync pull error (silent): ${e.message}")
         }
     }
 
@@ -381,21 +415,24 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // 软件冷启动无后台静默检查并拉取云端最新数据同步
+            // 初始化云端同步状态指示器
+            if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this@MainActivity)) {
+                val lastSync = com.renly.rmf.domain.service.GoogleDrivePreferences.getLastSyncTime(this@MainActivity)
+                com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.updateStatus(
+                    com.renly.rmf.domain.service.CloudSyncState.SUCCESS,
+                    if (lastSync.isNotBlank()) "已同步 ($lastSync)" else "已连接云端",
+                    lastSync
+                )
+            } else {
+                com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.updateStatus(
+                    com.renly.rmf.domain.service.CloudSyncState.IDLE,
+                    "未连接"
+                )
+            }
+
+            // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this@MainActivity)) {
-                        val syncService = com.renly.rmf.domain.service.GoogleDriveSyncService(this@MainActivity)
-                        val pullResult = syncService.pullLatestBackupIfNewer()
-                        if (pullResult is com.renly.rmf.domain.service.SyncResult.Success && !pullResult.message.contains("无需拉取")) {
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                android.widget.Toast.makeText(this@MainActivity, "✓ 已自动同步云端最新数据", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("RMF_Sync", "Cold start cloud pull error (silent): ${e.message}")
-                }
+                checkAndPullCloudSyncSilent()
             }
         }
 
