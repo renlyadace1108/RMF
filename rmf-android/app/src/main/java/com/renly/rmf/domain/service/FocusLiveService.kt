@@ -68,6 +68,21 @@ class FocusLiveService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action != ACTION_START && !_isRunning.value && _remainingSeconds.value == _initialTotalSeconds.value) {
+            // 当服务未处于活动状态却收到停止或切换等意图时，先履行前台服务启动承诺，再安全关闭，彻底杜绝 ForegroundServiceDidNotStartInTimeException
+            try {
+                val notification = buildFluidCloudNotification()
+                if (Build.VERSION.SDK_INT >= 34) {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
+            } catch (_: Exception) {}
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         when (intent?.action) {
             ACTION_START -> {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "深度心流"

@@ -1158,15 +1158,22 @@ class MainActivity : ComponentActivity() {
                             Screen.Goals -> GoalsScreen(
                                 goalsFlow = goalsFlow,
                                 onAddGoal = { goal ->
-                                    lifecycleScope.launch { db.goalDao().insertOrUpdate(goal) }
+                                    lifecycleScope.launch {
+                                        db.goalDao().insertOrUpdate(goal)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
+                                    }
                                 },
                                 onUpdateProgress = { goal, newP ->
-                                    lifecycleScope.launch { db.goalDao().updateProgress(goal.id, newP) }
+                                    lifecycleScope.launch {
+                                        db.goalDao().updateProgress(goal.id, newP)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
+                                    }
                                 },
                                 onToggleNorthStar = { goal ->
                                     lifecycleScope.launch {
                                         val flipped = if (goal.isNorthStar == 1) 0 else 1
                                         db.goalDao().insertOrUpdate(goal.copy(isNorthStar = flipped))
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 }
                             )
@@ -1176,18 +1183,21 @@ class MainActivity : ComponentActivity() {
                                 onAddExpense = { expense ->
                                     lifecycleScope.launch {
                                         db.expenseDao().insertOrUpdate(expense)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                         Toast.makeText(this@MainActivity, "记账成功！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onUpdateExpense = { expense ->
                                     lifecycleScope.launch {
                                         db.expenseDao().insertOrUpdate(expense)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                         Toast.makeText(this@MainActivity, "账目已更新！", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onDeleteExpense = { id ->
                                     lifecycleScope.launch {
                                         db.expenseDao().softDelete(id)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                         Toast.makeText(this@MainActivity, "账目已删除！", Toast.LENGTH_SHORT).show()
                                     }
                                 }
