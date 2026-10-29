@@ -509,7 +509,7 @@ class GoogleDriveSyncService(
      * 3. 冲突记录基于更新时间戳 LWW (Last-Write-Wins) 判定，保留更新的一方。
      * 4. 若本地包含离线新记录或更新的修改，标记 hasLocalUnpushed = true 并反向同步，实现全数据链无缝自愈收敛！
      */
-    fun performBiDirectionalMerge(
+    suspend fun performBiDirectionalMerge(
         db: androidx.sqlite.db.SupportSQLiteDatabase,
         tempDbPath: String
     ): Boolean {

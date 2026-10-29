@@ -519,7 +519,7 @@ object ScheduleReminderManager {
 
         val actualType = reminderType ?: ReminderType.ALL
         val channelId = when (actualType) {
-            ReminderType.ALL -> RmfApplication.CHANNEL_SCHEDULE_REMINDER
+            ReminderType.ALL, ReminderType.CAPSULE -> RmfApplication.CHANNEL_SCHEDULE_REMINDER
             ReminderType.ALARM -> RmfApplication.CHANNEL_REMINDER_SOUND_ONLY
             ReminderType.VIBRATE -> RmfApplication.CHANNEL_REMINDER_VIBRATE_ONLY
             ReminderType.NONE -> RmfApplication.CHANNEL_REMINDER_SILENT
@@ -540,7 +540,7 @@ object ScheduleReminderManager {
             .setSubText("RMF 日程提醒 · ${actualType.title}")
 
         when (actualType) {
-            ReminderType.ALL -> {
+            ReminderType.ALL, ReminderType.CAPSULE -> {
                 builder.setSound(defaultSound)
                 builder.setVibrate(longArrayOf(0, 350, 200, 350))
                 builder.setDefaults(NotificationCompat.DEFAULT_ALL)

@@ -6122,6 +6122,7 @@ fun ScheduleDetailModal(
                         val duration = if (item.estimatedMinutes > 0) item.estimatedMinutes.toLong() else 30L
                         val parsedEnd = parseDateTime(item.endTime) ?: parsedStart.plusMinutes(duration)
                         val bufferEnd = parsedEnd.plusMinutes(15)
+                        val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
                         val bufferEntity = ScheduleEntity(
                             id = java.util.UUID.randomUUID().toString(),
                             title = "☕ 呼吸缓冲休息",
@@ -6131,7 +6132,9 @@ fun ScheduleDetailModal(
                             endTime = bufferEnd.format(DateTimeFormatter.ISO_DATE_TIME),
                             estimatedMinutes = 15,
                             colorHex = "#10B981",
-                            status = "PENDING"
+                            status = "PENDING",
+                            createdAt = nowIso,
+                            updatedAt = nowIso
                         )
                         modalScope.launch {
                             val db = com.renly.rmf.data.local.RmfDatabase.getInstance(context)

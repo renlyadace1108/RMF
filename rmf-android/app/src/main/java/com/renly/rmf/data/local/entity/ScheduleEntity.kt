@@ -120,8 +120,8 @@ data class ScheduleEntity(
     val reminderType: String = "ALL", // ALL, ALARM, VIBRATE, NONE
 
     @ColumnInfo(name = "created_at")
-    val createdAt: String,
+    val createdAt: String = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME),
 
     @ColumnInfo(name = "updated_at")
-    val updatedAt: String
+    val updatedAt: String = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
 )
