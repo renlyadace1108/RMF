@@ -19,18 +19,27 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#2D3748"/>
+                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
     </Window.Resources>
 
-    <Border Margin="10" Background="#F218191C" BorderBrush="#2D3748" BorderThickness="1" CornerRadius="16" Padding="14,12" MouseLeftButtonDown="OnWindowMouseDown">
+    <Border Margin="10" Background="#F011141A" BorderBrush="#2A3444" BorderThickness="1" CornerRadius="16" Padding="14,12" MouseLeftButtonDown="OnWindowMouseDown">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.5"/>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.55"/>
         </Border.Effect>
 
         <Grid>
@@ -68,26 +77,32 @@
             </Grid>
 
             <!-- 1. 北极星战略目标卡片 -->
-            <Border Grid.Row="1" Background="#202227" CornerRadius="8" Padding="10,8" Margin="0,0,0,8" BorderBrush="#3B82F6" BorderThickness="1">
+            <Border Grid.Row="1" Background="#1C212B" CornerRadius="10" Padding="10,8" Margin="0,0,0,8" BorderBrush="#38BDF8" BorderThickness="1">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="⭐ 北极星战略目标" FontSize="10.5" FontWeight="Bold" Foreground="#F59E0B"/>
-                        <TextBlock x:Name="NorthStarProgressText" Text="0%" FontSize="10" Foreground="#38BDF8" Margin="6,0,0,0"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#251C10" CornerRadius="4" Padding="5,1" Margin="0,0,6,0">
+                            <TextBlock Text="⭐ 北极星战略目标" FontSize="10" FontWeight="Bold" Foreground="#F59E0B"/>
+                        </Border>
+                        <TextBlock x:Name="NorthStarProgressText" Text="0%" FontSize="10.5" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center"/>
                     </StackPanel>
                     <TextBlock x:Name="NorthStarTitleText" Text="暂无置顶北极星目标" FontSize="11.5" FontWeight="SemiBold" Foreground="#F1F5F9" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
 
             <!-- 2. 今日课程投影 -->
-            <Border Grid.Row="2" Background="#1B2430" CornerRadius="8" Padding="10,8" Margin="0,0,0,8" BorderBrush="#06B6D4" BorderThickness="1">
+            <Border Grid.Row="2" Background="#16202B" CornerRadius="10" Padding="10,8" Margin="0,0,0,8" BorderBrush="#06B6D4" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock Text="📚 今日课表动态投影" FontSize="10.5" FontWeight="Bold" Foreground="#67E8F9"/>
-                    <TextBlock x:Name="TodayCoursesText" Text="今日无课 / 自主攻坚日" FontSize="11" Foreground="#E2E8F0" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#122530" CornerRadius="4" Padding="5,1" Margin="0,0,6,0">
+                            <TextBlock Text="📚 今日课表动态投影" FontSize="10" FontWeight="Bold" Foreground="#67E8F9"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="TodayCoursesText" Text="今日无课 / 自主攻坚日" FontSize="11" Foreground="#E2E8F0" Margin="0,4,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
             <!-- 3. 待办与今日排期日程 -->
-            <Border Grid.Row="3" Background="#1A1C20" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+            <Border Grid.Row="3" Background="#151821" BorderBrush="#242B38" BorderThickness="1" CornerRadius="10" Padding="10,8" Margin="0,0,0,8">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -114,7 +129,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="#121316" BorderBrush="#2D3748" BorderThickness="1" CornerRadius="8" Padding="8,5">
+                <Border Grid.Row="0" Background="#0E1015" BorderBrush="#2D3748" BorderThickness="1" CornerRadius="8" Padding="8,5">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>

@@ -1081,19 +1081,26 @@ fun ScheduleScreen(
                             }
                         }
                     } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxSize()
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.TopCenter
                         ) {
-                            items(filtered, key = { it.id }) { item ->
-                                ScheduleItemCard(
-                                    item = item,
-                                    tagColorMap = tagColorMap,
-                                    onToggleStatus = { onToggleStatus(item) },
-                                    onClickCard = { detailItem = item }
-                                )
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .widthIn(max = 840.dp)
+                            ) {
+                                items(filtered, key = { it.id }) { item ->
+                                    ScheduleItemCard(
+                                        item = item,
+                                        tagColorMap = tagColorMap,
+                                        onToggleStatus = { onToggleStatus(item) },
+                                        onClickCard = { detailItem = item }
+                                    )
+                                }
+                                item { Spacer(modifier = Modifier.height(60.dp)) }
                             }
-                            item { Spacer(modifier = Modifier.height(60.dp)) }
                         }
                     }
                 }
@@ -1498,6 +1505,7 @@ fun DragRangeScheduleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = {
             Column {
@@ -5109,6 +5117,7 @@ fun BacklogDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -5393,6 +5402,7 @@ fun GoToDateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = { Text("🗓️ 跳转至指定日期", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
         text = {
@@ -5514,6 +5524,7 @@ fun EditScheduleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = {
             Row(
@@ -5946,6 +5957,7 @@ fun ScheduleDetailModal(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = {
             Row(
@@ -6243,6 +6255,7 @@ fun ScheduleItemCard(
             onClickCard()
         },
         shape = RoundedCornerShape(14.dp),
+        shadowElevation = if (isCompleted) 0.dp else 2.dp,
         color = if (isCompleted) DarkSurface.copy(alpha = 0.55f) else DarkCard,
         border = BorderStroke(1.dp, if (isCompleted) DarkBorder.copy(alpha = 0.35f) else DarkBorder.copy(alpha = 0.8f)),
         modifier = Modifier.fillMaxWidth()
@@ -6470,6 +6483,7 @@ fun AddScheduleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.widthIn(max = 600.dp),
         containerColor = DarkCard,
         title = { Text("规划新时间块", color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {

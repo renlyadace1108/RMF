@@ -699,7 +699,9 @@ class MainActivity : ComponentActivity() {
 
                             Surface(
                                 color = DarkSurface,
-                                border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.75f)),
+                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                                shadowElevation = 12.dp,
+                                border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.85f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .draggable(
@@ -738,23 +740,23 @@ class MainActivity : ComponentActivity() {
                                     )
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    // 顶部微光上拉/下拉手势指示条 (Subtle vertical pull handle)
+                                    // 顶部微光上拉/下拉手势指示条 (Subtle vertical pull handle with active glow)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 4.dp, bottom = 2.dp),
+                                            .padding(top = 6.dp, bottom = 2.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .width(36.dp)
-                                                .height(3.5.dp)
+                                                .width(42.dp)
+                                                .height(4.dp)
                                                 .clip(RoundedCornerShape(2.dp))
                                                 .background(
                                                     if (currentScreen == Screen.Settings)
-                                                        DopamineBlue.copy(alpha = 0.7f)
+                                                        DopamineCyan.copy(alpha = 0.85f)
                                                     else
-                                                        Color.White.copy(alpha = 0.22f)
+                                                        Color.White.copy(alpha = 0.28f)
                                                 )
                                         )
                                     }
@@ -1565,10 +1567,11 @@ class MainActivity : ComponentActivity() {
                                 if (useNavigationRail && !isInPipMode) {
                                     Surface(
                                         color = DarkSurface,
-                                        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.75f)),
+                                        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.85f)),
+                                        shadowElevation = 8.dp,
                                         modifier = Modifier
                                             .fillMaxHeight()
-                                            .width(84.dp)
+                                            .width(88.dp)
                                     ) {
                                         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                                             val needsScroll = maxHeight < 520.dp
@@ -1581,32 +1584,41 @@ class MainActivity : ComponentActivity() {
                                             ) {
                                                 Column(
                                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                                    modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+                                                    modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
                                                 ) {
-                                                    Image(
-                                                        painter = painterResource(id = R.drawable.ic_logo),
-                                                        contentDescription = "RMF Pad Logo",
-                                                        modifier = Modifier
-                                                            .size(36.dp)
-                                                            .clip(RoundedCornerShape(8.dp))
-                                                    )
-                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = DarkCard,
+                                                        border = BorderStroke(1.dp, DarkBorder),
+                                                        modifier = Modifier.size(42.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Image(
+                                                                painter = painterResource(id = R.drawable.ic_logo),
+                                                                contentDescription = "RMF Pad Logo",
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(RoundedCornerShape(8.dp))
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
                                                     Text(
                                                         text = if (BuildConfig.IS_PAD_EDITION) "RMF Pad" else "RMF",
-                                                        fontSize = 11.sp,
+                                                        fontSize = 11.5.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = DopamineBlue
                                                     )
                                                     Spacer(modifier = Modifier.height(8.dp))
                                                     Surface(
                                                         onClick = { showQuickCaptureDialog = true },
-                                                        shape = androidx.compose.foundation.shape.CircleShape,
-                                                        color = DopaminePurple.copy(alpha = 0.18f),
-                                                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.45f)),
-                                                        modifier = Modifier.size(34.dp)
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = DopaminePurple.copy(alpha = 0.22f),
+                                                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                                                        modifier = Modifier.size(36.dp)
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
-                                                            Text("⚡", fontSize = 15.sp)
+                                                            Text("⚡", fontSize = 16.sp)
                                                         }
                                                     }
                                                 }
@@ -1660,6 +1672,14 @@ class MainActivity : ComponentActivity() {
 
                                                 if (!needsScroll) Spacer(modifier = Modifier.weight(1f))
 
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(44.dp)
+                                                        .height(1.dp)
+                                                        .background(DarkBorder.copy(alpha = 0.7f))
+                                                        .padding(vertical = 4.dp)
+                                                )
+
                                                 val isSettingsSelected = currentScreen == Screen.Settings
                                                 NavigationRailItem(
                                                     selected = isSettingsSelected,
@@ -1696,9 +1716,9 @@ class MainActivity : ComponentActivity() {
                                                         selectedTextColor = DopamineBlue,
                                                         unselectedIconColor = TextMuted,
                                                         unselectedTextColor = TextMuted,
-                                                        indicatorColor = DopamineBlue.copy(alpha = 0.16f)
+                                                        indicatorColor = DopamineBlue.copy(alpha = 0.22f)
                                                     ),
-                                                    modifier = Modifier.padding(bottom = 8.dp)
+                                                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
                                                 )
                                             }
                                         }

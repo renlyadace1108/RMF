@@ -45,9 +45,10 @@ fun QuickCaptureDialog(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
     var rawText by remember { mutableStateOf("") }
-    var captureMode by remember { mutableStateOf("SCHEDULE") } // SCHEDULE or EXPENSE
+    var captureMode by remember { mutableStateOf("SCHEDULE") } // SCHEDULE, REMINDER, or EXPENSE
 
     val isAiActive = remember {
         AiPreferences.isAiEnabled(context) && AiPreferences.isConfigured(context)
@@ -94,13 +95,16 @@ fun QuickCaptureDialog(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 切换模式: 日程 / 记账
+                    // 切换模式: 日程 / 提醒 / 记账
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
-                            onClick = { captureMode = "SCHEDULE" },
+                            onClick = {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                captureMode = "SCHEDULE"
+                            },
                             shape = RoundedCornerShape(8.dp),
                             color = if (captureMode == "SCHEDULE") DopamineBlue.copy(alpha = 0.18f) else DarkSurface,
                             border = BorderStroke(1.dp, if (captureMode == "SCHEDULE") DopamineBlue else DarkBorder),
@@ -118,8 +122,35 @@ fun QuickCaptureDialog(
                             }
                         }
 
+                        if (onSaveReminder != null) {
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                    captureMode = "REMINDER"
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (captureMode == "REMINDER") DopaminePurple.copy(alpha = 0.18f) else DarkSurface,
+                                border = BorderStroke(1.dp, if (captureMode == "REMINDER") DopaminePurple else DarkBorder),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "🔔 备忘提醒",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (captureMode == "REMINDER") DopaminePurple else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+
                         Surface(
-                            onClick = { captureMode = "EXPENSE" },
+                            onClick = {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                captureMode = "EXPENSE"
+                            },
                             shape = RoundedCornerShape(8.dp),
                             color = if (captureMode == "EXPENSE") DopamineGreen.copy(alpha = 0.18f) else DarkSurface,
                             border = BorderStroke(1.dp, if (captureMode == "EXPENSE") DopamineGreen else DarkBorder),
@@ -146,14 +177,21 @@ fun QuickCaptureDialog(
                         onValueChange = { rawText = it },
                         placeholder = {
                             Text(
-                                if (captureMode == "SCHEDULE") "如：明早 9:00 电路实验 p:高 d:45m 或 下午3点开会"
-                                else "如：午餐 28.5 或 咖啡 18.0",
+                                when (captureMode) {
+                                    "SCHEDULE" -> "如：明早 9:00 电路实验 p:高 d:45m 或 下午3点开会"
+                                    "REMINDER" -> "如：下午4点去取快递 或 晚上10点喝药"
+                                    else -> "如：午餐 28.5 或 咖啡 18.0"
+                                },
                                 color = TextMuted,
                                 fontSize = 13.sp
                             )
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DopamineBlue,
+                            focusedBorderColor = when (captureMode) {
+                                "REMINDER" -> DopaminePurple
+                                "EXPENSE" -> DopamineGreen
+                                else -> DopamineBlue
+                            },
                             unfocusedBorderColor = DarkBorder,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
@@ -179,6 +217,12 @@ fun QuickCaptureDialog(
                                 color = TextMuted
                             )
                         }
+                    } else if (captureMode == "REMINDER") {
+                        Text(
+                            text = "🔔 将作为单点时间提醒保存，支持系统通知广播与灵动岛胶囊倒计时兜底",
+                            fontSize = 11.sp,
+                            color = DopaminePurple
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -269,6 +313,30 @@ fun QuickCaptureDialog(
                                                 onDismissRequest()
                                             }
                                         }
+                                    } else if (captureMode == "REMINDER" && onSaveReminder != null) {
+                                        // 提醒模式
+                                        val parsed = NaturalLanguageScheduleParser.parse(rawText)
+                                        val now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                        val remindIso = if (parsed.hasExplicitTime && parsed.startTime != null) {
+                                            parsed.startTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                        } else {
+                                            LocalDateTime.now().plusMinutes(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                        }
+                                        val newReminder = ReminderEntity(
+                                            id = UUID.randomUUID().toString(),
+                                            title = parsed.title.ifBlank { rawText.trim() },
+                                            content = "",
+                                            remindTime = remindIso,
+                                            advanceMinutes = 0,
+                                            reminderType = "ALL",
+                                            priority = parsed.priority,
+                                            category = parsed.category,
+                                            createdAt = now,
+                                            updatedAt = now
+                                        )
+                                        onSaveReminder(newReminder)
+                                        Toast.makeText(context, "✓ 事件提醒已设定", Toast.LENGTH_SHORT).show()
+                                        onDismissRequest()
                                     } else {
                                         // 记账模式
                                         val parts = rawText.trim().split("\\s+".toRegex())
@@ -291,7 +359,13 @@ fun QuickCaptureDialog(
                                 }
                             },
                             enabled = rawText.isNotBlank() && !isAnalyzingWithAi,
-                            colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = when (captureMode) {
+                                    "REMINDER" -> DopaminePurple
+                                    "EXPENSE" -> DopamineGreen
+                                    else -> DopamineBlue
+                                }
+                            ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             if (isAnalyzingWithAi) {
