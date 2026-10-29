@@ -1,5 +1,6 @@
 package com.renly.rmf.util
 
+import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -11,5 +12,30 @@ object TimeUtils {
 
     fun currentUtcIsoString(): String {
         return ZonedDateTime.now(ZoneOffset.UTC).format(UTC_ISO_FORMATTER)
+    }
+
+    /**
+     * 高性能无异常解析本地 ISO 日期时间：
+     * 智能分支规避异常抛出与堆栈抓取开销，提升批量循环与列表渲染性能
+     */
+    fun parseLocalDateTimeSafe(isoStr: String): LocalDateTime? {
+        if (isoStr.isBlank()) return null
+        return try {
+            if (isoStr.endsWith("Z") || isoStr.contains("+") || (isoStr.indexOf('-', 10) > 0)) {
+                try {
+                    LocalDateTime.parse(isoStr, DateTimeFormatter.ISO_DATE_TIME)
+                } catch (_: Exception) {
+                    LocalDateTime.parse(isoStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                }
+            } else {
+                try {
+                    LocalDateTime.parse(isoStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                } catch (_: Exception) {
+                    LocalDateTime.parse(isoStr, DateTimeFormatter.ISO_DATE_TIME)
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 }

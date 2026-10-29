@@ -70,7 +70,7 @@ public class DatabaseService
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        // 启用 WAL 预写日志与高性能 PRAGMA 配置
+        // 启用 WAL 预写日志、内存映射与高性能 PRAGMA 配置
         using (var pragmaCmd = new SqliteCommand(@"
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
@@ -78,6 +78,7 @@ public class DatabaseService
             PRAGMA busy_timeout = 5000;
             PRAGMA cache_size = -8000;
             PRAGMA temp_store = MEMORY;
+            PRAGMA mmap_size = 268435456;
         ", conn))
         {
             pragmaCmd.ExecuteNonQuery();

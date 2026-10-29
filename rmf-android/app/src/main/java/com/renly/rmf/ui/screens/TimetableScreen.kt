@@ -406,12 +406,14 @@ fun TimetableScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 3. 过滤并展示当前周次的课程
-            val weekCourses = courses.filter { course ->
-                currentWeek in course.startWeek..course.endWeek &&
-                (course.weekType == "ALL" ||
-                (course.weekType == "ODD" && currentWeek % 2 != 0) ||
-                (course.weekType == "EVEN" && currentWeek % 2 == 0))
+            // 3. 过滤并展示当前周次的课程 (加 remember 避免重组或缩放手势期间每帧高频重新过滤)
+            val weekCourses = remember(courses, currentWeek) {
+                courses.filter { course ->
+                    currentWeek in course.startWeek..course.endWeek &&
+                    (course.weekType == "ALL" ||
+                    (course.weekType == "ODD" && currentWeek % 2 != 0) ||
+                    (course.weekType == "EVEN" && currentWeek % 2 == 0))
+                }
             }
 
             if (isGridView) {
@@ -444,14 +446,15 @@ fun TimetableScreen(
                         }
                     }
                 } else {
+                    val coursesByDay = remember(weekCourses) { weekCourses.groupBy { it.dayOfWeek } }
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         for (dayIdx in 1..7) {
-                            val dayCourses = weekCourses.filter { it.dayOfWeek == dayIdx }
+                            val dayCourses = coursesByDay[dayIdx] ?: emptyList()
                             if (dayCourses.isNotEmpty()) {
-                                item {
+                                item(key = "day_$dayIdx") {
                                     Column {
                                         Text(
                                             text = daysOfWeek[dayIdx - 1],
@@ -1808,9 +1811,10 @@ fun WeekTimetableGrid(
                 }
             }
 
-            // 7天课程列
+            // 7天课程列 (预先按 dayOfWeek 分组，避免双指缩放及滑动时每帧对所有课程执行 7 次线性过滤)
+            val coursesByDay = remember(weekCourses) { weekCourses.groupBy { it.dayOfWeek } }
             for (dayIdx in 1..7) {
-                val dayCourses = weekCourses.filter { it.dayOfWeek == dayIdx }
+                val dayCourses = coursesByDay[dayIdx] ?: emptyList()
                 val isToday = (mondayDate.plusDays((dayIdx - 1).toLong()) == LocalDate.now())
 
                 Box(
