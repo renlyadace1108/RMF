@@ -752,7 +752,7 @@ fun ScheduleScreen(
                                         status = "PENDING",
                                         startTime = startStr,
                                         endTime = endStr,
-                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                     )
                                     onUpdateSchedule(updated)
                                 }
@@ -797,7 +797,7 @@ fun ScheduleScreen(
                                         status = "PENDING",
                                         startTime = startStr,
                                         endTime = endStr,
-                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                     )
                                     onUpdateSchedule(updated)
                                 }
@@ -1110,7 +1110,7 @@ fun ScheduleScreen(
                     onMoveQuadrant = { item, newQuadrant ->
                         val updated = item.copy(
                             eisenhowerQuadrant = newQuadrant,
-                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                            updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                         )
                         onUpdateSchedule(updated)
                     },
@@ -1242,7 +1242,7 @@ fun ScheduleScreen(
                 onOpenAddTag = { showAddTagDialog = true },
                 onOpenManageTags = { showManageTagsDialog = true },
                 onAddBacklog = { title, workType, category, minutes, dod, quadrant ->
-                    val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     val entity = ScheduleEntity(
                         title = title,
                         workType = workType,
@@ -1266,13 +1266,13 @@ fun ScheduleScreen(
                         status = "PENDING",
                         startTime = startStr,
                         endTime = endStr,
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                     onUpdateSchedule(updated)
                 },
                 onToggleStatus = { backlogItem ->
                     val nextStatus = if (backlogItem.status == "COMPLETED") "BACKLOG" else "COMPLETED"
-                    onUpdateSchedule(backlogItem.copy(status = nextStatus, updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)))
+                    onUpdateSchedule(backlogItem.copy(status = nextStatus, updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()))
                 },
                 onDelete = { id ->
                     onDeleteSchedule(id)
@@ -1867,8 +1867,8 @@ fun RoutineTemplateDialog(
                         endTime = "",
                         colorHex = "#10B981",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     ),
                     TimeMarkerEntity(
                         id = UUID.randomUUID().toString(),
@@ -1881,8 +1881,8 @@ fun RoutineTemplateDialog(
                         endTime = selectedDate.atTime(13, 30).format(DateTimeFormatter.ISO_DATE_TIME),
                         colorHex = "#3B82F6",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     ),
                     TimeMarkerEntity(
                         id = UUID.randomUUID().toString(),
@@ -1895,8 +1895,8 @@ fun RoutineTemplateDialog(
                         endTime = "",
                         colorHex = "#8B5CF6",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                 )
             ),
@@ -1943,8 +1943,8 @@ fun RoutineTemplateDialog(
                         endTime = "",
                         colorHex = "#10B981",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     ),
                     TimeMarkerEntity(
                         id = UUID.randomUUID().toString(),
@@ -1957,8 +1957,8 @@ fun RoutineTemplateDialog(
                         endTime = selectedDate.atTime(14, 30).format(DateTimeFormatter.ISO_DATE_TIME),
                         colorHex = "#3B82F6",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                 )
             ),
@@ -2013,8 +2013,8 @@ fun RoutineTemplateDialog(
                         endTime = "",
                         colorHex = "#10B981",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     ),
                     TimeMarkerEntity(
                         id = UUID.randomUUID().toString(),
@@ -2027,8 +2027,8 @@ fun RoutineTemplateDialog(
                         endTime = selectedDate.atTime(13, 40).format(DateTimeFormatter.ISO_DATE_TIME),
                         colorHex = "#3B82F6",
                         notes = "模板作息打卡",
-                        createdAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        createdAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString(),
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                 )
             )
@@ -3014,7 +3014,7 @@ fun ScheduleWeekGridView(
                                                                         val updated = item.copy(
                                                                             startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                             endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                            updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                                                         )
                                                                         currentOnUpdateSchedule(updated)
                                                                         movingScheduleItem = null
@@ -3140,7 +3140,7 @@ fun ScheduleWeekGridView(
                     startTime = startDt.format(DateTimeFormatter.ISO_DATE_TIME),
                     endTime = endDt.format(DateTimeFormatter.ISO_DATE_TIME),
                     estimatedMinutes = mins,
-                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                 )
                 onUpdateSchedule(updated)
             }
@@ -4213,7 +4213,7 @@ fun ScheduleDayGridView(
                                                                         date = dateStr,
                                                                         startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                         endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                                                     )
                                                                     currentOnUpdateTimeMarker(updated)
                                                                     Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d ~ %02d:%02d".format(targetStartHour, targetStartMin, targetEndHour, targetEndMin), Toast.LENGTH_SHORT).show()
@@ -4356,7 +4356,7 @@ fun ScheduleDayGridView(
                                                             val updated = item.copy(
                                                                 startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
                                                                 endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                                             )
                                                             currentOnUpdateSchedule(updated)
                                                             if (conflict != null) {
@@ -4498,7 +4498,7 @@ fun ScheduleDayGridView(
                                                                     val updated = item.copy(
                                                                         estimatedMinutes = newMins,
                                                                         endTime = newEnd.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                                                     )
                                                                     currentOnUpdateSchedule(updated)
                                                                     resizingScheduleItem = null
@@ -4596,7 +4596,7 @@ fun ScheduleDayGridView(
                                                                     val updated = marker.copy(
                                                                         date = dateStr,
                                                                         startTime = newStart.format(DateTimeFormatter.ISO_DATE_TIME),
-                                                                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                                                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                                                     )
                                                                     currentOnUpdateTimeMarker(updated)
                                                                     Toast.makeText(context, "📍 已将「${marker.name}」调整至 %02d:%02d".format(targetHour, targetMinute), Toast.LENGTH_SHORT).show()
@@ -5014,7 +5014,7 @@ fun ScheduleDayGridView(
                         startTime = startDt.format(DateTimeFormatter.ISO_DATE_TIME),
                         endTime = endDt.format(DateTimeFormatter.ISO_DATE_TIME),
                         estimatedMinutes = mins,
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                     onUpdateSchedule(updated)
                 }
@@ -5889,7 +5889,7 @@ fun EditScheduleDialog(
                         eisenhowerQuadrant = eisenhowerQuadrant,
                         recurrenceRule = recurrenceRule,
                         subtasksJson = SubTaskItem.listToJson(subtasks),
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                     onSave(updated)
                 },

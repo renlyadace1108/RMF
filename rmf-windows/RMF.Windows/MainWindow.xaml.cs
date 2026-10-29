@@ -28,6 +28,7 @@ namespace RMF.Windows;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _perfTimer;
+    private readonly DispatcherTimer _cloudSyncTimer;
     private readonly TrayIconService _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
     private FocusHudWindow? _activeFocusHud;
@@ -281,6 +282,17 @@ public partial class MainWindow : Window
 
         // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
         _ = CheckAndPullCloudSyncSilentAsync();
+
+        // 启动后台定时心跳同步轮询器 (每 3 分钟自动静默拉取并合并一次云端最新备份，无需依赖切前台)
+        _cloudSyncTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMinutes(3)
+        };
+        _cloudSyncTimer.Tick += (s, e) =>
+        {
+            _ = CheckAndPullCloudSyncSilentAsync();
+        };
+        _cloudSyncTimer.Start();
     }
 
     private DateTime _lastActivatedSyncCheck = DateTime.MinValue;
@@ -3793,12 +3805,14 @@ public partial class MainWindow : Window
 
     private void OnSaveEventModalClicked(object sender, RoutedEventArgs e)
     {
-        string title = EventTitleInput.Text.Trim();
-        if (string.IsNullOrEmpty(title))
+        try
         {
-            MessageBox.Show("请输入日程任务标题！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+            string title = EventTitleInput.Text.Trim();
+            if (string.IsNullOrEmpty(title))
+            {
+                MessageBox.Show("请输入日程任务标题！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
         string workType = "DEEP_WORK";
         if (EventWorkTypeCombo.SelectedItem is ComboBoxItem workCbi && workCbi.Tag is string wt)
@@ -4025,19 +4039,35 @@ public partial class MainWindow : Window
             WindowsReminderScheduler.CancelScheduledScheduleReminder(item.Id);
         }
 
-        if (item.Status == "COMPLETED")
+        bool wasCompletedBefore = existingItem?.Status == "COMPLETED";
+        bool isCompletedNow = item.Status == "COMPLETED";
+
+        // 仅在从未完成状态首次流转切换至 COMPLETED 时，才触发学时反哺累加与目标推进 (防止改名重新累加学时或递归死锁)
+        if (!wasCompletedBefore && isCompletedNow)
         {
             DataLineageService.OnScheduleCompleted(item);
         }
         CloseEventModal(() =>
         {
-            RenderAllCalendarViews();
-            RefreshGoalTree();
-            RefreshBacklogList();
-            RefreshDeferredQueue();
-            UpdateCognitiveLoadQuota();
-            RefreshTimePnlData();
+            try
+            {
+                RenderAllCalendarViews();
+                RefreshGoalTree();
+                RefreshBacklogList();
+                RefreshDeferredQueue();
+                UpdateCognitiveLoadQuota();
+                RefreshTimePnlData();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CloseEventModal Callback Error] {ex}");
+            }
         });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"保存日程异常: {ex.Message}", "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private bool CheckRestBufferConflict(DateTime date, DateTime start, DateTime end, string? excludeId)
@@ -5122,8 +5152,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RenderGoalNode(GoalItem goal, int depth)
+    private void RenderGoalNode(GoalItem goal, int depth, HashSet<string>? visited = null)
     {
+        if (goal == null || depth > 20) return;
+        visited ??= new HashSet<string>();
+        if (!visited.Add(goal.Id)) return; // 防御环状目标依赖造成无限递归
         var nodeBorder = new Border
         {
             Background = ThemeService.IsCurrentDark 
@@ -5185,7 +5218,7 @@ public partial class MainWindow : Window
 
         foreach (var child in goal.Children)
         {
-            RenderGoalNode(child, depth + 1);
+            RenderGoalNode(child, depth + 1, visited);
         }
     }
 

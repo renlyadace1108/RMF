@@ -347,7 +347,7 @@ class GoogleDriveSyncService(
                 currentMeta.copy(
                     deviceId = android.os.Build.MODEL,
                     versionCounter = newCounter,
-                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                 )
             )
 
@@ -618,7 +618,7 @@ class GoogleDriveSyncService(
                 val curMeta = syncDao.getMetadata() ?: SnapshotMetadataEntity()
                 syncDao.saveMetadata(curMeta.copy(
                     versionCounter = curMeta.versionCounter + 1,
-                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                 ))
 
                 db.execSQL("PRAGMA foreign_keys = ON;")

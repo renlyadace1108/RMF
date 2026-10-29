@@ -179,7 +179,7 @@ public partial class DesktopWidgetWindow : Window
                     {
                         e.Handled = true;
                         item.Status = isDone ? "PENDING" : "COMPLETED";
-                        item.UpdatedAt = DateTime.Now;
+                        item.UpdatedAt = DateTime.UtcNow;
                         if (!isDone && item.ActualMinutes == 0)
                         {
                             item.ActualMinutes = Math.Max(10, (int)(DateTime.Now - item.StartTime).TotalMinutes);
