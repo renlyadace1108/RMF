@@ -297,7 +297,11 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
             scheduleDao: ScheduleDao
         ): Int {
             val service = TimetableProjectionService(courseDao)
-            return service.syncSemesterTimetableToSchedules(context, scheduleDao)
+            val count = service.syncSemesterTimetableToSchedules(context, scheduleDao)
+            if (SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                SystemCalendarSyncService.syncAllIfAutoSyncEnabled(context)
+            }
+            return count
         }
     }
 }

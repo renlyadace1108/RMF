@@ -3,10 +3,12 @@ package com.renly.rmf.domain.service
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import android.provider.CalendarContract
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.renly.rmf.MainActivity
@@ -16,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class ScheduleAlarmReceiver : BroadcastReceiver() {
@@ -23,6 +26,12 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val intentAction = intent.action
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // 处理系统日历提醒事件广播兜底 (android.intent.action.EVENT_REMINDER)
+        if (intentAction == CalendarContract.ACTION_EVENT_REMINDER || intentAction == "android.intent.action.EVENT_REMINDER") {
+            handleSystemCalendarReminderFallback(context, intent)
+            return
+        }
 
         // 处理日程闹铃交互动作 (关闭 / 稍后推迟)
         if (intentAction == ACTION_DISMISS_SCHEDULE_ALARM) {
@@ -142,6 +151,11 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         }
 
         // 常规提醒分发 (课程 / 日程 / 单点事件提醒)
+        dispatchNotification(context, intent)
+    }
+
+    private fun dispatchNotification(context: Context, intent: Intent) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "日程时间块"
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: "即将开始，请准备进入专注状态"
         val notificationId = intent.getIntExtra(EXTRA_ID, 1001)
@@ -310,7 +324,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             if (reminderId.isNotBlank()) {
                 val app = context.applicationContext as? RmfApplication
                 if (app != null) {
-                    val pendingResult = goAsync()
+                    val pendingResult = try { goAsync() } catch (_: Exception) { null }
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
                             val reminder = app.database.reminderDao().getReminderById(reminderId)
@@ -324,7 +338,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                                 }
                             }
                         } finally {
-                            pendingResult.finish()
+                            pendingResult?.finish()
                         }
                     }
                 }
@@ -591,6 +605,153 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
         val notification = builder.build()
         FluidCloudHelper.finalizeNotification(notification, isLiveUpdateMode)
         manager.notify(notificationId, notification)
+    }
+
+    /**
+     * 系统日历组件通知广播兜底处理器：
+     * 当 OEM 厂商电池管理策略杀后台或推迟三方 AlarmManager 闹钟时，
+     * 手机系统级日历提供者 (com.android.providers.calendar) 触发的系统日历广播
+     * 将唤醒本接收器，比对属于 RMF 的日程或待办事项，执行 100% 可靠的浮窗与实时活动通知兜底。
+     */
+    private fun handleSystemCalendarReminderFallback(context: Context, intent: Intent) {
+        val app = context.applicationContext as? RmfApplication ?: return
+        if (!SystemCalendarSyncService.hasCalendarPermissions(context)) return
+
+        val pendingResult = try { goAsync() } catch (_: Exception) { null }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val dataUri = intent.data
+                var eventId: Long? = try {
+                    dataUri?.lastPathSegment?.toLongOrNull()
+                } catch (_: Exception) { null }
+
+                if (eventId == null && dataUri != null) {
+                    eventId = dataUri.getQueryParameter("id")?.toLongOrNull()
+                        ?: dataUri.getQueryParameter("event_id")?.toLongOrNull()
+                }
+                if (eventId == null) {
+                    val idExtra = intent.getLongExtra("event_id", -1L)
+                    if (idExtra > 0) eventId = idExtra
+                }
+                if (eventId == null) {
+                    val idExtra = intent.getLongExtra(CalendarContract.EXTRA_EVENT_ID, -1L)
+                    if (idExtra > 0) eventId = idExtra
+                }
+                if (eventId == null) {
+                    val idInt = intent.getIntExtra("id", -1)
+                    if (idInt > 0) eventId = idInt.toLong()
+                }
+
+                if (eventId == null) return@launch
+
+                var scheduleId: String? = null
+                var reminderId: String? = null
+                var eventTitle: String = ""
+                var eventDesc: String = ""
+                var dtStart: Long = 0L
+
+                val projection = arrayOf(
+                    CalendarContract.Events._ID,
+                    CalendarContract.Events.TITLE,
+                    CalendarContract.Events.DESCRIPTION,
+                    CalendarContract.Events.SYNC_DATA1,
+                    CalendarContract.Events.SYNC_DATA2,
+                    CalendarContract.Events.DTSTART
+                )
+
+                context.contentResolver.query(
+                    CalendarContract.Events.CONTENT_URI,
+                    projection,
+                    "${CalendarContract.Events._ID} = ?",
+                    arrayOf(eventId.toString()),
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        eventTitle = cursor.getString(cursor.getColumnIndexOrThrow(CalendarContract.Events.TITLE)) ?: ""
+                        eventDesc = cursor.getString(cursor.getColumnIndexOrThrow(CalendarContract.Events.DESCRIPTION)) ?: ""
+                        scheduleId = cursor.getString(cursor.getColumnIndexOrThrow(CalendarContract.Events.SYNC_DATA1))
+                        reminderId = cursor.getString(cursor.getColumnIndexOrThrow(CalendarContract.Events.SYNC_DATA2))
+                        dtStart = cursor.getLong(cursor.getColumnIndexOrThrow(CalendarContract.Events.DTSTART))
+                    }
+                }
+
+                // 容错提取: 从描述中提取 RMF 标记
+                if (scheduleId.isNullOrBlank() && eventDesc.contains("[RMF_ID:")) {
+                    val regex = Regex("\\[RMF_ID:(.*?)\\]")
+                    scheduleId = regex.find(eventDesc)?.groupValues?.getOrNull(1)
+                }
+                if (reminderId.isNullOrBlank() && eventDesc.contains("[RMF_REMINDER_ID:")) {
+                    val regex = Regex("\\[RMF_REMINDER_ID:(.*?)\\]")
+                    reminderId = regex.find(eventDesc)?.groupValues?.getOrNull(1)
+                }
+
+                val db = app.database
+
+                // 1. 匹配到 RMF 日程时间块
+                if (!scheduleId.isNullOrBlank()) {
+                    val schedule = db.scheduleDao().getScheduleById(scheduleId!!)
+                    if (schedule != null && schedule.isDeleted == 0 && schedule.status != "COMPLETED" && schedule.status != "ABANDONED") {
+                        val rType = ReminderType.fromCode(schedule.reminderType)
+                        val startMillis = try {
+                            val ldt = try {
+                                LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_DATE_TIME)
+                            } catch (_: Exception) {
+                                LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            }
+                            ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } catch (_: Exception) {
+                            if (dtStart > 0) dtStart else System.currentTimeMillis()
+                        }
+
+                        val reminderIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                            putExtra(EXTRA_TITLE, schedule.title)
+                            putExtra(EXTRA_MESSAGE, schedule.description.ifBlank { "${schedule.title} 预定时间已到" })
+                            putExtra(EXTRA_ID, schedule.id.hashCode())
+                            putExtra(EXTRA_SCHEDULE_ID, schedule.id)
+                            putExtra(EXTRA_IS_COURSE, false)
+                            putExtra(EXTRA_IS_DIRECT_REMINDER, false)
+                            putExtra(EXTRA_COURSE_START_MILLIS, startMillis)
+                            putExtra(EXTRA_REMINDER_TYPE, rType.code)
+                        }
+                        dispatchNotification(context, reminderIntent)
+                    }
+                    return@launch
+                }
+
+                // 2. 匹配到 RMF 自定义事件待办提醒
+                if (!reminderId.isNullOrBlank()) {
+                    val reminder = db.reminderDao().getReminderById(reminderId!!)
+                    if (reminder != null && reminder.isDeleted == 0 && reminder.isCompleted == 0) {
+                        val targetEpoch = try {
+                            val ldt = try {
+                                LocalDateTime.parse(reminder.remindTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            } catch (_: Exception) {
+                                LocalDateTime.parse(reminder.remindTime, DateTimeFormatter.ISO_DATE_TIME)
+                            }
+                            ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } catch (_: Exception) {
+                            if (dtStart > 0) dtStart else System.currentTimeMillis()
+                        }
+
+                        val reminderIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
+                            putExtra(EXTRA_TITLE, reminder.title)
+                            putExtra(EXTRA_MESSAGE, reminder.content.ifBlank { "${reminder.title} 时间已到" })
+                            putExtra(EXTRA_ID, reminder.id.hashCode())
+                            putExtra(EXTRA_IS_DIRECT_REMINDER, true)
+                            putExtra(EXTRA_REMINDER_ID, reminder.id)
+                            putExtra(EXTRA_COURSE_START_MILLIS, targetEpoch)
+                            putExtra(EXTRA_REMINDER_TYPE, reminder.reminderType)
+                        }
+                        dispatchNotification(context, reminderIntent)
+                    }
+                    return@launch
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("ScheduleAlarmReceiver", "Fallback reminder error: ${e.message}")
+            } finally {
+                pendingResult?.finish()
+            }
+        }
     }
 
     companion object {

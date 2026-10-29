@@ -466,6 +466,9 @@ fun DailyRitualDialog(
                                                                 )
                                                             )
                                                         }
+                                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncAllIfAutoSyncEnabled(context)
+                                                        }
                                                         Toast.makeText(context, "已顺延至明天！", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
@@ -482,6 +485,9 @@ fun DailyRitualDialog(
                                                             RmfDatabase.getInstance(context),
                                                             unfinished
                                                         )
+                                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(context)) {
+                                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncAllIfAutoSyncEnabled(context)
+                                                        }
                                                         Toast.makeText(context, "已放回待办池！", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },

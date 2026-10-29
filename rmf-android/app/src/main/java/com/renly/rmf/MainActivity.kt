@@ -302,8 +302,12 @@ class MainActivity : ComponentActivity() {
         try {
             val pullResult = googleDriveSyncService.pullLatestBackupIfNewer(force = force)
             if (pullResult is com.renly.rmf.domain.service.SyncResult.Success && !pullResult.message.contains("无需拉取")) {
+                if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                    com.renly.rmf.domain.service.SystemCalendarSyncService.syncAllIfAutoSyncEnabled(this@MainActivity)
+                }
+                com.renly.rmf.domain.service.ScheduleReminderManager.rescheduleAll(this@MainActivity)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(this@MainActivity, "✓ 已自动完成云端数据双向增量同步", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this@MainActivity, "✓ 已自动完成云端数据双向增量同步并刷新系统日程与提醒", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         } catch (e: Exception) {
@@ -846,7 +850,7 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
                                         val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
-                                        if (newStatus == "COMPLETED" && schedule.actualMinutes == 0) {
+                                        val updatedSchedule = if (newStatus == "COMPLETED" && schedule.actualMinutes == 0) {
                                             val actMins = try {
                                                 val sDt = LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_DATE_TIME)
                                                 val dur = java.time.Duration.between(sDt, LocalDateTime.now()).toMinutes().toInt()
@@ -854,9 +858,12 @@ class MainActivity : ComponentActivity() {
                                             } catch (_: Exception) {
                                                 schedule.estimatedMinutes
                                             }
-                                            db.scheduleDao().insertOrUpdate(schedule.copy(status = newStatus, actualMinutes = actMins, updatedAt = nowStr))
+                                            val s = schedule.copy(status = newStatus, actualMinutes = actMins, updatedAt = nowStr)
+                                            db.scheduleDao().insertOrUpdate(s)
+                                            s
                                         } else {
                                             db.scheduleDao().updateStatus(schedule.id, newStatus, nowStr)
+                                            schedule.copy(status = newStatus, updatedAt = nowStr)
                                         }
                                         if (newStatus == "COMPLETED") {
                                             com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, schedule.id)
@@ -871,6 +878,10 @@ class MainActivity : ComponentActivity() {
                                                 reminderType = rType
                                             )
                                         }
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, updatedSchedule)
+                                        }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
@@ -903,6 +914,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, entity)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onUpdateSchedule = { schedule ->
@@ -929,6 +941,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteSchedule = { id ->
@@ -939,6 +952,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.deleteScheduleEvent(this@MainActivity, id)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onOpenQuickCapture = { showQuickCaptureDialog = true },
@@ -1765,6 +1779,10 @@ class MainActivity : ComponentActivity() {
                                             startTimeStr = schedule.startTime,
                                             advanceMinutes = 10
                                         )
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
+                                        }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                         Toast.makeText(this@MainActivity, "闪念日程已排期入库！", Toast.LENGTH_SHORT).show()
                                     }
                                 },

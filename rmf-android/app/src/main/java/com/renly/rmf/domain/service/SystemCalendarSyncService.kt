@@ -178,16 +178,19 @@ object SystemCalendarSyncService {
                 append("\n[RMF_ID:${schedule.id}]")
             }
 
+            val displayTitle = if (schedule.status == "COMPLETED") "✓ ${schedule.title}" else schedule.title
+            val shouldHaveAlarm = schedule.reminderMinutes >= 0 && schedule.status != "COMPLETED"
+
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.TITLE, schedule.title)
+                put(CalendarContract.Events.TITLE, displayTitle)
                 put(CalendarContract.Events.DESCRIPTION, cleanDesc)
                 put(CalendarContract.Events.DTSTART, startEpoch)
                 put(CalendarContract.Events.DTEND, finalEndEpoch)
                 put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
                 put(CalendarContract.Events.SYNC_DATA1, schedule.id)
                 put(CalendarContract.Events.STATUS, CalendarContract.Events.STATUS_CONFIRMED)
-                put(CalendarContract.Events.HAS_ALARM, if (schedule.reminderMinutes >= 0) 1 else 0)
+                put(CalendarContract.Events.HAS_ALARM, if (shouldHaveAlarm) 1 else 0)
             }
 
             val eventId: Long = if (existingEventId != null) {
@@ -202,7 +205,7 @@ object SystemCalendarSyncService {
             // 更新系统闹钟提醒 (CalendarContract.Reminders)
             val remUri = CalendarContract.Reminders.CONTENT_URI
             cr.delete(remUri, "${CalendarContract.Reminders.EVENT_ID} = ?", arrayOf(eventId.toString()))
-            if (schedule.reminderMinutes >= 0) {
+            if (shouldHaveAlarm) {
                 val remValues = ContentValues().apply {
                     put(CalendarContract.Reminders.EVENT_ID, eventId)
                     put(CalendarContract.Reminders.MINUTES, schedule.reminderMinutes)
@@ -399,6 +402,69 @@ object SystemCalendarSyncService {
 
         updateLastSyncTime(context)
         return CalendarSyncResult.Success("已成功同步 $synced 项事件提醒至系统软件与日历！", synced)
+    }
+
+    /**
+     * 自动增量/全量同步后台触发器：
+     * 若设置中开启了【⚡ 自动增量同步】，立即在协程后台全量同步所有活跃日程与待办提醒至系统日历组件，
+     * 并确保系统日历闹钟 (CalendarContract.Reminders) 100% 注册到位以作通知广播兜底。
+     */
+    fun syncAllIfAutoSyncEnabled(
+        context: Context,
+        onComplete: ((syncedSchedules: Int, syncedReminders: Int) -> Unit)? = null
+    ) {
+        if (!isAutoSyncEnabled(context) || !hasCalendarPermissions(context)) return
+        val app = context.applicationContext as? com.renly.rmf.RmfApplication ?: return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val db = app.database
+                val activeSchedules = db.scheduleDao().getActiveSchedulesList()
+                val pendingReminders = db.reminderDao().getPendingRemindersList()
+                val schedRes = syncAllSchedules(context, activeSchedules)
+                val remRes = syncAllReminders(context, pendingReminders)
+                val schedCount = (schedRes as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                val remCount = (remRes as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                onComplete?.invoke(schedCount, remCount)
+            } catch (e: Exception) {
+                android.util.Log.w("SysCalSync", "syncAllIfAutoSyncEnabled error: ${e.message}")
+            }
+        }
+    }
+
+    fun syncScheduleIfAutoSyncEnabled(context: Context, schedule: ScheduleEntity) {
+        if (!isAutoSyncEnabled(context) || !hasCalendarPermissions(context)) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                syncSingleSchedule(context, schedule)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun syncReminderIfAutoSyncEnabled(context: Context, reminder: ReminderEntity) {
+        if (!isAutoSyncEnabled(context) || !hasCalendarPermissions(context)) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                syncSingleReminder(context, reminder)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteScheduleIfAutoSyncEnabled(context: Context, scheduleId: String) {
+        if (!isAutoSyncEnabled(context) || !hasCalendarPermissions(context)) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                deleteScheduleEvent(context, scheduleId)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteReminderIfAutoSyncEnabled(context: Context, reminderId: String) {
+        if (!isAutoSyncEnabled(context) || !hasCalendarPermissions(context)) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                deleteReminderEvent(context, reminderId)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun parseIsoToEpochMillis(isoStr: String): Long {

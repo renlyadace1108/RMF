@@ -1820,25 +1820,26 @@ fun SettingsScreen(
             val readGranted = perms[android.Manifest.permission.READ_CALENDAR] ?: false
             val writeGranted = perms[android.Manifest.permission.WRITE_CALENDAR] ?: false
             if (readGranted && writeGranted) {
+                isAutoSyncSysCal = true
+                SystemCalendarSyncService.setAutoSyncEnabled(sysCalContext, true)
                 isSysCalWorking = true
-                sysCalStatusText = "权限已授予，正在同步全部日程到系统日历..."
+                sysCalStatusText = "权限已授予，正在同步全部日程与待办提醒到手机系统组件..."
                 coroutineScope.launch {
                     val db = (sysCalContext.applicationContext as com.renly.rmf.RmfApplication).database
-                    val activeSchedules = db.scheduleDao().getAllActiveSchedules().first()
-                    val result = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                    val activeSchedules = db.scheduleDao().getActiveSchedulesList()
+                    val activeReminders = db.reminderDao().getPendingRemindersList()
+                    val res1 = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                    val res2 = SystemCalendarSyncService.syncAllReminders(sysCalContext, activeReminders)
                     isSysCalWorking = false
-                    when (result) {
-                        is CalendarSyncResult.Success -> {
-                            sysCalStatusText = "✓ ${result.message}"
-                            lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
-                        }
-                        is CalendarSyncResult.Error -> {
-                            sysCalStatusText = "✗ ${result.error}"
-                        }
-                    }
+                    val c1 = (res1 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                    val c2 = (res2 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                    sysCalStatusText = "✓ 自动增量同步已生效！已同步 $c1 项日程，$c2 项待办提醒至系统组件与通知兜底"
+                    lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
                 }
             } else {
-                sysCalStatusText = "✗ 需要日历读写权限方可将时间块同步至手机系统日历"
+                isAutoSyncSysCal = false
+                SystemCalendarSyncService.setAutoSyncEnabled(sysCalContext, false)
+                sysCalStatusText = "✗ 需要日历读写权限方可将时间块与通知兜底同步至手机系统日历"
             }
         }
 
@@ -1878,7 +1879,7 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    text = "一键将本地全部日程时间块、验收标准(DoD)和提前提醒无缝同步至手机系统自带日历。无需启动 App 即可在锁屏小组件与负一屏日历卡片中实时查阅。",
+                    text = "一键将本地全部日程时间块、待办提醒、验收标准(DoD)和提前提醒无缝同步至手机系统自带日历。无需启动 App 即可在锁屏小组件与负一屏日历卡片中实时查阅。",
                     fontSize = 11.5.sp,
                     color = TextSecondary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
@@ -1904,21 +1905,18 @@ fun SettingsScreen(
                             return@Button
                         }
                         isSysCalWorking = true
-                        sysCalStatusText = "正在同步全部日程到手机系统日历..."
+                        sysCalStatusText = "正在同步全部日程与待办提醒到手机系统日历..."
                         coroutineScope.launch {
                             val db = (sysCalContext.applicationContext as com.renly.rmf.RmfApplication).database
-                            val activeSchedules = db.scheduleDao().getAllActiveSchedules().first()
-                            val result = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                            val activeSchedules = db.scheduleDao().getActiveSchedulesList()
+                            val activeReminders = db.reminderDao().getPendingRemindersList()
+                            val res1 = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                            val res2 = SystemCalendarSyncService.syncAllReminders(sysCalContext, activeReminders)
                             isSysCalWorking = false
-                            when (result) {
-                                is CalendarSyncResult.Success -> {
-                                    sysCalStatusText = "✓ ${result.message}"
-                                    lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
-                                }
-                                is CalendarSyncResult.Error -> {
-                                    sysCalStatusText = "✗ ${result.error}"
-                                }
-                            }
+                            val c1 = (res1 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                            val c2 = (res2 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                            sysCalStatusText = "✓ 全量同步完成！已成功同步 $c1 项日程与 $c2 项待办提醒至系统日历与通知兜底"
+                            lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
                         }
                     },
                     enabled = !isSysCalWorking,
@@ -1927,7 +1925,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = if (isSysCalWorking) "正在同步至系统日历..." else "🔄 立即全量同步日程至手机系统日历",
+                        text = if (isSysCalWorking) "正在同步至系统日历与组件..." else "🔄 立即全量同步日程与提醒至手机系统",
                         color = Color.Black,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold
@@ -1949,8 +1947,8 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("⚡ 自动增量同步", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                            Text("新增或修改时间块时，自动即时写入手机自带日历", fontSize = 10.5.sp, color = TextMuted)
+                            Text("⚡ 自动增量同步与通知兜底", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text("新增或修改时间块、待办提醒时，即时同步至手机系统组件，并通过系统广播实现 100% 强力通知兜底", fontSize = 10.5.sp, color = TextMuted)
                         }
                         Switch(
                             checked = isAutoSyncSysCal,
@@ -1965,6 +1963,24 @@ fun SettingsScreen(
                                 } else {
                                     isAutoSyncSysCal = checked
                                     SystemCalendarSyncService.setAutoSyncEnabled(sysCalContext, checked)
+                                    if (checked) {
+                                        isSysCalWorking = true
+                                        sysCalStatusText = "已开启自动增量同步，正在即时同步至手机系统组件与日历..."
+                                        coroutineScope.launch {
+                                            val db = (sysCalContext.applicationContext as com.renly.rmf.RmfApplication).database
+                                            val activeSchedules = db.scheduleDao().getActiveSchedulesList()
+                                            val activeReminders = db.reminderDao().getPendingRemindersList()
+                                            val res1 = SystemCalendarSyncService.syncAllSchedules(sysCalContext, activeSchedules)
+                                            val res2 = SystemCalendarSyncService.syncAllReminders(sysCalContext, activeReminders)
+                                            isSysCalWorking = false
+                                            val c1 = (res1 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                                            val c2 = (res2 as? CalendarSyncResult.Success)?.syncedCount ?: 0
+                                            sysCalStatusText = "✓ 自动增量同步已生效！已同步 $c1 项日程，$c2 项待办提醒至手机系统组件并开启通知广播兜底"
+                                            lastSysCalSyncTime = SystemCalendarSyncService.getLastSyncTime(sysCalContext)
+                                        }
+                                    } else {
+                                        sysCalStatusText = "已关闭自动增量同步"
+                                    }
                                 }
                             },
                             colors = SwitchDefaults.colors(
