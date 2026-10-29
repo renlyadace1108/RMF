@@ -215,12 +215,20 @@ public partial class MainWindow : Window
             });
         };
 
-        // 窗口最小化转入后台时，自动让渡闲置物理内存
+        // 窗口状态变更响应：后台/最小化时降低轮询频次、暂停 UDP 广播并让渡物理内存以节省功耗
         StateChanged += (s, e) =>
         {
             if (WindowState == WindowState.Minimized)
             {
                 PerformSilentMemoryTrim();
+                LanSyncService.IsBeaconBroadcastingEnabled = false;
+                if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(15);
+            }
+            else
+            {
+                LanSyncService.IsBeaconBroadcastingEnabled = true;
+                LanSyncService.TriggerDiscoveryBurst();
+                if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(5);
             }
         };
 
@@ -236,7 +244,7 @@ public partial class MainWindow : Window
             {
                 CheckUpcomingEvents();
             }
-            if (_activePrimaryPage == "Focus")
+            if (_activePrimaryPage == "Focus" && Visibility == Visibility.Visible && WindowState != WindowState.Minimized)
             {
                 UpdateFocusLiveMonitor();
             }
@@ -550,6 +558,9 @@ public partial class MainWindow : Window
         }
         Activate();
         Focus();
+        LanSyncService.IsBeaconBroadcastingEnabled = true;
+        LanSyncService.TriggerDiscoveryBurst();
+        if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(5);
     }
 
     private void ExitApplicationDirectly()
@@ -569,6 +580,8 @@ public partial class MainWindow : Window
             Hide();
             _trayIconService?.ShowNotification("RMF 已转入后台常驻", "双击右下角托盘图标或右键菜单即可随时呼出。");
             PerformSilentMemoryTrim();
+            LanSyncService.IsBeaconBroadcastingEnabled = false;
+            if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(15);
         }
         else
         {
@@ -632,6 +645,14 @@ public partial class MainWindow : Window
     {
         try
         {
+            // 闲置节能守护：若用户已超过 3 分钟未操作键鼠 (离开工位/屏保/深度挂起)，立即提交已缓冲数据后休眠，杜绝每 2 秒唤醒并查询 Win32 进程表
+            int idleSecs = PassiveTrackingService.GetIdleSeconds();
+            if (idleSecs >= 180)
+            {
+                FlushPendingActivityTelemetry();
+                return;
+            }
+
             IntPtr handle = GetForegroundWindow();
             if (handle != IntPtr.Zero)
             {

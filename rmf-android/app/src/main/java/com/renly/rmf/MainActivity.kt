@@ -274,12 +274,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.renly.rmf.domain.service.FocusLiveService.notifyAppForegroundState(true)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             isInPipMode = isInPictureInPictureMode
         }
 
-        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却)，零感后台静默检测与行级增量合并
-        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
+        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却，离线跳过)，零感后台静默检测与行级增量合并
+        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this) &&
+            com.renly.rmf.util.NetworkUtils.isNetworkAvailable(this)) {
             val now = System.currentTimeMillis()
             if (now - lastResumeCheckMillis >= 60_000L) {
                 lastResumeCheckMillis = now
@@ -357,6 +359,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        com.renly.rmf.domain.service.FocusLiveService.notifyAppForegroundState(false)
         // 用户离开 App 切到桌面或锁屏时，自动刷新所有桌面小组件，确保桌面数据永远实时更新
         com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(this)
 

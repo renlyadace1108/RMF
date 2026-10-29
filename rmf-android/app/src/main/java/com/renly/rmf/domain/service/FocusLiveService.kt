@@ -29,10 +29,42 @@ class FocusLiveService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
     private var timerJob: Job? = null
 
+    @Volatile
+    private var isScreenOn = true
+    private var isReceiverRegistered = false
+
+    private val screenReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenOn = false
+                    // 屏幕关闭：立即停止 1 秒协程轮询，交由系统硬件 AlarmClockInfo 与原生 Chronometer，CPU 深度休眠
+                    timerJob?.cancel()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenOn = true
+                    syncRemainingSeconds()
+                    if (_isRunning.value && isAppForeground) {
+                        launchTimerSyncLoop()
+                    }
+                }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        try {
+            val filter = android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+            registerReceiver(screenReceiver, filter)
+            isReceiverRegistered = true
+        } catch (_: Exception) {}
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -236,10 +268,24 @@ class FocusLiveService : Service() {
         } catch (_: Exception) {}
     }
 
+    private fun syncRemainingSeconds() {
+        if (targetEndTimeRealtime > 0L) {
+            val remaining = maxOf(0, ((targetEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000).toInt())
+            _remainingSeconds.value = remaining
+            if (remaining <= 0 && _isRunning.value) {
+                onFocusCompleted()
+            }
+        }
+    }
+
     private fun launchTimerSyncLoop() {
         timerJob?.cancel()
+        if (!isScreenOn || !isAppForeground) {
+            // 屏幕关闭或应用在后台时，完全依托系统底层 AlarmClock 与原生 Chronometer，不启动软时钟轮询以节省电量
+            return
+        }
         timerJob = serviceScope.launch {
-            while (_isRunning.value) {
+            while (_isRunning.value && isScreenOn && isAppForeground) {
                 delay(1000)
                 val remaining = maxOf(0, ((targetEndTimeRealtime - SystemClock.elapsedRealtime()) / 1000).toInt())
                 _remainingSeconds.value = remaining
@@ -440,11 +486,38 @@ class FocusLiveService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) {
+            instance = null
+        }
         cancelFinishAlarm()
         serviceScope.cancel()
+        if (isReceiverRegistered) {
+            try {
+                unregisterReceiver(screenReceiver)
+            } catch (_: Exception) {}
+            isReceiverRegistered = false
+        }
     }
 
     companion object {
+        @Volatile
+        private var instance: FocusLiveService? = null
+
+        @Volatile
+        private var isAppForeground: Boolean = true
+
+        fun notifyAppForegroundState(foreground: Boolean) {
+            isAppForeground = foreground
+            if (foreground) {
+                instance?.syncRemainingSeconds()
+                if (_isRunning.value && instance?.isScreenOn == true) {
+                    instance?.launchTimerSyncLoop()
+                }
+            } else {
+                instance?.timerJob?.cancel()
+            }
+        }
+
         const val NOTIFICATION_ID = 2001
         const val ACTION_START = "com.renly.rmf.action.START_FOCUS"
         const val ACTION_TOGGLE = "com.renly.rmf.action.TOGGLE_FOCUS"
