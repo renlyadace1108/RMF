@@ -57,14 +57,6 @@ class RmfScheduleWidgetProvider : AppWidgetProvider() {
         fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
             if (appWidgetIds.isEmpty()) return
 
-            val firstId = appWidgetIds[0]
-            val options = appWidgetManager.getAppWidgetOptions(firstId)
-            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-            if (minHeight >= 180) {
-                RmfScheduleFullWidgetProvider.updateAppWidgets(context, appWidgetManager, appWidgetIds)
-                return
-            }
-
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_schedule)
 
             // 点击整个小组件跳转至日程页

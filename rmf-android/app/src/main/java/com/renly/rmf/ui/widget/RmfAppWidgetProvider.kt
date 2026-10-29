@@ -11,6 +11,7 @@ import com.renly.rmf.RmfApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -55,14 +56,6 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
 
         fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
             if (appWidgetIds.isEmpty()) return
-
-            val firstId = appWidgetIds[0]
-            val options = appWidgetManager.getAppWidgetOptions(firstId)
-            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-            if (minHeight >= 220) {
-                RmfAppFullWidgetProvider.updateAppWidgets(context, appWidgetManager, appWidgetIds)
-                return
-            }
 
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_desktop)
 
@@ -125,8 +118,21 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                 val db = app.database
                 widgetScope.launch {
                     try {
+                        val startOfDay = today.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        val endOfDay = today.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+
+                        // 并行发起4路数据库查询，充分利用 WAL 并发，大幅缩短桌面小组件渲染等待
+                        val countdownsDef = async { db.countdownDao().getAllActiveCountdowns().first() }
+                        val goalsDef = async { db.goalDao().getAllActiveGoals().first() }
+                        val coursesDef = async { db.courseDao().getAllActiveCourses().first() }
+                        val schedulesDef = async { db.scheduleDao().getSchedulesByDateRange(startOfDay, endOfDay).first() }
+
+                        val countdowns = countdownsDef.await()
+                        val goals = goalsDef.await()
+                        val courses = coursesDef.await()
+                        val schedules = schedulesDef.await()
+
                         // 0. 倒数日 / 里程碑
-                        val countdowns = db.countdownDao().getAllActiveCountdowns().first()
                         val topCountdown = countdowns.firstOrNull { it.isPinned == 1 } ?: countdowns.firstOrNull()
                         if (topCountdown != null) {
                             val target = try {
@@ -143,7 +149,6 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                         }
 
                         // 1. 北极星目标
-                        val goals = db.goalDao().getAllActiveGoals().first()
                         val northStar = goals.firstOrNull { it.isNorthStar == 1 }
                         if (northStar != null) {
                             views.setTextViewText(R.id.widget_north_star_title, northStar.title)
@@ -155,7 +160,6 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
 
                         // 2. 今日课程
                         val todayDayOfWeek = today.dayOfWeek.value // 1..7
-                        val courses = db.courseDao().getAllActiveCourses().first()
                         val todayCourses = courses.filter { it.dayOfWeek == todayDayOfWeek }
                         if (todayCourses.isNotEmpty()) {
                             val courseBrief = todayCourses.take(2).joinToString(" | ") {
@@ -167,9 +171,6 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
                         }
 
                         // 3. 今日日程任务
-                        val startOfDay = today.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val endOfDay = today.plusDays(1).atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val schedules = db.scheduleDao().getSchedulesByDateRange(startOfDay, endOfDay).first()
                         val pendingSchedules = schedules.filter { it.status != "COMPLETED" }
                         val completedCount = schedules.size - pendingSchedules.size
 

@@ -79,7 +79,7 @@ object GoogleDriveAutoSyncManager {
 
     fun requestAutoSync(context: Context) {
         val appContext = context.applicationContext
-        if (isRestoring || !GoogleDrivePreferences.isAuthorized(appContext)) {
+        if (isRestoring || !GoogleDrivePreferences.isAuthorized(appContext) || !com.renly.rmf.util.NetworkUtils.isNetworkAvailable(appContext)) {
             return
         }
         hasPendingChange = true
@@ -323,6 +323,9 @@ class GoogleDriveSyncService(
     suspend fun uploadBackupToDrive(
         onProgress: ((String) -> Unit)? = null
     ): SyncResult = withContext(Dispatchers.IO) {
+        if (!com.renly.rmf.util.NetworkUtils.isNetworkAvailable(context)) {
+            return@withContext SyncResult.Error("设备离线，已跳过快照上传以节省功耗")
+        }
         val snapshotTemp = java.io.File(context.cacheDir, "rmf_upload_temp_${System.currentTimeMillis()}.db")
         try {
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SYNCING, "正在连接云端上传新快照...")
@@ -347,7 +350,7 @@ class GoogleDriveSyncService(
                 currentMeta.copy(
                     deviceId = android.os.Build.MODEL,
                     versionCounter = newCounter,
-                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                 )
             )
 
@@ -618,7 +621,7 @@ class GoogleDriveSyncService(
                 val curMeta = syncDao.getMetadata() ?: SnapshotMetadataEntity()
                 syncDao.saveMetadata(curMeta.copy(
                     versionCounter = curMeta.versionCounter + 1,
-                    updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                 ))
 
                 db.execSQL("PRAGMA foreign_keys = ON;")
@@ -789,6 +792,9 @@ class GoogleDriveSyncService(
         if (!GoogleDrivePreferences.isAuthorized(context)) {
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.IDLE, "未连接")
             return@withContext SyncResult.Error("Google Drive 未授权")
+        }
+        if (!com.renly.rmf.util.NetworkUtils.isNetworkAvailable(context)) {
+            return@withContext SyncResult.Error("设备离线，已跳过云端检测以节省功耗")
         }
 
         try {

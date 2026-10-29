@@ -274,12 +274,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.renly.rmf.domain.service.FocusLiveService.notifyAppForegroundState(true)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             isInPipMode = isInPictureInPictureMode
         }
 
-        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却)，零感后台静默检测与行级增量合并
-        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this)) {
+        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却，离线跳过)，零感后台静默检测与行级增量合并
+        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this) &&
+            com.renly.rmf.util.NetworkUtils.isNetworkAvailable(this)) {
             val now = System.currentTimeMillis()
             if (now - lastResumeCheckMillis >= 60_000L) {
                 lastResumeCheckMillis = now
@@ -302,8 +304,12 @@ class MainActivity : ComponentActivity() {
         try {
             val pullResult = googleDriveSyncService.pullLatestBackupIfNewer(force = force)
             if (pullResult is com.renly.rmf.domain.service.SyncResult.Success && !pullResult.message.contains("无需拉取")) {
+                if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                    com.renly.rmf.domain.service.SystemCalendarSyncService.syncAllIfAutoSyncEnabled(this@MainActivity)
+                }
+                com.renly.rmf.domain.service.ScheduleReminderManager.rescheduleAll(this@MainActivity)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(this@MainActivity, "✓ 已自动完成云端数据双向增量同步", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this@MainActivity, "✓ 已自动完成云端数据双向增量同步并刷新系统日程与提醒", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         } catch (e: Exception) {
@@ -353,6 +359,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        com.renly.rmf.domain.service.FocusLiveService.notifyAppForegroundState(false)
         // 用户离开 App 切到桌面或锁屏时，自动刷新所有桌面小组件，确保桌面数据永远实时更新
         com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(this)
 
@@ -430,9 +437,39 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
+            // 矫正因历史端上本地时区差可能产生的未来时间戳，并执行冷启动云端静默双向同步
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val futureThreshold = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+                        .plusMinutes(5)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+                    val nowUtc = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
+                    val sDb = db.openHelper.writableDatabase
+                    sDb.execSQL("UPDATE schedules SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE courses SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE course_adjustments SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE notes SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE habits SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE countdowns SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                    sDb.execSQL("UPDATE time_markers SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
+                } catch (_: Exception) {}
+
+                // 软件冷启动无感后台静默检查并拉取云端最新数据双向同步
                 checkAndPullCloudSyncSilent()
+            }
+
+            // 启动后台定时心跳同步轮询器 (每 3 分钟自动静默拉取并合并一次云端最新备份，无需依赖切前台)
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                while (true) {
+                    kotlinx.coroutines.delay(180_000L) // 3 分钟
+                    try {
+                        if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this@MainActivity)) {
+                            checkAndPullCloudSyncSilent()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("RMF_Sync", "Background periodic sync pull failed: ${e.message}")
+                    }
+                }
             }
         }
 
@@ -795,25 +832,28 @@ class MainActivity : ComponentActivity() {
                                 onAddTimeMarker = { marker ->
                                     lifecycleScope.launch {
                                         db.timeMarkerDao().insertOrUpdate(marker)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onUpdateTimeMarker = { marker ->
                                     lifecycleScope.launch {
                                         db.timeMarkerDao().insertOrUpdate(marker)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteTimeMarker = { id ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.timeMarkerDao().softDelete(id, nowStr)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onNavigateToNotes = { navigateToScreen(Screen.Notes, 1) },
                                 onToggleStatus = { schedule ->
                                     lifecycleScope.launch {
                                         val newStatus = if (schedule.status == "COMPLETED") "PENDING" else "COMPLETED"
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
-                                        if (newStatus == "COMPLETED" && schedule.actualMinutes == 0) {
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
+                                        val updatedSchedule = if (newStatus == "COMPLETED" && schedule.actualMinutes == 0) {
                                             val actMins = try {
                                                 val sDt = LocalDateTime.parse(schedule.startTime, DateTimeFormatter.ISO_DATE_TIME)
                                                 val dur = java.time.Duration.between(sDt, LocalDateTime.now()).toMinutes().toInt()
@@ -821,9 +861,12 @@ class MainActivity : ComponentActivity() {
                                             } catch (_: Exception) {
                                                 schedule.estimatedMinutes
                                             }
-                                            db.scheduleDao().insertOrUpdate(schedule.copy(status = newStatus, actualMinutes = actMins, updatedAt = nowStr))
+                                            val s = schedule.copy(status = newStatus, actualMinutes = actMins, updatedAt = nowStr)
+                                            db.scheduleDao().insertOrUpdate(s)
+                                            s
                                         } else {
                                             db.scheduleDao().updateStatus(schedule.id, newStatus, nowStr)
+                                            schedule.copy(status = newStatus, updatedAt = nowStr)
                                         }
                                         if (newStatus == "COMPLETED") {
                                             com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, schedule.id)
@@ -838,11 +881,15 @@ class MainActivity : ComponentActivity() {
                                                 reminderType = rType
                                             )
                                         }
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, updatedSchedule)
+                                        }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onAddSchedule = { title, workType, category, mins, startStr, endStr, reminderMinutes, reminderType ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         val actualType = com.renly.rmf.domain.service.ReminderType.fromCode(reminderType)
                                         val entity = ScheduleEntity(
                                             title = title,
@@ -870,6 +917,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, entity)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onUpdateSchedule = { schedule ->
@@ -896,16 +944,18 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteSchedule = { id ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.scheduleDao().softDelete(id, nowStr)
                                         com.renly.rmf.domain.service.ScheduleReminderManager.cancelReminder(this@MainActivity, id)
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.deleteScheduleEvent(this@MainActivity, id)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onOpenQuickCapture = { showQuickCaptureDialog = true },
@@ -941,11 +991,12 @@ class MainActivity : ComponentActivity() {
                                             daysAhead = 7
                                         )
                                         Toast.makeText(this@MainActivity, "✓ 课程已保存，全学期（共 $syncedCount 节课）已实时映射到日程！", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteCourse = { id ->
                                     lifecycleScope.launch {
-                                        db.courseDao().softDeleteCourse(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        db.courseDao().softDeleteCourse(id, com.renly.rmf.util.TimeUtils.currentUtcIsoString())
                                         com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
@@ -957,6 +1008,7 @@ class MainActivity : ComponentActivity() {
                                             daysAhead = 7
                                         )
                                         Toast.makeText(this@MainActivity, "课程已删除，日程映射已实时更新", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onAddAdjustment = { adj ->
@@ -973,11 +1025,12 @@ class MainActivity : ComponentActivity() {
                                             daysAhead = 7
                                         )
                                         Toast.makeText(this@MainActivity, "✓ 已保存调停课，日程与胶囊通知提醒已实时同步更新！", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteAdjustment = { id ->
                                     lifecycleScope.launch {
-                                        db.courseDao().softDeleteAdjustment(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        db.courseDao().softDeleteAdjustment(id, com.renly.rmf.util.TimeUtils.currentUtcIsoString())
                                         com.renly.rmf.domain.service.TimetableProjectionService.syncAllToSchedule(
                                             context = this@MainActivity,
                                             courseDao = db.courseDao(),
@@ -989,6 +1042,7 @@ class MainActivity : ComponentActivity() {
                                             daysAhead = 7
                                         )
                                         Toast.makeText(this@MainActivity, "已撤销调停课记录，日程映射已实时恢复", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onProjectToToday = {
@@ -1052,7 +1106,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDeleteTopic = { topicId ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.studyTopicDao().softDelete(topicId, nowStr)
                                     }
                                 },
@@ -1060,7 +1114,7 @@ class MainActivity : ComponentActivity() {
                                     lifecycleScope.launch {
                                         val newVal = topic.completedValue + addedVal
                                         val percent = ((newVal / topic.targetValue.coerceAtLeast(1.0)) * 100).toInt().coerceIn(0, 100)
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.studyTopicDao().updateProgress(topic.id, newVal, percent, nowStr)
                                     }
                                 }
@@ -1076,6 +1130,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onRecordInterruption = { interruption ->
@@ -1183,7 +1238,7 @@ class MainActivity : ComponentActivity() {
                                 habitsFlow = habitsFlow,
                                 onAddHabit = { title, icon, targetDays, colorHex ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         val entity = com.renly.rmf.data.local.entity.HabitEntity(
                                             title = title,
                                             icon = icon,
@@ -1194,6 +1249,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                         db.habitDao().insertOrUpdate(entity)
                                         Toast.makeText(this@MainActivity, "✓ 习惯创建成功！", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onToggleCheckIn = { habit, date ->
@@ -1213,15 +1269,17 @@ class MainActivity : ComponentActivity() {
                                             historyDatesJson = jsonStr,
                                             currentStreak = newStreak,
                                             bestStreak = newBest,
-                                            updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                            updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         )
                                         db.habitDao().insertOrUpdate(updated)
                                         Toast.makeText(this@MainActivity, if (wasChecked) "已取消今日打卡" else "🔥 连续打卡 $newStreak 天达成！", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteHabit = { id ->
                                     lifecycleScope.launch {
-                                        db.habitDao().softDelete(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        db.habitDao().softDelete(id, com.renly.rmf.util.TimeUtils.currentUtcIsoString())
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 }
                             )
@@ -1230,7 +1288,7 @@ class MainActivity : ComponentActivity() {
                                 countdownsFlow = countdownsFlow,
                                 onAddCountdown = { title, targetDate, category, colorHex ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         val entity = com.renly.rmf.data.local.entity.CountdownEntity(
                                             title = title,
                                             targetDate = targetDate,
@@ -1241,17 +1299,20 @@ class MainActivity : ComponentActivity() {
                                         )
                                         db.countdownDao().insertOrUpdate(entity)
                                         Toast.makeText(this@MainActivity, "✓ 倒数日已创建！", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onTogglePin = { item ->
                                     lifecycleScope.launch {
                                         val newPin = if (item.isPinned == 1) 0 else 1
-                                        db.countdownDao().togglePin(item.id, newPin, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        db.countdownDao().togglePin(item.id, newPin, com.renly.rmf.util.TimeUtils.currentUtcIsoString())
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteCountdown = { id ->
                                     lifecycleScope.launch {
-                                        db.countdownDao().softDelete(id, LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                                        db.countdownDao().softDelete(id, com.renly.rmf.util.TimeUtils.currentUtcIsoString())
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 }
                             )
@@ -1265,7 +1326,7 @@ class MainActivity : ComponentActivity() {
                                 notesFlow = notesFlow,
                                 onAddNote = { title, content, category, colorHex, isPinned ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         val entity = com.renly.rmf.data.local.entity.NoteEntity(
                                             title = title,
                                             content = content,
@@ -1276,29 +1337,34 @@ class MainActivity : ComponentActivity() {
                                             updatedAt = nowStr
                                         )
                                         db.noteDao().insertOrUpdate(entity)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onUpdateNote = { note ->
                                     lifecycleScope.launch {
-                                        db.noteDao().insertOrUpdate(note)
+                                        val nowUtc = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
+                                        db.noteDao().insertOrUpdate(note.copy(updatedAt = nowUtc))
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onDeleteNote = { id ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.noteDao().softDelete(id, nowStr)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onTogglePin = { note ->
                                     lifecycleScope.launch {
                                         val newPin = if (note.isPinned == 1) 0 else 1
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         db.noteDao().togglePin(note.id, newPin, nowStr)
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onConvertToSchedule = { title, content ->
                                     lifecycleScope.launch {
-                                        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                                         val entity = ScheduleEntity(
                                             title = title,
                                             description = content,
@@ -1314,6 +1380,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                         db.scheduleDao().insertOrUpdate(entity)
                                         Toast.makeText(this@MainActivity, "✓ 已添加至待办任务箱", Toast.LENGTH_SHORT).show()
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onBack = {
@@ -1716,6 +1783,10 @@ class MainActivity : ComponentActivity() {
                                             startTimeStr = schedule.startTime,
                                             advanceMinutes = 10
                                         )
+                                        if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
+                                            com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
+                                        }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                         Toast.makeText(this@MainActivity, "闪念日程已排期入库！", Toast.LENGTH_SHORT).show()
                                     }
                                 },

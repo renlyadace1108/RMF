@@ -48,7 +48,15 @@
 
         <receiver
             android:name=".domain.service.ScheduleAlarmReceiver"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.EVENT_REMINDER" />
+                <data android:scheme="content" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.EVENT_REMINDER" />
+            </intent-filter>
+        </receiver>
 
         <!-- 系统通知栏常驻快捷打卡胶囊广播接收器 -->
         <receiver

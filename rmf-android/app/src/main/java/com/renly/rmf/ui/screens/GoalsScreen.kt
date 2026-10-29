@@ -339,7 +339,10 @@ fun AddGoalDialog(
         containerColor = DarkCard,
         title = { Text("设定新目标", color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -375,7 +378,7 @@ fun AddGoalDialog(
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        val nowStr = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME)
+                        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                         val entity = GoalEntity(
                             title = title,
                             level = level,

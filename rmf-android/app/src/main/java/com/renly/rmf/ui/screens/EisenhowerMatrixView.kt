@@ -1347,7 +1347,7 @@ fun AnnotateStartTimeDialog(
                         endTime = endDt.format(DateTimeFormatter.ISO_DATE_TIME),
                         estimatedMinutes = durationMinutes,
                         status = if (schedule.status == "BACKLOG") "PENDING" else schedule.status,
-                        updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                        updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                     )
                     onSave(updated)
                 },
@@ -1364,7 +1364,7 @@ fun AnnotateStartTimeDialog(
                             val updated = schedule.copy(
                                 startTime = "",
                                 endTime = "",
-                                updatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+                                updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
                             )
                             onSave(updated)
                         }

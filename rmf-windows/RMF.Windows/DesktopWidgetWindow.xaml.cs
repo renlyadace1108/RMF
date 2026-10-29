@@ -179,13 +179,17 @@ public partial class DesktopWidgetWindow : Window
                     {
                         e.Handled = true;
                         item.Status = isDone ? "PENDING" : "COMPLETED";
-                        item.UpdatedAt = DateTime.Now;
+                        item.UpdatedAt = DateTime.UtcNow;
                         if (!isDone && item.ActualMinutes == 0)
                         {
                             item.ActualMinutes = Math.Max(10, (int)(DateTime.Now - item.StartTime).TotalMinutes);
                         }
                         DatabaseService.UpsertSchedule(item);
                         DatabaseService.NotifyDataChanged();
+                        if (item.Status == "COMPLETED")
+                        {
+                            WindowsReminderScheduler.CancelScheduledScheduleReminder(item.Id);
+                        }
                     };
                     Grid.SetColumn(chkBorder, 0);
                     row.Children.Add(chkBorder);

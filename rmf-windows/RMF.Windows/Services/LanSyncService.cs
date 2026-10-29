@@ -30,6 +30,16 @@ public static class LanSyncService
     public static bool IsRunning { get; private set; }
     public static int Port { get; private set; } = DefaultPort;
     public static string LocalIp { get; private set; } = "127.0.0.1";
+    public static volatile bool IsBeaconBroadcastingEnabled = true;
+    private static volatile int _burstPacketsRemaining = 3;
+
+    /// <summary>
+    /// 触发一次快速发现突发广播 (当窗口还原或用户进入局域网配对时调用，以 1 秒间隔发送 3 次快速信标)
+    /// </summary>
+    public static void TriggerDiscoveryBurst()
+    {
+        _burstPacketsRemaining = 3;
+    }
 
     public static event Action<string>? OnLog;
     public static event Action<bool>? OnServerStateChanged;
@@ -159,15 +169,26 @@ public static class LanSyncService
 
             while (!token.IsCancellationRequested)
             {
-                try
+                bool isBurst = _burstPacketsRemaining > 0;
+                if (isBurst || IsBeaconBroadcastingEnabled)
                 {
-                    await udp.SendAsync(bytes, bytes.Length, endpoint);
+                    try
+                    {
+                        await udp.SendAsync(bytes, bytes.Length, endpoint);
+                    }
+                    catch { }
+
+                    if (isBurst)
+                    {
+                        _burstPacketsRemaining--;
+                    }
                 }
-                catch { }
 
                 try
                 {
-                    await Task.Delay(2000, token);
+                    // 深度功耗优化：突发阶段 1 秒快速发包；前台常态 10 秒低功耗发包 (让 Wi-Fi 芯片进入 802.11 PSM 低功耗休眠)；后台/托盘状态 30 秒休眠
+                    int delayMs = isBurst ? 1000 : (IsBeaconBroadcastingEnabled ? 10000 : 30000);
+                    await Task.Delay(delayMs, token);
                 }
                 catch (OperationCanceledException) { break; }
             }

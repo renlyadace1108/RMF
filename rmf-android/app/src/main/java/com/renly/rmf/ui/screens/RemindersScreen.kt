@@ -729,7 +729,9 @@ fun AddEditReminderDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
@@ -872,7 +874,7 @@ fun AddEditReminderDialog(
                     if (title.isNotBlank()) {
                         val remindDateTime = LocalDateTime.of(selectedDate, selectedTime)
                         val remindIso = remindDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        val nowIso = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
 
                         val newEntity = ReminderEntity(
                             id = reminder?.id ?: UUID.randomUUID().toString(),

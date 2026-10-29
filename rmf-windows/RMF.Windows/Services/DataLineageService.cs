@@ -125,14 +125,18 @@ public class DataLineageService
     {
         try
         {
+            if (schedule == null) return;
+            string schedTitle = schedule.Title ?? string.Empty;
+            string schedDesc = schedule.Description ?? string.Empty;
+
             // 判定是否属于学习类日程
             bool isStudy = string.Equals(schedule.Category, "STUDY", StringComparison.OrdinalIgnoreCase)
-                           || schedule.Title.Contains("学习")
-                           || schedule.Title.Contains("复习")
-                           || schedule.Title.Contains("课程")
-                           || schedule.Title.Contains("阅读")
-                           || schedule.Description.Contains("#Study")
-                           || schedule.Description.Contains("#学习")
+                           || schedTitle.Contains("学习")
+                           || schedTitle.Contains("复习")
+                           || schedTitle.Contains("课程")
+                           || schedTitle.Contains("阅读")
+                           || schedDesc.Contains("#Study")
+                           || schedDesc.Contains("#学习")
                            || !string.IsNullOrEmpty(schedule.StudyTopicId);
 
             if (!isStudy) return;
@@ -149,9 +153,9 @@ public class DataLineageService
             // 若未直接绑定，尝试按日程标题/分类智能匹配在研的主题档案
             if (string.IsNullOrEmpty(targetTopicId))
             {
-                var allTopics = DatabaseService.GetAllStudyTopics().Where(t => t.Status != "COMPLETED").ToList();
-                var matched = allTopics.FirstOrDefault(t => schedule.Title.Contains(t.Title, StringComparison.OrdinalIgnoreCase))
-                           ?? allTopics.FirstOrDefault(t => schedule.Description.Contains(t.Title, StringComparison.OrdinalIgnoreCase))
+                var allTopics = DatabaseService.GetAllStudyTopics().Where(t => t != null && t.Status != "COMPLETED").ToList();
+                var matched = allTopics.FirstOrDefault(t => !string.IsNullOrEmpty(t.Title) && schedTitle.Contains(t.Title, StringComparison.OrdinalIgnoreCase))
+                           ?? allTopics.FirstOrDefault(t => !string.IsNullOrEmpty(t.Title) && schedDesc.Contains(t.Title, StringComparison.OrdinalIgnoreCase))
                            ?? allTopics.FirstOrDefault();
 
                 if (matched != null)
@@ -172,7 +176,7 @@ public class DataLineageService
 
     private static void CascadeGoalProgress(ScheduleItem schedule)
     {
-        if (string.IsNullOrEmpty(schedule.GoalId)) return;
+        if (schedule == null || string.IsNullOrEmpty(schedule.GoalId)) return;
 
         try
         {
@@ -208,27 +212,33 @@ public class DataLineageService
                 DatabaseService.UpsertGoal(targetGoal);
 
                 // 自下而上递归向上级目标传递 (如 周任务 -> 季度目标 -> 年度目标)
-                PropagateGoalHierarchy(targetGoal.ParentId, allGoals);
+                PropagateGoalHierarchy(targetGoal.ParentId, allGoals, new HashSet<string> { targetGoal.Id });
             }
         }
         catch { }
     }
 
-    private static void PropagateGoalHierarchy(string? parentId, List<GoalItem> allGoals)
+    private static void PropagateGoalHierarchy(string? parentId, List<GoalItem> allGoals, HashSet<string>? visited = null)
     {
         if (string.IsNullOrEmpty(parentId)) return;
+
+        visited ??= new HashSet<string>();
+        if (!visited.Add(parentId)) return; // 环状递归防御保护，彻底杜绝 StackOverflowException 闪退
 
         var parent = allGoals.FirstOrDefault(g => g.Id == parentId);
         if (parent == null) return;
 
-        var siblings = allGoals.Where(g => g.ParentId == parentId).ToList();
+        var siblings = allGoals.Where(g => g.ParentId == parentId && g.Id != parentId).ToList();
         if (siblings.Count > 0)
         {
             parent.Progress = (int)Math.Clamp(Math.Round(siblings.Average(s => s.Progress)), 0, 100);
             DatabaseService.UpsertGoal(parent);
 
             // 递归至根节点
-            PropagateGoalHierarchy(parent.ParentId, allGoals);
+            if (!string.IsNullOrEmpty(parent.ParentId) && parent.ParentId != parent.Id)
+            {
+                PropagateGoalHierarchy(parent.ParentId, allGoals, visited);
+            }
         }
     }
 }

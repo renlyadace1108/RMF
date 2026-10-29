@@ -70,7 +70,7 @@ public class DatabaseService
         using var conn = new SqliteConnection(ConnectionString);
         conn.Open();
 
-        // 启用 WAL 预写日志与高性能 PRAGMA 配置
+        // 启用 WAL 预写日志、内存映射与高性能 PRAGMA 配置
         using (var pragmaCmd = new SqliteCommand(@"
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
@@ -78,6 +78,7 @@ public class DatabaseService
             PRAGMA busy_timeout = 5000;
             PRAGMA cache_size = -8000;
             PRAGMA temp_store = MEMORY;
+            PRAGMA mmap_size = 268435456;
         ", conn))
         {
             pragmaCmd.ExecuteNonQuery();
@@ -390,6 +391,31 @@ public class DatabaseService
         MigrateFitnessTables(conn);
         // 初始化日程分类标签库并同步现有分类
         InitializeScheduleTags(conn);
+        // 矫正因历史端上本地时区差可能产生的未来时间戳，确保行级增量合并 (LWW) 正常生效
+        SanitizeFutureTimestamps(conn);
+    }
+
+    private static void SanitizeFutureTimestamps(SqliteConnection conn)
+    {
+        try
+        {
+            string futureThreshold = DateTime.UtcNow.AddMinutes(5).ToString("s");
+            string nowUtc = DateTime.UtcNow.ToString("s");
+            string sql = @"
+                UPDATE schedules SET updated_at = @now WHERE updated_at > @future;
+                UPDATE courses SET updated_at = @now WHERE updated_at > @future;
+                UPDATE course_adjustments SET updated_at = @now WHERE updated_at > @future;
+                UPDATE notes SET updated_at = @now WHERE updated_at > @future;
+                UPDATE habits SET updated_at = @now WHERE updated_at > @future;
+                UPDATE countdowns SET updated_at = @now WHERE updated_at > @future;
+                UPDATE time_markers SET updated_at = @now WHERE updated_at > @future;
+            ";
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@future", futureThreshold);
+            cmd.Parameters.AddWithValue("@now", nowUtc);
+            cmd.ExecuteNonQuery();
+        }
+        catch { }
     }
 
     private static void MigrateCourseTables(SqliteConnection conn)
@@ -805,7 +831,7 @@ public class DatabaseService
 
         foreach (var item in all)
         {
-            if (!string.IsNullOrEmpty(item.ParentId) && map.TryGetValue(item.ParentId, out var parent))
+            if (!string.IsNullOrEmpty(item.ParentId) && item.ParentId != item.Id && map.TryGetValue(item.ParentId, out var parent))
             {
                 parent.Children.Add(item);
             }
