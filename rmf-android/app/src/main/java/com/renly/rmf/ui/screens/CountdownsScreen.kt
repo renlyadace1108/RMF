@@ -327,7 +327,10 @@ fun AddCountdownDialog(
         containerColor = DarkCard,
         title = { Text("⏳ 新建倒数日", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

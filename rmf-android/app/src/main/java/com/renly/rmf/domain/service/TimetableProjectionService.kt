@@ -199,7 +199,7 @@ class TimetableProjectionService(private val courseDao: CourseDao) {
         val existingSynced = scheduleDao.getTimetableSyncedSchedules()
         val completedIds = existingSynced.filter { it.status == "COMPLETED" }.map { it.id }.toSet()
 
-        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
+        val nowStr = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
         val mappedSchedules = mutableListOf<ScheduleEntity>()
 
         if (allCourses.isNotEmpty() || allAdjustments.isNotEmpty()) {

@@ -186,6 +186,10 @@ public partial class DesktopWidgetWindow : Window
                         }
                         DatabaseService.UpsertSchedule(item);
                         DatabaseService.NotifyDataChanged();
+                        if (item.Status == "COMPLETED")
+                        {
+                            WindowsReminderScheduler.CancelScheduledScheduleReminder(item.Id);
+                        }
                     };
                     Grid.SetColumn(chkBorder, 0);
                     row.Children.Add(chkBorder);

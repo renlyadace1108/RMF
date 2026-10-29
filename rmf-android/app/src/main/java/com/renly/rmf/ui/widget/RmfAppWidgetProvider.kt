@@ -57,14 +57,6 @@ class RmfAppWidgetProvider : AppWidgetProvider() {
         fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
             if (appWidgetIds.isEmpty()) return
 
-            val firstId = appWidgetIds[0]
-            val options = appWidgetManager.getAppWidgetOptions(firstId)
-            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-            if (minHeight >= 220) {
-                RmfAppFullWidgetProvider.updateAppWidgets(context, appWidgetManager, appWidgetIds)
-                return
-            }
-
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_desktop)
 
             // 根视图点击 -> 打开日程主界面

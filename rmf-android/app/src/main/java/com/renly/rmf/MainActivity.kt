@@ -1130,6 +1130,7 @@ class MainActivity : ComponentActivity() {
                                         if (com.renly.rmf.domain.service.SystemCalendarSyncService.isAutoSyncEnabled(this@MainActivity)) {
                                             com.renly.rmf.domain.service.SystemCalendarSyncService.syncSingleSchedule(this@MainActivity, schedule)
                                         }
+                                        com.renly.rmf.domain.service.GoogleDriveAutoSyncManager.requestAutoSync(this@MainActivity)
                                     }
                                 },
                                 onRecordInterruption = { interruption ->

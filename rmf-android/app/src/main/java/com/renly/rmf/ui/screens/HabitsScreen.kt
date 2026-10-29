@@ -360,7 +360,10 @@ fun AddHabitDialog(
         containerColor = DarkCard,
         title = { Text("🌱 建立新习惯", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

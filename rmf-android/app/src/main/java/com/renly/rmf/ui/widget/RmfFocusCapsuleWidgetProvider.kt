@@ -55,15 +55,6 @@ class RmfFocusCapsuleWidgetProvider : AppWidgetProvider() {
         fun updateAppWidgets(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
             if (appWidgetIds.isEmpty()) return
 
-            val firstId = appWidgetIds[0]
-            val options = appWidgetManager.getAppWidgetOptions(firstId)
-            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
-            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-            if (minHeight >= 180 && minWidth >= 180) {
-                RmfFocusFullWidgetProvider.updateAppWidgets(context, appWidgetManager, appWidgetIds)
-                return
-            }
-
             val views = RemoteViews(context.packageName, R.layout.widget_rmf_capsule)
 
             // 根视图点击 -> 打开倒数日页
