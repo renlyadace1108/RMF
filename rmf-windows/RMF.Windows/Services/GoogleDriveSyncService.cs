@@ -284,6 +284,7 @@ public class GoogleDriveSyncService
                 config.GoogleDriveFileId = newFileId;
                 config.IsGoogleDriveLinked = true;
                 config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                config.LastSyncedTimestamp = timestamp;
                 ConfigService.Save(config);
 
                 // 3. 云端历史版本维护：保持专属文件夹最新 50 个时间戳版本，修剪超额陈旧快照
@@ -610,41 +611,39 @@ public class GoogleDriveSyncService
                 return (false, $"云端数据库校验失败: {ex.Message}");
             }
 
-            // 执行核心行级时间戳双向增量合并 (Bi-directional Merge)
-            progressCallback?.Invoke("正在执行核心数据表行级时间戳双向增量合并...");
-            bool hasLocalUnpushed = PerformBiDirectionalMerge(tempDownloaded);
+            // 核心：直接使用云端最新数据快照安全覆盖本地数据库（零并发冲突，谁新就用谁）
+            progressCallback?.Invoke("云端快照时间戳更新，正在安全载入最新数据文件...");
+            bool replaced = DatabaseService.ReplaceDatabaseFile(tempDownloaded);
 
-            // 合并成功后，立即清理下载的临时文件，坚决保证“本地就一个版本”
+            // 清理下载的临时文件，坚决保证“本地就一个版本”
             try { File.Delete(tempDownloaded); } catch { }
             DatabaseService.CleanupLocalBackupFiles();
 
-            // 重新刷新本地数据库缓存与连接
-            DatabaseService.Initialize();
+            if (!replaced)
+            {
+                NotifySyncState(CloudSyncState.Error, "载入云端最新数据文件失败");
+                return (false, "载入云端最新数据库失败。");
+            }
 
-            // 重新刷新并排期 Windows Action Center 所有待办提醒
+            // 重新刷新本地数据库连接并排期所有提醒
             WindowsReminderScheduler.RescheduleAll();
 
-            // 触发全局数据变更通知以驱动日历画布即刻重绘
+            // 触发全局数据变更通知以驱动日历画布与各界面即刻重绘
             DatabaseService.NotifyDataChanged();
 
+            string? rawTimestamp = ExtractRawTimestamp(remoteFile.Name);
             var config = ConfigService.Load();
             config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            config.LastSyncedTimestamp = rawTimestamp ?? remoteFile.Name;
             ConfigService.Save(config);
 
             string fileTimeDisplay = remoteFile.CreatedTimeDateTimeOffset?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
                 ?? remoteFile.ModifiedTimeDateTimeOffset?.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
                 ?? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-            // 若本地包含离线未推送的较新变更，自动反向推送合并后的完整快照至云端
-            if (hasLocalUnpushed)
-            {
-                progressCallback?.Invoke("检测到本地包含离线新变更，正在反向增量合并推送至云端...");
-                RequestAutoSync();
-            }
+            NotifySyncState(CloudSyncState.Success, "已与云端最新快照保持一致", config.LastSyncTime);
 
-            NotifySyncState(CloudSyncState.Success, hasLocalUnpushed ? "双向合并完成 (已同步本地新变更)" : "已与云端最新快照保持一致", config.LastSyncTime);
-
-            return (true, $"已成功从 Google Drive 完成双向增量合并「{remoteFile.Name}」！快照时间: {fileTimeDisplay}。全量数据已实时对齐生效。");
+            return (true, $"已成功从 Google Drive 同步最新版本「{remoteFile.Name}」！快照时间: {fileTimeDisplay}。全量数据已完全对齐生效。");
         }
         catch (Exception ex)
         {
@@ -701,7 +700,8 @@ public class GoogleDriveSyncService
             }
 
             var remoteFile = searchRes.Files.OrderByDescending(f => f.Name).First();
-            string? remoteTimestamp = ExtractTimestampFromBackupName(remoteFile.Name);
+            string? remoteRawTimestamp = ExtractRawTimestamp(remoteFile.Name);
+            string lastSyncedTimestamp = config.LastSyncedTimestamp ?? string.Empty;
             string lastSync = config.LastSyncTime ?? string.Empty;
 
             bool shouldPull = false;
@@ -709,19 +709,25 @@ public class GoogleDriveSyncService
             {
                 shouldPull = true;
             }
-            else if (!string.IsNullOrEmpty(remoteTimestamp) && !string.IsNullOrEmpty(lastSync) && !lastSync.Contains("未同步"))
+            else if (!string.IsNullOrEmpty(remoteRawTimestamp) && !string.IsNullOrEmpty(lastSyncedTimestamp))
             {
-                shouldPull = string.Compare(remoteTimestamp, lastSync, StringComparison.Ordinal) > 0;
+                shouldPull = string.CompareOrdinal(remoteRawTimestamp, lastSyncedTimestamp) > 0;
             }
-            else if (string.IsNullOrEmpty(lastSync) || lastSync.Contains("未同步"))
+            else if (string.IsNullOrEmpty(lastSyncedTimestamp))
             {
                 shouldPull = true;
             }
             else
             {
-                long remoteEpoch = remoteFile.ModifiedTimeDateTimeOffset?.ToUnixTimeMilliseconds() ?? 0L;
-                long localEpoch = File.Exists(DatabaseService.DbPath) ? new DateTimeOffset(File.GetLastWriteTimeUtc(DatabaseService.DbPath)).ToUnixTimeMilliseconds() : 0L;
-                shouldPull = remoteEpoch > localEpoch;
+                string? remoteReadable = ExtractTimestampFromBackupName(remoteFile.Name);
+                if (!string.IsNullOrEmpty(remoteReadable) && !string.IsNullOrEmpty(lastSync) && !lastSync.Contains("未同步"))
+                {
+                    shouldPull = string.Compare(remoteReadable, lastSync, StringComparison.Ordinal) > 0;
+                }
+                else
+                {
+                    shouldPull = true;
+                }
             }
 
             if (shouldPull)
@@ -736,6 +742,12 @@ public class GoogleDriveSyncService
             NotifySyncState(CloudSyncState.Error, $"云端检查异常: {ex.Message}");
             return (false, $"冷启动云端拉取失败: {ex.Message}");
         }
+    }
+
+    private static string? ExtractRawTimestamp(string name)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(name, @"rmf_backup_(\d{8}_\d{6})\.db");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static string? ExtractTimestampFromBackupName(string name)

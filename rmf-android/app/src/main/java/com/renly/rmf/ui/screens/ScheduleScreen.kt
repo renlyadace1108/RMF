@@ -253,6 +253,17 @@ fun ScheduleScreen(
                     ) {
                         // ☁️ Google Drive 极简云端同步状态指示灯 (极简小云朵 / 状态圆点)
                         val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
+                        val isCloudSyncing = syncStatusInfo.state == com.renly.rmf.domain.service.CloudSyncState.SYNCING
+                        val syncSpinTransition = rememberInfiniteTransition(label = "syncSpin")
+                        val syncAngle by syncSpinTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = 360f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "syncSpinAngle"
+                        )
                         Surface(
                             onClick = { showDriveSyncDialog = true },
                             shape = RoundedCornerShape(16.dp),
@@ -272,21 +283,11 @@ fun ScheduleScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             ) {
-                                if (syncStatusInfo.state == com.renly.rmf.domain.service.CloudSyncState.SYNCING) {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "syncSpin")
-                                    val angle by infiniteTransition.animateFloat(
-                                        initialValue = 0f,
-                                        targetValue = 360f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(1000, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Restart
-                                        ),
-                                        label = "syncSpinAngle"
-                                    )
+                                if (isCloudSyncing) {
                                     Text(
                                         "🔄",
                                         fontSize = 10.5.sp,
-                                        modifier = Modifier.graphicsLayer { rotationZ = angle }
+                                        modifier = Modifier.graphicsLayer { rotationZ = syncAngle }
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text("同步中", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)

@@ -44,8 +44,11 @@ class RmfApplication : Application() {
                     jobScheduler?.cancel(9182)
                 } catch (_: Exception) {}
 
-                // 轻量核验并注册待触发事件与近 3 天日程闹钟 (纯按需注册至系统硬件 RTC，完成后即刻休眠，0 后台驻留)
+                // 轻量核验并注册待触发事件与近 3 天日程闹钟
                 com.renly.rmf.domain.service.ScheduleReminderManager.rescheduleAll(this@RmfApplication)
+
+                // 启动后台常驻守护服务，防止切后台被系统杀掉
+                com.renly.rmf.domain.service.RmfResidentService.start(this@RmfApplication)
             } catch (_: Exception) {}
         }
     }

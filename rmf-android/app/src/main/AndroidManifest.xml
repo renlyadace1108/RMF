@@ -93,6 +93,16 @@
                 android:value="Focus countdown timer and status bar live capsule" />
         </service>
 
+        <!-- 后台常驻守护服务 (保持手机与平板端后台驻留不被系统杀掉，保障全天候闹钟与节律同步) -->
+        <service
+            android:name=".domain.service.RmfResidentService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuous background rhythm watchdog and alarm reliability guard" />
+        </service>
+
         <!-- 桌面智能小组件 1: 全景看板 (4x3 标准) -->
         <receiver
             android:name=".ui.widget.RmfAppWidgetProvider"

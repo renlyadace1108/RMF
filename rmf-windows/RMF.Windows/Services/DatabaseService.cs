@@ -774,6 +774,62 @@ public class DatabaseService
         }
     }
 
+    /// <summary>
+    /// 使用云端最新数据快照文件完整替换本地数据库（零并发冲突，谁新就用谁）
+    /// </summary>
+    public static bool ReplaceDatabaseFile(string sourceFilePath)
+    {
+        try
+        {
+            if (!File.Exists(sourceFilePath)) return false;
+
+            SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            // 备份当前本地文件作为回滚兜底
+            string preRestoreBackup = Path.Combine(DbDir, $"rmf_pre_restore_{DateTime.Now:yyyyMMddHHmmss}.bak");
+            if (File.Exists(DbPath))
+            {
+                File.Copy(DbPath, preRestoreBackup, true);
+            }
+
+            // 使用 SQLite 原生 BackupDatabase 将 sourceFilePath 还原至 DbPath
+            using (var sourceConn = new SqliteConnection($"Data Source={sourceFilePath};Pooling=False"))
+            {
+                sourceConn.Open();
+                using (var destConn = new SqliteConnection($"Data Source={DbPath};Pooling=False"))
+                {
+                    destConn.Open();
+                    sourceConn.BackupDatabase(destConn);
+                    destConn.Close();
+                }
+                sourceConn.Close();
+            }
+
+            SqliteConnection.ClearAllPools();
+
+            // 清理辅助日志
+            string walPath = DbPath + "-wal";
+            string shmPath = DbPath + "-shm";
+            if (File.Exists(walPath)) try { File.Delete(walPath); } catch { }
+            if (File.Exists(shmPath)) try { File.Delete(shmPath); } catch { }
+
+            // 自动执行一次初始化与表结构自愈对齐
+            Initialize();
+
+            // 自动清理回滚副本
+            if (File.Exists(preRestoreBackup)) try { File.Delete(preRestoreBackup); } catch { }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DatabaseService] ReplaceDatabaseFile failed: {ex.Message}");
+            return false;
+        }
+    }
+
     // ==================== 目标层级树 (Goal Hierarchy) ====================
 
     public static List<GoalItem> GetAllGoals()

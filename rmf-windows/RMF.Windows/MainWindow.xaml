@@ -3083,7 +3083,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.5.7.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.8.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
@@ -3482,7 +3482,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.5.7.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.8.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />

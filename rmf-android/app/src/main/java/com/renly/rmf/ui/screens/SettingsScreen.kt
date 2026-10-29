@@ -1330,6 +1330,12 @@ fun SettingsScreen(
         val fluidRemaining by FocusLiveService.remainingSeconds.collectAsState()
         val fluidTaskTitle by FocusLiveService.currentTaskTitle.collectAsState()
         var notifFeedbackText by remember { mutableStateOf<String?>(null) }
+        var isResidentProtectionEnabled by remember {
+            mutableStateOf(com.renly.rmf.domain.service.RmfResidentService.isResidentProtectionEnabled(notifContext))
+        }
+        var isBatteryOptIgnored by remember {
+            mutableStateOf(com.renly.rmf.domain.service.RmfResidentService.isIgnoringBatteryOptimizations(notifContext))
+        }
 
         val notifPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -1463,31 +1469,85 @@ fun SettingsScreen(
                     }
                 }
 
-                // 系统原生超低功耗对齐唤醒架构卡片 (免电池优化、免自启动白名单)
+                // 🛡️ 后台常驻守护与防杀进程保护卡片
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = DopamineGreen.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    color = DarkSurface,
+                    border = BorderStroke(1.dp, if (isResidentProtectionEnabled) DopamineBlue.copy(alpha = 0.5f) else DarkBorder),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🌱", fontSize = 13.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "系统原生超低功耗唤醒架构 (0% CPU 后台冻结)",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DopamineGreen
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Text("🛡️", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = "后台常驻守护 (防系统杀进程)",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = if (isResidentProtectionEnabled) "已启用前台低优先级守护，杜绝退后台被系统清理" else "已关闭，切入后台可能被系统电池策略回收",
+                                        fontSize = 10.sp,
+                                        color = if (isResidentProtectionEnabled) DopamineBlue else TextMuted
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = isResidentProtectionEnabled,
+                                onCheckedChange = { checked ->
+                                    isResidentProtectionEnabled = checked
+                                    com.renly.rmf.domain.service.RmfResidentService.setResidentProtectionEnabled(notifContext, checked)
+                                    notifFeedbackText = if (checked) "✓ 后台常驻守护服务已启动！" else "已关闭后台守护服务"
+                                }
                             )
                         }
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = "RMF 深度兼容主流系统后台冻结机制，无需常驻后台或手动申请电池优化白名单。全部课程、日程与事件提醒均采用系统级硬件对齐闹钟 (AlarmClockInfo) 毫秒级按需唤起并借道实时活动展示，实现零持续CPU消耗与准时提醒的完美兼得。",
-                            fontSize = 10.5.sp,
-                            color = TextSecondary,
-                            lineHeight = 14.5.sp
-                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(color = DarkBorder.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 忽略电池优化按钮与状态
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "系统电池优化白名单 (无限制后台)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (isBatteryOptIgnored) "✓ 已设为无限制后台，系统不会在熄屏或待机时杀掉进程" else "尚未加入白名单，小米/华为/OPPO/vivo等系统可能会冻结后台",
+                                    fontSize = 10.sp,
+                                    color = if (isBatteryOptIgnored) DopamineGreen else DopamineAmber
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    com.renly.rmf.domain.service.RmfResidentService.requestIgnoreBatteryOptimizations(notifContext)
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (isBatteryOptIgnored) DopamineGreen else DopamineAmber
+                                ),
+                                border = BorderStroke(1.dp, if (isBatteryOptIgnored) DopamineGreen.copy(alpha = 0.6f) else DopamineAmber.copy(alpha = 0.8f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text(if (isBatteryOptIgnored) "已就绪" else "去设置", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
 

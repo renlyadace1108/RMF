@@ -357,6 +357,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.renly.rmf.domain.service.RmfResidentService.start(this)
+    }
+
     override fun onStop() {
         super.onStop()
         com.renly.rmf.domain.service.FocusLiveService.notifyAppForegroundState(false)
@@ -1750,9 +1755,7 @@ class MainActivity : ComponentActivity() {
                                 ) { page ->
                                     val screen = safeNavScreens.getOrNull(page) ?: safeNavScreens.firstOrNull() ?: Screen.Schedule
                                     val isPageActive = (pagerState.currentPage == page)
-                                    saveableStateHolder.SaveableStateProvider(screen.route) {
-                                        renderScreenContent(screen, isPageActive)
-                                    }
+                                    renderScreenContent(screen, isPageActive)
                                 }
 
                                 // 2. 二级子页面或系统设置平滑覆盖层 (从下往上优雅展开、向下拉回收起)
@@ -1790,7 +1793,7 @@ class MainActivity : ComponentActivity() {
                                         color = DarkBg
                                     ) {
                                         if (!isInMainPager) {
-                                            saveableStateHolder.SaveableStateProvider(currentScreen.route) {
+                                            saveableStateHolder.SaveableStateProvider("subscreen_" + currentScreen.route) {
                                                 renderScreenContent(currentScreen, true)
                                             }
                                         }

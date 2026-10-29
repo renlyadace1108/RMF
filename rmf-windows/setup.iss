@@ -3,7 +3,7 @@
 
 #define MyAppName "RMF"
 #define MyAppFullName "RMF 时间与精力节律管理系统"
-#define MyAppVersion "1.5.7"
+#define MyAppVersion "1.5.8.0"
 #define MyAppPublisher "Renly"
 #define MyAppExeName "RMF.Windows.exe"
 
@@ -16,9 +16,9 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-OutputDir=d:\RMF\rmf-windows\installer_output
+OutputDir=installer_output
 OutputBaseFilename=RMF_Setup_v{#MyAppVersion}
-SetupIconFile=d:\RMF\rmf-windows\RMF.Windows\app.ico
+SetupIconFile=RMF.Windows\app.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -34,7 +34,7 @@ RestartApplications=no
 AppMutex=RMF_Desktop_SingleInstance_Mutex
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "d:\RMF\rmf-windows\ChineseSimplified.isl"
+Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
@@ -42,9 +42,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "开机自动启动 RMF"; GroupDescription: "系统集成选项:"; Flags: unchecked
 
 [Files]
-Source: "d:\RMF\rmf-windows\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "d:\RMF\rmf-windows\RMF.Windows\app.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "d:\RMF\rmf-windows\RMF.Windows\app_logo_256.png"; DestDir: "{app}"; Flags: ignoreversion
+Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "RMF.Windows\app.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "RMF.Windows\app_logo_256.png"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppFullName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; AppUserModelID: "Renly.RMF.Desktop"

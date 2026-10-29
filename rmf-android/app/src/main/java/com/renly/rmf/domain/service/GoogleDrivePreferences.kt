@@ -13,6 +13,7 @@ object GoogleDrivePreferences {
     private const val KEY_LAST_SYNC_TIME = "google_drive_last_sync_time"
     private const val KEY_CALENDAR_LAST_SYNC_TIME = "google_calendar_last_sync_time"
     private const val KEY_CALENDAR_ICS_URL = "google_calendar_ics_url"
+    private const val KEY_LAST_SYNCED_TIMESTAMP = "google_drive_last_synced_timestamp"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -70,6 +71,14 @@ object GoogleDrivePreferences {
 
     fun setLastSyncTime(context: Context, time: String) {
         getPrefs(context).edit().putString(KEY_LAST_SYNC_TIME, time).apply()
+    }
+
+    fun getLastSyncedTimestamp(context: Context): String {
+        return getPrefs(context).getString(KEY_LAST_SYNCED_TIMESTAMP, "") ?: ""
+    }
+
+    fun setLastSyncedTimestamp(context: Context, timestamp: String) {
+        getPrefs(context).edit().putString(KEY_LAST_SYNCED_TIMESTAMP, timestamp.trim()).apply()
     }
 
     fun getCalendarLastSyncTime(context: Context): String {

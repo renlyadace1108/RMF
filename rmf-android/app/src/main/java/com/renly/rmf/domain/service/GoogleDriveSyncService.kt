@@ -408,6 +408,7 @@ class GoogleDriveSyncService(
             } catch (_: Exception) {}
 
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
+            GoogleDrivePreferences.setLastSyncedTimestamp(context, timestamp)
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "云端已保存新快照", nowStr)
             return@withContext SyncResult.Success("已成功保存云端时间戳版本「$newBackupFileName」！", nowStr)
         } catch (e: Exception) {
@@ -714,56 +715,83 @@ class GoogleDriveSyncService(
                 return@withContext SyncResult.Error(err)
             }
 
-            // 2. 执行行级时间戳双向增量合并 (Bi-directional Merge)
-            onProgress?.invoke("正在执行核心数据表行级时间戳双向增量合并...")
-            val writableDb = database.openHelper.writableDatabase
-            val hasLocalUnpushed = performBiDirectionalMerge(writableDb, tempFile.absolutePath)
+            // 2. 核心：直接使用云端较新的数据文件安全覆盖本地数据库（零并发冲突，谁新就用谁）
+            onProgress?.invoke("云端快照时间戳更新，正在安全载入最新数据文件...")
+            val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
 
-            // 3. 合并完毕，立即清理下载的临时数据库文件
-            tempFile.delete()
+            // 先执行 WAL checkpoint 确保当前数据库平稳关闭
+            try {
+                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+            } catch (_: Exception) {}
+
+            RmfDatabase.resetInstance()
+
+            // 备份当前文件作为回滚兜底
+            val rollbackFile = java.io.File(context.cacheDir, "rmf_rollback_temp.db")
+            if (targetDbFile.exists()) {
+                targetDbFile.copyTo(rollbackFile, overwrite = true)
+            }
+
+            try {
+                tempFile.copyTo(targetDbFile, overwrite = true)
+                tempFile.delete()
+
+                // 清理旧 WAL 和 SHM 辅助日志文件
+                java.io.File(targetDbFile.path + "-wal").delete()
+                java.io.File(targetDbFile.path + "-shm").delete()
+                rollbackFile.delete()
+
+                // 执行表结构自愈对齐，确保跨端/新版字段就绪
+                RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
+            } catch (copyErr: Exception) {
+                if (rollbackFile.exists()) {
+                    rollbackFile.copyTo(targetDbFile, overwrite = true)
+                    rollbackFile.delete()
+                }
+                throw copyErr
+            }
+
             cleanupLocalBackupFiles(context)
 
-            // 4. 刷新 Room 观察者，促使所有数据流实时重绘
+            // 3. 刷新 Room 观察者，促使所有活跃数据流实时重绘
             try {
                 database.invalidationTracker.refreshVersionsAsync()
             } catch (_: Exception) {}
 
-            // 5. 同步云端数据库中的学期设置至本地 TimetablePreferences
+            // 4. 同步云端数据库中的学期设置至本地 TimetablePreferences
             TimetablePreferences.syncFromDatabase(context, database.syncDao())
 
-            // 6. 将全学期课程重新映射投影至日程事件中（让课程在日程画布中立即可见）
+            // 5. 将全学期课程重新映射投影至日程事件中
             if (TimetablePreferences.isSemesterConfigured(context)) {
-                TimetableProjectionService.syncAllToSchedule(
-                    context = context,
-                    courseDao = database.courseDao(),
-                    scheduleDao = database.scheduleDao()
-                )
+                try {
+                    TimetableProjectionService.syncAllToSchedule(
+                        context = context,
+                        courseDao = database.courseDao(),
+                        scheduleDao = database.scheduleDao()
+                    )
+                } catch (_: Exception) {}
             }
 
-            // 7. 重新调度未来课程上课前通知提醒与全量待触发事件闹钟
-            CourseReminderScheduler.scheduleUpcomingCourseReminders(
-                context = context,
-                courseDao = database.courseDao(),
-                daysAhead = 7
-            )
-            ScheduleReminderManager.rescheduleAll(context)
+            // 6. 重新调度未来课程上课前通知提醒与全量待触发事件闹钟
             try {
+                CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                    context = context,
+                    courseDao = database.courseDao(),
+                    daysAhead = 7
+                )
+                ScheduleReminderManager.rescheduleAll(context)
                 com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
             } catch (_: Exception) {}
 
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            val rawTimestamp = extractRawTimestamp(remoteFile.name) ?: remoteFile.name
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
+            GoogleDrivePreferences.setLastSyncedTimestamp(context, rawTimestamp)
 
-            // 8. 若本地包含离线未推送的较新变更，自动反向推送合并后的完整快照至云端，实现多端收敛无损
-            if (hasLocalUnpushed) {
-                onProgress?.invoke("检测到本地包含离线新变更，正在反向增量合并推送至云端...")
-                GoogleDriveAutoSyncManager.requestAutoSync(context)
-            }
-
-            val statusMsg = if (hasLocalUnpushed) "双向合并完成 (已同步本地新变更)" else "已与云端最新快照保持一致"
+            val statusMsg = "已与云端最新快照保持一致"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, statusMsg, nowStr)
 
-            return@withContext SyncResult.Success("已成功从云端完成双向增量合并「${remoteFile.name}」！全量数据已实时对齐生效。", nowStr)
+            return@withContext SyncResult.Success("已成功同步云端最新版本「${remoteFile.name}」！全量数据已完全对齐生效。", nowStr)
         } catch (e: Exception) {
             val isInvalidGrant = e.message?.contains("invalid_grant", ignoreCase = true) == true
             if (isInvalidGrant) {
@@ -772,7 +800,7 @@ class GoogleDriveSyncService(
                 GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.IDLE, "Google 授权已过期，请重新登录", error = friendly)
                 return@withContext SyncResult.Error(friendly)
             }
-            val err = "拉取合并失败: ${e.localizedMessage}"
+            val err = "拉取同步失败: ${e.localizedMessage}"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = e.localizedMessage)
             return@withContext SyncResult.Error(err)
         } finally {
@@ -784,9 +812,9 @@ class GoogleDriveSyncService(
     }
 
     /**
-     * 静默/前台自动双向轻检测与拉取合并：
-     * 校验云端镜像时间戳与本地 LastSyncTime，若云端版本更新则自动在后台拉取并执行行级双向增量合并。
-     * 支持 force 参数强制触发一次完整云端轻检测与合并。
+     * 静默/前台自动双向轻检测与拉取同步：
+     * 遵循单人使用哲学（不考虑并发）：
+     * 直接比对云端最新文件时间戳与本地已同步版本的时间戳，谁更新就采用谁！
      */
     suspend fun pullLatestBackupIfNewer(force: Boolean = false): SyncResult = withContext(Dispatchers.IO) {
         if (!GoogleDrivePreferences.isAuthorized(context)) {
@@ -822,24 +850,29 @@ class GoogleDriveSyncService(
                     return@withContext SyncResult.Error(err)
                 }
 
-            val lastSync = GoogleDrivePreferences.getLastSyncTime(context)
-            val remoteTimestamp = extractTimestampFromBackupName(remoteFile.name)
+            val lastSyncedTimestamp = GoogleDrivePreferences.getLastSyncedTimestamp(context)
+            val remoteRawTimestamp = extractRawTimestamp(remoteFile.name)
 
             val shouldPull = if (force) {
                 true
-            } else if (remoteTimestamp != null && lastSync.isNotBlank() && !lastSync.contains("未同步")) {
-                remoteTimestamp > lastSync
-            } else if (lastSync.isBlank() || lastSync.contains("未同步")) {
+            } else if (remoteRawTimestamp != null && lastSyncedTimestamp.isNotBlank()) {
+                remoteRawTimestamp > lastSyncedTimestamp
+            } else if (lastSyncedTimestamp.isBlank()) {
                 true
             } else {
-                val localDb = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-                val remoteEpoch = remoteFile.modifiedTime?.value ?: 0L
-                remoteEpoch > (if (localDb.exists()) localDb.lastModified() else 0L)
+                val lastSyncTime = GoogleDrivePreferences.getLastSyncTime(context)
+                val remoteReadable = extractTimestampFromBackupName(remoteFile.name)
+                if (remoteReadable != null && lastSyncTime.isNotBlank() && !lastSyncTime.contains("未同步")) {
+                    remoteReadable > lastSyncTime
+                } else {
+                    true
+                }
             }
 
             if (shouldPull) {
                 return@withContext downloadBackupFromDrive()
             } else {
+                val lastSync = GoogleDrivePreferences.getLastSyncTime(context)
                 GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "数据已是最新", lastSync)
                 return@withContext SyncResult.Success("本地数据已是最新，无需拉取", lastSync)
             }
@@ -848,6 +881,12 @@ class GoogleDriveSyncService(
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
             return@withContext SyncResult.Error(err)
         }
+    }
+
+    private fun extractRawTimestamp(name: String): String? {
+        val regex = Regex("""rmf_backup_(\d{8}_\d{6})\.db""")
+        val match = regex.find(name) ?: return null
+        return match.groupValues.getOrNull(1)
     }
 
     private fun extractTimestampFromBackupName(name: String): String? {
