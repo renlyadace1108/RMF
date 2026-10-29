@@ -186,13 +186,13 @@ class LanSyncService(
                         }
                     }
 
-                    val hasLocalUnpushed = driveSyncService.mergeFromSnapshotFile(tempFile)
+                    driveSyncService.restoreDatabaseFromFile(tempFile)
                     val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                     LanSyncPreferences.setLastSyncTime(context, nowStr)
                     GoogleDrivePreferences.setLastSyncTime(context, nowStr)
                     GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "局域网同步完成 ($nowStr)")
 
-                    val body = "{\"status\":\"ok\",\"message\":\"局域网双向合并成功\",\"hasLocalUnpushed\":$hasLocalUnpushed}".toByteArray(Charsets.UTF_8)
+                    val body = "{\"status\":\"ok\",\"message\":\"局域网数据导入成功\"}".toByteArray(Charsets.UTF_8)
                     val head = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray(Charsets.UTF_8)
                     out.write(head)
                     out.write(body)
@@ -317,45 +317,12 @@ class LanSyncService(
             pullConn.disconnect()
             pullConn = null
 
-            // 3. 执行行级双向增量合并
-            onProgress?.invoke("正在执行行级时间戳双向增量合并...")
-            val hasLocalUnpushed = driveSyncService.mergeFromSnapshotFile(tempPullFile)
+            // 3. 执行数据库安全覆盖
+            onProgress?.invoke("正在安全载入对端数据快照...")
+            driveSyncService.restoreDatabaseFromFile(tempPullFile)
             tempPullFile.delete()
 
-            // 4. 若本地包含离线新记录或更新修改，反向推送给电脑端
-            if (hasLocalUnpushed) {
-                onProgress?.invoke("检测到本地包含离线新变更，正在同步推送至电脑端...")
-                val tempPushFile = File(context.cacheDir, "rmf_lan_push_${System.currentTimeMillis()}.db")
-                val snapshotOk = driveSyncService.createSafeDatabaseSnapshot(tempPushFile)
-                if (snapshotOk && tempPushFile.exists()) {
-                    try {
-                        val pushUrl = URL("http://$targetIp:$targetPort/api/push_and_merge")
-                        val pushConn = pushUrl.openConnection() as HttpURLConnection
-                        pushConn.connectTimeout = 5000
-                        pushConn.readTimeout = 15000
-                        pushConn.requestMethod = "POST"
-                        pushConn.doOutput = true
-                        pushConn.setRequestProperty("Content-Type", "application/x-sqlite3")
-                        pushConn.setFixedLengthStreamingMode(tempPushFile.length())
-
-                        tempPushFile.inputStream().use { input ->
-                            pushConn.outputStream.use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-
-                        val pushCode = pushConn.responseCode
-                        if (pushCode != 200) {
-                            android.util.Log.w("LanSync", "Push to PC returned $pushCode")
-                        }
-                        pushConn.disconnect()
-                    } finally {
-                        tempPushFile.delete()
-                    }
-                }
-            }
-
-            // 5. 记录成功状态
+            // 4. 记录成功状态
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             LanSyncPreferences.setLastIp(context, targetIp)
             LanSyncPreferences.setLastPort(context, targetPort)
@@ -363,7 +330,7 @@ class LanSyncService(
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "局域网同步完成 ($nowStr)")
 
-            Result.success("局域网极速双向同步成功！")
+            Result.success("局域网极速同步成功！")
         } catch (e: Exception) {
             val err = "局域网同步异常: ${e.message}"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)

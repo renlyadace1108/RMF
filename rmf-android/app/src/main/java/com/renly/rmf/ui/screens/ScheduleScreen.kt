@@ -7144,7 +7144,7 @@ fun GoogleDriveSyncStatusModal(
                             coroutineScope.launch {
                                 try {
                                     val syncService = com.renly.rmf.domain.service.GoogleDriveSyncService(context)
-                                    val res = syncService.pullLatestBackupIfNewer(force = true)
+                                    val res = syncService.downloadBackupFromDrive()
                                     if (res is com.renly.rmf.domain.service.SyncResult.Success) {
                                         android.widget.Toast.makeText(context, "✓ ${res.message}", android.widget.Toast.LENGTH_SHORT).show()
                                     } else if (res is com.renly.rmf.domain.service.SyncResult.Error) {
@@ -7155,11 +7155,11 @@ fun GoogleDriveSyncStatusModal(
                                 }
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Text("🔄 双向合并拉取", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text("⬇️ 从云端下载恢复", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
 
                     OutlinedButton(
@@ -7183,7 +7183,7 @@ fun GoogleDriveSyncStatusModal(
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Text("⬆️ 强制上传快照", fontSize = 11.5.sp)
+                        Text("☁️ 上传到云端", fontSize = 11.5.sp)
                     }
                 }
             } else {

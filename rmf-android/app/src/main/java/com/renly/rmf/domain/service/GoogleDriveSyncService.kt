@@ -78,28 +78,9 @@ object GoogleDriveAutoSyncManager {
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
     fun requestAutoSync(context: Context) {
-        val appContext = context.applicationContext
-        if (isRestoring || !GoogleDrivePreferences.isAuthorized(appContext) || !com.renly.rmf.util.NetworkUtils.isNetworkAvailable(appContext)) {
-            return
-        }
-        hasPendingChange = true
-        debounceJob?.cancel()
-        debounceJob = scope.launch {
-            kotlinx.coroutines.delay(3000L) // 3秒防抖
-            if (isRestoring || !hasPendingChange) return@launch
-
-            syncMutex.withLock {
-                if (isRestoring || !hasPendingChange) return@withLock
-                hasPendingChange = false
-                try {
-                    val db = RmfDatabase.getInstance(appContext)
-                    val syncService = GoogleDriveSyncService(appContext, db)
-                    syncService.uploadBackupToDrive()
-                } catch (e: Exception) {
-                    android.util.Log.w("GoogleDriveAutoSync", "Auto upload error: ${e.message}")
-                }
-            }
-        }
+        // 用户明确要求：“就只保留上传和下载两个，不要比对了”
+        // 彻底关闭后台自动竞态上传，由用户完全自主通过「上传到云端」与「从云端下载」确定性操作
+        return
     }
 }
 
@@ -370,15 +351,16 @@ class GoogleDriveSyncService(
             dbFile.copyTo(snapshotTemp, overwrite = true)
             val mediaContent = FileContent("application/x-sqlite3", snapshotTemp)
 
-            // 3. 生成带时间戳的专属快照文件名
-            val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-            val newBackupFileName = "rmf_backup_$timestamp.db"
+            // 3. 生成带 UTC+8 标准编程时间戳规范的专属快照文件名
+            val beijingTime = java.time.ZonedDateTime.now(java.time.ZoneOffset.ofHours(8))
+            val timestamp = beijingTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+            val newBackupFileName = "rmf_backup_${timestamp}_UTC+8.db"
 
-            onProgress?.invoke("正在上传时间戳快照版本 ($newBackupFileName)...")
+            onProgress?.invoke("正在上传 UTC+8 标准时间戳快照 ($newBackupFileName)...")
             val createMeta = File().apply {
                 name = newBackupFileName
                 parents = listOf(folderId)
-                description = "RMF Android Database Snapshot ($nowStr)"
+                description = "RMF Android Database Snapshot ($nowStr UTC+8)"
             }
             driveService.files().create(createMeta, mediaContent).execute()
 
@@ -440,39 +422,53 @@ class GoogleDriveSyncService(
         }
     }
 
-    private data class MergeTableDef(
-        val tableName: String,
-        val pkCol: String,
-        val tsCol: String?
-    )
 
-    private val MERGE_TABLES = listOf(
-        MergeTableDef("goals", "id", "created_at"),
-        MergeTableDef("study_topics", "id", "updated_at"),
-        MergeTableDef("schedules", "id", "updated_at"),
-        MergeTableDef("courses", "id", "updated_at"),
-        MergeTableDef("course_adjustments", "id", "updated_at"),
-        MergeTableDef("interruptions", "id", "timestamp"),
-        MergeTableDef("expenses", "id", "created_at"),
-        MergeTableDef("daily_reports", "date", "updated_at"),
-        MergeTableDef("schedule_tags", "id", "created_at"),
-        MergeTableDef("fitness_plans", "id", "updated_at"),
-        MergeTableDef("fitness_records", "id", "updated_at"),
-        MergeTableDef("habits", "id", "updated_at"),
-        MergeTableDef("countdowns", "id", "updated_at"),
-        MergeTableDef("reminders", "id", "updated_at"),
-        MergeTableDef("notes", "id", "updated_at"),
-        MergeTableDef("time_markers", "id", "updated_at"),
-        MergeTableDef("focus_records", "id", "start_time"),
-        MergeTableDef("timetable_settings", "key", null)
-    )
 
     /**
-     * 对外部开放的从 SQLite 快照文件合并至当前数据库的接口
+     * 生成当前数据库的安全快照文件（执行 WAL checkpoint 刷盘并导出副本）
      */
-    suspend fun mergeFromSnapshotFile(snapshotFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
-        val writableDb = database.openHelper.writableDatabase
-        val hasLocalUnpushed = performBiDirectionalMerge(writableDb, snapshotFile.absolutePath)
+    fun createSafeDatabaseSnapshot(targetFile: java.io.File): Boolean {
+        val dbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
+        if (!dbFile.exists()) return false
+        try {
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+        } catch (_: Exception) {}
+        dbFile.copyTo(targetFile, overwrite = true)
+        return true
+    }
+
+    /**
+     * 将外部 SQLite 数据库安全覆盖至本地数据库，并完成自愈对齐、视图刷新与闹钟排期
+     */
+    suspend fun restoreDatabaseFromFile(sourceFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
+        try {
+            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
+        } catch (_: Exception) {}
+
+        RmfDatabase.resetInstance()
+
+        val rollbackFile = java.io.File(context.cacheDir, "rmf_rollback_temp_${System.currentTimeMillis()}.db")
+        if (targetDbFile.exists()) {
+            targetDbFile.copyTo(rollbackFile, overwrite = true)
+        }
+
+        try {
+            sourceFile.copyTo(targetDbFile, overwrite = true)
+            java.io.File(targetDbFile.path + "-wal").delete()
+            java.io.File(targetDbFile.path + "-shm").delete()
+            rollbackFile.delete()
+
+            RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
+        } catch (copyErr: Exception) {
+            if (rollbackFile.exists()) {
+                rollbackFile.copyTo(targetDbFile, overwrite = true)
+                rollbackFile.delete()
+            }
+            throw copyErr
+        }
+
+        cleanupLocalBackupFiles(context)
 
         try {
             database.invalidationTracker.refreshVersionsAsync()
@@ -500,157 +496,11 @@ class GoogleDriveSyncService(
             com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
         } catch (_: Exception) {}
 
-        return@withContext hasLocalUnpushed
+        true
     }
 
     /**
-     * 生成当前数据库的安全快照文件（执行 WAL checkpoint 刷盘并导出副本）
-     */
-    fun createSafeDatabaseSnapshot(targetFile: java.io.File): Boolean {
-        val dbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-        if (!dbFile.exists()) return false
-        try {
-            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
-        } catch (_: Exception) {}
-        dbFile.copyTo(targetFile, overwrite = true)
-        return true
-    }
-
-    /**
-     * 核心行级时间戳双向增量合并引擎 (Bi-directional Merge Engine):
-     * 1. 采用 SQLite ATTACH DATABASE 机制，零全量暴力替换，零死锁无损对齐。
-     * 2. 云端新增记录无损合入本地 (INSERT OR IGNORE)。
-     * 3. 冲突记录基于更新时间戳 LWW (Last-Write-Wins) 判定，保留更新的一方。
-     * 4. 若本地包含离线新记录或更新的修改，标记 hasLocalUnpushed = true 并反向同步，实现全数据链无缝自愈收敛！
-     */
-    suspend fun performBiDirectionalMerge(
-        db: androidx.sqlite.db.SupportSQLiteDatabase,
-        tempDbPath: String
-    ): Boolean {
-        var hasLocalUnpushed = false
-        val escapedPath = tempDbPath.replace("'", "''")
-
-        try {
-            db.execSQL("DETACH DATABASE remote_db;")
-        } catch (_: Exception) {}
-
-        db.execSQL("ATTACH DATABASE '$escapedPath' AS remote_db;")
-
-        try {
-            db.beginTransaction()
-            try {
-                db.execSQL("PRAGMA foreign_keys = OFF;")
-
-                for (def in MERGE_TABLES) {
-                    val table = def.tableName
-                    val pk = def.pkCol
-                    val ts = def.tsCol
-
-                    val mainExists = db.query(
-                        "SELECT count(*) FROM main.sqlite_master WHERE type='table' AND name=?",
-                        arrayOf(table)
-                    ).use { it.moveToFirst() && it.getInt(0) > 0 }
-
-                    val remoteExists = db.query(
-                        "SELECT count(*) FROM remote_db.sqlite_master WHERE type='table' AND name=?",
-                        arrayOf(table)
-                    ).use { it.moveToFirst() && it.getInt(0) > 0 }
-
-                    if (!mainExists || !remoteExists) continue
-
-                    val mainCols = mutableListOf<String>()
-                    db.query("PRAGMA main.table_info('$table')").use { cursor ->
-                        while (cursor.moveToNext()) {
-                            mainCols.add(cursor.getString(1))
-                        }
-                    }
-
-                    val remoteCols = mutableSetOf<String>()
-                    db.query("PRAGMA remote_db.table_info('$table')").use { cursor ->
-                        while (cursor.moveToNext()) {
-                            remoteCols.add(cursor.getString(1).lowercase())
-                        }
-                    }
-
-                    val commonCols = mainCols.filter { remoteCols.contains(it.lowercase()) }
-                    val actualPk = commonCols.firstOrNull { it.equals(pk, ignoreCase = true) } ?: continue
-                    val actualTs = if (ts != null) commonCols.firstOrNull { it.equals(ts, ignoreCase = true) } else null
-
-                    val colListSql = commonCols.joinToString(", ") { "`$it`" }
-
-                    // 检测本地是否有远程不存在的孤立新行
-                    val localOnlyCount = db.query(
-                        "SELECT COUNT(*) FROM main.`$table` m WHERE NOT EXISTS (SELECT 1 FROM remote_db.`$table` r WHERE r.`$actualPk` = m.`$actualPk`)"
-                    ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
-
-                    if (localOnlyCount > 0) {
-                        hasLocalUnpushed = true
-                    }
-
-                    // 检测本地是否包含更新的离线修改
-                    if (actualTs != null) {
-                        val localNewerCount = db.query(
-                            "SELECT COUNT(*) FROM main.`$table` m JOIN remote_db.`$table` r ON m.`$actualPk` = r.`$actualPk` WHERE (m.`$actualTs` > r.`$actualTs` OR ((r.`$actualTs` IS NULL OR r.`$actualTs` = '') AND (m.`$actualTs` IS NOT NULL AND m.`$actualTs` != '')))"
-                        ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
-
-                        if (localNewerCount > 0) {
-                            hasLocalUnpushed = true
-                        }
-                    }
-
-                    // 1. 将远程新增行无损合入本地 (INSERT OR IGNORE)
-                    db.execSQL("""
-                        INSERT OR IGNORE INTO main.`$table` ($colListSql)
-                        SELECT $colListSql FROM remote_db.`$table` r
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM main.`$table` m WHERE m.`$actualPk` = r.`$actualPk`
-                        );
-                    """.trimIndent())
-
-                    // 2. 将远程时间戳更新的行更新覆盖本地行 (INSERT OR REPLACE)
-                    if (actualTs != null) {
-                        db.execSQL("""
-                            INSERT OR REPLACE INTO main.`$table` ($colListSql)
-                            SELECT $colListSql FROM remote_db.`$table` r
-                            WHERE r.`$actualPk` IN (
-                                SELECT r2.`$actualPk`
-                                FROM remote_db.`$table` r2
-                                JOIN main.`$table` m2 ON r2.`$actualPk` = m2.`$actualPk`
-                                WHERE (r2.`$actualTs` > m2.`$actualTs` OR ((m2.`$actualTs` IS NULL OR m2.`$actualTs` = '') AND (r2.`$actualTs` IS NOT NULL AND r2.`$actualTs` != '')))
-                            );
-                        """.trimIndent())
-                    } else if (table == "timetable_settings") {
-                        db.execSQL("""
-                            INSERT OR REPLACE INTO main.`$table` ($colListSql)
-                            SELECT $colListSql FROM remote_db.`$table`;
-                        """.trimIndent())
-                    }
-                }
-
-                // 3. 更新快照版本元数据
-                val syncDao = database.syncDao()
-                val curMeta = syncDao.getMetadata() ?: SnapshotMetadataEntity()
-                syncDao.saveMetadata(curMeta.copy(
-                    versionCounter = curMeta.versionCounter + 1,
-                    updatedAt = com.renly.rmf.util.TimeUtils.currentUtcIsoString()
-                ))
-
-                db.execSQL("PRAGMA foreign_keys = ON;")
-                db.setTransactionSuccessful()
-            } finally {
-                db.endTransaction()
-            }
-        } finally {
-            try {
-                db.execSQL("DETACH DATABASE remote_db;")
-            } catch (_: Exception) {}
-        }
-
-        return hasLocalUnpushed
-    }
-
-    /**
-     * 从 Google Drive 专属同步文件夹检索并拉取最新时间戳备份数据库，执行行级双向增量合并 (LWW)
+     * 从 Google Drive 专属同步文件夹检索并拉取最新时间戳备份数据库，安全替换本地数据库
      */
     suspend fun downloadBackupFromDrive(
         onProgress: ((String) -> Unit)? = null
@@ -725,73 +575,9 @@ class GoogleDriveSyncService(
                 return@withContext SyncResult.Error(err)
             }
 
-            // 2. 核心：直接使用云端较新的数据文件安全覆盖本地数据库（零并发冲突，谁新就用谁）
+            // 2. 核心：直接使用云端最新数据文件安全覆盖本地数据库
             onProgress?.invoke("云端快照时间戳更新，正在安全载入最新数据文件...")
-            val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-
-            // 先执行 WAL checkpoint 确保当前数据库平稳关闭
-            try {
-                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
-            } catch (_: Exception) {}
-
-            RmfDatabase.resetInstance()
-
-            // 备份当前文件作为回滚兜底
-            val rollbackFile = java.io.File(context.cacheDir, "rmf_rollback_temp.db")
-            if (targetDbFile.exists()) {
-                targetDbFile.copyTo(rollbackFile, overwrite = true)
-            }
-
-            try {
-                tempFile.copyTo(targetDbFile, overwrite = true)
-                tempFile.delete()
-
-                // 清理旧 WAL 和 SHM 辅助日志文件
-                java.io.File(targetDbFile.path + "-wal").delete()
-                java.io.File(targetDbFile.path + "-shm").delete()
-                rollbackFile.delete()
-
-                // 执行表结构自愈对齐，确保跨端/新版字段就绪
-                RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
-            } catch (copyErr: Exception) {
-                if (rollbackFile.exists()) {
-                    rollbackFile.copyTo(targetDbFile, overwrite = true)
-                    rollbackFile.delete()
-                }
-                throw copyErr
-            }
-
-            cleanupLocalBackupFiles(context)
-
-            // 3. 刷新 Room 观察者，促使所有活跃数据流实时重绘
-            try {
-                database.invalidationTracker.refreshVersionsAsync()
-            } catch (_: Exception) {}
-
-            // 4. 同步云端数据库中的学期设置至本地 TimetablePreferences
-            TimetablePreferences.syncFromDatabase(context, database.syncDao())
-
-            // 5. 将全学期课程重新映射投影至日程事件中
-            if (TimetablePreferences.isSemesterConfigured(context)) {
-                try {
-                    TimetableProjectionService.syncAllToSchedule(
-                        context = context,
-                        courseDao = database.courseDao(),
-                        scheduleDao = database.scheduleDao()
-                    )
-                } catch (_: Exception) {}
-            }
-
-            // 6. 重新调度未来课程上课前通知提醒与全量待触发事件闹钟
-            try {
-                CourseReminderScheduler.scheduleUpcomingCourseReminders(
-                    context = context,
-                    courseDao = database.courseDao(),
-                    daysAhead = 7
-                )
-                ScheduleReminderManager.rescheduleAll(context)
-                com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
-            } catch (_: Exception) {}
+            restoreDatabaseFromFile(tempFile)
 
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
             val rawTimestamp = extractRawTimestamp(remoteFile.name) ?: remoteFile.name
@@ -860,34 +646,10 @@ class GoogleDriveSyncService(
                     return@withContext SyncResult.Error(err)
                 }
 
-            val lastSyncedTimestamp = GoogleDrivePreferences.getLastSyncedTimestamp(context)
-            val remoteRawTimestamp = extractRawTimestamp(remoteFile.name)
-
-            val shouldPull = if (force) {
-                true
-            } else if (remoteRawTimestamp != null && lastSyncedTimestamp.isNotBlank()) {
-                remoteRawTimestamp > lastSyncedTimestamp
-            } else if (lastSyncedTimestamp.isBlank()) {
-                true
-            } else {
-                val lastSyncTime = GoogleDrivePreferences.getLastSyncTime(context)
-                val remoteReadable = extractTimestampFromBackupName(remoteFile.name)
-                if (remoteReadable != null && lastSyncTime.isNotBlank() && !lastSyncTime.contains("未同步")) {
-                    remoteReadable > lastSyncTime
-                } else {
-                    true
-                }
-            }
-
-            if (shouldPull) {
-                return@withContext downloadBackupFromDrive()
-            } else {
-                val lastSync = GoogleDrivePreferences.getLastSyncTime(context)
-                GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "数据已是最新", lastSync)
-                return@withContext SyncResult.Success("本地数据已是最新，无需拉取", lastSync)
-            }
+            // 彻底去除多余比对逻辑，直接从云端下载最新时间戳版本安全还原
+            return@withContext downloadBackupFromDrive()
         } catch (e: Exception) {
-            val err = "云端拉取检测异常: ${e.message}"
+            val err = "云端拉取下载异常: ${e.message}"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
             return@withContext SyncResult.Error(err)
         }
@@ -895,7 +657,7 @@ class GoogleDriveSyncService(
 
     /**
      * 从云端文件列表中精准甄选最新快照：
-     * 1. 严格以 rmf_backup_yyyyMMdd_HHmmss.db 格式提取实际时间戳降序对比。
+     * 1. 严格以 rmf_backup_yyyyMMdd_HHmmss_UTC+8.db 格式提取实际时间戳降序对比。
      * 2. 避免 ASCII 字母排序导致旧版 rmf_cloud_backup.db 误排在时间戳版本之前。
      * 3. 若无时间戳快照，才向下兼容旧单文件。
      */
@@ -909,15 +671,15 @@ class GoogleDriveSyncService(
     }
 
     private fun extractRawTimestamp(name: String): String? {
-        val regex = Regex("""rmf_backup_(\d{8}_\d{6})\.db""")
+        val regex = Regex("""rmf_backup_(\d{8}_\d{6})(?:_UTC\+?8)?\.db""")
         val match = regex.find(name) ?: return null
         return match.groupValues.getOrNull(1)
     }
 
     private fun extractTimestampFromBackupName(name: String): String? {
-        val regex = Regex("""rmf_backup_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.db""")
+        val regex = Regex("""rmf_backup_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:_UTC\+?8)?\.db""")
         val match = regex.find(name) ?: return null
         val (y, m, d, h, min, s) = match.destructured
-        return "$y-$m-$d $h:$min:$s"
+        return "$y-$m-$d $h:$min:$s (UTC+8)"
     }
 }

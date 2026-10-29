@@ -299,7 +299,7 @@ public static class LanSyncService
 
                     try
                     {
-                        bool hasLocalUnpushed = GoogleDriveSyncService.PerformBiDirectionalMerge(tempFile);
+                        DatabaseService.ReplaceDatabaseFile(tempFile);
                         DatabaseService.CleanupLocalBackupFiles();
                         DatabaseService.Initialize();
                         WindowsReminderScheduler.RescheduleAll();
@@ -311,7 +311,7 @@ public static class LanSyncService
 
                         GoogleDriveSyncService.NotifySyncState(CloudSyncState.Success, "局域网直连同步完成", config.LastSyncTime);
 
-                        string json = $"{{\"status\":\"ok\",\"message\":\"局域网双向增量合并成功\",\"hasLocalUnpushed\":{(hasLocalUnpushed ? "true" : "false")}}}";
+                        string json = "{\"status\":\"ok\",\"message\":\"局域网数据导入成功\"}";
                         byte[] body = Encoding.UTF8.GetBytes(json);
                         byte[] head = Encoding.UTF8.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
                         await stream.WriteAsync(head, 0, head.Length, token);
@@ -362,35 +362,13 @@ public static class LanSyncService
                 await getStream.CopyToAsync(fs);
             }
 
-            progressCallback?.Invoke("正在执行行级时间戳双向增量合并...");
-            bool hasLocalUnpushed = GoogleDriveSyncService.PerformBiDirectionalMerge(tempDownloaded);
+            progressCallback?.Invoke("正在安全载入对端数据快照...");
+            DatabaseService.ReplaceDatabaseFile(tempDownloaded);
             try { File.Delete(tempDownloaded); } catch { }
             DatabaseService.CleanupLocalBackupFiles();
             DatabaseService.Initialize();
             WindowsReminderScheduler.RescheduleAll();
             DatabaseService.NotifyDataChanged();
-
-            if (hasLocalUnpushed)
-            {
-                progressCallback?.Invoke("检测到本地包含较新记录，正在反向推送至对端...");
-                string localSnap = DatabaseService.CreateSafeDatabaseSnapshot();
-                try
-                {
-                    using var fileStream = new FileStream(localSnap, FileMode.Open, FileAccess.Read);
-                    using var content = new System.Net.Http.StreamContent(fileStream);
-                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-sqlite3");
-                    var postRes = await client.PostAsync($"http://{targetIp}:{targetPort}/api/push_and_merge", content);
-                    if (!postRes.IsSuccessStatusCode)
-                    {
-                        return (false, "反向推送合并快照失败。");
-                    }
-                }
-                finally
-                {
-                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-                    if (File.Exists(localSnap)) { try { File.Delete(localSnap); } catch { } }
-                }
-            }
 
             var config = ConfigService.Load();
             config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");

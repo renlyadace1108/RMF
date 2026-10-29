@@ -279,17 +279,7 @@ class MainActivity : ComponentActivity() {
             isInPipMode = isInPictureInPictureMode
         }
 
-        // 切回前台智能轻检测与拉取 (防抖 60 秒冷却，离线跳过)，零感后台静默检测与行级增量合并
-        if (com.renly.rmf.domain.service.PrivacyPreferences.isPrivacyAccepted(this) &&
-            com.renly.rmf.util.NetworkUtils.isNetworkAvailable(this)) {
-            val now = System.currentTimeMillis()
-            if (now - lastResumeCheckMillis >= 60_000L) {
-                lastResumeCheckMillis = now
-                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    checkAndPullCloudSyncSilent()
-                }
-            }
-        }
+        // 按照用户需求，彻底关闭后台静默自动拉取，仅保留用户主动「上传」与「下载」
     }
 
     private suspend fun checkAndPullCloudSyncSilent(force: Boolean = false) {
@@ -459,22 +449,7 @@ class MainActivity : ComponentActivity() {
                     sDb.execSQL("UPDATE time_markers SET updated_at = '$nowUtc' WHERE updated_at > '$futureThreshold';")
                 } catch (_: Exception) {}
 
-                // 软件冷启动无感后台静默检查并拉取云端最新数据双向同步
-                checkAndPullCloudSyncSilent()
-            }
-
-            // 启动后台定时心跳同步轮询器 (每 3 分钟自动静默拉取并合并一次云端最新备份，无需依赖切前台)
-            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                while (true) {
-                    kotlinx.coroutines.delay(180_000L) // 3 分钟
-                    try {
-                        if (com.renly.rmf.domain.service.GoogleDrivePreferences.isAuthorized(this@MainActivity)) {
-                            checkAndPullCloudSyncSilent()
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.w("RMF_Sync", "Background periodic sync pull failed: ${e.message}")
-                    }
-                }
+                // 仅保留用户主动上传与下载，彻底移除后台冷启动拉取与周期轮询
             }
         }
 

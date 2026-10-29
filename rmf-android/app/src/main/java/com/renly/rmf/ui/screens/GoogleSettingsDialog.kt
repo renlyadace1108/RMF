@@ -334,7 +334,7 @@ fun GoogleSettingsDialog(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
-                                    Text("⬆ 上传完整备份", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("☁️ 上传到云端", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
 
                                 OutlinedButton(
@@ -351,7 +351,7 @@ fun GoogleSettingsDialog(
                                             showAuthCodeDialog = true
                                         } else {
                                             isDriveWorking = true
-                                            driveStatusText = "正在从 Google Drive API 拉取备份..."
+                                            driveStatusText = "正在从 Google Drive API 下载最新快照..."
                                             onTriggerDownload()
                                         }
                                     },
@@ -361,7 +361,7 @@ fun GoogleSettingsDialog(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
-                                    Text("⬇ 从云端拉取恢复", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("⬇️ 从云端下载恢复", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 

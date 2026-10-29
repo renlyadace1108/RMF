@@ -28,7 +28,6 @@ namespace RMF.Windows;
 public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _perfTimer;
-    private readonly DispatcherTimer _cloudSyncTimer;
     private readonly TrayIconService _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
     private FocusHudWindow? _activeFocusHud;
@@ -95,7 +94,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "Renly Management Platform v1.5.8.1";
+        Title = "Renly Management Platform v1.5.8.2";
 
         Loaded += (s, e) =>
         {
@@ -223,13 +222,11 @@ public partial class MainWindow : Window
             {
                 PerformSilentMemoryTrim();
                 LanSyncService.IsBeaconBroadcastingEnabled = false;
-                if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(15);
             }
             else
             {
                 LanSyncService.IsBeaconBroadcastingEnabled = true;
                 LanSyncService.TriggerDiscoveryBurst();
-                if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(5);
             }
         };
 
@@ -289,31 +286,13 @@ public partial class MainWindow : Window
         }
         catch { }
 
-        // 软件冷启动无后台静默检查并拉取云端最新数据双向同步
-        _ = CheckAndPullCloudSyncSilentAsync();
-
-        // 启动后台定时心跳同步轮询器 (每 3 分钟自动静默拉取并合并一次云端最新备份，无需依赖切前台)
-        _cloudSyncTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMinutes(3)
-        };
-        _cloudSyncTimer.Tick += (s, e) =>
-        {
-            _ = CheckAndPullCloudSyncSilentAsync();
-        };
-        _cloudSyncTimer.Start();
+        // 按照用户需求：“就只保留上传和下载两个，不要比对了”
+        // 彻底关闭后台自动轮询与冷启动拉取，仅保留用户主动「上传」与「下载」
     }
-
-    private DateTime _lastActivatedSyncCheck = DateTime.MinValue;
 
     private void OnWindowActivated(object? sender, EventArgs e)
     {
-        var now = DateTime.UtcNow;
-        if ((now - _lastActivatedSyncCheck).TotalSeconds >= 60)
-        {
-            _lastActivatedSyncCheck = now;
-            _ = CheckAndPullCloudSyncSilentAsync();
-        }
+        // 关闭前台激活时的后台静默拉取
     }
 
     private void InitializeCloudSyncIndicator()
@@ -436,7 +415,7 @@ public partial class MainWindow : Window
         catch { }
     }
 
-    private async void OnTopCloudSyncBtnClicked(object sender, RoutedEventArgs e)
+    private void OnTopCloudSyncBtnClicked(object sender, RoutedEventArgs e)
     {
         var config = ConfigService.Load();
         if (!GoogleDriveSyncService.IsAuthorized(config))
@@ -446,8 +425,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在执行双向增量合并同步...");
-        await CheckAndPullCloudSyncSilentAsync(force: true);
+        // 打开顶部右键快捷操作菜单
+        if (TopCloudSyncBtn.ContextMenu != null)
+        {
+            TopCloudSyncBtn.ContextMenu.PlacementTarget = TopCloudSyncBtn;
+            TopCloudSyncBtn.ContextMenu.IsOpen = true;
+        }
     }
 
     private async void OnMenuPullAndMergeClicked(object sender, RoutedEventArgs e)
@@ -459,11 +442,26 @@ public partial class MainWindow : Window
             SwitchSettingsTab(1);
             return;
         }
-        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在拉取并执行行级双向合并...");
-        await CheckAndPullCloudSyncSilentAsync(force: true);
+        UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在从云端下载最新快照...");
+        var (success, message) = await GoogleDriveSyncService.DownloadBackupFromDriveAsync(
+            config.GoogleClientId, config.GoogleClientSecret
+        );
+        if (success)
+        {
+            RenderAllCalendarViews();
+            RenderTimetablePage();
+            RefreshGoalTree();
+            RefreshBacklogList();
+            RefreshDeferredQueue();
+            System.Windows.MessageBox.Show(message, "云端下载成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            System.Windows.MessageBox.Show(message, "云端下载未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
-    private void OnMenuUploadSnapshotClicked(object sender, RoutedEventArgs e)
+    private async void OnMenuUploadSnapshotClicked(object sender, RoutedEventArgs e)
     {
         var config = ConfigService.Load();
         if (!GoogleDriveSyncService.IsAuthorized(config))
@@ -473,7 +471,17 @@ public partial class MainWindow : Window
             return;
         }
         UpdateCloudSyncIndicator(CloudSyncState.Syncing, "正在上传本地数据快照至云端...");
-        GoogleDriveSyncService.RequestAutoSync();
+        var (success, fileId, message) = await GoogleDriveSyncService.UploadBackupToDriveAsync(
+            config.GoogleClientId, config.GoogleClientSecret
+        );
+        if (success)
+        {
+            System.Windows.MessageBox.Show(message, "云端上传成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            System.Windows.MessageBox.Show(message, "云端上传未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OnMenuOpenDriveSettingsClicked(object sender, RoutedEventArgs e)
@@ -561,7 +569,6 @@ public partial class MainWindow : Window
         Focus();
         LanSyncService.IsBeaconBroadcastingEnabled = true;
         LanSyncService.TriggerDiscoveryBurst();
-        if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(5);
     }
 
     private void ExitApplicationDirectly()
@@ -582,7 +589,6 @@ public partial class MainWindow : Window
             _trayIconService?.ShowNotification("RMF 已转入后台常驻", "双击右下角托盘图标或右键菜单即可随时呼出。");
             PerformSilentMemoryTrim();
             LanSyncService.IsBeaconBroadcastingEnabled = false;
-            if (_cloudSyncTimer != null) _cloudSyncTimer.Interval = TimeSpan.FromMinutes(15);
         }
         else
         {
