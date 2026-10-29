@@ -42,6 +42,7 @@ public class GoogleDriveSyncService
     private static readonly SemaphoreSlim _uploadSemaphore = new(1, 1);
     private static volatile bool _hasPendingAutoSync = false;
     public static bool IsAutoSyncing { get; private set; }
+    public static volatile bool IsRestoring = false;
 
     /// <summary>
     /// 判断本地 Google Drive 是否已处于可用且已授权状态
@@ -60,6 +61,7 @@ public class GoogleDriveSyncService
     /// </summary>
     public static void RequestAutoSync(Action<string>? statusCallback = null)
     {
+        if (IsRestoring) return;
         var config = ConfigService.Load();
         if (!IsAuthorized(config))
         {
@@ -287,27 +289,41 @@ public class GoogleDriveSyncService
                 config.LastSyncedTimestamp = timestamp;
                 ConfigService.Save(config);
 
-                // 3. 云端历史版本维护：保持专属文件夹最新 50 个时间戳版本，修剪超额陈旧快照
+                // 3. 云端历史版本维护：保持专属文件夹最新 50 个时间戳版本，修剪超额陈旧快照，并清理旧版 rmf_cloud_backup.db
                 try
                 {
                     var pruneReq = service.Files.List();
-                    pruneReq.Q = $"'{folderId}' in parents and trashed = false and name contains 'rmf_backup_'";
+                    pruneReq.Q = $"'{folderId}' in parents and trashed = false and (name contains 'rmf_backup_' or name = '{BackupFileName}')";
                     pruneReq.Spaces = "drive";
                     pruneReq.PageSize = 1000;
                     pruneReq.Fields = "files(id, name, createdTime)";
                     pruneReq.OrderBy = "name asc";
                     var pruneRes = await pruneReq.ExecuteAsync(cancellationToken);
-                    if (pruneRes.Files != null && pruneRes.Files.Count > MaxCloudRetentionVersions)
+                    if (pruneRes.Files != null)
                     {
-                        var sortedToPrune = pruneRes.Files.OrderBy(f => f.Name).ToList();
-                        int toDelete = sortedToPrune.Count - MaxCloudRetentionVersions;
-                        for (int i = 0; i < toDelete; i++)
+                        // 彻底清理历史遗留的旧版单一命名备份文件，避免任何设备排序出现冲突
+                        var legacyFiles = pruneRes.Files.Where(f => f.Name == BackupFileName).ToList();
+                        foreach (var leg in legacyFiles)
                         {
-                            try
+                            try { await service.Files.Delete(leg.Id).ExecuteAsync(cancellationToken); } catch { }
+                        }
+
+                        var tsFiles = pruneRes.Files
+                            .Where(f => !string.IsNullOrEmpty(f.Name) && ExtractRawTimestamp(f.Name) != null)
+                            .OrderBy(f => ExtractRawTimestamp(f.Name)!)
+                            .ToList();
+
+                        if (tsFiles.Count > MaxCloudRetentionVersions)
+                        {
+                            int toDelete = tsFiles.Count - MaxCloudRetentionVersions;
+                            for (int i = 0; i < toDelete; i++)
                             {
-                                await service.Files.Delete(sortedToPrune[i].Id).ExecuteAsync(cancellationToken);
+                                try
+                                {
+                                    await service.Files.Delete(tsFiles[i].Id).ExecuteAsync(cancellationToken);
+                                }
+                                catch { }
                             }
-                            catch { }
                         }
                     }
                 }
@@ -549,6 +565,7 @@ public class GoogleDriveSyncService
     /// </summary>
     public static async Task<(bool success, string message)> DownloadBackupFromDriveAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
     {
+        IsRestoring = true;
         try
         {
             NotifySyncState(CloudSyncState.Syncing, "正在拉取云端快照...");
@@ -572,9 +589,12 @@ public class GoogleDriveSyncService
             }
 
             // 选择最新的一份云端时间戳快照（名称按时间戳降序排序，确保准确度）
-            var remoteFile = searchRes.Files
-                .OrderByDescending(f => f.Name)
-                .First();
+            var remoteFile = PickLatestBackupFile(searchRes.Files);
+            if (remoteFile == null)
+            {
+                NotifySyncState(CloudSyncState.Error, "未发现云端有效快照文件");
+                return (false, "在 Google Drive 对应目录中未发现可还原的备份文件。");
+            }
             string tempDownloaded = Path.Combine(DatabaseService.DbDir, "rmf_downloaded_temp.db");
 
             progressCallback?.Invoke($"正在拉取最新云端快照 ({remoteFile.Name})...");
@@ -659,6 +679,10 @@ public class GoogleDriveSyncService
             NotifySyncState(CloudSyncState.Error, $"云端下载合并异常: {ex.Message}");
             return (false, $"云端下载合并异常: {ex.Message}");
         }
+        finally
+        {
+            _ = Task.Delay(5000).ContinueWith(_ => IsRestoring = false);
+        }
     }
 
     /// <summary>
@@ -699,7 +723,12 @@ public class GoogleDriveSyncService
                 return (false, "在 Google Drive 对应目录中未发现备份文件。");
             }
 
-            var remoteFile = searchRes.Files.OrderByDescending(f => f.Name).First();
+            var remoteFile = PickLatestBackupFile(searchRes.Files);
+            if (remoteFile == null)
+            {
+                NotifySyncState(CloudSyncState.Error, "云端专属目录未发现有效备份文件");
+                return (false, "在 Google Drive 对应目录中未发现有效备份文件。");
+            }
             string? remoteRawTimestamp = ExtractRawTimestamp(remoteFile.Name);
             string lastSyncedTimestamp = config.LastSyncedTimestamp ?? string.Empty;
             string lastSync = config.LastSyncTime ?? string.Empty;
@@ -742,6 +771,29 @@ public class GoogleDriveSyncService
             NotifySyncState(CloudSyncState.Error, $"云端检查异常: {ex.Message}");
             return (false, $"冷启动云端拉取失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 从云端文件列表中精准甄选最新快照：
+    /// 1. 严格以 rmf_backup_yyyyMMdd_HHmmss.db 格式提取实际时间戳降序对比。
+    /// 2. 避免 ASCII 字母排序导致旧版 rmf_cloud_backup.db 误排在时间戳版本之前。
+    /// 3. 若无时间戳快照，才向下兼容旧单文件。
+    /// </summary>
+    public static Google.Apis.Drive.v3.Data.File? PickLatestBackupFile(IList<Google.Apis.Drive.v3.Data.File>? files)
+    {
+        if (files == null || files.Count == 0) return null;
+
+        var timestamped = files
+            .Where(f => !string.IsNullOrEmpty(f.Name) && ExtractRawTimestamp(f.Name) != null)
+            .OrderByDescending(f => ExtractRawTimestamp(f.Name)!)
+            .ToList();
+
+        if (timestamped.Count > 0)
+        {
+            return timestamped[0];
+        }
+
+        return files.FirstOrDefault(f => f.Name == BackupFileName);
     }
 
     private static string? ExtractRawTimestamp(string name)

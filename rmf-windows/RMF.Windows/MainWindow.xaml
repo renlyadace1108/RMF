@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Renly Management Platform" 
+        Title="Renly Management Platform v1.5.8.1" 
         Icon="app.ico"
         Height="840" Width="1320"
         MinHeight="680" MinWidth="1050"
@@ -372,9 +372,12 @@
 
                 <!-- Left: Logo, Today, Chevrons, Date Title -->
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Brand App Logo (透明背景透过) -->
-                    <Border Width="30" Height="30" Background="Transparent" BorderThickness="0" Margin="0,0,10,0" ToolTip="Renly Management Platform">
+                    <!-- Brand App Logo & Version Pill -->
+                    <Border Width="30" Height="30" Background="Transparent" BorderThickness="0" Margin="0,0,6,0" ToolTip="Renly Management Platform v1.5.8.1">
                         <Image Source="app_logo_256.png" Width="28" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </Border>
+                    <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="当前版本 v1.5.8.1">
+                        <TextBlock Text="v1.5.8.1" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}" />
                     </Border>
                     <Button x:Name="TopTodayBtn" Content="今天" Style="{StaticResource GoogleOutlineBtnStyle}" Foreground="{DynamicResource TextPrimary}" Padding="10,4" FontSize="12" FontWeight="Medium" Margin="0,0,8,0" Click="OnCalTodayClicked" ToolTip="跳转到今天 (快捷键: T)" />
                     <Button x:Name="TopPrevBtn" Content="‹" Style="{StaticResource GoogleTopBtnStyle}" Foreground="{DynamicResource TextPrimary}" Width="28" Height="28" Padding="0" FontSize="18" FontWeight="Bold" ToolTip="前一个时段 (快捷键: J 或 P)" Click="OnCalPrevClicked" Margin="0,0,2,0" />
@@ -3083,7 +3086,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.5.8.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.8.1" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
@@ -3482,7 +3485,7 @@
                                     </Border>
                                     <TextBlock Text="RMF (Renly Management Platform)" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
                                     <Border Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="v1.5.8.0" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
+                                        <TextBlock Text="v1.5.8.1" FontSize="10.5" Foreground="{DynamicResource TextSecondary}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="©Renly 2026 保留所有权利 (All Rights Reserved)" FontSize="11" Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />

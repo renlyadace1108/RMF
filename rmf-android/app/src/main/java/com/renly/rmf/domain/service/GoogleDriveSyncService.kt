@@ -387,22 +387,32 @@ class GoogleDriveSyncService(
                 database.openHelper.writableDatabase.execSQL("UPDATE schedules SET is_dirty = 0 WHERE is_dirty = 1;")
             } catch (_: Exception) {}
 
-            // 4. 云端保留策略维护：保留最新的 50 个时间戳版本，清理超额快照
+            // 4. 云端保留策略维护：保留最新的 50 个时间戳版本，清理超额快照并清理旧版 rmf_cloud_backup.db
             try {
                 val pruneReq = driveService.files().list()
-                    .setQ("'$folderId' in parents and trashed = false and name contains 'rmf_backup_'")
+                    .setQ("'$folderId' in parents and trashed = false and (name contains 'rmf_backup_' or name = '$BACKUP_FILE_NAME')")
                     .setSpaces("drive")
                     .setPageSize(100)
                     .setFields("files(id, name, createdTime)")
                     .setOrderBy("name asc")
                 val pruneRes = pruneReq.execute()
-                if (pruneRes.files != null && pruneRes.files.size > MAX_CLOUD_RETENTION_VERSIONS) {
-                    val sortedToPrune = pruneRes.files.sortedBy { it.name }
-                    val toDelete = sortedToPrune.size - MAX_CLOUD_RETENTION_VERSIONS
-                    for (i in 0 until toDelete) {
-                        try {
-                            driveService.files().delete(sortedToPrune[i].id).execute()
-                        } catch (_: Exception) {}
+                if (pruneRes.files != null) {
+                    // 顺带清理掉遗留的历史旧单文件 rmf_cloud_backup.db，彻底避免任何端误识别
+                    pruneRes.files.filter { it.name == BACKUP_FILE_NAME }.forEach {
+                        try { driveService.files().delete(it.id).execute() } catch (_: Exception) {}
+                    }
+
+                    val tsFiles = pruneRes.files
+                        .filter { !it.name.isNullOrBlank() && extractRawTimestamp(it.name) != null }
+                        .sortedBy { extractRawTimestamp(it.name)!! }
+
+                    if (tsFiles.size > MAX_CLOUD_RETENTION_VERSIONS) {
+                        val toDelete = tsFiles.size - MAX_CLOUD_RETENTION_VERSIONS
+                        for (i in 0 until toDelete) {
+                            try {
+                                driveService.files().delete(tsFiles[i].id).execute()
+                            } catch (_: Exception) {}
+                        }
                     }
                 }
             } catch (_: Exception) {}
@@ -668,7 +678,7 @@ class GoogleDriveSyncService(
                 .setOrderBy("createdTime desc")
 
             val searchRes = listReq.execute()
-            val remoteFile = searchRes.files?.sortedByDescending { it.name }?.firstOrNull()
+            val remoteFile = pickLatestBackupFile(searchRes.files)
                 ?: run {
                     val err = "在 Google Drive 对应目录中未发现可还原的备份文件"
                     GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
@@ -843,7 +853,7 @@ class GoogleDriveSyncService(
                 .setOrderBy("createdTime desc")
 
             val searchRes = listReq.execute()
-            val remoteFile = searchRes.files?.sortedByDescending { it.name }?.firstOrNull()
+            val remoteFile = pickLatestBackupFile(searchRes.files)
                 ?: run {
                     val err = "云端暂无备份文件"
                     GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
@@ -881,6 +891,21 @@ class GoogleDriveSyncService(
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
             return@withContext SyncResult.Error(err)
         }
+    }
+
+    /**
+     * 从云端文件列表中精准甄选最新快照：
+     * 1. 严格以 rmf_backup_yyyyMMdd_HHmmss.db 格式提取实际时间戳降序对比。
+     * 2. 避免 ASCII 字母排序导致旧版 rmf_cloud_backup.db 误排在时间戳版本之前。
+     * 3. 若无时间戳快照，才向下兼容旧单文件。
+     */
+    private fun pickLatestBackupFile(files: List<File>?): File? {
+        if (files.isNullOrEmpty()) return null
+        val timestamped = files
+            .filter { !it.name.isNullOrBlank() && extractRawTimestamp(it.name) != null }
+            .sortedByDescending { extractRawTimestamp(it.name)!! }
+        if (timestamped.isNotEmpty()) return timestamped[0]
+        return files.firstOrNull { it.name == BACKUP_FILE_NAME }
     }
 
     private fun extractRawTimestamp(name: String): String? {

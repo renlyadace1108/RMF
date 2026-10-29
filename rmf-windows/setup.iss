@@ -3,7 +3,7 @@
 
 #define MyAppName "RMF"
 #define MyAppFullName "RMF 时间与精力节律管理系统"
-#define MyAppVersion "1.5.8.0"
+#define MyAppVersion "1.5.8.1"
 #define MyAppPublisher "Renly"
 #define MyAppExeName "RMF.Windows.exe"
 
