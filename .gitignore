@@ -18,6 +18,7 @@ publish/
 installer_output/
 *.exe
 release/*.zip
+rmf_release_info.json
 
 # Android / Gradle
 .gradle/

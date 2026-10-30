@@ -94,7 +94,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "Renly Management Platform v1.5.8.5";
+        Title = "Renly Management Platform v1.5.8.6";
 
         Loaded += (s, e) =>
         {
@@ -7846,6 +7846,141 @@ public partial class MainWindow : Window
             GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
             GoogleDriveActionStatusText.Text = $"✗ 恢复出错: {ex.Message}";
             System.Windows.MessageBox.Show($"恢复异常: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnDriveCheckSoftwareUpdateClicked(object sender, RoutedEventArgs e)
+    {
+        string cId = GoogleDriveClientIdInput?.Text?.Trim() ?? "";
+        string cSec = GoogleDriveClientSecretInput?.Text?.Trim() ?? "";
+        var config = ConfigService.Load();
+        if (string.IsNullOrWhiteSpace(cId)) cId = config.GoogleClientId;
+        if (string.IsNullOrWhiteSpace(cSec)) cSec = config.GoogleClientSecret;
+
+        if (string.IsNullOrWhiteSpace(cId) || string.IsNullOrWhiteSpace(cSec))
+        {
+            System.Windows.MessageBox.Show("尚未配置 Google 账号凭据。请先在 Google Drive 同步设置中填入 Client ID 并完成授权。", "软件更新", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (GoogleDriveActionStatusText != null)
+        {
+            GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+            GoogleDriveActionStatusText.Text = "正在从 Google Drive 检索最新软件版本与更新清单...";
+        }
+
+        try
+        {
+            var (hasUpdate, releaseInfo, message) = await GoogleDriveSyncService.CheckForSoftwareUpdateAsync(cId, cSec);
+
+            if (GoogleDriveActionStatusText != null)
+            {
+                GoogleDriveActionStatusText.Foreground = new SolidColorBrush(hasUpdate ? Color.FromRgb(0x38, 0xBD, 0xF8) : Color.FromRgb(0x10, 0xB9, 0x81));
+                GoogleDriveActionStatusText.Text = message;
+            }
+
+            if (!hasUpdate)
+            {
+                System.Windows.MessageBox.Show(message, "软件更新", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (releaseInfo == null) return;
+
+            string updatePrompt = $"🎉 发现新版本 v{releaseInfo.VersionName}！\n\n" +
+                $"🕒 发布时间: {releaseInfo.ReleaseDate}\n\n" +
+                $"📋 更新内容:\n{releaseInfo.Changelog}\n\n" +
+                (string.IsNullOrEmpty(releaseInfo.WindowsInstallerFileId) && string.IsNullOrEmpty(releaseInfo.WindowsZipFileId)
+                    ? "提示: 云端已发布移动端 APK，Windows 对应构建正在准备中。"
+                    : "是否立即从 Google Drive 下载并更新 Windows 客户端？");
+
+            if (string.IsNullOrEmpty(releaseInfo.WindowsInstallerFileId) && string.IsNullOrEmpty(releaseInfo.WindowsZipFileId))
+            {
+                System.Windows.MessageBox.Show(updatePrompt, "软件更新", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialogRes = System.Windows.MessageBox.Show(updatePrompt, "发现新版本", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (dialogRes != MessageBoxResult.Yes) return;
+
+            string targetFileId = !string.IsNullOrEmpty(releaseInfo.WindowsInstallerFileId)
+                ? releaseInfo.WindowsInstallerFileId
+                : releaseInfo.WindowsZipFileId;
+            string targetFileName = !string.IsNullOrEmpty(releaseInfo.WindowsInstallerName)
+                ? releaseInfo.WindowsInstallerName
+                : (!string.IsNullOrEmpty(releaseInfo.WindowsZipName) ? releaseInfo.WindowsZipName : $"RMF-Windows-v{releaseInfo.VersionName}.zip");
+
+            string userDownloads = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            if (!Directory.Exists(userDownloads))
+            {
+                Directory.CreateDirectory(userDownloads);
+            }
+            string destinationPath = System.IO.Path.Combine(userDownloads, targetFileName);
+
+            if (GoogleDriveActionStatusText != null)
+            {
+                GoogleDriveActionStatusText.Text = $"正在下载 {targetFileName}...";
+            }
+
+            var (dlSuccess, dlMsg) = await GoogleDriveSyncService.DownloadReleaseFileAsync(
+                cId, cSec, targetFileId, destinationPath,
+                (cur, tot) =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (GoogleDriveActionStatusText != null && tot > 0)
+                        {
+                            double pct = (double)cur / tot * 100.0;
+                            GoogleDriveActionStatusText.Text = $"正在下载: {cur / (1024 * 1024.0):F1} MB / {tot / (1024 * 1024.0):F1} MB ({pct:F0}%)";
+                        }
+                    });
+                }
+            );
+
+            if (dlSuccess)
+            {
+                if (GoogleDriveActionStatusText != null)
+                {
+                    GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+                    GoogleDriveActionStatusText.Text = $"✓ 安装包下载完成: {destinationPath}";
+                }
+
+                if (targetFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    var runRes = System.Windows.MessageBox.Show(
+                        $"安装包已下载至:\n{destinationPath}\n\n是否立即启动安装向导以升级当前软件？",
+                        "下载成功",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information
+                    );
+                    if (runRes == MessageBoxResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = destinationPath,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show($"更新包已成功下载至:\n{destinationPath}", "下载完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{destinationPath}\"");
+                }
+            }
+            else
+            {
+                if (GoogleDriveActionStatusText != null)
+                {
+                    GoogleDriveActionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+                    GoogleDriveActionStatusText.Text = $"✗ {dlMsg}";
+                }
+                System.Windows.MessageBox.Show(dlMsg, "下载失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"检查更新失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

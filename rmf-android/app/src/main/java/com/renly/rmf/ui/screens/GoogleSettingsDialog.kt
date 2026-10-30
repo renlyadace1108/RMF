@@ -25,6 +25,8 @@ import com.renly.rmf.domain.service.CalendarSyncResult
 import com.renly.rmf.domain.service.GoogleCalendarSyncService
 import com.renly.rmf.domain.service.GoogleDrivePreferences
 import com.renly.rmf.domain.service.GoogleDriveSyncService
+import com.renly.rmf.domain.service.GoogleDriveUpdateService
+import com.renly.rmf.domain.service.UpdateCheckResult
 import com.renly.rmf.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,6 +59,8 @@ fun GoogleSettingsDialog(
     var lastCalSyncTime by remember { mutableStateOf(GoogleDrivePreferences.getCalendarLastSyncTime(context)) }
 
     var isAuthorized by remember { mutableStateOf(GoogleDrivePreferences.isAuthorized(context)) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -362,6 +366,51 @@ fun GoogleSettingsDialog(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text("⬇️ 从云端下载恢复", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (isCheckingUpdate) return@OutlinedButton
+                                    isCheckingUpdate = true
+                                    driveStatusText = "正在检索 Google Drive 云端发布清单..."
+                                    coroutineScope.launch {
+                                        val res = GoogleDriveUpdateService.checkForUpdate(context)
+                                        isCheckingUpdate = false
+                                        when (res) {
+                                            is UpdateCheckResult.UpdateAvailable -> {
+                                                driveStatusText = "✓ 发现新版本 v${res.releaseInfo.versionName}！"
+                                                updateCheckResult = res
+                                            }
+                                            is UpdateCheckResult.AlreadyLatest -> {
+                                                driveStatusText = "✓ 当前已是最新版本 (v${res.currentVersion})"
+                                            }
+                                            is UpdateCheckResult.NotAuthorized -> {
+                                                driveStatusText = "✗ 请先完成 Google 账号授权"
+                                            }
+                                            is UpdateCheckResult.NoReleaseFound -> {
+                                                driveStatusText = "ℹ️ 云端暂无已发布的版本描述清单"
+                                            }
+                                            is UpdateCheckResult.Error -> {
+                                                driveStatusText = "✗ 检查更新失败: ${res.error}"
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = !isDriveWorking && !isCheckingUpdate,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
+                                border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                if (isCheckingUpdate) {
+                                    CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp, color = DopamineCyan)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("正在检查云端更新...", fontSize = 12.sp)
+                                } else {
+                                    Text("🚀 检查云端软件更新 (Google Drive 专属通道)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
 
@@ -675,6 +724,14 @@ fun GoogleSettingsDialog(
                     Text("取消", color = TextMuted)
                 }
             }
+        )
+    }
+
+    // 🚀 Google Drive 云端更新升级弹窗
+    (updateCheckResult as? UpdateCheckResult.UpdateAvailable)?.let { updateData ->
+        AppUpdateDialog(
+            updateData = updateData,
+            onDismiss = { updateCheckResult = null }
         )
     }
 }

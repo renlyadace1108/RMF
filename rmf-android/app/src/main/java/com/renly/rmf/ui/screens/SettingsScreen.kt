@@ -30,8 +30,10 @@ import com.renly.rmf.domain.service.CalendarSyncResult
 import com.renly.rmf.domain.service.FocusLiveService
 import com.renly.rmf.domain.service.GoogleDrivePreferences
 import com.renly.rmf.domain.service.GoogleDriveSyncService
+import com.renly.rmf.domain.service.GoogleDriveUpdateService
 import com.renly.rmf.domain.service.ScheduleReminderManager
 import com.renly.rmf.domain.service.SystemCalendarSyncService
+import com.renly.rmf.domain.service.UpdateCheckResult
 import com.renly.rmf.ui.components.ExpandableRgbColorPicker
 import com.renly.rmf.ui.components.RgbColorPicker
 import com.renly.rmf.ui.theme.*
@@ -77,6 +79,9 @@ fun SettingsScreen(
     var showLanSyncDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showUserAgreementDialog by remember { mutableStateOf(false) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+    var updateFeedbackMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -2275,6 +2280,55 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // 🚀 Google Drive 应用内自动更新检查入口
+            OutlinedButton(
+                onClick = {
+                    if (isCheckingUpdate) return@OutlinedButton
+                    isCheckingUpdate = true
+                    updateFeedbackMessage = null
+                    coroutineScope.launch {
+                        val res = GoogleDriveUpdateService.checkForUpdate(context)
+                        isCheckingUpdate = false
+                        when (res) {
+                            is UpdateCheckResult.UpdateAvailable -> {
+                                updateCheckResult = res
+                            }
+                            is UpdateCheckResult.AlreadyLatest -> {
+                                updateFeedbackMessage = "🎉 当前已是最新版本 (v${res.currentVersion})，无需更新。"
+                            }
+                            is UpdateCheckResult.NotAuthorized -> {
+                                updateFeedbackMessage = res.message
+                            }
+                            is UpdateCheckResult.NoReleaseFound -> {
+                                updateFeedbackMessage = "云端暂无已发布的版本描述清单 (rmf_release_info.json)。"
+                            }
+                            is UpdateCheckResult.Error -> {
+                                updateFeedbackMessage = "检查版本更新失败: ${res.error}"
+                            }
+                        }
+                    }
+                },
+                enabled = !isCheckingUpdate,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineBlue),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                if (isCheckingUpdate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(13.dp),
+                        strokeWidth = 2.dp,
+                        color = DopamineBlue
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("正在查询云端更新...", fontSize = 11.5.sp)
+                } else {
+                    Text("🚀 检查云端软件更新", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // 《用户服务协议》与《隐私政策》常驻入口 (工信部与各大应用商店合规规范)
             Row(
                 horizontalArrangement = Arrangement.Center,
@@ -2322,6 +2376,32 @@ fun SettingsScreen(
             onDismiss = { showGoogleSettingsDialog = false },
             onTriggerUpload = onTriggerUpload,
             onTriggerDownload = onTriggerDownload
+        )
+    }
+
+    // 🚀 Google Drive 云端自动更新升级弹窗
+    (updateCheckResult as? UpdateCheckResult.UpdateAvailable)?.let { updateData ->
+        AppUpdateDialog(
+            updateData = updateData,
+            onDismiss = { updateCheckResult = null }
+        )
+    }
+
+    // 更新结果提示弹窗 (已是最新 / 未授权 / 异常)
+    updateFeedbackMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { updateFeedbackMessage = null },
+            containerColor = DarkSurface,
+            title = { Text("软件更新", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(msg, color = TextPrimary, fontSize = 13.sp, lineHeight = 19.sp) },
+            confirmButton = {
+                Button(
+                    onClick = { updateFeedbackMessage = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue)
+                ) {
+                    Text("知道了", color = Color.White)
+                }
+            }
         )
     }
 

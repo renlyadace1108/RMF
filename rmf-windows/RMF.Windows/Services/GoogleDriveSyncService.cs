@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
@@ -10,6 +13,63 @@ using Google.Apis.Util.Store;
 using RMF.Windows.Models;
 
 namespace RMF.Windows.Services;
+
+/// <summary>
+/// Google Drive 远端版本描述清单实体 (rmf_release_info.json)
+/// </summary>
+public class ReleaseInfo
+{
+    [JsonPropertyName("versionCode")]
+    public int VersionCode { get; set; }
+
+    [JsonPropertyName("versionName")]
+    public string VersionName { get; set; } = string.Empty;
+
+    [JsonPropertyName("releaseDate")]
+    public string ReleaseDate { get; set; } = string.Empty;
+
+    [JsonPropertyName("changelog")]
+    public string Changelog { get; set; } = string.Empty;
+
+    [JsonPropertyName("minSupportedVersion")]
+    public int MinSupportedVersion { get; set; }
+
+    [JsonPropertyName("phoneApkFileId")]
+    public string PhoneApkFileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("phoneApkName")]
+    public string PhoneApkName { get; set; } = string.Empty;
+
+    [JsonPropertyName("phoneApkSize")]
+    public long PhoneApkSize { get; set; }
+
+    [JsonPropertyName("padApkFileId")]
+    public string PadApkFileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("padApkName")]
+    public string PadApkName { get; set; } = string.Empty;
+
+    [JsonPropertyName("padApkSize")]
+    public long PadApkSize { get; set; }
+
+    [JsonPropertyName("windowsInstallerFileId")]
+    public string WindowsInstallerFileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("windowsInstallerName")]
+    public string WindowsInstallerName { get; set; } = string.Empty;
+
+    [JsonPropertyName("windowsInstallerSize")]
+    public long WindowsInstallerSize { get; set; }
+
+    [JsonPropertyName("windowsZipFileId")]
+    public string WindowsZipFileId { get; set; } = string.Empty;
+
+    [JsonPropertyName("windowsZipName")]
+    public string WindowsZipName { get; set; } = string.Empty;
+
+    [JsonPropertyName("windowsZipSize")]
+    public long WindowsZipSize { get; set; }
+}
 
 public enum CloudSyncState
 {
@@ -514,5 +574,306 @@ public class GoogleDriveSyncService
             ConfigService.Save(config);
         }
         catch { }
+    }
+
+    public const string ReleaseManifestName = "rmf_release_info.json";
+
+    /// <summary>
+    /// 从 Google Drive 检索版本清单并检查是否有可用更新
+    /// </summary>
+    public static async Task<(bool hasUpdate, ReleaseInfo? info, string message)> CheckForSoftwareUpdateAsync(
+        string clientId,
+        string clientSecret,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
+
+            var listReq = service.Files.List();
+            listReq.Q = $"name = '{ReleaseManifestName}' and trashed = false";
+            listReq.Spaces = "drive";
+            listReq.OrderBy = "modifiedTime desc";
+            listReq.PageSize = 5;
+            listReq.Fields = "files(id, name, modifiedTime, size)";
+            var searchRes = await listReq.ExecuteAsync(cancellationToken);
+
+            var releaseFile = searchRes.Files?.FirstOrDefault();
+            if (releaseFile == null)
+            {
+                var folderId = await EnsureBackupFolderAsync(service, cancellationToken);
+                var fallbackReq = service.Files.List();
+                fallbackReq.Q = $"'{folderId}' in parents and name = '{ReleaseManifestName}' and trashed = false";
+                fallbackReq.Spaces = "drive";
+                fallbackReq.OrderBy = "modifiedTime desc";
+                fallbackReq.PageSize = 5;
+                fallbackReq.Fields = "files(id, name, modifiedTime, size)";
+                var fallbackRes = await fallbackReq.ExecuteAsync(cancellationToken);
+                releaseFile = fallbackRes.Files?.FirstOrDefault();
+            }
+
+            if (releaseFile == null)
+            {
+                return (false, null, $"Google Drive 中暂无已发布的版本描述清单 ({ReleaseManifestName})。");
+            }
+
+            using var memoryStream = new MemoryStream();
+            await service.Files.Get(releaseFile.Id).DownloadAsync(memoryStream, cancellationToken);
+            memoryStream.Position = 0;
+
+            var releaseInfo = await JsonSerializer.DeserializeAsync<ReleaseInfo>(
+                memoryStream,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+                cancellationToken
+            );
+
+            if (releaseInfo == null)
+            {
+                return (false, null, "版本清单解析失败：内容为空。");
+            }
+
+            int localVersionCode = 1050806;
+            string localVersionName = "1.5.8.6";
+
+            bool hasUpdate = releaseInfo.VersionCode > localVersionCode ||
+                (releaseInfo.VersionCode == localVersionCode && releaseInfo.VersionName != localVersionName);
+
+            if (!hasUpdate)
+            {
+                return (false, releaseInfo, $"当前已是最新版本 (v{localVersionName})，无需更新。");
+            }
+
+            return (true, releaseInfo, $"发现新版本 v{releaseInfo.VersionName}！");
+        }
+        catch (Exception ex)
+        {
+            return (false, null, $"检查更新失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 从 Google Drive 下载指定的发布资产文件 (例如 Windows 安装包或压缩包)
+    /// </summary>
+    public static async Task<(bool success, string message)> DownloadReleaseFileAsync(
+        string clientId,
+        string clientSecret,
+        string fileId,
+        string targetFilePath,
+        Action<long, long>? progressCallback = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
+
+            var metaReq = service.Files.Get(fileId);
+            metaReq.Fields = "id, name, size";
+            var meta = await metaReq.ExecuteAsync(cancellationToken);
+            long totalBytes = meta.Size ?? 0L;
+
+            string tempFile = targetFilePath + ".download.tmp";
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+
+            var dir = Path.GetDirectoryName(targetFilePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            using (var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var getReq = service.Files.Get(fileId);
+                getReq.MediaDownloader.ProgressChanged += progress =>
+                {
+                    progressCallback?.Invoke(progress.BytesDownloaded, totalBytes);
+                };
+                await getReq.DownloadAsync(fileStream, cancellationToken);
+            }
+
+            if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
+            File.Move(tempFile, targetFilePath);
+
+            return (true, $"文件已成功下载至: {targetFilePath}");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"下载失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 将新版本各平台构建及清单一键发布至 Google Drive (专属 RMF_CloudSync 目录)
+    /// </summary>
+    public static async Task<(bool success, string message)> PublishReleaseToDriveAsync(
+        string clientId,
+        string clientSecret,
+        string versionName,
+        int versionCode,
+        string changelog,
+        string? phoneApkPath = null,
+        string? padApkPath = null,
+        string? windowsInstallerPath = null,
+        string? windowsZipPath = null,
+        Action<string>? progressCallback = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            progressCallback?.Invoke("正在连接 Google Drive API 并确保同步目录就绪...");
+            using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
+            var folderId = await EnsureBackupFolderAsync(service, cancellationToken);
+
+            var releaseInfo = new ReleaseInfo
+            {
+                VersionCode = versionCode,
+                VersionName = versionName,
+                ReleaseDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                Changelog = changelog
+            };
+
+            // 1. 上传 Android 手机版 APK
+            if (!string.IsNullOrWhiteSpace(phoneApkPath) && File.Exists(phoneApkPath))
+            {
+                string fileName = Path.GetFileName(phoneApkPath);
+                progressCallback?.Invoke($"正在上传 Android 手机版安装包 ({fileName})...");
+                var fileId = await UploadFileToFolderAsync(service, folderId, phoneApkPath, "application/vnd.android.package-archive", cancellationToken);
+                releaseInfo.PhoneApkFileId = fileId;
+                releaseInfo.PhoneApkName = fileName;
+                releaseInfo.PhoneApkSize = new FileInfo(phoneApkPath).Length;
+            }
+
+            // 2. 上传 Android 平板版 APK
+            if (!string.IsNullOrWhiteSpace(padApkPath) && File.Exists(padApkPath))
+            {
+                string fileName = Path.GetFileName(padApkPath);
+                progressCallback?.Invoke($"正在上传 Android 平板版安装包 ({fileName})...");
+                var fileId = await UploadFileToFolderAsync(service, folderId, padApkPath, "application/vnd.android.package-archive", cancellationToken);
+                releaseInfo.PadApkFileId = fileId;
+                releaseInfo.PadApkName = fileName;
+                releaseInfo.PadApkSize = new FileInfo(padApkPath).Length;
+            }
+
+            // 3. 上传 Windows 安装包
+            if (!string.IsNullOrWhiteSpace(windowsInstallerPath) && File.Exists(windowsInstallerPath))
+            {
+                string fileName = Path.GetFileName(windowsInstallerPath);
+                progressCallback?.Invoke($"正在上传 Windows 安装程序 ({fileName})...");
+                var fileId = await UploadFileToFolderAsync(service, folderId, windowsInstallerPath, "application/octet-stream", cancellationToken);
+                releaseInfo.WindowsInstallerFileId = fileId;
+                releaseInfo.WindowsInstallerName = fileName;
+                releaseInfo.WindowsInstallerSize = new FileInfo(windowsInstallerPath).Length;
+            }
+
+            // 4. 上传 Windows 便携压缩包
+            if (!string.IsNullOrWhiteSpace(windowsZipPath) && File.Exists(windowsZipPath))
+            {
+                string fileName = Path.GetFileName(windowsZipPath);
+                progressCallback?.Invoke($"正在上传 Windows 绿色压缩包 ({fileName})...");
+                var fileId = await UploadFileToFolderAsync(service, folderId, windowsZipPath, "application/zip", cancellationToken);
+                releaseInfo.WindowsZipFileId = fileId;
+                releaseInfo.WindowsZipName = fileName;
+                releaseInfo.WindowsZipSize = new FileInfo(windowsZipPath).Length;
+            }
+
+            // 5. 生成并上传 rmf_release_info.json
+            progressCallback?.Invoke("正在更新云端版本清单 (rmf_release_info.json)...");
+            var jsonString = JsonSerializer.Serialize(releaseInfo, new JsonSerializerOptions { WriteIndented = true });
+            byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(jsonString);
+
+            // 检查云端是否已存在旧的清单
+            var checkReq = service.Files.List();
+            checkReq.Q = $"name = '{ReleaseManifestName}' and trashed = false";
+            checkReq.Spaces = "drive";
+            checkReq.Fields = "files(id, name)";
+            var checkRes = await checkReq.ExecuteAsync(cancellationToken);
+            var existingManifest = checkRes.Files?.FirstOrDefault();
+
+            using var jsonStream = new MemoryStream(jsonBytes);
+            if (existingManifest != null)
+            {
+                var updateMeta = new Google.Apis.Drive.v3.Data.File
+                {
+                    Name = ReleaseManifestName,
+                    Description = $"RMF Release Info v{versionName}"
+                };
+                var updateReq = service.Files.Update(updateMeta, existingManifest.Id, jsonStream, "application/json");
+                await updateReq.UploadAsync(cancellationToken);
+            }
+            else
+            {
+                var createMeta = new Google.Apis.Drive.v3.Data.File
+                {
+                    Name = ReleaseManifestName,
+                    Parents = new List<string> { folderId },
+                    Description = $"RMF Release Info v{versionName}"
+                };
+                var createReq = service.Files.Create(createMeta, jsonStream, "application/json");
+                await createReq.UploadAsync(cancellationToken);
+            }
+
+            string successSummary = $"版本 v{versionName} 已成功发布至 Google Drive 云端更新通道！\n" +
+                $"- 手机版 APK: {(string.IsNullOrEmpty(releaseInfo.PhoneApkFileId) ? "未包含" : releaseInfo.PhoneApkName)}\n" +
+                $"- 平板版 APK: {(string.IsNullOrEmpty(releaseInfo.PadApkFileId) ? "未包含" : releaseInfo.PadApkName)}\n" +
+                $"- Windows 安装包: {(string.IsNullOrEmpty(releaseInfo.WindowsInstallerFileId) ? "未包含" : releaseInfo.WindowsInstallerName)}\n" +
+                $"- Windows 压缩包: {(string.IsNullOrEmpty(releaseInfo.WindowsZipFileId) ? "未包含" : releaseInfo.WindowsZipName)}";
+
+            return (true, successSummary);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"发布至 Google Drive 失败: {ex.Message}");
+        }
+    }
+
+    private static async Task<string> UploadFileToFolderAsync(
+        DriveService service,
+        string folderId,
+        string filePath,
+        string mimeType,
+        CancellationToken cancellationToken)
+    {
+        string fileName = Path.GetFileName(filePath);
+
+        // 检查该文件夹下是否已存在同名文件，若存在则直接覆盖更新
+        var listReq = service.Files.List();
+        listReq.Q = $"'{folderId}' in parents and name = '{fileName}' and trashed = false";
+        listReq.Spaces = "drive";
+        listReq.Fields = "files(id, name)";
+        var listRes = await listReq.ExecuteAsync(cancellationToken);
+        var existing = listRes.Files?.FirstOrDefault();
+
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        if (existing != null)
+        {
+            var updateMeta = new Google.Apis.Drive.v3.Data.File
+            {
+                Name = fileName
+            };
+            var updateReq = service.Files.Update(updateMeta, existing.Id, stream, mimeType);
+            updateReq.Fields = "id";
+            var result = await updateReq.UploadAsync(cancellationToken);
+            if (result.Status == Google.Apis.Upload.UploadStatus.Failed)
+            {
+                throw result.Exception ?? new Exception($"覆盖上传文件 {fileName} 失败");
+            }
+            return existing.Id;
+        }
+        else
+        {
+            var createMeta = new Google.Apis.Drive.v3.Data.File
+            {
+                Name = fileName,
+                Parents = new List<string> { folderId }
+            };
+            var createReq = service.Files.Create(createMeta, stream, mimeType);
+            createReq.Fields = "id";
+            var result = await createReq.UploadAsync(cancellationToken);
+            if (result.Status == Google.Apis.Upload.UploadStatus.Failed)
+            {
+                throw result.Exception ?? new Exception($"创建上传文件 {fileName} 失败");
+            }
+            return createReq.ResponseBody?.Id ?? string.Empty;
+        }
     }
 }

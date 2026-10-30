@@ -13,8 +13,8 @@ android {
         applicationId = "com.renly.rmf"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1050805
-        versionName = "1.5.8.5"
+        versionCode = 1050806
+        versionName = "1.5.8.6"
 
         manifestPlaceholders["appName"] = "RMF"
         buildConfigField("Boolean", "IS_PAD_EDITION", "false")

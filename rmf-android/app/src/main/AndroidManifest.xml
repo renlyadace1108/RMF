@@ -19,6 +19,8 @@
     <!-- 局域网 Wi-Fi 直连与 UDP 信标发现权限 -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- 应用内从 Google Drive 自动更新安装 APK 权限 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".RmfApplication"
