@@ -92,8 +92,7 @@ class GoogleDriveSyncService(
     companion object {
         const val APPLICATION_NAME = "Renly Management Platform"
         const val BACKUP_FOLDER_NAME = "RMF_CloudSync"
-        const val BACKUP_FILE_NAME = "rmf_cloud_backup.db"
-        const val MAX_CLOUD_RETENTION_VERSIONS = 50
+        const val BACKUP_FILE_NAME = "data.db"
         const val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
         const val CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
         const val COMBINED_SCOPES = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events"
@@ -351,58 +350,49 @@ class GoogleDriveSyncService(
             dbFile.copyTo(snapshotTemp, overwrite = true)
             val mediaContent = FileContent("application/x-sqlite3", snapshotTemp)
 
-            // 3. 生成带 UTC+8 标准编程时间戳规范的专属快照文件名
-            val beijingTime = java.time.ZonedDateTime.now(java.time.ZoneOffset.ofHours(8))
-            val timestamp = beijingTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-            val newBackupFileName = "rmf_backup_${timestamp}_UTC+8.db"
+            // 3. 检索云端专属目录中是否已有数据文件 data.db
+            onProgress?.invoke("正在检索云端唯一数据文件 ($BACKUP_FILE_NAME)...")
+            val listReq = driveService.files().list()
+                .setQ("'$folderId' in parents and trashed = false")
+                .setSpaces("drive")
+                .setPageSize(50)
+                .setFields("files(id, name)")
+            val fileList = listReq.execute().files ?: emptyList()
+            val existingDataFile = fileList.firstOrNull { it.name == BACKUP_FILE_NAME || it.name == "data" || it.name == "rmf_cloud_backup.db" }
 
-            onProgress?.invoke("正在上传 UTC+8 标准时间戳快照 ($newBackupFileName)...")
-            val createMeta = File().apply {
-                name = newBackupFileName
-                parents = listOf(folderId)
-                description = "RMF Android Database Snapshot ($nowStr UTC+8)"
+            if (existingDataFile != null) {
+                onProgress?.invoke("正在更新覆盖云端数据文件 ($BACKUP_FILE_NAME)...")
+                val updateMeta = File().apply {
+                    name = BACKUP_FILE_NAME
+                    description = "RMF Database Snapshot ($nowStr)"
+                }
+                driveService.files().update(existingDataFile.id, updateMeta, mediaContent).execute()
+            } else {
+                onProgress?.invoke("正在创建并上传云端数据文件 ($BACKUP_FILE_NAME)...")
+                val createMeta = File().apply {
+                    name = BACKUP_FILE_NAME
+                    parents = listOf(folderId)
+                    description = "RMF Database Backup ($nowStr)"
+                }
+                driveService.files().create(createMeta, mediaContent).execute()
             }
-            driveService.files().create(createMeta, mediaContent).execute()
 
             // 清理 schedules 中的本地 dirty 标记
             try {
                 database.openHelper.writableDatabase.execSQL("UPDATE schedules SET is_dirty = 0 WHERE is_dirty = 1;")
             } catch (_: Exception) {}
 
-            // 4. 云端保留策略维护：保留最新的 50 个时间戳版本，清理超额快照并清理旧版 rmf_cloud_backup.db
+            // 4. 清理云端同目录下所有旧的历史多余文件，坚决保证云端仅保留唯一的 data.db
             try {
-                val pruneReq = driveService.files().list()
-                    .setQ("'$folderId' in parents and trashed = false and (name contains 'rmf_backup_' or name = '$BACKUP_FILE_NAME')")
-                    .setSpaces("drive")
-                    .setPageSize(100)
-                    .setFields("files(id, name, createdTime)")
-                    .setOrderBy("name asc")
-                val pruneRes = pruneReq.execute()
-                if (pruneRes.files != null) {
-                    // 顺带清理掉遗留的历史旧单文件 rmf_cloud_backup.db，彻底避免任何端误识别
-                    pruneRes.files.filter { it.name == BACKUP_FILE_NAME }.forEach {
-                        try { driveService.files().delete(it.id).execute() } catch (_: Exception) {}
-                    }
-
-                    val tsFiles = pruneRes.files
-                        .filter { !it.name.isNullOrBlank() && extractRawTimestamp(it.name) != null }
-                        .sortedBy { extractRawTimestamp(it.name)!! }
-
-                    if (tsFiles.size > MAX_CLOUD_RETENTION_VERSIONS) {
-                        val toDelete = tsFiles.size - MAX_CLOUD_RETENTION_VERSIONS
-                        for (i in 0 until toDelete) {
-                            try {
-                                driveService.files().delete(tsFiles[i].id).execute()
-                            } catch (_: Exception) {}
-                        }
-                    }
+                fileList.filter { it.id != (existingDataFile?.id) && it.name != BACKUP_FILE_NAME }.forEach {
+                    try { driveService.files().delete(it.id).execute() } catch (_: Exception) {}
                 }
             } catch (_: Exception) {}
 
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
-            GoogleDrivePreferences.setLastSyncedTimestamp(context, timestamp)
-            GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "云端已保存新快照", nowStr)
-            return@withContext SyncResult.Success("已成功保存云端时间戳版本「$newBackupFileName」！", nowStr)
+            GoogleDrivePreferences.setLastSyncedTimestamp(context, nowStr)
+            GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, "云端已保存最新数据", nowStr)
+            return@withContext SyncResult.Success("已成功上传并更新云端数据文件「$BACKUP_FILE_NAME」！", nowStr)
         } catch (e: Exception) {
             val isInvalidGrant = e.message?.contains("invalid_grant", ignoreCase = true) == true
             if (isInvalidGrant) {
@@ -470,18 +460,19 @@ class GoogleDriveSyncService(
 
         cleanupLocalBackupFiles(context)
 
+        val newDb = RmfDatabase.getInstance(context)
         try {
-            database.invalidationTracker.refreshVersionsAsync()
+            newDb.invalidationTracker.refreshVersionsAsync()
         } catch (_: Exception) {}
 
-        TimetablePreferences.syncFromDatabase(context, database.syncDao())
+        TimetablePreferences.syncFromDatabase(context, newDb.syncDao())
 
         if (TimetablePreferences.isSemesterConfigured(context)) {
             try {
                 TimetableProjectionService.syncAllToSchedule(
                     context = context,
-                    courseDao = database.courseDao(),
-                    scheduleDao = database.scheduleDao()
+                    courseDao = newDb.courseDao(),
+                    scheduleDao = newDb.scheduleDao()
                 )
             } catch (_: Exception) {}
         }
@@ -489,7 +480,7 @@ class GoogleDriveSyncService(
         try {
             CourseReminderScheduler.scheduleUpcomingCourseReminders(
                 context = context,
-                courseDao = database.courseDao(),
+                courseDao = newDb.courseDao(),
                 daysAhead = 7
             )
             ScheduleReminderManager.rescheduleAll(context)
@@ -500,13 +491,13 @@ class GoogleDriveSyncService(
     }
 
     /**
-     * 从 Google Drive 专属同步文件夹检索并拉取最新时间戳备份数据库，安全替换本地数据库
+     * 从 Google Drive 专属同步文件夹检索并拉取唯一数据文件 data.db，安全替换本地数据库
      */
     suspend fun downloadBackupFromDrive(
         onProgress: ((String) -> Unit)? = null
     ): SyncResult = withContext(Dispatchers.IO) {
         GoogleDriveAutoSyncManager.isRestoring = true
-        GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SYNCING, "正在拉取云端快照...")
+        GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SYNCING, "正在拉取云端数据文件...")
         val tempFile = java.io.File(context.cacheDir, "rmf_cloud_temp_${System.currentTimeMillis()}.db")
         try {
             onProgress?.invoke("正在连接 Google Drive API 并校验凭据...")
@@ -518,37 +509,41 @@ class GoogleDriveSyncService(
             }
             val driveService = driveRes.getOrThrow()
 
-            onProgress?.invoke("正在检索云端专属目录最新镜像...")
+            onProgress?.invoke("正在检索云端专属目录唯一数据文件...")
             val folderId = ensureBackupFolder(driveService)
 
             val listReq = driveService.files().list()
-                .setQ("'$folderId' in parents and trashed = false and (name contains 'rmf_backup_' or name = '$BACKUP_FILE_NAME')")
+                .setQ("'$folderId' in parents and trashed = false")
                 .setSpaces("drive")
+                .setPageSize(50)
                 .setFields("files(id, name, createdTime, modifiedTime, size)")
-                .setOrderBy("createdTime desc")
 
             val searchRes = listReq.execute()
-            val remoteFile = pickLatestBackupFile(searchRes.files)
+            val fileList = searchRes.files ?: emptyList()
+            val remoteFile = fileList.firstOrNull { it.name == BACKUP_FILE_NAME || it.name == "data" }
+                ?: fileList.firstOrNull { it.name == "rmf_cloud_backup.db" }
+                ?: fileList.firstOrNull { it.name.startsWith("rmf_backup_") }
+                ?: fileList.firstOrNull()
                 ?: run {
-                    val err = "在 Google Drive 对应目录中未发现可还原的备份文件"
+                    val err = "在 Google Drive 对应目录中未发现数据文件 ($BACKUP_FILE_NAME)"
                     GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
                     return@withContext SyncResult.Error(err)
                 }
 
-            onProgress?.invoke("正在拉取最新云端快照 (${remoteFile.name})...")
+            onProgress?.invoke("正在拉取云端数据文件 (${remoteFile.name})...")
             FileOutputStream(tempFile).use { output ->
                 driveService.files().get(remoteFile.id).executeMediaAndDownloadTo(output)
             }
 
             if (tempFile.length() < 100) {
                 tempFile.delete()
-                val err = "云端下载的快照文件异常或为空"
+                val err = "云端下载的数据文件异常或为空"
                 GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
                 return@withContext SyncResult.Error(err)
             }
 
             // 1. 校验下载数据库文件完整性
-            onProgress?.invoke("正在校验云端快照完整性...")
+            onProgress?.invoke("正在校验数据文件完整性...")
             try {
                 val testDb = android.database.sqlite.SQLiteDatabase.openDatabase(
                     tempFile.absolutePath,
@@ -564,7 +559,7 @@ class GoogleDriveSyncService(
                 testDb.close()
                 if (!integrityOk) {
                     tempFile.delete()
-                    val err = "云端下载的数据库完整性检验未通过，已取消合并"
+                    val err = "云端下载的数据库完整性检验未通过，已取消载入"
                     GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
                     return@withContext SyncResult.Error(err)
                 }
@@ -575,19 +570,18 @@ class GoogleDriveSyncService(
                 return@withContext SyncResult.Error(err)
             }
 
-            // 2. 核心：直接使用云端最新数据文件安全覆盖本地数据库
-            onProgress?.invoke("云端快照时间戳更新，正在安全载入最新数据文件...")
+            // 2. 核心：直接使用云端唯一数据文件安全覆盖本地数据库
+            onProgress?.invoke("正在安全载入云端最新数据文件...")
             restoreDatabaseFromFile(tempFile)
 
             val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-            val rawTimestamp = extractRawTimestamp(remoteFile.name) ?: remoteFile.name
             GoogleDrivePreferences.setLastSyncTime(context, nowStr)
-            GoogleDrivePreferences.setLastSyncedTimestamp(context, rawTimestamp)
+            GoogleDrivePreferences.setLastSyncedTimestamp(context, nowStr)
 
-            val statusMsg = "已与云端最新快照保持一致"
+            val statusMsg = "已与云端数据文件 (data.db) 保持一致"
             GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SUCCESS, statusMsg, nowStr)
 
-            return@withContext SyncResult.Success("已成功同步云端最新版本「${remoteFile.name}」！全量数据已完全对齐生效。", nowStr)
+            return@withContext SyncResult.Success("已成功同步云端数据文件「${remoteFile.name}」！全量数据已完全对齐生效。", nowStr)
         } catch (e: Exception) {
             val isInvalidGrant = e.message?.contains("invalid_grant", ignoreCase = true) == true
             if (isInvalidGrant) {
@@ -608,9 +602,7 @@ class GoogleDriveSyncService(
     }
 
     /**
-     * 静默/前台自动双向轻检测与拉取同步：
-     * 遵循单人使用哲学（不考虑并发）：
-     * 直接比对云端最新文件时间戳与本地已同步版本的时间戳，谁更新就采用谁！
+     * 极简云端下载拉取同步：直接调用从云端下载恢复唯一数据文件
      */
     suspend fun pullLatestBackupIfNewer(force: Boolean = false): SyncResult = withContext(Dispatchers.IO) {
         if (!GoogleDrivePreferences.isAuthorized(context)) {
@@ -621,65 +613,6 @@ class GoogleDriveSyncService(
             return@withContext SyncResult.Error("设备离线，已跳过云端检测以节省功耗")
         }
 
-        try {
-            GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.SYNCING, "正在检查云端快照更新...")
-            val driveRes = getDriveService()
-            if (driveRes.isFailure) {
-                val err = "连接 Drive 失败: ${driveRes.exceptionOrNull()?.message}"
-                GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
-                return@withContext SyncResult.Error(err)
-            }
-            val driveService = driveRes.getOrThrow()
-            val folderId = ensureBackupFolder(driveService)
-
-            val listReq = driveService.files().list()
-                .setQ("'$folderId' in parents and trashed = false and (name contains 'rmf_backup_' or name = '$BACKUP_FILE_NAME')")
-                .setSpaces("drive")
-                .setFields("files(id, name, createdTime, modifiedTime, size)")
-                .setOrderBy("createdTime desc")
-
-            val searchRes = listReq.execute()
-            val remoteFile = pickLatestBackupFile(searchRes.files)
-                ?: run {
-                    val err = "云端暂无备份文件"
-                    GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
-                    return@withContext SyncResult.Error(err)
-                }
-
-            // 彻底去除多余比对逻辑，直接从云端下载最新时间戳版本安全还原
-            return@withContext downloadBackupFromDrive()
-        } catch (e: Exception) {
-            val err = "云端拉取下载异常: ${e.message}"
-            GoogleDriveSyncStateHolder.updateStatus(CloudSyncState.ERROR, err, error = err)
-            return@withContext SyncResult.Error(err)
-        }
-    }
-
-    /**
-     * 从云端文件列表中精准甄选最新快照：
-     * 1. 严格以 rmf_backup_yyyyMMdd_HHmmss_UTC+8.db 格式提取实际时间戳降序对比。
-     * 2. 避免 ASCII 字母排序导致旧版 rmf_cloud_backup.db 误排在时间戳版本之前。
-     * 3. 若无时间戳快照，才向下兼容旧单文件。
-     */
-    private fun pickLatestBackupFile(files: List<File>?): File? {
-        if (files.isNullOrEmpty()) return null
-        val timestamped = files
-            .filter { !it.name.isNullOrBlank() && extractRawTimestamp(it.name) != null }
-            .sortedByDescending { extractRawTimestamp(it.name)!! }
-        if (timestamped.isNotEmpty()) return timestamped[0]
-        return files.firstOrNull { it.name == BACKUP_FILE_NAME }
-    }
-
-    private fun extractRawTimestamp(name: String): String? {
-        val regex = Regex("""rmf_backup_(\d{8}_\d{6})(?:_UTC\+?8)?\.db""")
-        val match = regex.find(name) ?: return null
-        return match.groupValues.getOrNull(1)
-    }
-
-    private fun extractTimestampFromBackupName(name: String): String? {
-        val regex = Regex("""rmf_backup_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})(?:_UTC\+?8)?\.db""")
-        val match = regex.find(name) ?: return null
-        val (y, m, d, h, min, s) = match.destructured
-        return "$y-$m-$d $h:$min:$s (UTC+8)"
+        return@withContext downloadBackupFromDrive()
     }
 }

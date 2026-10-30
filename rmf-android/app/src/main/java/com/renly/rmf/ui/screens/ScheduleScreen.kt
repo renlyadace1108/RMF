@@ -7147,6 +7147,7 @@ fun GoogleDriveSyncStatusModal(
                                     val res = syncService.downloadBackupFromDrive()
                                     if (res is com.renly.rmf.domain.service.SyncResult.Success) {
                                         android.widget.Toast.makeText(context, "✓ ${res.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                        (context as? android.app.Activity)?.recreate()
                                     } else if (res is com.renly.rmf.domain.service.SyncResult.Error) {
                                         android.widget.Toast.makeText(context, "✗ ${res.error}", android.widget.Toast.LENGTH_LONG).show()
                                     }
@@ -7172,6 +7173,7 @@ fun GoogleDriveSyncStatusModal(
                                     val res = syncService.uploadBackupToDrive()
                                     if (res is com.renly.rmf.domain.service.SyncResult.Success) {
                                         android.widget.Toast.makeText(context, "✓ ${res.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                        (context as? android.app.Activity)?.recreate()
                                     } else if (res is com.renly.rmf.domain.service.SyncResult.Error) {
                                         android.widget.Toast.makeText(context, "✗ ${res.error}", android.widget.Toast.LENGTH_LONG).show()
                                     }
