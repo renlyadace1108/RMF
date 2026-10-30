@@ -152,6 +152,7 @@ public class GoogleDriveSyncService
         var listReq = service.Files.List();
         listReq.Q = $"mimeType = 'application/vnd.google-apps.folder' and name = '{BackupFolderName}' and trashed = false";
         listReq.Spaces = "drive";
+        listReq.OrderBy = "modifiedTime desc";
         listReq.Fields = "files(id, name)";
 
         var res = await listReq.ExecuteAsync(cancellationToken);
@@ -174,7 +175,7 @@ public class GoogleDriveSyncService
     }
 
     /// <summary>
-    /// 上传本地数据库至 Google Drive 进行云端同步
+    /// 上传本地数据库至 Google Drive 进行云端同步（唯一文件 data.db）
     /// </summary>
     public static async Task<(bool success, string fileId, string message)> UploadBackupToDriveAsync(string clientId, string clientSecret, Action<string>? progressCallback = null, CancellationToken cancellationToken = default)
     {
@@ -183,9 +184,6 @@ public class GoogleDriveSyncService
             progressCallback?.Invoke("正在连接 Google Drive API 并校验授权...");
             using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
 
-            progressCallback?.Invoke("正在定位专属云端同步目录...");
-            string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
-
             // 0. 更新本地快照物理版本计数器
             var localMeta = DatabaseService.GetSnapshotMetadata();
             localMeta.VersionCounter++;
@@ -193,30 +191,45 @@ public class GoogleDriveSyncService
             localMeta.UpdatedAt = DateTime.UtcNow;
             DatabaseService.SaveSnapshotMetadata(localMeta);
 
+            // 统计本地数据指纹（日程数、课表数）
+            int scheduleCount = 0;
+            int courseCount = 0;
+            try
+            {
+                using var cntConn = new Microsoft.Data.Sqlite.SqliteConnection(DatabaseService.ConnectionString);
+                cntConn.Open();
+                using var scCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT count(*) FROM schedules WHERE is_deleted = 0;", cntConn);
+                scheduleCount = Convert.ToInt32(scCmd.ExecuteScalar());
+                using var ccCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT count(*) FROM courses;", cntConn);
+                courseCount = Convert.ToInt32(ccCmd.ExecuteScalar());
+            }
+            catch { }
+
             // 1. 生成一份原子只读数据库快照
             progressCallback?.Invoke("正在生成本地数据库原子只读快照...");
             string snapshotPath = DatabaseService.CreateSafeDatabaseSnapshot();
 
             try
             {
-                // 2. 检索云端专属目录中是否已存在数据文件 data.db
-                progressCallback?.Invoke($"正在检索云端唯一数据文件 ({BackupFileName})...");
+                // 2. 全局穿透检索云端最新数据文件 data.db，打破文件夹隔离
+                progressCallback?.Invoke($"正在全局检索云端唯一数据文件 ({BackupFileName})...");
 
                 using var stream = new FileStream(snapshotPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
                 var listReq = service.Files.List();
-                listReq.Q = $"'{folderId}' in parents and trashed = false";
+                listReq.Q = $"(name = '{BackupFileName}' or name = 'data' or name = 'rmf_cloud_backup.db') and trashed = false";
                 listReq.Spaces = "drive";
-                listReq.PageSize = 50;
-                listReq.Fields = "files(id, name)";
+                listReq.OrderBy = "modifiedTime desc";
+                listReq.PageSize = 20;
+                listReq.Fields = "files(id, name, modifiedTime, parents)";
                 var searchRes = await listReq.ExecuteAsync(cancellationToken);
 
-                var existingFile = searchRes.Files?.FirstOrDefault(f => f.Name == BackupFileName || f.Name == "data" || f.Name == "rmf_cloud_backup.db");
+                var existingFile = searchRes.Files?.FirstOrDefault();
                 string newFileId;
 
                 if (existingFile != null)
                 {
-                    progressCallback?.Invoke($"正在更新覆盖云端数据文件 ({BackupFileName})...");
+                    progressCallback?.Invoke($"正在更新覆盖云端数据文件 ({existingFile.Name})...");
                     var updateMeta = new Google.Apis.Drive.v3.Data.File
                     {
                         Name = BackupFileName,
@@ -233,6 +246,9 @@ public class GoogleDriveSyncService
                 }
                 else
                 {
+                    progressCallback?.Invoke("正在定位专属云端同步目录...");
+                    string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
+
                     progressCallback?.Invoke($"正在创建并上传云端数据文件 ({BackupFileName})...");
                     var createMeta = new Google.Apis.Drive.v3.Data.File
                     {
@@ -253,7 +269,6 @@ public class GoogleDriveSyncService
                 var config = ConfigService.Load();
                 config.GoogleClientId = clientId.Trim();
                 config.GoogleClientSecret = clientSecret.Trim();
-                config.GoogleDriveFolderId = folderId;
                 config.GoogleDriveFileId = newFileId;
                 config.IsGoogleDriveLinked = true;
                 config.LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -265,7 +280,7 @@ public class GoogleDriveSyncService
                 {
                     if (searchRes.Files != null)
                     {
-                        var obsoleteFiles = searchRes.Files.Where(f => f.Id != newFileId && f.Name != BackupFileName).ToList();
+                        var obsoleteFiles = searchRes.Files.Where(f => f.Id != newFileId).ToList();
                         foreach (var obs in obsoleteFiles)
                         {
                             try { await service.Files.Delete(obs.Id).ExecuteAsync(cancellationToken); } catch { }
@@ -284,8 +299,11 @@ public class GoogleDriveSyncService
                 }
                 catch { }
 
+                long sizeKb = new FileInfo(snapshotPath).Length / 1024;
+                string successMsg = $"已成功上传云端数据文件「{BackupFileName}」！\n📦 大小: {sizeKb} KB\n📊 包含: {scheduleCount} 条日程，{courseCount} 门课程\n🕒 时间: {config.LastSyncTime}";
+
                 NotifySyncState(CloudSyncState.Success, "云端已保存最新数据", config.LastSyncTime);
-                return (true, newFileId, $"已成功上传并更新云端数据文件「{BackupFileName}」！时间: {config.LastSyncTime}");
+                return (true, newFileId, successMsg);
             }
             finally
             {
@@ -326,31 +344,37 @@ public class GoogleDriveSyncService
             progressCallback?.Invoke("正在连接 Google Drive API...");
             using var service = await GetDriveServiceAsync(clientId, clientSecret, cancellationToken);
 
-            string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
-
-            progressCallback?.Invoke("正在检索云端专属目录数据文件...");
+            progressCallback?.Invoke("正在全局检索云端最新数据文件...");
             var listReq = service.Files.List();
-            listReq.Q = $"'{folderId}' in parents and trashed = false";
+            listReq.Q = $"(name = '{BackupFileName}' or name = 'data' or name = 'rmf_cloud_backup.db' or name contains 'rmf_backup_') and trashed = false";
             listReq.Spaces = "drive";
-            listReq.PageSize = 50;
-            listReq.Fields = "files(id, name, createdTime, modifiedTime, size)";
+            listReq.OrderBy = "modifiedTime desc";
+            listReq.PageSize = 20;
+            listReq.Fields = "files(id, name, createdTime, modifiedTime, size, parents)";
 
             var searchRes = await listReq.ExecuteAsync(cancellationToken);
-            if (searchRes.Files == null || searchRes.Files.Count == 0)
-            {
-                NotifySyncState(CloudSyncState.Error, "未发现云端数据文件");
-                return (false, $"在 Google Drive 对应目录中未发现可还原的数据文件 ({BackupFileName})。");
-            }
+            Google.Apis.Drive.v3.Data.File? remoteFile = searchRes.Files?.FirstOrDefault(f => f.Name == BackupFileName || f.Name == "data")
+                ?? searchRes.Files?.FirstOrDefault(f => f.Name == "rmf_cloud_backup.db")
+                ?? searchRes.Files?.FirstOrDefault();
 
-            var remoteFile = searchRes.Files.FirstOrDefault(f => f.Name == BackupFileName || f.Name == "data")
-                ?? searchRes.Files.FirstOrDefault(f => f.Name == "rmf_cloud_backup.db")
-                ?? searchRes.Files.FirstOrDefault(f => f.Name.StartsWith("rmf_backup_"))
-                ?? searchRes.Files.FirstOrDefault();
+            if (remoteFile == null)
+            {
+                // 回退到特定同步目录检索
+                string folderId = await EnsureBackupFolderAsync(service, cancellationToken);
+                var fallbackReq = service.Files.List();
+                fallbackReq.Q = $"'{folderId}' in parents and trashed = false";
+                fallbackReq.Spaces = "drive";
+                fallbackReq.OrderBy = "modifiedTime desc";
+                fallbackReq.PageSize = 20;
+                fallbackReq.Fields = "files(id, name, createdTime, modifiedTime, size)";
+                var fallbackRes = await fallbackReq.ExecuteAsync(cancellationToken);
+                remoteFile = fallbackRes.Files?.FirstOrDefault();
+            }
 
             if (remoteFile == null)
             {
                 NotifySyncState(CloudSyncState.Error, "未发现云端有效数据文件");
-                return (false, $"在 Google Drive 对应目录中未发现有效数据文件 ({BackupFileName})。");
+                return (false, $"在 Google Drive 中未发现有效数据文件 ({BackupFileName})。");
             }
             string tempDownloaded = Path.Combine(DatabaseService.DbDir, "rmf_downloaded_temp.db");
 
@@ -362,8 +386,10 @@ public class GoogleDriveSyncService
                 await getReq.DownloadAsync(fileStream, cancellationToken);
             }
 
-            // 验证拉取的数据库是否完整有效
+            // 验证拉取的数据库是否完整有效并统计数据指纹
             progressCallback?.Invoke("正在校验云端数据完整性...");
+            int restoredScheduleCount = 0;
+            int restoredCourseCount = 0;
             try
             {
                 using (var verifyConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempDownloaded};Pooling=False"))
@@ -377,6 +403,16 @@ public class GoogleDriveSyncService
                         NotifySyncState(CloudSyncState.Error, "云端数据完整性校验未通过");
                         return (false, "云端下载的数据库完整性检验未通过，已取消载入。");
                     }
+
+                    try
+                    {
+                        using var scCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT count(*) FROM schedules WHERE is_deleted = 0;", verifyConn);
+                        restoredScheduleCount = Convert.ToInt32(scCmd.ExecuteScalar());
+                        using var ccCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT count(*) FROM courses;", verifyConn);
+                        restoredCourseCount = Convert.ToInt32(ccCmd.ExecuteScalar());
+                    }
+                    catch { }
+
                     verifyConn.Close();
                 }
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
@@ -392,6 +428,7 @@ public class GoogleDriveSyncService
             progressCallback?.Invoke("正在安全载入云端最新数据文件...");
             bool replaced = DatabaseService.ReplaceDatabaseFile(tempDownloaded);
 
+            long sizeKb = new FileInfo(tempDownloaded).Length / 1024;
             try { File.Delete(tempDownloaded); } catch { }
             DatabaseService.CleanupLocalBackupFiles();
 
@@ -412,9 +449,15 @@ public class GoogleDriveSyncService
             config.LastSyncedTimestamp = config.LastSyncTime;
             ConfigService.Save(config);
 
+            string remoteModTime = remoteFile.ModifiedTimeDateTimeOffset?.ToOffset(TimeSpan.FromHours(8)).ToString("yyyy-MM-dd HH:mm:ss")
+                ?? remoteFile.ModifiedTimeRaw
+                ?? config.LastSyncTime;
+
+            string successMsg = $"已成功从 Google Drive 恢复数据文件「{remoteFile.Name}」！\n🕒 云端时间: {remoteModTime}\n📦 大小: {sizeKb} KB\n📊 恢复数据: {restoredScheduleCount} 条日程，{restoredCourseCount} 门课程\n全量数据已完全对齐生效。";
+
             NotifySyncState(CloudSyncState.Success, "已与云端数据保持一致", config.LastSyncTime);
 
-            return (true, $"已成功从 Google Drive 同步数据文件「{remoteFile.Name}」！全量数据已完全对齐生效。");
+            return (true, successMsg);
         }
         catch (Exception ex)
         {

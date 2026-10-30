@@ -1,8 +1,8 @@
-# RMF Windows Build & Package Script v1.5.8.3
+# RMF Windows Build & Package Script v1.5.8.4
 $ErrorActionPreference = "Stop"
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " [RMF] Starting Windows Client Build (v1.5.8.3)" -ForegroundColor Cyan
+Write-Host " [RMF] Starting Windows Client Build (v1.5.8.4)" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -52,7 +52,7 @@ if ($isccPath) {
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Inno Setup exit code: $LASTEXITCODE"
     } else {
-        $outputExe = Join-Path $scriptDir "installer_output\RMF_Setup_v1.5.8.3.exe"
+        $outputExe = Join-Path $scriptDir "installer_output\RMF_Setup_v1.5.8.4.exe"
         Write-Host "==================================================" -ForegroundColor Green
         Write-Host "Installer created successfully!" -ForegroundColor Green
         Write-Host "Location: $outputExe" -ForegroundColor Cyan
@@ -68,7 +68,7 @@ if ($isccPath) {
 # 3. Create portable zip
 $releaseDir = Join-Path (Split-Path -Parent $scriptDir) "release"
 if (!(Test-Path $releaseDir)) { New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null }
-$zipOutput = Join-Path $releaseDir "RMF-Windows-v1.5.8.3-win64.zip"
+$zipOutput = Join-Path $releaseDir "RMF-Windows-v1.5.8.4-win64.zip"
 if (Test-Path $zipOutput) { Remove-Item $zipOutput -Force }
 Write-Host "`nCreating portable zip archive: $zipOutput ..." -ForegroundColor Yellow
 Compress-Archive -Path "$publishDir\*" -DestinationPath $zipOutput -Force
