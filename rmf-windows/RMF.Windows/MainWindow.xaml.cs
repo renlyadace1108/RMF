@@ -94,7 +94,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "Renly Management Platform v1.5.8.4";
+        Title = "Renly Management Platform v1.5.8.5";
 
         Loaded += (s, e) =>
         {

@@ -114,7 +114,8 @@ enum class ScheduleViewMode(val title: String, val icon: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(
-    schedulesFlow: Flow<List<ScheduleEntity>>,
+    schedulesFlow: Flow<List<ScheduleEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
+    scheduleDao: com.renly.rmf.data.local.dao.ScheduleDao? = null,
     tagsFlow: Flow<List<ScheduleTagEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     timeMarkersFlow: Flow<List<TimeMarkerEntity>> = kotlinx.coroutines.flow.flowOf(emptyList()),
     onToggleStatus: (ScheduleEntity) -> Unit,
@@ -131,7 +132,6 @@ fun ScheduleScreen(
     onAddTag: (ScheduleTagEntity) -> Unit = {},
     onDeleteTag: (ScheduleTagEntity) -> Unit = {}
 ) {
-    val schedules by schedulesFlow.collectAsState(initial = emptyList())
     val dbTags by tagsFlow.collectAsState(initial = emptyList())
     val timeMarkers by timeMarkersFlow.collectAsState(initial = emptyList())
     val defaultTags = remember {
@@ -176,9 +176,54 @@ fun ScheduleScreen(
     var showDailyRitualDialog by remember { mutableStateOf(false) }
     var ritualMode by remember { mutableStateOf("MORNING") }
 
-    // 过滤掉待办箱中的项目用于日历排期统计
-    val calendarSchedules = remember(schedules) { schedules.filter { it.status != "BACKLOG" && (it.isBacklog ?: 0) == 0 } }
-    val backlogSchedules = remember(schedules) { schedules.filter { it.status == "BACKLOG" || (it.isBacklog ?: 0) == 1 } }
+    // 计算当前选中日期所在周的起始与结束时间（周一 00:00:00 至下周一 00:00:00）
+    val currentWeekRange = remember(selectedDate) {
+        val monday = selectedDate.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        val nextMonday = monday.plusDays(7)
+        Pair(
+            monday.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            nextMonday.atStartOfDay().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        )
+    }
+
+    // 动态周窗口化按需加载日程：只加载本周内容，切换周时自动动态切换数据流
+    val weekLoadedSchedules by remember(currentWeekRange, scheduleDao, schedulesFlow) {
+        if (scheduleDao != null) {
+            scheduleDao.getSchedulesForDateRange(currentWeekRange.first, currentWeekRange.second)
+        } else {
+            schedulesFlow
+        }
+    }.collectAsState(initial = emptyList())
+
+    // 独立按需加载待办箱 (Backlog) 数据流，完全隔离
+    val backlogSchedulesList by remember(scheduleDao) {
+        if (scheduleDao != null) {
+            scheduleDao.observeBacklogSchedules()
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
+
+    // 独立加载昨日未完成/逾期横幅数据流
+    val todayStartIso = remember { LocalDate.now().atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME) }
+    val overdueSchedulesList by remember(scheduleDao, todayStartIso) {
+        if (scheduleDao != null) {
+            scheduleDao.observeOverdueUnfinishedSchedules(todayStartIso)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
+
+    // 统一派生本周日历日程与待办日程
+    val calendarSchedules = remember(weekLoadedSchedules, scheduleDao) {
+        if (scheduleDao != null) weekLoadedSchedules else weekLoadedSchedules.filter { it.status != "BACKLOG" && (it.isBacklog ?: 0) == 0 }
+    }
+    val backlogSchedules = remember(backlogSchedulesList, weekLoadedSchedules, scheduleDao) {
+        if (scheduleDao != null) backlogSchedulesList else weekLoadedSchedules.filter { it.status == "BACKLOG" || (it.isBacklog ?: 0) == 1 }
+    }
+    val schedules = remember(calendarSchedules, backlogSchedules) {
+        calendarSchedules + backlogSchedules
+    }
 
     val completedCount = remember(calendarSchedules) { calendarSchedules.count { it.status == "COMPLETED" } }
     val totalCount = calendarSchedules.size
@@ -186,15 +231,18 @@ fun ScheduleScreen(
         if (totalCount > 0) (completedCount * 100 / totalCount) else 0
     }
 
-    val todayStartIso = remember { LocalDate.now().atStartOfDay().format(DateTimeFormatter.ISO_DATE_TIME) }
-    val pastUnfinishedTasks = remember(schedules, todayStartIso) {
-        schedules.filter {
-            it.isDeleted == 0 &&
-            it.status != "COMPLETED" &&
-            it.status != "ABANDONED" &&
-            it.status != "BACKLOG" &&
-            (it.isBacklog ?: 0) == 0 &&
-            it.startTime < todayStartIso
+    val pastUnfinishedTasks = remember(overdueSchedulesList, schedules, todayStartIso, scheduleDao) {
+        if (scheduleDao != null) {
+            overdueSchedulesList
+        } else {
+            schedules.filter {
+                it.isDeleted == 0 &&
+                it.status != "COMPLETED" &&
+                it.status != "ABANDONED" &&
+                it.status != "BACKLOG" &&
+                (it.isBacklog ?: 0) == 0 &&
+                it.startTime < todayStartIso
+            }
         }
     }
     var isSpilloverBannerDismissed by remember { mutableStateOf(false) }

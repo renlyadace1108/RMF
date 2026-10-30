@@ -808,6 +808,7 @@ class MainActivity : ComponentActivity() {
                     val renderScreenContent: @Composable (Screen, Boolean) -> Unit = { screen, isActive ->
                         when (screen) {
                             Screen.Schedule -> ScheduleScreen(
+                                scheduleDao = db.scheduleDao(),
                                 schedulesFlow = schedulesFlow,
                                 tagsFlow = tagsFlow,
                                 timeMarkersFlow = timeMarkersFlow,
