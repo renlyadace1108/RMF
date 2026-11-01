@@ -178,9 +178,7 @@ class MainActivity : ComponentActivity() {
                     )
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         if (result.isSuccess) {
-                            Toast.makeText(this@MainActivity, "✓ 无损快照已完整恢复！正在重载工作台...", Toast.LENGTH_SHORT).show()
-                            kotlinx.coroutines.delay(800)
-                            recreate()
+                            Toast.makeText(this@MainActivity, "✓ 无损快照已完整动态载入！", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(this@MainActivity, "✗ 还原失败: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                         }
@@ -231,9 +229,7 @@ class MainActivity : ComponentActivity() {
             )
             when (result) {
                 is com.renly.rmf.domain.service.SyncResult.Success -> {
-                    Toast.makeText(this@MainActivity, "✓ 云端数据拉取成功！正在刷新重载最新数据...", Toast.LENGTH_SHORT).show()
-                    kotlinx.coroutines.delay(800)
-                    recreate()
+                    Toast.makeText(this@MainActivity, "✓ 云端数据已无缝动态载入完成！", Toast.LENGTH_SHORT).show()
                 }
                 is com.renly.rmf.domain.service.SyncResult.Error -> {
                     Toast.makeText(this@MainActivity, "✗ ${result.error}", Toast.LENGTH_LONG).show()

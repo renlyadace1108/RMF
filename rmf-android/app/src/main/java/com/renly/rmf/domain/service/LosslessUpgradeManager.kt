@@ -148,32 +148,16 @@ object LosslessUpgradeManager {
                 return@withContext Result.failure(Exception("所选文件并非合法的 RMF/SQLite 数据库"))
             }
 
-            // 检查点并关闭当前数据库
-            try {
-                database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").close()
-            } catch (_: Exception) {}
-            RmfDatabase.resetInstance()
-
-            val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-            // 先将当前可能损坏的文件保存为 rollback
-            val rollbackFile = File(context.cacheDir, "rmf_emergency_rollback.db")
-            if (targetDbFile.exists()) {
-                targetDbFile.copyTo(rollbackFile, overwrite = true)
-            }
-
-            // 替换主数据库文件
-            tempFile.copyTo(targetDbFile, overwrite = true)
+            // 使用无缝动态热载入替换本地各表数据，免重启、原位刷新
+            val syncService = GoogleDriveSyncService(context, database)
+            val success = syncService.restoreDatabaseFromFile(tempFile)
             tempFile.delete()
 
-            // 清理旧 WAL 和 SHM 辅助日志文件
-            File(targetDbFile.path + "-wal").delete()
-            File(targetDbFile.path + "-shm").delete()
-            rollbackFile.delete()
-
-            // 立即对恢复后的旧版或跨端数据库文件执行无损表结构对齐自愈
-            RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
-
-            Result.success(Unit)
+            if (success) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("动态载入数据失败"))
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

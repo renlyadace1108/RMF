@@ -451,16 +451,105 @@ class GoogleDriveSyncService(
     }
 
     /**
-     * 将外部 SQLite 数据库安全覆盖至本地数据库，并完成自愈对齐、视图刷新与闹钟排期
+     * 无缝动态载入云端/外部 SQLite 数据库（对标商业级软件体验，原位热重载，零闪烁、零重启）
+     * 1. 保持现有 SQLite 活跃连接与所有 Room Flow 监听通道不断开；
+     * 2. 利用 SQLite 事务原子级完成各业务表的数据清空与跨库批量写入；
+     * 3. 唤醒 Room InvalidationTracker，驱动所有活跃 Compose 页面自动动态重绘；
+     * 4. 异步刷新闹钟排期、桌面微件与课表映射。
      */
     suspend fun restoreDatabaseFromFile(sourceFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
-        val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-        try {
-            database.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE);").use { cursor ->
-                cursor.moveToFirst()
-            }
-        } catch (_: Exception) {}
+        val sDb = database.openHelper.writableDatabase
 
+        try {
+            // 确保本地已有 WAL 刷盘并临时关闭外键检查
+            try {
+                sDb.query("PRAGMA wal_checkpoint(TRUNCATE);").use { it.moveToFirst() }
+            } catch (_: Exception) {}
+            sDb.execSQL("PRAGMA foreign_keys = OFF;")
+
+            // 动态挂载外部数据库文件为 cloud_db
+            sDb.execSQL("ATTACH DATABASE '${sourceFile.absolutePath}' AS cloud_db;")
+
+            // 检索云端所有业务数据表
+            val commonTables = mutableListOf<String>()
+            sDb.query("SELECT name FROM cloud_db.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_metadata' AND name NOT LIKE 'room_master_table';").use { cursor ->
+                while (cursor.moveToNext()) {
+                    val tableName = cursor.getString(0)
+                    sDb.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name = '$tableName';").use { checkCursor ->
+                        if (checkCursor.moveToFirst()) {
+                            commonTables.add(tableName)
+                        }
+                    }
+                }
+            }
+
+            // 单个原子事务内高效完成整库替换与跨版本自愈对齐
+            sDb.beginTransaction()
+            try {
+                for (table in commonTables) {
+                    val mainCols = mutableSetOf<String>()
+                    sDb.query("PRAGMA main.table_info(\"$table\");").use { c ->
+                        while (c.moveToNext()) mainCols.add(c.getString(1))
+                    }
+                    val cloudCols = mutableSetOf<String>()
+                    sDb.query("PRAGMA cloud_db.table_info(\"$table\");").use { c ->
+                        while (c.moveToNext()) cloudCols.add(c.getString(1))
+                    }
+
+                    val intersect = mainCols.intersect(cloudCols)
+                    if (intersect.isNotEmpty()) {
+                        val colList = intersect.joinToString(", ") { "\"$it\"" }
+                        sDb.execSQL("DELETE FROM main.\"$table\";")
+                        sDb.execSQL("INSERT OR REPLACE INTO main.\"$table\" ($colList) SELECT $colList FROM cloud_db.\"$table\";")
+                    }
+                }
+                sDb.setTransactionSuccessful()
+            } finally {
+                sDb.endTransaction()
+                try { sDb.execSQL("DETACH DATABASE cloud_db;") } catch (_: Exception) {}
+                try { sDb.execSQL("PRAGMA foreign_keys = ON;") } catch (_: Exception) {}
+            }
+
+            cleanupLocalBackupFiles(context)
+
+            // 核心：主动唤醒 Room InvalidationTracker，驱动全屏 Compose 数据流实时原位刷新
+            try {
+                database.invalidationTracker.refreshVersionsAsync()
+            } catch (_: Exception) {}
+
+            TimetablePreferences.syncFromDatabase(context, database.syncDao())
+
+            if (TimetablePreferences.isSemesterConfigured(context)) {
+                try {
+                    TimetableProjectionService.syncAllToSchedule(
+                        context = context,
+                        courseDao = database.courseDao(),
+                        scheduleDao = database.scheduleDao()
+                    )
+                } catch (_: Exception) {}
+            }
+
+            try {
+                CourseReminderScheduler.scheduleUpcomingCourseReminders(
+                    context = context,
+                    courseDao = database.courseDao(),
+                    daysAhead = 7
+                )
+                ScheduleReminderManager.rescheduleAll(context)
+                com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
+            } catch (_: Exception) {}
+
+            true
+        } catch (e: Exception) {
+            // 若低层 ATTACH 遇到非预期异常，平滑回退执行物理文件冷替换保证绝对可靠
+            try { sDb.execSQL("DETACH DATABASE cloud_db;") } catch (_: Exception) {}
+            try { sDb.execSQL("PRAGMA foreign_keys = ON;") } catch (_: Exception) {}
+            fallbackColdFileRestore(sourceFile)
+        }
+    }
+
+    private fun fallbackColdFileRestore(sourceFile: java.io.File): Boolean {
+        val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
         RmfDatabase.resetInstance()
 
         val rollbackFile = java.io.File(context.cacheDir, "rmf_rollback_temp_${System.currentTimeMillis()}.db")
@@ -484,35 +573,11 @@ class GoogleDriveSyncService(
         }
 
         cleanupLocalBackupFiles(context)
-
         val newDb = RmfDatabase.getInstance(context)
         try {
             newDb.invalidationTracker.refreshVersionsAsync()
         } catch (_: Exception) {}
-
-        TimetablePreferences.syncFromDatabase(context, newDb.syncDao())
-
-        if (TimetablePreferences.isSemesterConfigured(context)) {
-            try {
-                TimetableProjectionService.syncAllToSchedule(
-                    context = context,
-                    courseDao = newDb.courseDao(),
-                    scheduleDao = newDb.scheduleDao()
-                )
-            } catch (_: Exception) {}
-        }
-
-        try {
-            CourseReminderScheduler.scheduleUpcomingCourseReminders(
-                context = context,
-                courseDao = newDb.courseDao(),
-                daysAhead = 7
-            )
-            ScheduleReminderManager.rescheduleAll(context)
-            com.renly.rmf.ui.widget.RmfWidgetManager.refreshAllWidgets(context)
-        } catch (_: Exception) {}
-
-        true
+        return true
     }
 
     /**
