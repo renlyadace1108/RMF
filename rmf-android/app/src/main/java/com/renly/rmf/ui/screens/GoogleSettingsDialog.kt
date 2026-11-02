@@ -62,6 +62,19 @@ fun GoogleSettingsDialog(
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
 
+    val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
+    LaunchedEffect(syncStatusInfo) {
+        if (syncStatusInfo.state != com.renly.rmf.domain.service.CloudSyncState.SYNCING) {
+            isDriveWorking = false
+            if (syncStatusInfo.message.isNotBlank()) {
+                driveStatusText = syncStatusInfo.message
+            }
+            if (syncStatusInfo.lastSyncTime.isNotBlank()) {
+                lastSyncDisplay = syncStatusInfo.lastSyncTime
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
