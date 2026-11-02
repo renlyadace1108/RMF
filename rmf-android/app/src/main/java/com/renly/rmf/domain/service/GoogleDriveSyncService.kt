@@ -451,28 +451,33 @@ class GoogleDriveSyncService(
     }
 
     /**
-     * 无缝动态载入云端/外部 SQLite 数据库（对标商业级软件体验，原位热重载，零闪烁、零重启）
-     * 1. 保持现有 SQLite 活跃连接与所有 Room Flow 监听通道不断开；
-     * 2. 利用 SQLite 事务原子级完成各业务表的数据清空与跨库批量写入；
-     * 3. 唤醒 Room InvalidationTracker，驱动所有活跃 Compose 页面自动动态重绘；
+     * 无缝动态载入云端/外部 SQLite 数据库（对标商业级软件体验，原位热重载，零闪烁、零重启、永不关闭连接）
+     * 1. 独立只读句柄读取外部文件，彻底解决 Android Room 开启 WAL 模式下的连接池与 ATTACH 跨库异常；
+     * 2. 在主库单一原子事务内，使用编译语句极速批量写入各表共有字段，绝不调用 resetInstance 关闭连接；
+     * 3. 唤醒 Room InvalidationTracker，驱动全屏 Compose 页面原位平滑重绘；
      * 4. 异步刷新闹钟排期、桌面微件与课表映射。
      */
     suspend fun restoreDatabaseFromFile(sourceFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
         val sDb = database.openHelper.writableDatabase
 
+        // 1. 打开外部数据源（独立只读模式），完全独立于主库连接池
+        val sourceDb = try {
+            android.database.sqlite.SQLiteDatabase.openDatabase(
+                sourceFile.absolutePath,
+                null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+        } catch (_: Exception) {
+            return@withContext false
+        }
+
         try {
-            // 确保本地已有 WAL 刷盘并临时关闭外键检查
-            try {
-                sDb.query("PRAGMA wal_checkpoint(TRUNCATE);").use { it.moveToFirst() }
-            } catch (_: Exception) {}
-            sDb.execSQL("PRAGMA foreign_keys = OFF;")
-
-            // 动态挂载外部数据库文件为 cloud_db
-            sDb.execSQL("ATTACH DATABASE '${sourceFile.absolutePath}' AS cloud_db;")
-
-            // 检索云端所有业务数据表
+            // 2. 检索外部库中所有业务数据表，并与本地主库比对存在性
             val commonTables = mutableListOf<String>()
-            sDb.query("SELECT name FROM cloud_db.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_metadata' AND name NOT LIKE 'room_master_table';").use { cursor ->
+            sourceDb.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_metadata' AND name NOT LIKE 'room_master_table';",
+                null
+            ).use { cursor ->
                 while (cursor.moveToNext()) {
                     val tableName = cursor.getString(0)
                     sDb.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name = '$tableName';").use { checkCursor ->
@@ -483,36 +488,60 @@ class GoogleDriveSyncService(
                 }
             }
 
-            // 单个原子事务内高效完成整库替换与跨版本自愈对齐
+            // 3. 在主库单个独占事务内，毫秒级原子清空并批量写入（永不关闭 DB 实例，100% 杜绝崩溃重启）
             sDb.beginTransaction()
             try {
+                try { sDb.execSQL("PRAGMA foreign_keys = OFF;") } catch (_: Exception) {}
+
                 for (table in commonTables) {
-                    val mainCols = mutableSetOf<String>()
-                    sDb.query("PRAGMA main.table_info(\"$table\");").use { c ->
+                    val mainCols = mutableListOf<String>()
+                    sDb.query("PRAGMA table_info(\"$table\");").use { c ->
                         while (c.moveToNext()) mainCols.add(c.getString(1))
                     }
-                    val cloudCols = mutableSetOf<String>()
-                    sDb.query("PRAGMA cloud_db.table_info(\"$table\");").use { c ->
-                        while (c.moveToNext()) cloudCols.add(c.getString(1))
+                    val sourceCols = mutableSetOf<String>()
+                    sourceDb.rawQuery("PRAGMA table_info(\"$table\");", null).use { c ->
+                        while (c.moveToNext()) sourceCols.add(c.getString(1))
                     }
 
-                    val intersect = mainCols.intersect(cloudCols)
-                    if (intersect.isNotEmpty()) {
-                        val colList = intersect.joinToString(", ") { "\"$it\"" }
-                        sDb.execSQL("DELETE FROM main.\"$table\";")
-                        sDb.execSQL("INSERT OR REPLACE INTO main.\"$table\" ($colList) SELECT $colList FROM cloud_db.\"$table\";")
+                    val commonCols = mainCols.filter { sourceCols.contains(it) }
+                    if (commonCols.isEmpty()) continue
+
+                    // 清空主库当前表
+                    sDb.execSQL("DELETE FROM \"$table\";")
+
+                    // 批量预编译插入
+                    val colNames = commonCols.joinToString(", ") { "\"$it\"" }
+                    val placeholders = commonCols.joinToString(", ") { "?" }
+                    val insertSql = "INSERT OR REPLACE INTO \"$table\" ($colNames) VALUES ($placeholders);"
+                    val stmt = sDb.compileStatement(insertSql)
+
+                    sourceDb.rawQuery("SELECT $colNames FROM \"$table\";", null).use { rowCursor ->
+                        while (rowCursor.moveToNext()) {
+                            stmt.clearBindings()
+                            for (i in commonCols.indices) {
+                                when (rowCursor.getType(i)) {
+                                    android.database.Cursor.FIELD_TYPE_NULL -> stmt.bindNull(i + 1)
+                                    android.database.Cursor.FIELD_TYPE_INTEGER -> stmt.bindLong(i + 1, rowCursor.getLong(i))
+                                    android.database.Cursor.FIELD_TYPE_FLOAT -> stmt.bindDouble(i + 1, rowCursor.getDouble(i))
+                                    android.database.Cursor.FIELD_TYPE_STRING -> stmt.bindString(i + 1, rowCursor.getString(i))
+                                    android.database.Cursor.FIELD_TYPE_BLOB -> stmt.bindBlob(i + 1, rowCursor.getBlob(i))
+                                }
+                            }
+                            stmt.executeInsert()
+                        }
                     }
+                    stmt.close()
                 }
+
                 sDb.setTransactionSuccessful()
             } finally {
                 sDb.endTransaction()
-                try { sDb.execSQL("DETACH DATABASE cloud_db;") } catch (_: Exception) {}
                 try { sDb.execSQL("PRAGMA foreign_keys = ON;") } catch (_: Exception) {}
             }
 
             cleanupLocalBackupFiles(context)
 
-            // 核心：主动唤醒 Room InvalidationTracker，驱动全屏 Compose 数据流实时原位刷新
+            // 4. 主动唤醒 Room InvalidationTracker，驱动所有活跃 Compose 页面原位增量刷新（零闪屏、零重启）
             try {
                 database.invalidationTracker.refreshVersionsAsync()
             } catch (_: Exception) {}
@@ -541,43 +570,10 @@ class GoogleDriveSyncService(
 
             true
         } catch (e: Exception) {
-            // 若低层 ATTACH 遇到非预期异常，平滑回退执行物理文件冷替换保证绝对可靠
-            try { sDb.execSQL("DETACH DATABASE cloud_db;") } catch (_: Exception) {}
-            try { sDb.execSQL("PRAGMA foreign_keys = ON;") } catch (_: Exception) {}
-            fallbackColdFileRestore(sourceFile)
+            false
+        } finally {
+            try { sourceDb.close() } catch (_: Exception) {}
         }
-    }
-
-    private fun fallbackColdFileRestore(sourceFile: java.io.File): Boolean {
-        val targetDbFile = context.getDatabasePath(RmfDatabase.DATABASE_NAME)
-        RmfDatabase.resetInstance()
-
-        val rollbackFile = java.io.File(context.cacheDir, "rmf_rollback_temp_${System.currentTimeMillis()}.db")
-        if (targetDbFile.exists()) {
-            targetDbFile.copyTo(rollbackFile, overwrite = true)
-        }
-
-        try {
-            sourceFile.copyTo(targetDbFile, overwrite = true)
-            java.io.File(targetDbFile.path + "-wal").delete()
-            java.io.File(targetDbFile.path + "-shm").delete()
-            rollbackFile.delete()
-
-            RmfDatabase.preHealExistingDatabaseFile(context, forceMigrationReset = true)
-        } catch (copyErr: Exception) {
-            if (rollbackFile.exists()) {
-                rollbackFile.copyTo(targetDbFile, overwrite = true)
-                rollbackFile.delete()
-            }
-            throw copyErr
-        }
-
-        cleanupLocalBackupFiles(context)
-        val newDb = RmfDatabase.getInstance(context)
-        try {
-            newDb.invalidationTracker.refreshVersionsAsync()
-        } catch (_: Exception) {}
-        return true
     }
 
     /**
