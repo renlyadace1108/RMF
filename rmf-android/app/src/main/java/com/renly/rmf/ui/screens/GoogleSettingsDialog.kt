@@ -61,6 +61,7 @@ fun GoogleSettingsDialog(
     var isAuthorized by remember { mutableStateOf(GoogleDrivePreferences.isAuthorized(context)) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+    var showHotPatchDialog by remember { mutableStateOf(false) }
 
     val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
     LaunchedEffect(syncStatusInfo) {
@@ -425,8 +426,20 @@ fun GoogleSettingsDialog(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("正在检查云端更新...", fontSize = 12.sp)
                                 } else {
-                                    Text("🚀 检查云端软件更新 (Google Drive 专属通道)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("🚀 检查云端软件更新 (全量安装包)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = { showHotPatchDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
+                                border = BorderStroke(0.6.dp, DopamineCyan),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(999.dp)
+                            ) {
+                                Text("⚡ 动态热更新 (免安装补丁通道)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
 
                             if (driveStatusText.isNotBlank()) {
@@ -754,6 +767,13 @@ fun GoogleSettingsDialog(
         AppUpdateDialog(
             updateData = updateData,
             onDismiss = { updateCheckResult = null }
+        )
+    }
+
+    // ⚡ 商业级免安装动态热补丁控制弹窗
+    if (showHotPatchDialog) {
+        HotPatchDialog(
+            onDismiss = { showHotPatchDialog = false }
         )
     }
 }

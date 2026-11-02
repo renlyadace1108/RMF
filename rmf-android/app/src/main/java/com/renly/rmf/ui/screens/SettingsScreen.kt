@@ -79,6 +79,7 @@ fun SettingsScreen(
     var showLanSyncDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showUserAgreementDialog by remember { mutableStateOf(false) }
+    var showHotPatchDialog by remember { mutableStateOf(false) }
     var isCheckingUpdate by remember { mutableStateOf(false) }
     var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
     var updateFeedbackMessage by remember { mutableStateOf<String?>(null) }
@@ -2280,50 +2281,69 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 🚀 Google Drive 应用内自动更新检查入口
-            OutlinedButton(
-                onClick = {
-                    if (isCheckingUpdate) return@OutlinedButton
-                    isCheckingUpdate = true
-                    updateFeedbackMessage = null
-                    coroutineScope.launch {
-                        val res = GoogleDriveUpdateService.checkForUpdate(context)
-                        isCheckingUpdate = false
-                        when (res) {
-                            is UpdateCheckResult.UpdateAvailable -> {
-                                updateCheckResult = res
-                            }
-                            is UpdateCheckResult.AlreadyLatest -> {
-                                updateFeedbackMessage = "🎉 当前已是最新版本 (v${res.currentVersion})，无需更新。"
-                            }
-                            is UpdateCheckResult.NotAuthorized -> {
-                                updateFeedbackMessage = res.message
-                            }
-                            is UpdateCheckResult.NoReleaseFound -> {
-                                updateFeedbackMessage = "云端暂无已发布的版本描述清单 (rmf_release_info.json)。"
-                            }
-                            is UpdateCheckResult.Error -> {
-                                updateFeedbackMessage = "检查版本更新失败: ${res.error}"
+            // 🚀 更新与动态热补丁通道入口
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 1. Google Drive 应用内全量覆盖更新检查入口
+                OutlinedButton(
+                    onClick = {
+                        if (isCheckingUpdate) return@OutlinedButton
+                        isCheckingUpdate = true
+                        updateFeedbackMessage = null
+                        coroutineScope.launch {
+                            val res = GoogleDriveUpdateService.checkForUpdate(context)
+                            isCheckingUpdate = false
+                            when (res) {
+                                is UpdateCheckResult.UpdateAvailable -> {
+                                    updateCheckResult = res
+                                }
+                                is UpdateCheckResult.AlreadyLatest -> {
+                                    updateFeedbackMessage = "🎉 当前已是最新版本 (v${res.currentVersion})，无需更新。"
+                                }
+                                is UpdateCheckResult.NotAuthorized -> {
+                                    updateFeedbackMessage = res.message
+                                }
+                                is UpdateCheckResult.NoReleaseFound -> {
+                                    updateFeedbackMessage = "云端暂无已发布的版本描述清单 (rmf_release_info.json)。"
+                                }
+                                is UpdateCheckResult.Error -> {
+                                    updateFeedbackMessage = "检查版本更新失败: ${res.error}"
+                                }
                             }
                         }
+                    },
+                    enabled = !isCheckingUpdate,
+                    shape = RoundedCornerShape(999.dp),
+                    border = BorderStroke(0.6.dp, DopamineBlue.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineBlue),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(13.dp),
+                            strokeWidth = 2.dp,
+                            color = DopamineBlue
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("正在查询...", fontSize = 11.5.sp)
+                    } else {
+                        Text("🚀 检查软件更新", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                     }
-                },
-                enabled = !isCheckingUpdate,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineBlue),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-            ) {
-                if (isCheckingUpdate) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(13.dp),
-                        strokeWidth = 2.dp,
-                        color = DopamineBlue
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("正在查询云端更新...", fontSize = 11.5.sp)
-                } else {
-                    Text("🚀 检查云端软件更新", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                // 2. ⚡ 免安装动态热补丁入口 (Hot Patching)
+                Button(
+                    onClick = { showHotPatchDialog = true },
+                    shape = RoundedCornerShape(999.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DopamineCyan.copy(alpha = 0.18f)),
+                    border = BorderStroke(0.6.dp, DopamineCyan),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("⚡ 免安装热更新", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DopamineCyan)
                 }
             }
 
@@ -2444,6 +2464,13 @@ fun SettingsScreen(
             title = "用户服务协议",
             content = com.renly.rmf.domain.service.PrivacyPreferences.USER_AGREEMENT_FULL,
             onDismiss = { showUserAgreementDialog = false }
+        )
+    }
+
+    // ⚡ 商业级免安装动态热补丁控制弹窗
+    if (showHotPatchDialog) {
+        HotPatchDialog(
+            onDismiss = { showHotPatchDialog = false }
         )
     }
 

@@ -16,8 +16,16 @@ class RmfApplication : Application() {
     val database: RmfDatabase
         get() = RmfDatabase.getInstance(this)
 
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        // ⚡ 以最早时机完成免安装动态热补丁的注入装载
+        com.renly.rmf.domain.service.HotPatchManager.installPatch(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
+        // 启动热补丁稳定性看门狗守护
+        com.renly.rmf.domain.service.HotPatchManager.onAppStarted(this)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
