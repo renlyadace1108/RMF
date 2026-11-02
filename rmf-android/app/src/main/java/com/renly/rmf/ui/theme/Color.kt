@@ -29,48 +29,48 @@ data class AppColors(
 )
 
 // ----------------------------------------------------
-// 夜间模式 (Dark Mode Palette)
+// 夜间模式 (Apple iOS 18 × ColorOS 17 水生极光暗夜美学)
 // ----------------------------------------------------
 val DarkPalette = AppColors(
-    bg = Color(0xFF090B0E),               // 深邃极光黑底
-    surface = Color(0xFF11141B),          // 微抬升表面底色 (深邃钛金黑)
-    card = Color(0xFF161A23),             // 悬浮磨砂质感卡片底色 (高级石墨灰)
-    cardHover = Color(0xFF1F2532),        // 交互高亮状态
-    border = Color(0xFF262E3C),           // 柔和微光勾边 (冷灰钛合金微边框)
-    textPrimary = Color(0xFFF8FAFC),      // 纯净高对比主标题
-    textSecondary = Color(0xFF94A3B8),    // 柔和副标题与提示文字
-    textMuted = Color(0xFF64748B),        // 弱化辅助信息与时间标签
-    dopamineBlue = Color(0xFF38BDF8),
-    dopamineGreen = Color(0xFF34D399),
-    dopamineAmber = Color(0xFFFBBF24),
-    dopamineOrange = Color(0xFFFB923C),
-    dopaminePink = Color(0xFFF472B6),
-    dopaminePurple = Color(0xFFA78BFA),
-    dopamineRed = Color(0xFFF87171),
-    dopamineCyan = Color(0xFF22D3EE),
+    bg = Color(0xFF0A0D14),               // 深邃钛金黑曜背景 (Titanium Obsidian)
+    surface = Color(0xFF121722),          // 悬浮层表面底色 (Ambient Glass)
+    card = Color(0xFF171E2E),             // 通透磨砂质感卡片底色 (Aquamorphic Slate)
+    cardHover = Color(0xFF222C42),        // 交互微光按压态
+    border = Color(0x1EFFFFFF),           // 0.5dp 晶莹晶体反光微边框 (Jewel Rim Highlight)
+    textPrimary = Color(0xFFF8FAFC),      // 纯净雪白主标题
+    textSecondary = Color(0xFF94A3B8),    // 柔和微光副标题
+    textMuted = Color(0xFF64748B),        // 弱化次级说明与时间
+    dopamineBlue = Color(0xFF0A84FF),     // 苹果 iOS 18 标志性天青蓝
+    dopamineGreen = Color(0xFF30D158),    // 苹果翡翠薄荷绿
+    dopamineAmber = Color(0xFFFF9F0A),    // 温暖晨曦琥珀
+    dopamineOrange = Color(0xFFFF6434),   // 活力流体暖橙
+    dopaminePink = Color(0xFFFF375F),     // 霓虹樱花玫粉
+    dopaminePurple = Color(0xFFBF5AF2),   // 极光梦境罗兰紫
+    dopamineRed = Color(0xFFFF453A),      // 苹果警示珊瑚红
+    dopamineCyan = Color(0xFF00C2CB),     // ColorOS 17 水生标志天青湖蓝
     isDark = true
 )
 
 // ----------------------------------------------------
-// 日间模式 (Light Mode Palette - 象牙暖玉白，低疲劳温润高质感)
+// 日间模式 (Apple 瓷感雪白 × ColorOS 温润流体美学)
 // ----------------------------------------------------
 val LightPalette = AppColors(
-    bg = Color(0xFFF8FAFC),               // 清透温润象牙白背景 (Slate-50)
-    surface = Color(0xFFFFFFFF),          // 纯白导航栏与顶栏
-    card = Color(0xFFFFFFFF),             // 纯净卡片底色
-    cardHover = Color(0xFFF1F5F9),        // 轻微按压高亮 (Slate-100)
-    border = Color(0xFFE2E8F0),           // 极细高质感边框 (Slate-200)
-    textPrimary = Color(0xFF0F172A),      // 深邃墨黑主标题 (Slate-900)
-    textSecondary = Color(0xFF334155),    // 柔和正文副文本 (Slate-700)
-    textMuted = Color(0xFF64748B),        // 辅助时间与微弱标签 (Slate-500)
-    dopamineBlue = Color(0xFF0284C7),     // 澄澈天青蓝
-    dopamineGreen = Color(0xFF059669),    // 翡翠薄荷绿
-    dopamineAmber = Color(0xFFD97706),    // 阳光琥珀橙
-    dopamineOrange = Color(0xFFEA580C),   // 晨曦活力橙
-    dopaminePink = Color(0xFFDB2777),     // 霓虹樱花粉
+    bg = Color(0xFFF2F5F9),               // 纯净雪瓷温润背景 (Porcelain Snow)
+    surface = Color(0xFFFFFFFF),          // 纯白通透悬浮层
+    card = Color(0xFFFFFFFF),             // 洁净卡片底色
+    cardHover = Color(0xFFF1F5F9),        // 轻柔按压高亮
+    border = Color(0x0F000000),           // 极细高质感发丝级边框 (Hairline)
+    textPrimary = Color(0xFF0F172A),      // 深邃玄黑标题
+    textSecondary = Color(0xFF334155),    // 柔和石墨副文本
+    textMuted = Color(0xFF64748B),        // 辅助时间与微弱标签
+    dopamineBlue = Color(0xFF007AFF),     // iOS 原生纯净蓝
+    dopamineGreen = Color(0xFF34C759),    // 翡翠青翠绿
+    dopamineAmber = Color(0xFFF59E0B),    // 阳光琥珀橙
+    dopamineOrange = Color(0xFFFF6934),   // 晨曦活力橙
+    dopaminePink = Color(0xFFFF2D55),     // 优雅山茶粉
     dopaminePurple = Color(0xFF7C3AED),   // 质感紫罗兰
-    dopamineRed = Color(0xFFDC2626),      // 警示珊瑚红
-    dopamineCyan = Color(0xFF0891B2),     // 冰川天青色
+    dopamineRed = Color(0xFFFF3B30),      // 晶莹珊瑚红
+    dopamineCyan = Color(0xFF00B4D8),     // 水生天青色
     isDark = false
 )
 
@@ -218,4 +218,36 @@ val SpecularEdgeHighlight: Brush = Brush.verticalGradient(
         Color(0x05FFFFFF),
         Color(0x00FFFFFF)
     )
+)
+
+// ----------------------------------------------------
+// Apple × ColorOS 水生光影与流体微光系统 (Aquamorphic Brushes)
+// ----------------------------------------------------
+val AquamorphicAurora = Brush.linearGradient(
+    colors = listOf(Color(0xFF00C2CB), Color(0xFF0A84FF), Color(0xFFBF5AF2))
+)
+
+val IosGlassBorderLight = Brush.linearGradient(
+    colors = listOf(
+        Color(0x35FFFFFF),
+        Color(0x10FFFFFF),
+        Color(0x05FFFFFF),
+        Color(0x1AFFFFFF)
+    )
+)
+
+val IosSpringBlue = Brush.linearGradient(
+    colors = listOf(Color(0xFF0A84FF), Color(0xFF00C2CB))
+)
+
+val IosSpringGreen = Brush.linearGradient(
+    colors = listOf(Color(0xFF30D158), Color(0xFF059669))
+)
+
+val IosSpringAmber = Brush.linearGradient(
+    colors = listOf(Color(0xFFFF9F0A), Color(0xFFFF6434))
+)
+
+val IosSpringPurple = Brush.linearGradient(
+    colors = listOf(Color(0xFFBF5AF2), Color(0xFF5856D6))
 )

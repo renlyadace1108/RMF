@@ -314,10 +314,10 @@ fun ScheduleScreen(
                         )
                         Surface(
                             onClick = { showDriveSyncDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
                             border = BorderStroke(
-                                1.dp,
+                                0.6.dp,
                                 when (syncStatusInfo.state) {
                                     com.renly.rmf.domain.service.CloudSyncState.SYNCING -> DopamineBlue.copy(alpha = 0.8f)
                                     com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen.copy(alpha = 0.5f)
@@ -325,11 +325,11 @@ fun ScheduleScreen(
                                     com.renly.rmf.domain.service.CloudSyncState.IDLE -> DarkBorder
                                 }
                             ),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 if (isCloudSyncing) {
                                     Text(
@@ -373,14 +373,14 @@ fun ScheduleScreen(
                         // ⚡ 闪念胶囊速记入口
                         Surface(
                             onClick = onOpenQuickCapture,
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.4f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineBlue.copy(alpha = 0.45f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("⚡", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -394,14 +394,14 @@ fun ScheduleScreen(
                         }
                         Surface(
                             onClick = { showTimeMarkerDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("📍", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -414,20 +414,20 @@ fun ScheduleScreen(
                             }
                         }
 
-                        // 🌅 晨间规划仪式入口 (Sunsama 风格)
+                        // 🌅 晨间规划仪式入口 (Apple/ColorOS 胶囊)
                         Surface(
                             onClick = {
                                 ritualMode = "MORNING"
                                 showDailyRitualDialog = true
                             },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DopamineAmber.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DopamineAmber.copy(alpha = 0.16f),
+                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("🌅", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -435,20 +435,20 @@ fun ScheduleScreen(
                             }
                         }
 
-                        // 🌇 晚间关机仪式入口 (Sunsama 风格)
+                        // 🌇 晚间关机仪式入口 (Apple/ColorOS 胶囊)
                         Surface(
                             onClick = {
                                 ritualMode = "SHUTDOWN"
                                 showDailyRitualDialog = true
                             },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DopaminePurple.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DopaminePurple.copy(alpha = 0.16f),
+                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("🌇", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -459,14 +459,14 @@ fun ScheduleScreen(
                         // 🪄 智能作息模板预设入口 (Routine Templates)
                         Surface(
                             onClick = { showRoutineTemplateDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("🪄", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -477,14 +477,14 @@ fun ScheduleScreen(
                         // 📝 灵感便签与随记速记入口
                         Surface(
                             onClick = onNavigateToNotes,
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("📝", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -495,14 +495,14 @@ fun ScheduleScreen(
                         // 🗓️ 日期快速跳转弹窗入口 (GoToDateModal)
                         Surface(
                             onClick = { showGoToDateDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DarkBorder),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DarkBorder),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("🗓️", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -513,14 +513,14 @@ fun ScheduleScreen(
                         // 📅 Google 日历同步与导出入口
                         Surface(
                             onClick = { showCalendarSyncDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineGreen.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineGreen.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("📅", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -531,14 +531,14 @@ fun ScheduleScreen(
                         // 📥 待办箱 (Backlog 任务池弹窗入口)
                         Surface(
                             onClick = { showBacklogDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("📥", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -554,14 +554,14 @@ fun ScheduleScreen(
                         // ⏱️ 24小时作息时钟与效能分析入口
                         Surface(
                             onClick = onNavigateToSummary,
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("⏱️", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -572,14 +572,14 @@ fun ScheduleScreen(
                         // 🏋️ 每日健身计划入口
                         Surface(
                             onClick = onNavigateToFitness,
-                            shape = RoundedCornerShape(16.dp),
-                            color = DarkSurface,
-                            border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(30.dp)
+                            shape = RoundedCornerShape(999.dp),
+                            color = DarkCard.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
                                 Text("🏋️", fontSize = 10.5.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
@@ -589,31 +589,31 @@ fun ScheduleScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // 2. 电脑版多维视图模式切换卡片 (周网格 / 日网格 / 清单流)
+                // 2. 多维视图模式切换卡片 (Apple/ColorOS 胶囊分段器)
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(16.dp),
+                    color = DarkCard.copy(alpha = 0.75f),
+                    border = BorderStroke(0.6.dp, DarkBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(2.5.dp),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            .padding(3.5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         ScheduleViewMode.values().forEach { mode ->
                             val isSelected = currentViewMode == mode
                             Surface(
                                 onClick = { currentViewMode = mode },
-                                shape = RoundedCornerShape(7.dp),
-                                color = if (isSelected) DopamineBlue.copy(alpha = 0.2f) else Color.Transparent,
-                                border = BorderStroke(1.dp, if (isSelected) DopamineBlue.copy(alpha = 0.7f) else Color.Transparent),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) DopamineBlue.copy(alpha = 0.22f) else Color.Transparent,
+                                border = BorderStroke(0.5.dp, if (isSelected) DopamineBlue.copy(alpha = 0.6f) else Color.Transparent),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(31.dp)
+                                    .height(33.dp)
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.Center,
@@ -6303,28 +6303,28 @@ fun ScheduleItemCard(
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onClickCard()
         },
-        shape = RoundedCornerShape(14.dp),
-        shadowElevation = if (isCompleted) 0.dp else 2.dp,
-        color = if (isCompleted) DarkSurface.copy(alpha = 0.55f) else DarkCard,
-        border = BorderStroke(1.dp, if (isCompleted) DarkBorder.copy(alpha = 0.35f) else DarkBorder.copy(alpha = 0.8f)),
+        shape = RoundedCornerShape(20.dp),
+        shadowElevation = if (isCompleted) 0.dp else 3.dp,
+        color = if (isCompleted) DarkSurface.copy(alpha = 0.45f) else DarkCard,
+        border = BorderStroke(0.6.dp, if (isCompleted) DarkBorder.copy(alpha = 0.25f) else DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 13.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            // 垂直分类指示条 (Left Category Indicator)
+            // 垂直分类指示条 (Apple/ColorOS 胶囊条)
             Box(
                 modifier = Modifier
-                    .width(3.5.dp)
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .width(4.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(999.dp))
                     .background(if (isCompleted) accentColor.copy(alpha = 0.35f) else accentColor)
             )
 
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
             IconButton(
                 onClick = {
@@ -6370,35 +6370,35 @@ fun ScheduleItemCard(
 
                 if (item.dod.isNotBlank()) {
                     Surface(
-                        color = DopamineBlue.copy(alpha = 0.10f),
+                        color = DopamineBlue.copy(alpha = 0.12f),
                         border = BorderStroke(0.5.dp, DopamineBlue.copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(999.dp),
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
                         Text(
                             text = "验收标准: ${item.dod}",
                             fontSize = 11.sp,
                             color = DopamineBlue,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                // 子任务 Checklist 进度条
+                // 子任务 Checklist 进度条 (流体渐变槽)
                 val subtasks = remember(item.subtasksJson) { SubTaskItem.parseList(item.subtasksJson) }
                 if (subtasks.isNotEmpty()) {
                     val doneCount = subtasks.count { it.isDone }
                     val progress = doneCount.toFloat() / subtasks.size
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         LinearProgressIndicator(
                             progress = { progress },
-                            modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(999.dp)),
                             color = DopamineCyan,
-                            trackColor = DarkBorder
+                            trackColor = DarkBorder.copy(alpha = 0.35f)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -6425,16 +6425,16 @@ fun ScheduleItemCard(
                         else -> DopamineGreen to "🍃"
                     }
                     Surface(
-                        color = qColor.copy(alpha = 0.15f),
+                        color = qColor.copy(alpha = 0.14f),
                         border = BorderStroke(0.5.dp, qColor.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(999.dp)
                     ) {
                         Text(
                             text = "$qEmoji $q",
                             color = qColor,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                         )
                     }
 
@@ -6448,23 +6448,24 @@ fun ScheduleItemCard(
                             else -> item.recurrenceRule
                         }
                         Surface(
-                            color = DopaminePurple.copy(alpha = 0.15f),
+                            color = DopaminePurple.copy(alpha = 0.14f),
                             border = BorderStroke(0.5.dp, DopaminePurple.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(999.dp)
                         ) {
                             Text(
                                 text = "🔁 $recLabel",
                                 color = DopaminePurple,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                     }
 
                     Surface(
-                        color = accentColor.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp)
+                        color = accentColor.copy(alpha = 0.14f),
+                        border = BorderStroke(0.5.dp, accentColor.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(999.dp)
                     ) {
                         Text(
                             text = when (item.workType) {
@@ -6476,20 +6477,20 @@ fun ScheduleItemCard(
                             color = accentColor,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
 
                     if (item.category.isNotBlank()) {
                         val tagColor = tagColorMap[item.category] ?: DopamineBlue
                         Surface(
-                            color = tagColor.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, tagColor.copy(alpha = 0.45f)),
-                            shape = RoundedCornerShape(6.dp)
+                            color = tagColor.copy(alpha = 0.14f),
+                            border = BorderStroke(0.5.dp, tagColor.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(999.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             ) {
                                 Box(
                                     modifier = Modifier

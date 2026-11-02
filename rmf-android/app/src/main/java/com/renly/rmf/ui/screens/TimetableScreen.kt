@@ -258,9 +258,9 @@ fun TimetableScreen(
                             imagePickerLauncher.launch("image/*")
                         }
                     },
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(999.dp),
                     color = DopaminePurple.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                    border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
                     modifier = Modifier.weight(1.1f).height(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -275,9 +275,9 @@ fun TimetableScreen(
                 // 🔄 调停课与补课管理弹窗 (CourseAdjustmentModal)
                 Surface(
                     onClick = { showAdjustmentDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder),
+                    shape = RoundedCornerShape(999.dp),
+                    color = DarkCard.copy(alpha = 0.85f),
+                    border = BorderStroke(0.6.dp, DarkBorder),
                     modifier = Modifier.weight(1f).height(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -299,9 +299,9 @@ fun TimetableScreen(
                 // ⚙️ 学期配置弹窗 (TimetableSettingsModal)
                 Surface(
                     onClick = { showSettingsDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder),
+                    shape = RoundedCornerShape(999.dp),
+                    color = DarkCard.copy(alpha = 0.85f),
+                    border = BorderStroke(0.6.dp, DarkBorder),
                     modifier = Modifier.weight(0.95f).height(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -316,9 +316,9 @@ fun TimetableScreen(
                 // ⚡ 投影到今日/全学期同步
                 Surface(
                     onClick = onProjectToToday,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(999.dp),
                     color = DopamineCyan.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.5f)),
+                    border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
                     modifier = Modifier.weight(0.95f).height(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -347,12 +347,12 @@ fun TimetableScreen(
                         val isSelected = week == currentWeek
                         Surface(
                             onClick = { currentWeek = week },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) DopamineCyan.copy(alpha = 0.2f) else DarkSurface,
-                            border = BorderStroke(1.dp, if (isSelected) DopamineCyan else DarkBorder),
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (isSelected) DopamineCyan.copy(alpha = 0.22f) else DarkCard.copy(alpha = 0.75f),
+                            border = BorderStroke(0.6.dp, if (isSelected) DopamineCyan else DarkBorder),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 12.dp)) {
                                 Text(
                                     text = "W$week",
                                     fontSize = 12.sp,
@@ -368,9 +368,9 @@ fun TimetableScreen(
 
                 // 视图模式切换胶囊
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = DarkSurface,
-                    border = BorderStroke(1.dp, DarkBorder),
+                    shape = RoundedCornerShape(999.dp),
+                    color = DarkCard.copy(alpha = 0.75f),
+                    border = BorderStroke(0.6.dp, DarkBorder),
                     modifier = Modifier.height(32.dp)
                 ) {
                     Row(
@@ -379,24 +379,24 @@ fun TimetableScreen(
                     ) {
                         Surface(
                             onClick = { isGridView = true },
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isGridView) DopamineCyan.copy(alpha = 0.2f) else Color.Transparent,
-                            border = BorderStroke(1.dp, if (isGridView) DopamineCyan else Color.Transparent),
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (isGridView) DopamineCyan.copy(alpha = 0.22f) else Color.Transparent,
+                            border = BorderStroke(0.6.dp, if (isGridView) DopamineCyan else Color.Transparent),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                                 Text("🔲 网格", fontSize = 11.5.sp, fontWeight = if (isGridView) FontWeight.Bold else FontWeight.Normal, color = if (isGridView) DopamineCyan else TextSecondary)
                             }
                         }
 
                         Surface(
                             onClick = { isGridView = false },
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (!isGridView) DopamineCyan.copy(alpha = 0.2f) else Color.Transparent,
-                            border = BorderStroke(1.dp, if (!isGridView) DopamineCyan else Color.Transparent),
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (!isGridView) DopamineCyan.copy(alpha = 0.22f) else Color.Transparent,
+                            border = BorderStroke(0.6.dp, if (!isGridView) DopamineCyan else Color.Transparent),
                             modifier = Modifier.height(28.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
                                 Text("📋 清单", fontSize = 11.5.sp, fontWeight = if (!isGridView) FontWeight.Bold else FontWeight.Normal, color = if (!isGridView) DopamineCyan else TextSecondary)
                             }
                         }
@@ -1859,10 +1859,10 @@ fun WeekTimetableGrid(
 
                         Surface(
                             onClick = { onCourseClick(course) },
-                            shape = RoundedCornerShape(6.dp),
-                            color = parsedColor.copy(alpha = 0.88f),
-                            border = BorderStroke(1.dp, parsedColor),
-                            shadowElevation = 2.dp,
+                            shape = RoundedCornerShape(10.dp),
+                            color = parsedColor.copy(alpha = 0.85f),
+                            border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.35f)),
+                            shadowElevation = 0.dp,
                             modifier = Modifier
                                 .padding(horizontal = 2.dp)
                                 .offset(x = 0.dp, y = topOffset + 2.dp)

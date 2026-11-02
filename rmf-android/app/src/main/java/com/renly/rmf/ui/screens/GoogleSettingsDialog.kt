@@ -80,9 +80,9 @@ fun GoogleSettingsDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(26.dp),
             color = DarkCard,
-            border = BorderStroke(1.dp, DarkBorder),
+            border = BorderStroke(0.6.dp, DarkBorder),
             modifier = Modifier
                 .widthIn(max = 680.dp)
                 .fillMaxWidth(0.95f)
@@ -102,7 +102,7 @@ fun GoogleSettingsDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = DopamineBlue.copy(alpha = 0.18f),
                             modifier = Modifier.size(38.dp)
                         ) {
@@ -121,16 +121,16 @@ fun GoogleSettingsDialog(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
-                                    shape = RoundedCornerShape(4.dp),
+                                    shape = RoundedCornerShape(999.dp),
                                     color = if (isAuthorized) Color(0xFF064E3B) else DarkSurface,
-                                    border = BorderStroke(1.dp, if (isAuthorized) Color(0xFF059669) else DarkBorder)
+                                    border = BorderStroke(0.6.dp, if (isAuthorized) Color(0xFF059669) else DarkBorder)
                                 ) {
                                     Text(
                                         text = if (isAuthorized) "已授权" else "未连接",
                                         color = if (isAuthorized) Color(0xFF6EE7B7) else TextMuted,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
                             }
@@ -170,8 +170,9 @@ fun GoogleSettingsDialog(
                     // 1. Google OAuth 2.0 凭据与全局授权管理
                     // ==========================================
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = DarkSurface.copy(alpha = 0.85f)),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(0.6.dp, DarkBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -194,8 +195,8 @@ fun GoogleSettingsDialog(
                                             driveStatusText = "已解除授权并清除本地凭据 Token"
                                         },
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineRed),
-                                        border = BorderStroke(1.dp, DopamineRed),
-                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(0.6.dp, DopamineRed),
+                                        shape = RoundedCornerShape(999.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -262,7 +263,7 @@ fun GoogleSettingsDialog(
                                         driveStatusText = "✓ OAuth 凭据已成功保存！"
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(999.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text("保存配置", fontSize = 12.sp, color = Color.White)
@@ -280,8 +281,8 @@ fun GoogleSettingsDialog(
                                         showAuthCodeDialog = true
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
-                                    border = BorderStroke(1.dp, DopamineCyan),
-                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(0.6.dp, DopamineCyan),
+                                    shape = RoundedCornerShape(999.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(if (isAuthorized) "重新授权" else "立即登录授权", fontSize = 12.sp)
@@ -294,8 +295,9 @@ fun GoogleSettingsDialog(
                     // 2. Google Drive 云端安全备份与同步
                     // ==========================================
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = DarkSurface.copy(alpha = 0.85f)),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(0.6.dp, DarkBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -349,7 +351,7 @@ fun GoogleSettingsDialog(
                                     enabled = !isDriveWorking,
                                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(999.dp)
                                 ) {
                                     Text("☁️ 上传到云端", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -374,9 +376,9 @@ fun GoogleSettingsDialog(
                                     },
                                     enabled = !isDriveWorking,
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineGreen),
-                                    border = BorderStroke(1.dp, DopamineGreen),
+                                    border = BorderStroke(0.6.dp, DopamineGreen),
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(999.dp)
                                 ) {
                                     Text("⬇️ 从云端下载恢复", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -414,9 +416,9 @@ fun GoogleSettingsDialog(
                                 },
                                 enabled = !isDriveWorking && !isCheckingUpdate,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
-                                border = BorderStroke(1.dp, DopamineCyan.copy(alpha = 0.6f)),
+                                border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.6f)),
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(999.dp)
                             ) {
                                 if (isCheckingUpdate) {
                                     CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp, color = DopamineCyan)
@@ -442,8 +444,9 @@ fun GoogleSettingsDialog(
                     // 3. Google Calendar 日历互通与同步
                     // ==========================================
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = DarkSurface.copy(alpha = 0.85f)),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(0.6.dp, DarkBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -504,7 +507,7 @@ fun GoogleSettingsDialog(
                                     enabled = !isCalWorking,
                                     colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(999.dp)
                                 ) {
                                     Text("🚀 推送至 Google", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -535,9 +538,9 @@ fun GoogleSettingsDialog(
                                     },
                                     enabled = !isCalWorking,
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineGreen),
-                                    border = BorderStroke(1.dp, DopamineGreen),
+                                    border = BorderStroke(0.6.dp, DopamineGreen),
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(999.dp)
                                 ) {
                                     Text("⬇ 从 Google 拉取", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -566,9 +569,9 @@ fun GoogleSettingsDialog(
                                 },
                                 enabled = !isCalWorking,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                                border = BorderStroke(1.dp, DarkBorder),
+                                border = BorderStroke(0.6.dp, DarkBorder),
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(999.dp)
                             ) {
                                 Text("📁 导出 .ics 日历文件 (课表+日程)", fontSize = 12.sp)
                             }
@@ -627,9 +630,9 @@ fun GoogleSettingsDialog(
                                 },
                                 enabled = !isCalWorking,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = DopamineCyan),
-                                border = BorderStroke(1.dp, DopamineCyan),
+                                border = BorderStroke(0.6.dp, DopamineCyan),
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(999.dp)
                             ) {
                                 Text("🔄 从 iCal 订阅地址同步日程", fontSize = 12.sp)
                             }
@@ -653,7 +656,8 @@ fun GoogleSettingsDialog(
     if (showAuthCodeDialog) {
         AlertDialog(
             onDismissRequest = { showAuthCodeDialog = false },
-            containerColor = DarkSurface,
+            containerColor = DarkCard,
+            shape = RoundedCornerShape(26.dp),
             title = { Text("🔑 授权 Google 服务 API", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -671,6 +675,7 @@ fun GoogleSettingsDialog(
                             context.startActivity(intent)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = DopamineBlue),
+                        shape = RoundedCornerShape(999.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("1. 打开浏览器登录并获取授权码", fontSize = 12.sp)
@@ -727,13 +732,17 @@ fun GoogleSettingsDialog(
                             }
                         }
                     },
+                    shape = RoundedCornerShape(999.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = DopamineGreen)
                 ) {
                     Text("完成授权", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAuthCodeDialog = false }) {
+                TextButton(
+                    onClick = { showAuthCodeDialog = false },
+                    shape = RoundedCornerShape(999.dp)
+                ) {
                     Text("取消", color = TextMuted)
                 }
             }

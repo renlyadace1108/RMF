@@ -26,9 +26,9 @@ object ThemePreferences {
     private const val KEY_ACCENT_COLOR = "theme_accent_color"
     private const val KEY_DARK_BG_COLOR = "theme_dark_bg_color"
     private const val KEY_LIGHT_BG_COLOR = "theme_light_bg_color"
-    const val DEFAULT_ACCENT_COLOR = "#38BDF8"
-    const val DEFAULT_DARK_BG_COLOR = "#090B0E"
-    const val DEFAULT_LIGHT_BG_COLOR = "#F8FAFC"
+    const val DEFAULT_ACCENT_COLOR = "#0A84FF"
+    const val DEFAULT_DARK_BG_COLOR = "#0A0D14"
+    const val DEFAULT_LIGHT_BG_COLOR = "#F2F5F9"
 
     fun getThemeMode(context: Context): ThemeMode {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -77,22 +77,22 @@ object ThemePreferences {
 }
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF38BDF8),
-    secondary = Color(0xFFA78BFA),
-    tertiary = Color(0xFF34D399),
-    background = Color(0xFF090B0E),
-    surface = Color(0xFF11141A),
-    onPrimary = Color(0xFF090B0E),
-    onSecondary = Color(0xFF090B0E),
-    onBackground = Color(0xFFF1F5F9),
-    onSurface = Color(0xFFF1F5F9)
+    primary = Color(0xFF0A84FF),
+    secondary = Color(0xFFBF5AF2),
+    tertiary = Color(0xFF30D158),
+    background = Color(0xFF0A0D14),
+    surface = Color(0xFF121722),
+    onPrimary = Color(0xFFFFFFFF),
+    onSecondary = Color(0xFFFFFFFF),
+    onBackground = Color(0xFFF8FAFC),
+    onSurface = Color(0xFFF8FAFC)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF0284C7),
+    primary = Color(0xFF007AFF),
     secondary = Color(0xFF7C3AED),
-    tertiary = Color(0xFF059669),
-    background = Color(0xFFF1F5F9),
+    tertiary = Color(0xFF34C759),
+    background = Color(0xFFF2F5F9),
     surface = Color(0xFFFFFFFF),
     onPrimary = Color(0xFFFFFFFF),
     onSecondary = Color(0xFFFFFFFF),

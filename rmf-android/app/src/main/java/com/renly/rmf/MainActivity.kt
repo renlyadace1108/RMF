@@ -676,12 +676,13 @@ class MainActivity : ComponentActivity() {
                             var bottomBarDragDelta by remember { mutableFloatStateOf(0f) }
 
                             Surface(
-                                color = DarkSurface,
-                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                                shadowElevation = 12.dp,
-                                border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.85f)),
+                                color = DarkSurface.copy(alpha = 0.92f),
+                                shape = RoundedCornerShape(26.dp),
+                                shadowElevation = 0.dp,
+                                border = BorderStroke(0.6.dp, DarkBorder),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
                                     .draggable(
                                         orientation = Orientation.Vertical,
                                         state = rememberDraggableState { delta ->
@@ -1555,12 +1556,14 @@ class MainActivity : ComponentActivity() {
                             Row(modifier = Modifier.fillMaxSize()) {
                                 if (useNavigationRail && !isInPipMode) {
                                     Surface(
-                                        color = DarkSurface,
-                                        border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.85f)),
-                                        shadowElevation = 8.dp,
+                                        color = DarkSurface.copy(alpha = 0.92f),
+                                        shape = RoundedCornerShape(24.dp),
+                                        border = BorderStroke(0.6.dp, DarkBorder),
+                                        shadowElevation = 0.dp,
                                         modifier = Modifier
+                                            .padding(top = 10.dp, bottom = 10.dp, start = 10.dp)
                                             .fillMaxHeight()
-                                            .width(88.dp)
+                                            .width(84.dp)
                                     ) {
                                         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                                             val needsScroll = maxHeight < 520.dp
@@ -1576,9 +1579,9 @@ class MainActivity : ComponentActivity() {
                                                     modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
                                                 ) {
                                                     Surface(
-                                                        shape = RoundedCornerShape(12.dp),
+                                                        shape = RoundedCornerShape(14.dp),
                                                         color = DarkCard,
-                                                        border = BorderStroke(1.dp, DarkBorder),
+                                                        border = BorderStroke(0.6.dp, DarkBorder),
                                                         modifier = Modifier.size(42.dp)
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
@@ -1587,7 +1590,7 @@ class MainActivity : ComponentActivity() {
                                                                 contentDescription = "RMF Pad Logo",
                                                                 modifier = Modifier
                                                                     .size(32.dp)
-                                                                    .clip(RoundedCornerShape(8.dp))
+                                                                    .clip(RoundedCornerShape(10.dp))
                                                             )
                                                         }
                                                     }
@@ -1596,14 +1599,14 @@ class MainActivity : ComponentActivity() {
                                                         text = if (BuildConfig.IS_PAD_EDITION) "RMF Pad" else "RMF",
                                                         fontSize = 11.5.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = DopamineBlue
+                                                        color = DopamineCyan
                                                     )
                                                     Spacer(modifier = Modifier.height(8.dp))
                                                     Surface(
                                                         onClick = { showQuickCaptureDialog = true },
-                                                        shape = RoundedCornerShape(10.dp),
+                                                        shape = RoundedCornerShape(999.dp),
                                                         color = DopaminePurple.copy(alpha = 0.22f),
-                                                        border = BorderStroke(1.dp, DopaminePurple.copy(alpha = 0.5f)),
+                                                        border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
                                                         modifier = Modifier.size(36.dp)
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
