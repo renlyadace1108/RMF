@@ -270,321 +270,313 @@ fun ScheduleScreen(
             ) {
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // 1. 顶部 Header (日期 + 标题 + 核心小窗口入口)
+                // 1. 顶部优雅标题与核心状态栏 (Apple iOS 18 / ColorOS 17 风格)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 6.dp)
                 ) {
                     Column {
                         Text(
-                            text = LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日 EEEE")),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = DopamineBlue
+                            text = LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日 · EEEE")),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DopamineCyan
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "今日时间流",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
                             color = TextPrimary
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState())
+                    // ☁️ Google Drive 极简云端同步状态指示微胶囊
+                    val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
+                    val isCloudSyncing = syncStatusInfo.state == com.renly.rmf.domain.service.CloudSyncState.SYNCING
+                    Surface(
+                        onClick = { showDriveSyncDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(
+                            0.6.dp,
+                            when (syncStatusInfo.state) {
+                                com.renly.rmf.domain.service.CloudSyncState.SYNCING -> DopamineBlue.copy(alpha = 0.8f)
+                                com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen.copy(alpha = 0.5f)
+                                com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber.copy(alpha = 0.8f)
+                                com.renly.rmf.domain.service.CloudSyncState.IDLE -> DarkBorder
+                            }
+                        ),
+                        modifier = Modifier.height(32.dp)
                     ) {
-                        // ☁️ Google Drive 极简云端同步状态指示灯 (极简小云朵 / 状态圆点)
-                        val syncStatusInfo by com.renly.rmf.domain.service.GoogleDriveSyncStateHolder.status.collectAsState()
-                        val isCloudSyncing = syncStatusInfo.state == com.renly.rmf.domain.service.CloudSyncState.SYNCING
-                        val syncSpinTransition = rememberInfiniteTransition(label = "syncSpin")
-                        val syncAngle by syncSpinTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "syncSpinAngle"
-                        )
-                        Surface(
-                            onClick = { showDriveSyncDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(
-                                0.6.dp,
-                                when (syncStatusInfo.state) {
-                                    com.renly.rmf.domain.service.CloudSyncState.SYNCING -> DopamineBlue.copy(alpha = 0.8f)
-                                    com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen.copy(alpha = 0.5f)
-                                    com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber.copy(alpha = 0.8f)
-                                    com.renly.rmf.domain.service.CloudSyncState.IDLE -> DarkBorder
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
+                        ) {
+                            if (isCloudSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(11.dp),
+                                    strokeWidth = 2.dp,
+                                    color = DopamineBlue
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("同步中", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
+                            } else {
+                                val dotColor = when (syncStatusInfo.state) {
+                                    com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen
+                                    com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber
+                                    com.renly.rmf.domain.service.CloudSyncState.IDLE -> TextMuted
+                                    else -> DopamineBlue
                                 }
-                            ),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                if (isCloudSyncing) {
-                                    Text(
-                                        "🔄",
-                                        fontSize = 10.5.sp,
-                                        modifier = Modifier.graphicsLayer { rotationZ = syncAngle }
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("同步中", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
-                                } else {
-                                    val dotColor = when (syncStatusInfo.state) {
-                                        com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> DopamineGreen
-                                        com.renly.rmf.domain.service.CloudSyncState.ERROR -> DopamineAmber
-                                        com.renly.rmf.domain.service.CloudSyncState.IDLE -> TextMuted
-                                        else -> DopamineBlue
-                                    }
-                                    Text("☁️", fontSize = 10.5.sp)
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(dotColor)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = when (syncStatusInfo.state) {
-                                            com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> "已同步"
-                                            com.renly.rmf.domain.service.CloudSyncState.ERROR -> "待同步"
-                                            com.renly.rmf.domain.service.CloudSyncState.IDLE -> "云同步"
-                                            else -> "同步中"
-                                        },
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = dotColor
-                                    )
-                                }
-                            }
-                        }
-
-                        // ⚡ 闪念胶囊速记入口
-                        Surface(
-                            onClick = onOpenQuickCapture,
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineBlue.copy(alpha = 0.45f)),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("⚡", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("闪念", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
-                            }
-                        }
-
-                        // 📍 真实时间标记与偏差分析入口 (TimeMarker)
-                        val dayMarkerCount = remember(timeMarkers, selectedDate) {
-                            timeMarkers.count { it.isDeleted == 0 && (it.date == selectedDate.toString() || it.startTime.startsWith(selectedDate.toString())) }
-                        }
-                        Surface(
-                            onClick = { showTimeMarkerDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("📍", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.5.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (dayMarkerCount > 0) "标记 $dayMarkerCount" else "标记",
+                                    text = when (syncStatusInfo.state) {
+                                        com.renly.rmf.domain.service.CloudSyncState.SUCCESS -> "已同步"
+                                        com.renly.rmf.domain.service.CloudSyncState.ERROR -> "待同步"
+                                        com.renly.rmf.domain.service.CloudSyncState.IDLE -> "云同步"
+                                        else -> "同步中"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = DopamineCyan
+                                    color = dotColor
                                 )
                             }
                         }
+                    }
+                }
 
-                        // 🌅 晨间规划仪式入口 (Apple/ColorOS 胶囊)
-                        Surface(
-                            onClick = {
-                                ritualMode = "MORNING"
-                                showDailyRitualDialog = true
-                            },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DopamineAmber.copy(alpha = 0.16f),
-                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                // 2. 独立全宽灵动功能胶囊滚动流 (拥有 100% 宽度，绝不截断或挤压重叠)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    // ⚡ 闪念胶囊速记入口
+                    Surface(
+                        onClick = onOpenQuickCapture,
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineBlue.copy(alpha = 0.45f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("🌅", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("晨间", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
-                            }
+                            Text("⚡", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("闪念", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
                         }
+                    }
 
-                        // 🌇 晚间关机仪式入口 (Apple/ColorOS 胶囊)
-                        Surface(
-                            onClick = {
-                                ritualMode = "SHUTDOWN"
-                                showDailyRitualDialog = true
-                            },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DopaminePurple.copy(alpha = 0.16f),
-                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 📍 真实时间标记与偏差分析入口 (TimeMarker)
+                    val dayMarkerCount = remember(timeMarkers, selectedDate) {
+                        timeMarkers.count { it.isDeleted == 0 && (it.date == selectedDate.toString() || it.startTime.startsWith(selectedDate.toString())) }
+                    }
+                    Surface(
+                        onClick = { showTimeMarkerDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("🌇", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("关机", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
-                            }
+                            Text("📍", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (dayMarkerCount > 0) "标记 $dayMarkerCount" else "标记",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DopamineCyan
+                            )
                         }
+                    }
 
-                        // 🪄 智能作息模板预设入口 (Routine Templates)
-                        Surface(
-                            onClick = { showRoutineTemplateDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 🌅 晨间规划仪式入口
+                    Surface(
+                        onClick = {
+                            ritualMode = "MORNING"
+                            showDailyRitualDialog = true
+                        },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DopamineAmber.copy(alpha = 0.16f),
+                        border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("🪄", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("模版", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
-                            }
+                            Text("🌅", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("晨间", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
                         }
+                    }
 
-                        // 📝 灵感便签与随记速记入口
-                        Surface(
-                            onClick = onNavigateToNotes,
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 🌇 晚间关机仪式入口
+                    Surface(
+                        onClick = {
+                            ritualMode = "SHUTDOWN"
+                            showDailyRitualDialog = true
+                        },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DopaminePurple.copy(alpha = 0.16f),
+                        border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("📝", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("随记", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
-                            }
+                            Text("🌇", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("关机", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
                         }
+                    }
 
-                        // 🗓️ 日期快速跳转弹窗入口 (GoToDateModal)
-                        Surface(
-                            onClick = { showGoToDateDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DarkBorder),
-                            modifier = Modifier.height(32.dp)
+                    // 🪄 智能作息模板预设入口 (Routine Templates)
+                    Surface(
+                        onClick = { showRoutineTemplateDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("🗓️", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("跳转", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                            }
+                            Text("🪄", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("模版", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
                         }
+                    }
 
-                        // 📅 Google 日历同步与导出入口
-                        Surface(
-                            onClick = { showCalendarSyncDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineGreen.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 📝 灵感便签与随记速记入口
+                    Surface(
+                        onClick = onNavigateToNotes,
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("📅", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("日历", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineGreen)
-                            }
+                            Text("📝", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("随记", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineAmber)
                         }
+                    }
 
-                        // 📥 待办箱 (Backlog 任务池弹窗入口)
-                        Surface(
-                            onClick = { showBacklogDialog = true },
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 🗓️ 日期快速跳转弹窗入口 (GoToDateModal)
+                    Surface(
+                        onClick = { showGoToDateDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DarkBorder),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("📥", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = if (backlogSchedules.isNotEmpty()) "待办 ${backlogSchedules.size}" else "待办",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = DopamineAmber
-                                )
-                            }
+                            Text("🗓️", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("跳转", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                         }
+                    }
 
-                        // ⏱️ 24小时作息时钟与效能分析入口
-                        Surface(
-                            onClick = onNavigateToSummary,
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 📅 Google 日历同步与导出入口
+                    Surface(
+                        onClick = { showCalendarSyncDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineGreen.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("⏱️", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("时钟", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
-                            }
+                            Text("📅", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("日历", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineGreen)
                         }
+                    }
 
-                        // 🏋️ 每日健身计划入口
-                        Surface(
-                            onClick = onNavigateToFitness,
-                            shape = RoundedCornerShape(999.dp),
-                            color = DarkCard.copy(alpha = 0.85f),
-                            border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(32.dp)
+                    // 📥 待办箱 (Backlog 任务池弹窗入口)
+                    Surface(
+                        onClick = { showBacklogDialog = true },
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            ) {
-                                Text("🏋️", fontSize = 10.5.sp)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("健身", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineCyan)
-                            }
+                            Text("📥", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (backlogSchedules.isNotEmpty()) "待办 ${backlogSchedules.size}" else "待办",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DopamineAmber
+                            )
+                        }
+                    }
+
+                    // ⏱️ 24小时作息时钟与效能分析入口
+                    Surface(
+                        onClick = onNavigateToSummary,
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopaminePurple.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
+                        ) {
+                            Text("⏱️", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("时钟", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopaminePurple)
+                        }
+                    }
+
+                    // 🏋️ 每日健身计划入口
+                    Surface(
+                        onClick = onNavigateToFitness,
+                        shape = RoundedCornerShape(999.dp),
+                        color = DarkCard.copy(alpha = 0.85f),
+                        border = BorderStroke(0.6.dp, DopamineCyan.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 11.dp)
+                        ) {
+                            Text("🏋️", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("健身", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineCyan)
                         }
                     }
                 }
@@ -2392,18 +2384,18 @@ fun ScheduleWeekGridView(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     onClick = { onSelectDate(LocalDate.now()) },
-                    shape = RoundedCornerShape(6.dp),
-                    color = DopamineBlue.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, DopamineBlue.copy(alpha = 0.35f)),
-                    modifier = Modifier.height(26.dp)
+                    shape = RoundedCornerShape(999.dp),
+                    color = DopamineBlue.copy(alpha = 0.14f),
+                    border = BorderStroke(0.6.dp, DopamineBlue.copy(alpha = 0.5f)),
+                    modifier = Modifier.height(28.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 7.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp)
                     ) {
-                        Icon(Icons.Default.Today, contentDescription = "回到今天", tint = DopamineBlue, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text("回到今日", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
+                        Icon(Icons.Default.Today, contentDescription = "回到今天", tint = DopamineBlue, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("回到今日", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = DopamineBlue)
                     }
                 }
             }
@@ -2412,9 +2404,9 @@ fun ScheduleWeekGridView(
         // 📥 待排期任务快捷拖拽托盘 (支持长按拖拽至任意天、任意小时)
         if (backlogItems.isNotEmpty()) {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = DarkCard,
-                border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.35f)),
+                border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.45f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 2.dp, vertical = 2.dp)
@@ -2596,9 +2588,9 @@ fun ScheduleWeekGridView(
             }
 
             Surface(
-                shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
-                color = DarkSurface,
-                border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp),
+                color = DarkSurface.copy(alpha = 0.65f),
+                border = BorderStroke(0.6.dp, DarkBorder.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxSize()
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -3039,11 +3031,11 @@ fun ScheduleWeekGridView(
 
                                             Surface(
                                                 onClick = { onItemClick(item) },
-                                                shape = RoundedCornerShape(4.dp),
+                                                shape = RoundedCornerShape(8.dp),
                                                 color = (if (isDone) DarkCard else accentColor).copy(
                                                     alpha = if (isMovingThis) 0.15f else if (LocalAppColors.current.isDark) 0.32f else 0.18f
                                                 ),
-                                                border = BorderStroke(1.dp, if (isDone) DarkBorder else accentColor.copy(alpha = 0.75f)),
+                                                border = BorderStroke(0.6.dp, if (isDone) DarkBorder else accentColor.copy(alpha = 0.75f)),
                                                 modifier = Modifier
                                                     .offset(x = dayColWidth * dayIndex + 1.dp, y = topY.dp)
                                                     .width(dayColWidth - 2.dp)
@@ -3428,12 +3420,12 @@ fun ScheduleDayGridView(
             .onGloballyPositioned { dayViewRootOffset = it.positionInRoot() }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-        // 1. 周日期横向选择器
+        // 1. 周日期横向灵动胶囊选择条 (Apple Calendar / ColorOS 17 风格)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 2.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             weekDates.forEach { date ->
                 val isSelected = date == selectedDate
@@ -3450,30 +3442,43 @@ fun ScheduleDayGridView(
 
                 Surface(
                     onClick = { onSelectDate(date) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isSelected) DopamineBlue else if (isToday) DopamineBlue.copy(alpha = 0.15f) else DarkSurface,
-                    border = BorderStroke(1.dp, if (isSelected) DopamineBlue else DarkBorder.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) DopamineBlue else if (isToday) DopamineBlue.copy(alpha = 0.14f) else DarkCard.copy(alpha = 0.85f),
+                    border = BorderStroke(
+                        0.6.dp,
+                        if (isSelected) DopamineBlue else if (isToday) DopamineBlue.copy(alpha = 0.6f) else DarkBorder
+                    ),
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 1.5.dp)
-                        .height(42.dp)
+                        .height(52.dp)
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(vertical = 4.dp)
                     ) {
                         Text(
                             text = weekdayName,
-                            fontSize = 10.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) (if (LocalAppColors.current.isDark) DarkBg else Color.White) else TextSecondary
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else (if (isToday) DopamineBlue else TextSecondary)
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = date.dayOfMonth.toString(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) (if (LocalAppColors.current.isDark) DarkBg else Color.White) else TextPrimary
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isSelected) Color.White else (if (isToday) DopamineBlue else TextPrimary)
                         )
+                        if (isToday && !isSelected) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(3.5.dp)
+                                    .clip(CircleShape)
+                                    .background(DopamineBlue)
+                            )
+                        }
                     }
                 }
             }
@@ -3482,12 +3487,12 @@ fun ScheduleDayGridView(
         // 2. 📥 待排期任务快捷拖拽/点选托盘 (若有待办任务则醒目呈现)
         if (backlogItems.isNotEmpty()) {
             Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = DarkCard,
-                border = BorderStroke(1.dp, DopamineAmber.copy(alpha = 0.35f)),
+                border = BorderStroke(0.6.dp, DopamineAmber.copy(alpha = 0.45f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                    .padding(horizontal = 2.dp, vertical = 3.dp)
                     .onGloballyPositioned { coords ->
                         chipYInRoot = coords.positionInRoot().y
                     }
@@ -3740,11 +3745,11 @@ fun ScheduleDayGridView(
 
         Spacer(modifier = Modifier.height(1.dp))
 
-        // 3. 24 小时时间轴轨道（支持双指捏合无极缩放）
+        // 3. 24 小时时间轴轨道 (Apple/ColorOS 灵动大圆角一体化底色画布)
         Surface(
-            shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
-            color = DarkSurface,
-            border = BorderStroke(1.dp, DarkBorder.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(16.dp),
+            color = DarkSurface.copy(alpha = 0.65f),
+            border = BorderStroke(0.6.dp, DarkBorder.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxSize()
         ) {
             Box(
@@ -4041,9 +4046,9 @@ fun ScheduleDayGridView(
                                 val draggedColor = if (isConflict) DopamineRed else baseColor
 
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     color = (if (isConflict) DopamineRed else draggedColor).copy(alpha = if (isConflict) 0.5f else 0.42f),
-                                    border = BorderStroke(2.dp, draggedColor),
+                                    border = BorderStroke(1.5.dp, draggedColor),
                                     modifier = Modifier
                                         .offset(y = snappedBlockTopDp.dp)
                                         .fillMaxWidth()
@@ -4104,9 +4109,9 @@ fun ScheduleDayGridView(
                             val ghostColor = if (isConflict) DopamineAmber else DopamineBlue
 
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 color = ghostColor.copy(alpha = if (isConflict) 0.45f else 0.35f),
-                                border = BorderStroke(1.8.dp, if (isConflict) DopamineRed else ghostColor),
+                                border = BorderStroke(1.5.dp, if (isConflict) DopamineRed else ghostColor),
                                 modifier = Modifier
                                     .offset(y = ghostTopDp.dp)
                                     .fillMaxWidth()
@@ -4209,11 +4214,11 @@ fun ScheduleDayGridView(
                                 val isMovingThis = movingMarkerItem?.id == marker.id
 
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     color = markerColor.copy(alpha = if (isMovingThis) 0.05f else 0.12f),
                                     border = BorderStroke(
-                                        if (isMovingThis) 2.dp else 1.2.dp,
-                                        markerColor.copy(alpha = if (isMovingThis) 0.9f else 0.5f)
+                                        if (isMovingThis) 1.5.dp else 0.6.dp,
+                                        markerColor.copy(alpha = if (isMovingThis) 0.9f else 0.6f)
                                     ),
                                     modifier = (if (isDualTrackMode) {
                                         Modifier
@@ -4328,7 +4333,7 @@ fun ScheduleDayGridView(
                                             }
                                         }
                                         Surface(
-                                            shape = RoundedCornerShape(4.dp),
+                                            shape = RoundedCornerShape(999.dp),
                                             color = markerColor.copy(alpha = 0.2f)
                                         ) {
                                             Text(
@@ -4371,13 +4376,13 @@ fun ScheduleDayGridView(
 
                                 Surface(
                                     onClick = { onItemClick(item) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = (if (isDone) DarkSurface else accentColor).copy(
-                                        alpha = if (isMovingThis) 0.15f else if (LocalAppColors.current.isDark) 0.25f else 0.15f
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = (if (isDone) DarkCard else accentColor).copy(
+                                        alpha = if (isMovingThis) 0.15f else if (LocalAppColors.current.isDark) 0.28f else 0.18f
                                     ),
                                     border = BorderStroke(
-                                        if (isResizingThis) 2.dp else 1.dp,
-                                        if (isDone) DarkBorder else if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.7f)
+                                        if (isResizingThis) 1.5.dp else 0.6.dp,
+                                        if (isDone) DarkBorder else if (isResizingThis) DopamineAmber else accentColor.copy(alpha = 0.75f)
                                     ),
                                     modifier = (if (isDualTrackMode) {
                                         Modifier
